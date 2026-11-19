@@ -1,0 +1,33 @@
+# Lokaal of op de server: app + PostgreSQL 17. Geheimen via .env (staat in .gitignore), zie .env.example.
+services:
+  app:
+    build: ./app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3400}:3400"
+    environment:
+      DATABASE_URL: postgres://avanta:${POSTGRES_PASSWORD:?zet POSTGRES_PASSWORD in .env}@db:5432/avanta
+      SITE_INDEXABLE: "${SITE_INDEXABLE:-false}"
+      AVANTA_MASTER_KEY: "${AVANTA_MASTER_KEY:-}"
+    volumes:
+      - app-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: avanta
+      POSTGRES_DB: avanta
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?zet POSTGRES_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U avanta"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  app-data:
+  db-data:

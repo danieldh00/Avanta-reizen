@@ -1,5 +1,24 @@
 # Avanta Reizen
 
+Nieuwe website van Avanta Reizen (fase 1: nabouw van www.avantareizen.nl) met daarachter straks een CRM (fase 2).
+Node 22 + Express + PostgreSQL 17, server-gerenderde HTML, geen externe scripts of fonts. Zie `docs/OPZET-WEBSITE.md`.
+
+## Starten
+```sh
+cp .env.example .env            # vul POSTGRES_PASSWORD in
+docker compose up -d --build    # site op http://localhost:3400/
+docker compose exec app node tools/import-wordpress.js   # content + afbeeldingen van de huidige site overnemen
+```
+Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-wordpress.js` en `DATABASE_URL=… node src/server.js`.
+
+- De site staat op **noindex** tot go-live (`SITE_INDEXABLE=true` pas bij de overstap).
+- Aanmeldingen komen in de tabel `bookings`; kerkgenootschap, medische bijzonderheden, geboortedatum en
+  paspoortgegevens staan versleuteld. **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
+  de database-back-up: zonder sleutel zijn die gegevens niet te lezen.
+- Afbeeldingen staan in het volume `/data/media` (circa 250 MB na de import).
+
+## Werkwijze
+
 Repository opgezet volgens dezelfde werkwijze als AquaTech Hub: Claude Code werkt in kleine PR's op een eigen branch,
 elke PR krijgt een verplichte Claude code review en security review, en versie + changelog worden na de merge
 automatisch bijgewerkt uit releasenotes-fragmenten.
@@ -10,10 +29,11 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `CLAUDE.md` | werkgeheugen voor Claude Code (wordt automatisch gelezen) |
 | `AGENTS.md` | korte kaart voor agents, sectie *Zuinig werken* |
 | `docs/WERKWIJZE.md` | projectonafhankelijke werkwijze (gelijk aan AquaTech) |
-| `docs/AVANTA-CONTEXT.md` | productcontext — **nog in te vullen** |
+| `docs/AVANTA-CONTEXT.md` | productcontext, bedrijfsregels, AVG en omgeving |
 | `docs/CLAUDE-sjabloon.md` | sjabloon voor `CLAUDE.md` in een volgend project |
 | `.claude/agents/` | verkenners `map`, `callers`, `tests` |
-| `app/` | de applicatie (versie in `app/package.json`, `app/CHANGELOG.md`) |
+| `app/` | de applicatie (`src/`, `public/`, `tools/import-wordpress.js`, `test/`); versie in `app/package.json` |
+| `docs/OPZET-WEBSITE.md` | opzet, inventaris van de huidige site, fasering en open vragen |
 | `changes/` | releasenotes-fragmenten, zie `changes/README.md` |
 | `tools/release-notes.js` | verwerkt fragmenten; controleert PR's |
 | `.github/workflows/` | `ci`, `version`, `release`, `claude-review`, `security` |
@@ -34,15 +54,16 @@ Alleen docs/CI zonder effect op de app: label `geen-releasenotes`.
 | idem | `RELEASE_PUSH_TOKEN` (fine-grained PAT van de beheerder, *Contents: read and write* op deze repo) |
 | Settings > Secrets and variables > Actions > *Variables* | `CLAUDE_REVIEW_MODEL` (eerste review) en `CLAUDE_REVIEW_MODEL_PUSH` (lichtere review per push); leeg = standaard |
 | Settings > Rules > Rulesets (branch `main`) | PR verplicht, geen force-push, bypass: *Repository admin* |
-| idem, *Require status checks* | `Claude code review`, `Claude security review`, `version-must-increase`, `test` |
+| idem, *Require status checks* | `Claude code review`, `Claude security review`, `version-must-increase`, `test`, `image` |
 | Settings > General | *Allow auto-merge* aan, *Automatically delete head branches* aan |
 | Settings > Code security | Secret scanning + push protection aan |
 | Issues > Labels | label `geen-releasenotes` aanmaken |
 | GitHub Apps | Claude GitHub App installeren op deze repo (voor de reviews) |
 | Renovate (optioneel) | Renovate-app activeren; config staat in `renovate.json` |
 
-## Lokaal
+## Lokaal testen
 ```sh
-node --test                              # tests
-node tools/release-notes.js --check      # fragmenten controleren
+cd app && TEST_DATABASE_URL=postgres://…/avanta_test npm test   # wist de testdatabase
+node --test "tests/*.test.js"                                    # releasescript (vanuit de root)
+node tools/release-notes.js --check                              # fragmenten controleren
 ```

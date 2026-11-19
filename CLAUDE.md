@@ -7,8 +7,9 @@
 > `docs/WERKWIJZE.md`; de Avanta-specifieke context (product, bedrijfsregels, omgeving) in `docs/AVANTA-CONTEXT.md`.
 
 ## Product
-Nog in te vullen in `docs/AVANTA-CONTEXT.md` (product, doelgroep, wat nooit gebouwd wordt). Tot die context er is:
-geen aannames over het product doen, eerst vragen.
+Avanta Reizen: christelijke, avontuurlijke groepsreizen (kamperen, verre reizen, jeugd/jongeren/plus). Fase 1: de
+publieke website nabouwen (zelfde URL's, huisstijl en content als www.avantareizen.nl). Fase 2: CRM achter de site.
+Details en open vragen: `docs/AVANTA-CONTEXT.md` en `docs/OPZET-WEBSITE.md`.
 
 ## Branchmodel
 - **`main`** is de productie- en defaultbranch; `release.yml` verwerkt daar de releasenotes.
@@ -39,14 +40,30 @@ geen aannames over het product doen, eerst vragen.
   Claude-abonnement (secret `CLAUDE_CODE_OAUTH_TOKEN`, aanmaken met `claude setup-token`).
 
 ## Stack en mappen
-Nog te kiezen. Vastgelegd tot nu toe:
-- `app/` — de applicatie (versie in `app/package.json`, changelog in `app/CHANGELOG.md`).
-- `changes/` — releasenotes-fragmenten.
-- `tools/` — repo-hulpmiddelen (`release-notes.js`), tests in `tests/` (`node --test`).
-- `docs/` — werkwijze, context, sjabloon.
-- `.claude/agents/` — verkenners `map`, `callers`, `tests`.
+Node 22 + Express, server-gerenderde HTML, PostgreSQL 17 (enige database), geen build-stap, geen CDN's.
+| Pad | Inhoud |
+|---|---|
+| `app/src/server.js` | Express-app, beveiligingskoppen (CSP, noindex tot go-live), statische bestanden, `/media` |
+| `app/src/database/` | `db.js` (pool, transactie, migreren), `migrations.js` (`MIGRATIONS`, positioneel) |
+| `app/src/site/` | `routes.js` (alle publieke URL's), `content.js` (queries), `views.js`/`layout.js` (HTML), `html.js` (escaping), `format.js` |
+| `app/src/booking/` | aanmeldformulier: `fields.js` (velden + validatie), `routes.js` (`/aanmelden/`) |
+| `app/src/security/` | `vault.js` (AES-256-GCM voor gevoelige velden), `rate-limit.js` |
+| `app/public/` | `css/site.css` (huisstijl via `--av-*`-variabelen), `js/site.js`, fonts en logo lokaal |
+| `app/tools/import-wordpress.js` | import van de huidige site (`tools/import/parse.js`, `sanitize.js`) |
+| `app/test/` | `units.test.js` (zonder database), `server.test.js` (PostgreSQL, `TEST_DATABASE_URL`) |
+| `changes/`, `tools/`, `tests/` | releasenotes-fragmenten en het releasescript (root) |
 
-Bij de stackkeuze: dit bestand, `AGENTS.md`, de padfilters in `.github/workflows/*.yml` en de agents bijwerken.
+Regels:
+- **HTML altijd via `html\`…\``** (escapet alles); `raw()` alleen voor HTML die bij de import door `sanitizeHtml` is gegaan.
+- **SQL altijd met `$1`-parameters**, nooit tekst plakken; geen `SELECT *`.
+- **Gevoelige velden** (`sensitive: true` in `booking/fields.js`: kerkgenootschap, medische bijzonderheden, geboortedatum,
+  paspoort) alleen versleuteld opslaan via `vault.seal`. Hoofdsleutel: `AVANTA_MASTER_KEY` of `DATA_DIR/master-key`.
+- Openbare formulieren: limiet (`createRateLimiter`), herkomstcontrole, honeypot en ondertekend tijdstempel.
+- Nieuwe migratie: achteraan in `MIGRATIONS` met het eerstvolgende nummer; een migratie op `main` verandert nooit meer.
+- URL's gelijk houden aan de oude site (`/reis/<slug>/`, `/reisleider/<slug>/`, `/reis-categorie/<slug>/`, `/<blog-slug>/`,
+  pagina's op hun volledige pad); oude varianten krijgen een 301.
+- **Noindex tot go-live** (`SITE_INDEXABLE=false`); pas op Daniëls woord op `true`.
+- Afbeeldingen staan in `DATA_DIR/media` (niet in git); de import zet ze daar neer.
 
 ## Checklist voor elke nieuwe feature (zonder dat Daniël erom vraagt)
 - **Documentatie**: `README.md` bijwerken bij features, instellingen, installatie of reviewproces; fragment
@@ -77,7 +94,13 @@ Bij de stackkeuze: dit bestand, `AGENTS.md`, de padfilters in `.github/workflows
 
 ## Lokaal draaien en testen
 ```sh
-node --test                              # alle tests (vindt tests/*.test.js)
-node tools/release-notes.js --check      # fragmenten in changes/ controleren
+cd app && npm install
+DATABASE_URL=postgres://… DATA_DIR=/tmp/avanta node tools/import-wordpress.js   # content + afbeeldingen van de huidige site
+DATABASE_URL=postgres://… DATA_DIR=/tmp/avanta PORT=3400 node src/server.js     # http://localhost:3400/
+TEST_DATABASE_URL=postgres://…/avanta_test npm test                              # tests (wist de testdatabase!)
+cd .. && node --test "tests/*.test.js"                                           # releasescript
+kill $(lsof -ti tcp:3400)                                                        # testserver stoppen (nooit pkill -f)
 ```
-Applicatiecommando's volgen zodra de stack gekozen is. Docker is niet beschikbaar in de cloud-sandbox.
+In de cloud-sandbox: lokale PostgreSQL 16 in `/usr/lib/postgresql/16/bin` (poort 5433); Node's `fetch` door de proxy met
+`NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt`. Docker is daar niet beschikbaar; CI bouwt en
+smoketest het image. Layout controleren met een DOM-meting op 1440 en 375 px (geen screenshots).

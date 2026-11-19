@@ -6,7 +6,14 @@ Korte ingang voor AI-agents. Details: `CLAUDE.md` (volledig werkgeheugen), `READ
 ## Kaart van de codebase
 | Pad | Inhoud |
 |---|---|
-| `app/` | de applicatie; versie in `app/package.json`, `app/CHANGELOG.md` (beide automatisch) |
+| `app/src/server.js` | Express-app, beveiligingskoppen, statisch, `/media` |
+| `app/src/site/` | publieke routes, queries, HTML-weergave (escaping via `html\`…\``) |
+| `app/src/booking/` | aanmeldformulier → tabel `bookings` (basis CRM) |
+| `app/src/database/` | `db.js`, `migrations.js` (positioneel) |
+| `app/src/security/` | versleuteling gevoelige velden, rate limit |
+| `app/tools/import-wordpress.js` | import van www.avantareizen.nl |
+| `app/test/` | `node --test`; DB-tests met `TEST_DATABASE_URL` |
+| `app/package.json`, `app/CHANGELOG.md` | versie en changelog (beide automatisch, nooit zelf) |
 | `changes/` | releasenotes-fragmenten (zie `changes/README.md`) |
 | `tools/release-notes.js` | verwerkt fragmenten na de merge; controleert PR's (`--pull-request`) |
 | `tests/` | `node --test` voor de hulpmiddelen |
@@ -16,8 +23,10 @@ Korte ingang voor AI-agents. Details: `CLAUDE.md` (volledig werkgeheugen), `READ
 
 ## Commando's
 ```sh
-node --test                              # alle tests (vindt tests/*.test.js)
-node tools/release-notes.js --check      # fragmenten controleren
+cd app && TEST_DATABASE_URL=postgres://…/avanta_test npm test   # app-tests (wist de testdatabase)
+DATABASE_URL=postgres://… PORT=3400 node src/server.js           # site op http://localhost:3400/
+node --test "tests/*.test.js"                                    # releasescript (root)
+node tools/release-notes.js --check                              # fragmenten controleren
 ```
 
 ## Werkwijze en PR
