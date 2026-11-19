@@ -1,0 +1,57 @@
+# Test/staging-stack op apps01 (Proxmox): app + eigen PostgreSQL 17 + cloudflared voor avanta.den-hollander.com.
+# Projectnaam vast op "avanta", zodat containers, netwerk en volumes los staan van andere stacks op de host.
+# Instellingen in .env naast dit bestand (zie .env.example); uitleg en commando's in README.md.
+name: avanta
+
+services:
+  app:
+    # Lokaal gebouwd uit ../../app; zodra het GHCR-image bestaat: AVANTA_IMAGE=ghcr.io/... en `docker compose pull`.
+    image: ${AVANTA_IMAGE:-avanta-reizen:local}
+    build: ../../app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://avanta:${POSTGRES_PASSWORD:?zet POSTGRES_PASSWORD in .env}@db:5432/avanta
+      SITE_URL: ${SITE_URL:?zet SITE_URL in .env}
+      SITE_INDEXABLE: "${SITE_INDEXABLE:-false}"
+      AVANTA_MASTER_KEY: ${AVANTA_MASTER_KEY:-}
+      TRUST_PROXY: ${TRUST_PROXY:-uniquelocal}
+    # Standaard alleen op de host zelf (curl-test); cloudflared praat via het interne netwerk met app:3400.
+    # Draait cloudflared op een andere machine: APP_BIND=0.0.0.0 (of het LAN-IP van apps01).
+    ports:
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3400}:3400"
+    volumes:
+      - app-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: avanta
+      POSTGRES_DB: avanta
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?zet POSTGRES_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U avanta -d avanta"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Eigen tunnel voor deze stack (token uit het Cloudflare-dashboard). Start alleen met profiel "tunnel"
+  # (COMPOSE_PROFILES=tunnel in .env); laat dat weg als een bestaande cloudflared elders het verkeer doorstuurt.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.7
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      - app
+
+volumes:
+  app-data:
+  db-data:

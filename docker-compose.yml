@@ -10,6 +10,7 @@ services:
       SITE_INDEXABLE: "${SITE_INDEXABLE:-false}"
       SITE_URL: "${SITE_URL:-https://www.avantareizen.nl}"
       AVANTA_MASTER_KEY: "${AVANTA_MASTER_KEY:-}"
+      TRUST_PROXY: "${TRUST_PROXY:-}"
     volumes:
       - app-data:/data
     depends_on:

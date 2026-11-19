@@ -184,3 +184,19 @@ test('contactformulier: validatie en normalisatie', () => {
   const bad = validateContact({ email: 'geen', phone: 'x', name: ['array'] });
   assert.deepEqual(Object.keys(bad.errors).sort(), ['consent', 'email', 'message', 'name', 'phone']);
 });
+
+test('TRUST_PROXY: standaard loopback, getal als hops, subnetten doorgeven, true geweigerd', () => {
+  const { trustProxySetting, createApp } = require('../src/server');
+  assert.equal(trustProxySetting(undefined), 'loopback');
+  assert.equal(trustProxySetting('  '), 'loopback');
+  assert.equal(trustProxySetting('1'), 1);
+  assert.equal(trustProxySetting('uniquelocal'), 'uniquelocal');
+  assert.throws(() => trustProxySetting('true'), /TRUST_PROXY/);
+  const db = { query: async () => [] };
+  const behindTunnel = createApp({ db, masterKey: Buffer.alloc(32, 1), trustProxy: 'uniquelocal' }).get('trust proxy fn');
+  assert.equal(behindTunnel('172.18.0.5', 0), true, 'cloudflared in Docker-netwerk');
+  assert.equal(behindTunnel('203.0.113.9', 0), false, 'publiek adres');
+  const standard = createApp({ db, masterKey: Buffer.alloc(32, 1), trustProxy: '' }).get('trust proxy fn');
+  assert.equal(standard('172.18.0.5', 0), false);
+  assert.equal(standard('127.0.0.1', 0), true);
+});

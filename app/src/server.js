@@ -35,9 +35,25 @@ function securityHeaders(options) {
 }
 
 /**
+ * Welke proxy's de app vertrouwt voor X-Forwarded-For/-Proto (bezoekers-IP voor de limiet, https voor de
+ * herkomstcontrole). Achter Cloudflare Tunnel in Docker komt het verzoek van een privé-adres, dus dan bijvoorbeeld
+ * `uniquelocal` of het IP van de cloudflared-host. Een getal betekent "zoveel hops"; leeg geeft `loopback`.
+ * @param {string} [value] Waarde van TRUST_PROXY.
+ * @returns {string|number} Instelling voor Express' `trust proxy`.
+ */
+function trustProxySetting(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return 'loopback';
+  if (/^\d+$/.test(text)) return Number(text);
+  if (text === 'true') throw new Error('TRUST_PROXY=true vertrouwt elk adres; geef een adres, subnet of `uniquelocal`');
+  return text;
+}
+
+/**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, indexable?: boolean, siteUrl?: string, now?: () => number}} options Database, hoofdsleutel,
- *   of de site geïndexeerd mag worden en het basisadres (standaard `SITE_URL`).
+ * @param {{db: object, masterKey: Buffer, indexable?: boolean, siteUrl?: string, trustProxy?: string, now?: () => number}} options
+ *   Database, hoofdsleutel, of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`) en de vertrouwde
+ *   proxy's (standaard `TRUST_PROXY`, anders `loopback`).
  * @returns {express.Express} De app.
  */
 function createApp(options) {
@@ -45,7 +61,7 @@ function createApp(options) {
   const siteUrl = seo.normalizeSiteUrl(options.siteUrl ?? process.env.SITE_URL);
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 'loopback');
+  app.set('trust proxy', trustProxySetting(options.trustProxy ?? process.env.TRUST_PROXY));
   app.use(securityHeaders({ indexable }));
 
   app.get('/api/health', async (req, res) => {
@@ -124,4 +140,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createApp, start };
+module.exports = { createApp, start, trustProxySetting };
