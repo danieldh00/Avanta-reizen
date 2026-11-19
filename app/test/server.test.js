@@ -92,6 +92,8 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await get('/faq/paspoort/')).headers.get('location'), '/faq/');
     assert.equal((await get('/?s=ijsland')).headers.get('location'), '/zoeken/?s=ijsland');
     assert.equal((await get('/category/nieuws/')).status, 301);
+    // Geen open redirect via een pad dat met // begint.
+    assert.equal((await get('//evil.example')).headers.get('location'), '/evil.example/');
   });
 
   await t.test('onbekend adres is 404; filters accepteren geen rare invoer', async () => {
@@ -99,7 +101,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await get('/reis/%3Cscript%3E/')).status, 404);
     const filtered = await get('/reis/?bestemming=%3Cscript%3E');
     assert.equal(filtered.status, 200);
-    assert.doesNotMatch(filtered.text, /<script>/);
+    assert.doesNotMatch(filtered.text, /<script>/i);
   });
 
   await t.test('beveiligingskoppen en noindex tot go-live', async () => {

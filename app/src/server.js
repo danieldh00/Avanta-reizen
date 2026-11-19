@@ -77,7 +77,7 @@ function createApp(options) {
   // Express herkent een foutafhandelaar aan de vier parameters.
   // eslint-disable-next-line no-unused-vars
   app.use((error, req, res, next) => {
-    console.error(`Fout bij ${req.method} ${req.path}: ${error.message}`);
+    console.error(`Fout bij ${req.method} ${req.path.replace(/[\r\n]/g, ' ')}: ${String(error.message).replace(/[\r\n]/g, ' ')}`);
     res.status(500).send(renderPage({
       title: 'Er ging iets mis',
       path: req.path,
