@@ -47,7 +47,7 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
-            echo "::error::Repository-secret CLAUDE_CODE_OAUTH_TOKEN ontbreekt (Settings > Secrets and variables > Actions; maak de token met `claude setup-token`). Zonder token is er geen Claude-review."
+            echo "::error::Repository-secret CLAUDE_CODE_OAUTH_TOKEN ontbreekt (Settings > Secrets and variables > Actions; maak de token met claude setup-token). Zonder token is er geen Claude-review."
             exit 1
           fi
       - name: Wat is gewijzigd
@@ -152,7 +152,7 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
-            echo "::error::Repository-secret CLAUDE_CODE_OAUTH_TOKEN ontbreekt (Settings > Secrets and variables > Actions; maak de token met `claude setup-token`). Zonder token is er geen securityreview."
+            echo "::error::Repository-secret CLAUDE_CODE_OAUTH_TOKEN ontbreekt (Settings > Secrets and variables > Actions; maak de token met claude setup-token). Zonder token is er geen securityreview."
             exit 1
           fi
       - name: Wat is gewijzigd
