@@ -149,6 +149,7 @@ function createBookingRouter(options) {
 
   router.get('/aanmelden/', async (req, res, next) => {
     try {
+      if (!req.query.id && !req.query.reis) return res.redirect(302, '/reis/');
       const { trip, reason } = await findBookableTrip(req.query);
       if (!trip || reason) {
         return send(res, {

@@ -191,6 +191,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await get('/aanmelden/?id=1002')).status, 409);
     assert.equal((await get('/aanmelden/?id=1003')).status, 409);
     assert.equal((await get('/aanmelden/?id=9999')).status, 404);
+    assert.equal((await get('/aanmelden/')).headers.get('location'), '/reis/');
   });
 
   await t.test('verzoek van een andere site wordt geweigerd', async () => {
