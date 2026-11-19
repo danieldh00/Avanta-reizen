@@ -190,6 +190,21 @@ function createContent(db) {
     },
 
     /**
+     * Alle openbare adressen voor de sitemap: ook vertrokken reizen, want die URL's bestaan.
+     * @returns {Promise<{trips: object[], categories: object[], guides: object[], posts: object[], pages: object[]}>} Rijen per soort.
+     */
+    async sitemapEntries() {
+      const [trips, categories, guides, posts, pages] = await Promise.all([
+        db.query('SELECT slug FROM trips WHERE published = $1 ORDER BY slug', [true]),
+        db.query('SELECT slug FROM trip_categories ORDER BY slug'),
+        db.query('SELECT slug FROM guides WHERE published = $1 ORDER BY slug', [true]),
+        db.query('SELECT slug, published_at FROM posts WHERE published = $1 ORDER BY published_at DESC NULLS LAST, slug', [true]),
+        db.query('SELECT path FROM pages WHERE published = $1 ORDER BY path', [true]),
+      ]);
+      return { trips, categories, guides, posts, pages };
+    },
+
+    /**
      * Zoekt in reizen, blog en pagina's.
      * @param {string} term Zoekterm.
      * @returns {Promise<{trips: object[], posts: object[], pages: object[]}>} Resultaten.
