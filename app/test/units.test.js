@@ -1,6 +1,6 @@
 /**
  * Unit-tests zonder database: HTML-escaping, opschonen van geïmporteerde HTML, parsers, opmaak, kluis, limiet en
- * de controle van het aanmeldformulier.
+ * de controle van het aanmeldformulier, de formulierbescherming en het contactformulier.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -155,4 +155,32 @@ test('validateBooking geeft fouten voor ontbrekende en ongeldige velden', () => 
   assert.ok(errors.last_name && errors.email_confirm && errors.birth_date && errors.gender && errors.mobile && errors.consent);
   assert.ok(validateBooking({ ...validBooking(), birth_date: '2001-02-30' }, { today: '2026-11-19' }).errors.birth_date);
   assert.ok(validateBooking({ ...validBooking(), first_names: 'x'.repeat(121) }, { today: '2026-11-19' }).errors.first_names);
+});
+
+test('form-guard: token per formulier, minimale en maximale invultijd, honeypot', () => {
+  const { createFormGuard, MIN_FILL_MS, MAX_FILL_MS } = require('../src/security/form-guard');
+  let clock = 1_000_000;
+  const options = { formKey: Buffer.alloc(32, 9), limit: 1, windowMs: 1000, limitMessage: 'te veel', now: () => clock };
+  const contactGuard = createFormGuard({ ...options, purpose: 'contact' });
+  const bookingGuard = createFormGuard({ ...options, purpose: 'aanmelden' });
+  const token = contactGuard.signToken(clock);
+  assert.equal(contactGuard.checkToken(token), false, 'te snel');
+  clock += MIN_FILL_MS;
+  assert.equal(contactGuard.checkToken(token), true);
+  assert.equal(bookingGuard.checkToken(token), false, 'ander formulier');
+  assert.equal(contactGuard.isSuspicious({ token, website: 'x' }), true, 'honeypot');
+  assert.equal(contactGuard.isSuspicious({ token }), false);
+  assert.equal(contactGuard.checkToken('abc.def'), false);
+  clock += MAX_FILL_MS;
+  assert.equal(contactGuard.checkToken(token), false, 'te oud');
+});
+
+test('contactformulier: validatie en normalisatie', () => {
+  const { validateContact } = require('../src/contact/fields');
+  const ok = validateContact({ name: '  Test   Persoon ', email: 'a@b.nl', phone: '', subject: '', message: 'Regel 1\r\nRegel 2', consent: 'ja' });
+  assert.deepEqual(ok.errors, {});
+  assert.equal(ok.values.name, 'Test Persoon');
+  assert.equal(ok.values.message, 'Regel 1\nRegel 2');
+  const bad = validateContact({ email: 'geen', phone: 'x', name: ['array'] });
+  assert.deepEqual(Object.keys(bad.errors).sort(), ['consent', 'email', 'message', 'name', 'phone']);
 });

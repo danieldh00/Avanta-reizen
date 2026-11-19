@@ -1,7 +1,7 @@
 /**
  * Tests voor de zoekmachine-optimalisatie: canonical per paginasoort, Open Graph, JSON-LD (valide en bestand tegen
- * `</script>`-injectie), de sitemap (geldige XML, ge-escapete URL's, ook vertrokken reizen) en robots.txt in beide
- * standen. De databasetests draaien in een eigen schema, zodat ze naast `server.test.js` kunnen lopen.
+ * `</script>`-injectie), de sitemap (geldige XML, ge-escapete URL's, ook vertrokken reizen), robots.txt in beide
+ * standen (met absolute sitemap-URL) en de canonical op de 404- en aanmeldpagina. De databasetests draaien in een eigen schema, zodat ze naast `server.test.js` kunnen lopen.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -218,13 +218,32 @@ test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TES
     assert.match(response.text, /<loc>[^<]*\/op-avantuur\/<\/loc><lastmod>2026-05-04T08:00:00\.000Z<\/lastmod>/);
   });
 
+  await t.test('404 en aanmeldpagina: canonical, maar wel noindex', async () => {
+    for (const origin of [base, indexableBase]) {
+      const missing = await get('/bestaat-niet/', origin);
+      assert.equal(missing.status, 404);
+      assert.equal(canonicalOf(missing.text), `${SITE_URL}/bestaat-niet/`);
+      assert.match(missing.text, /<meta name="robots" content="noindex, nofollow">/);
+      const booking = await get('/aanmelden/?reis=8-dagen-albanie', origin);
+      assert.equal(booking.status, 200);
+      assert.equal(canonicalOf(booking.text), `${SITE_URL}/aanmelden/?reis=8-dagen-albanie`);
+      assert.match(booking.text, /<meta name="robots" content="noindex, nofollow">/);
+      const unknownTrip = await get('/aanmelden/?reis=bestaat-niet', origin);
+      assert.equal(unknownTrip.status, 404);
+      assert.equal(canonicalOf(unknownTrip.text), `${SITE_URL}/aanmelden/`);
+    }
+    const contact = await get('/contact/');
+    assert.equal(canonicalOf(contact.text), `${SITE_URL}/contact/`);
+    assert.match(contact.text, /action="\/contact\/"/);
+  });
+
   await t.test('robots.txt: alleen bij indexeren een verwijzing naar de sitemap', async () => {
     const closed = await get('/robots.txt');
     assert.match(closed.text, /Disallow: \//);
     assert.doesNotMatch(closed.text, /Sitemap:/);
     const open = await get('/robots.txt', indexableBase);
     assert.match(open.text, /Allow: \//);
-    assert.match(open.text, /Sitemap: .*\/sitemap\.xml/);
+    assert.match(open.text, new RegExp(`^Sitemap: ${SITE_URL.replace(/\./g, '\\.')}/sitemap\\.xml$`, 'm'), 'absolute sitemap-URL');
     assert.equal((await get('/sitemap.xml', base)).status, 200, 'sitemap bestaat ook bij noindex');
     assert.match((await get('/reis/', indexableBase)).text, /<meta name="robots" content="index, follow">/);
   });

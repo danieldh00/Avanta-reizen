@@ -41,8 +41,9 @@ function queryValue(value) {
 
 /**
  * Bouwt de router van de website.
- * @param {{db: object, indexable?: boolean, siteUrl?: string}} options Database, indexeerinstelling en basisadres
- *   (standaard `SITE_URL` uit de omgeving, anders https://www.avantareizen.nl).
+ * @param {{db: object, indexable?: boolean, siteUrl?: string, contactForm?: object}} options Database, indexeerinstelling,
+ *   basisadres (standaard `SITE_URL` uit de omgeving, anders https://www.avantareizen.nl) en het contactformulier
+ *   (`contact/routes.js`; zonder formulier is `/contact/` een gewone pagina).
  * @returns {express.Router} De router.
  */
 function createSiteRouter(options) {
@@ -334,6 +335,44 @@ function createSiteRouter(options) {
       </div>`,
     });
   }));
+
+  if (options.contactForm) {
+    const contactForm = options.contactForm;
+
+    /**
+     * Stuurt de contactpagina: de geïmporteerde inhoud met daaronder het formulier (of de bedanktmelding).
+     * @param {object} res Express-antwoord.
+     * @param {object} formHtml Formulier of melding.
+     * @param {number} [status] HTTP-status.
+     * @returns {Promise<void>}
+     */
+    const sendContactPage = async (res, formHtml, status = 200) => {
+      const page = await content.pageByPath('/contact/');
+      res.set('Cache-Control', 'no-store');
+      send(res, {
+        title: page ? page.title : 'Contact',
+        description: page ? page.intro : '',
+        path: '/contact/',
+        seo: seoFor('/contact/', { imageUrl: page ? page.image_url : '' }),
+        header: renderPageHeader({ title: page ? page.title : 'Contact', pretitle: page ? page.pretitle : '', imageUrl: page ? page.image_url : '' }),
+        body: html`${page ? html`<div class="container container--narrow section">
+          ${page.intro ? html`<p class="lead">${page.intro}</p>` : ''}
+          <div class="prose">${raw(page.body_html)}</div>
+        </div>` : ''}${formHtml}`,
+      }, status);
+    };
+
+    router.get('/contact/', asyncRoute(async (req, res) => {
+      if (req.query.verzonden === '1') return sendContactPage(res, contactForm.renderThanks());
+      return sendContactPage(res, contactForm.renderForm({ trip: await contactForm.findTrip(req.query.reis) }));
+    }));
+
+    router.post('/contact/', ...contactForm.middleware, asyncRoute(async (req, res) => {
+      const result = await contactForm.submit(req.body || {});
+      if (result.redirect) return res.redirect(303, result.redirect);
+      return sendContactPage(res, contactForm.renderForm(result), 422);
+    }));
+  }
 
   // Overige adressen: eerst een pagina op het volledige pad, dan een blogbericht op de slug.
   router.get(/^\/(.+)\/$/, asyncRoute(async (req, res, next) => {

@@ -8,6 +8,8 @@ const path = require('node:path');
 const { createDatabase } = require('./database/db');
 const { createSiteRouter } = require('./site/routes');
 const { createBookingRouter } = require('./booking/routes');
+const { createContactForm } = require('./contact/routes');
+const seo = require('./site/seo');
 const { loadMasterKey, createVault } = require('./security/vault');
 const crypto = require('node:crypto');
 const { PUBLIC_DIR, MEDIA_DIR } = require('./paths');
@@ -34,11 +36,13 @@ function securityHeaders(options) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, indexable?: boolean, now?: () => number}} options Database, hoofdsleutel en of de site geïndexeerd mag worden.
+ * @param {{db: object, masterKey: Buffer, indexable?: boolean, siteUrl?: string, now?: () => number}} options Database, hoofdsleutel,
+ *   of de site geïndexeerd mag worden en het basisadres (standaard `SITE_URL`).
  * @returns {express.Express} De app.
  */
 function createApp(options) {
   const indexable = Boolean(options.indexable);
+  const siteUrl = seo.normalizeSiteUrl(options.siteUrl ?? process.env.SITE_URL);
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 'loopback');
@@ -54,7 +58,7 @@ function createApp(options) {
   });
 
   app.get('/robots.txt', (req, res) => {
-    res.type('text/plain').send(indexable ? 'User-agent: *\nAllow: /\nSitemap: /sitemap.xml\n' : 'User-agent: *\nDisallow: /\n');
+    res.type('text/plain').send(indexable ? `User-agent: *\nAllow: /\nSitemap: ${siteUrl}/sitemap.xml\n` : 'User-agent: *\nDisallow: /\n');
   });
 
   app.use(express.static(PUBLIC_DIR, { maxAge: '7d', index: false, redirect: false }));
@@ -62,13 +66,16 @@ function createApp(options) {
 
   const vault = createVault(options.masterKey);
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
-  app.use(createBookingRouter({ db: options.db, vault, formKey, now: options.now }));
-  app.use(createSiteRouter({ db: options.db, indexable }));
+  app.use(createBookingRouter({ db: options.db, vault, formKey, siteUrl, now: options.now }));
+  const contactForm = createContactForm({ db: options.db, formKey, now: options.now });
+  app.use(createSiteRouter({ db: options.db, indexable, siteUrl, contactForm }));
 
+  // 404: altijd noindex (renderPage zonder indexable), met een canonical naar het gevraagde pad.
   app.use((req, res) => {
     res.status(404).send(renderPage({
       title: 'Pagina niet gevonden',
       path: req.path,
+      seo: { canonicalUrl: seo.absoluteUrl(siteUrl, req.path), imageUrl: seo.absoluteUrl(siteUrl, '/images/logo.png') },
       header: renderPageHeader({ title: 'Pagina niet gevonden' }),
       body: html`<div class="container section"><p>Deze pagina bestaat niet (meer). Bekijk <a href="/reis/">ons reisaanbod</a> of ga naar de <a href="/">homepage</a>.</p></div>`,
     }));
