@@ -9,7 +9,7 @@ cp .env.example .env            # vul POSTGRES_PASSWORD in
 docker compose up -d --build    # site op http://localhost:3400/
 docker compose exec app node tools/import-wordpress.js   # content + afbeeldingen van de huidige site overnemen
 ```
-Testomgeving op apps01 (`avanta.den-hollander.com`, Cloudflare Tunnel): zie `deploy/apps01/README.md`.
+Testomgeving op apps01 (`avanta.den-hollander.com`, losse binding op de bestaande Cloudflare-tunnel): zie `deploy/apps01/README.md`.
 Achter een reverse proxy of tunnel moet `TRUST_PROXY` kloppen, anders weigeren de formulieren met 403.
 Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-wordpress.js` en `DATABASE_URL=… node src/server.js`.
 

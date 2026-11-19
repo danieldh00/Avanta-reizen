@@ -1,11 +1,13 @@
 # Testomgeving op apps01: avanta.den-hollander.com
 
-Aparte Docker-stack (projectnaam `avanta`) op apps01 met app, eigen PostgreSQL 17 en een eigen cloudflared. Geen
-poorten open naar buiten: Cloudflare Tunnel brengt het verkeer naar `app:3400` binnen het Docker-netwerk.
+Aparte Docker-stack (projectnaam `avanta`, map `/opt/apps/avanta`) op apps01 met de app en een eigen PostgreSQL 17.
+**Geen eigen tunnel**: de bestaande `aquatech-cloudflared` krijgt er een losse public hostname bij,
+`avanta.den-hollander.com -> http://avanta-app:3400`. De app hangt daarvoor met alias `avanta-app` in het
+Docker-netwerk van die cloudflared (naast zijn eigen netwerk met de database); er staan geen poorten open naar buiten.
 Dit is test/staging: `SITE_URL=https://avanta.den-hollander.com` en altijd `SITE_INDEXABLE=false`.
 Productie blijft `www.avantareizen.nl`.
 
-## Snelste route: één commando op de Proxmox-host
+## Eén commando op de Proxmox-host
 
 Als root in de shell van de pve, met `<sha>` = de commit die je wilt uitrollen:
 
@@ -13,120 +15,63 @@ Als root in de shell van de pve, met `<sha>` = de commit die je wilt uitrollen:
 AVANTA_REF=<sha> bash <(curl -fsSL https://raw.githubusercontent.com/danieldh00/Avanta-reizen/<sha>/deploy/apps01/pve-setup.sh)
 ```
 
-`pve-setup.sh` doet dan alles, herhaalbaar:
-- zoekt de gast `apps01` (LXC: via `pct exec`, controleert `nesting=1`; VM: via `ssh` als gewone gebruiker + sudo,
-  doel instelbaar met `SSH_TARGET=gebruiker@host`);
-- vraagt een Cloudflare API-token (Account > Cloudflare Tunnel > Edit, Zone > DNS > Edit, Zone > Zone > Read) en maakt
-  daarmee tunnel `avanta-apps01`, de public hostname `avanta.den-hollander.com -> http://app:3400` en de proxied CNAME.
-  Een bestaande andere record voor die naam wordt niet overschreven. Leeg laten = zelf een tunnel-token plakken;
-- draait op apps01 `install.sh`: Docker installeren als die ontbreekt, repo naar `/opt/avanta/repo` op dezelfde commit,
-  `.env` met gegenereerde geheimen (eenmalig), image bouwen, stack starten, gezondheidscheck en bij een lege database
-  de content-import.
+`pve-setup.sh` (herhaalbaar):
+1. zoekt apps01 zoals de Aquatech-scripts: LXC via `pct exec`, anders ssh als `daniel@apps01` met `sudo -n`
+   (instelbaar met `APPS01_SSH`, `APPS01_CTID`, `APPS01_NAME`);
+2. draait daar `install.sh`: repo naar `/opt/apps/avanta/repo` op dezelfde commit, `.env` met gegenereerde geheimen
+   (eenmalig), netwerk van `aquatech-cloudflared` opzoeken (`TUNNEL_NETWORK`), image bouwen, stack starten,
+   gezondheidscheck en bij een lege database de content-import van www.avantareizen.nl;
+3. leest uit de draaiende cloudflared alleen het account- en tunnel-id (het geheime deel van het token blijft op apps01)
+   en vraagt een Cloudflare API-token (*Account > Cloudflare Tunnel > Edit* en *Zone > DNS > Edit*, beperkt tot
+   den-hollander.com). Daarmee voegt het de ingress-regel toe vóór de catch-all (bestaande regels blijven staan) en
+   maakt het de proxied CNAME `avanta -> <tunnel-id>.cfargotunnel.com`. Een andere bestaande record voor die naam
+   wordt niet overschreven. Leeg laten = het script toont de handmatige stap hieronder.
+4. controleert `https://avanta.den-hollander.com/api/health`.
 
-Bijwerken = hetzelfde commando met een nieuwere `<sha>` (of `AVANTA_REF=main` na de merges). Hieronder dezelfde
-stappen met de hand.
+Bijwerken = hetzelfde commando met een nieuwere `<sha>` (of `AVANTA_REF=main` na de merges).
 
-## 1. Cloudflare: tunnel en hostname
+## Handmatige binding in Cloudflare (zonder API-token)
 
-Dashboard: **Zero Trust > Networks > Tunnels** (in het nieuwe dashboard: *Networks > Connectors > Cloudflare Tunnels*).
+**Zero Trust > Networks > Tunnels** > de tunnel van `aquatech-cloudflared` > **Public Hostname** (nieuw dashboard:
+*Published application routes*) > **Add**:
 
-1. **Create a tunnel** > type **Cloudflared** > naam `avanta-apps01` > Save.
-2. Kies bij *Install connector* **Docker** en kopieer alleen het token (de lange `eyJ…`-string na `--token`).
-   Niet de getoonde `docker run` uitvoeren; de stack start cloudflared zelf.
-3. Tabblad **Public Hostname** (nieuw: *Published application routes*) > **Add**:
-   | Veld | Waarde |
-   |---|---|
-   | Subdomain | `avanta` |
-   | Domain | `den-hollander.com` |
-   | Path | leeg |
-   | Service type | `HTTP` |
-   | URL | `app:3400` |
-4. Cloudflare maakt zelf de DNS-record `avanta` (CNAME naar `<tunnel-id>.cfargotunnel.com`, proxied). Staat er al
-   een record `avanta` in **DNS > Records**, verwijder die eerst; anders weigert het dashboard de hostname.
+| Veld | Waarde |
+|---|---|
+| Subdomain | `avanta` |
+| Domain | `den-hollander.com` |
+| Service type | `HTTP` |
+| URL | `avanta-app:3400` |
 
-Geen extra certificaat nodig: het Universal SSL-certificaat dekt `*.den-hollander.com`. Laat **Rocket Loader** uit
-voor deze hostname; die herschrijft scripts en botst met de CSP (`script-src 'self'`).
+Cloudflare maakt de DNS-record dan zelf. Het Universal SSL-certificaat dekt `*.den-hollander.com`. Laat **Rocket
+Loader** uit (botst met de CSP). Optioneel: zet er een **Access**-applicatie (One-time PIN op e-mail) voor, zolang
+het een testsite is.
 
-Optioneel, aanbevolen zolang dit een testsite is: **Zero Trust > Access > Applications > Add > Self-hosted** op
-`avanta.den-hollander.com` met een policy *Emails* (of *Emails ending in*) en One-time PIN, zodat alleen jij en
-Avanta de site zien.
-
-### Liever je bestaande tunnel?
-
-Draait er al een cloudflared voor `*.den-hollander.com` op een andere host, dan kan die ook doorsturen:
-voeg bij die tunnel een Public Hostname toe met URL `http://<LAN-IP van apps01>:3400`, en zet in `.env`:
-`COMPOSE_PROFILES=` (leeg), `APP_BIND=0.0.0.0` (of het LAN-IP van apps01) en `TRUST_PROXY=<IP van de cloudflared-host>`.
-Beperk poort 3400 dan in de firewall tot die host.
-
-## 2. apps01: stack opzetten
-
-Vereist: Docker Engine met compose-plugin, git en uitgaand HTTPS.
+## Op apps01 zelf
 
 ```sh
-sudo mkdir -p /opt/avanta && sudo chown "$USER": /opt/avanta
-git clone https://github.com/danieldh00/Avanta-reizen.git /opt/avanta/repo
-cd /opt/avanta/repo
-git checkout claude/contactformulier   # tot de PR's in main staan; daarna: git checkout main
-
-cd deploy/apps01
-cp .env.example .env && chmod 600 .env
-sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" .env
-sed -i "s/^AVANTA_MASTER_KEY=.*/AVANTA_MASTER_KEY=$(openssl rand -hex 32)/" .env
-nano .env                               # TUNNEL_TOKEN=eyJ… plakken
-
-docker compose up -d --build
-docker compose ps                       # app en db: healthy, cloudflared: Up
-curl -s http://127.0.0.1:3400/api/health   # {"ok":true,...}
-docker compose logs cloudflared | grep -i "registered tunnel connection"
-```
-
-Is de repo privé, clone dan met een fine-grained PAT (alleen *Contents: read*) of een deploy key.
-
-Migraties draaien automatisch bij elke start van de app (met advisory lock); er is geen los migratiecommando.
-
-## 3. Content importeren
-
-De database is leeg na de eerste start. Haal content en afbeeldingen (circa 250 MB) van de huidige site op:
-
-```sh
-docker compose exec app node tools/import-wordpress.js
-```
-
-Herhaalbaar: bestaande rijen worden bijgewerkt. Daarna `https://avanta.den-hollander.com/` openen.
-
-## 4. Controleren
-
-```sh
+cd /opt/apps/avanta/repo/deploy/apps01
+docker compose ps
+docker compose logs -f app
 curl -sI https://avanta.den-hollander.com/ | grep -i x-robots-tag   # noindex, nofollow
-curl -s  https://avanta.den-hollander.com/robots.txt                  # Disallow: /
-curl -s  https://avanta.den-hollander.com/ | grep canonical           # https://avanta.den-hollander.com/
 ```
 
-Test ook het contactformulier: een 403 betekent dat `TRUST_PROXY` niet klopt (de app ziet dan `http` in plaats van
-`https` en keurt de herkomst af).
+Een 403 op het contactformulier betekent dat `TRUST_PROXY` niet klopt (de app ziet dan `http` in plaats van `https`).
+Migraties draaien automatisch bij elke start van de app.
 
-## 5. Bijwerken
+Wordt `aquatech-cloudflared` met een ander netwerk opnieuw aangemaakt, draai dan het commando opnieuw: `install.sh`
+zoekt het netwerk elke keer opnieuw op.
 
-```sh
-cd /opt/avanta/repo && git pull
-cd deploy/apps01 && docker compose up -d --build
-docker image prune -f
-```
-
-Zodra het GHCR-image er is (release-workflow): zet `AVANTA_IMAGE=ghcr.io/danieldh00/avanta-reizen:<versie>` in
-`.env` en gebruik `docker compose pull && docker compose up -d` (bij een privé-package eerst `docker login ghcr.io`).
-
-## 6. Back-up en herstel
+## Back-up en herstel
 
 ```sh
-docker compose exec -T db pg_dump -U avanta -Fc avanta > /opt/avanta/backup-$(date +%F).dump
+docker compose exec -T db pg_dump -U avanta -Fc avanta > /opt/apps/avanta/backup-$(date +%F).dump
 docker compose exec -T db pg_restore -U avanta -d avanta --clean --if-exists < backup-JJJJ-MM-DD.dump
 ```
 
-Bewaar `AVANTA_MASTER_KEY` apart van de dump; zonder sleutel zijn de versleutelde aanmeldvelden onleesbaar.
-Afbeeldingen staan in volume `avanta_app-data` (opnieuw te importeren). Of neem gewoon de hele VM/LXC mee in de
-Proxmox-back-up (PBS).
+Bewaar `AVANTA_MASTER_KEY` (in `.env`) apart van de dump; zonder sleutel zijn de versleutelde aanmeldvelden
+onleesbaar. Afbeeldingen staan in volume `avanta_app-data` (opnieuw te importeren).
 
 ## Opruimen
 
-`docker compose down` stopt de stack; `docker compose down -v` verwijdert ook database en afbeeldingen.
+`docker compose down` stopt de stack; `docker compose down -v` verwijdert ook database en afbeeldingen. Verwijder dan
+ook de public hostname en de CNAME in Cloudflare.
