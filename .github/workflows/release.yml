@@ -1,0 +1,72 @@
+name: Release
+
+# Verwerkt na een merge op main de bestanden in changes/ tot een nieuwe versie:
+# app/package.json en app/CHANGELOG.md bijwerken, fragmenten verwijderen en committen naar main met [skip ci],
+# zodat er geen tweede run ontstaat. Zie changes/README.md.
+# Zodra de stack en hosting gekozen zijn, komen hier de jobs test → bouwen → smoketest → publiceren bij
+# (zie de AquaTech-release als voorbeeld); ze gebruiken `needs.prepare.outputs.ref` als checkout-ref.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "changes/**"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Rechten: main is beschermd (PR verplicht). Zet daarom een token in het secret RELEASE_PUSH_TOKEN van een
+  # beheerder met schrijfrechten op de repository, en zet de rol *Repository admin* als bypass in de ruleset van main
+  # (Settings > Rules > Rulesets). Zonder dat secret valt deze job terug op GITHUB_TOKEN, en de push wordt dan door
+  # de ruleset geweigerd.
+  prepare:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      ref: ${{ steps.bump.outputs.ref }}
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PUSH_TOKEN || github.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Versie en releasenotes bijwerken
+        id: bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            node tools/release-notes.js
+            if git diff --quiet HEAD; then
+              echo "Niets te bumpen."
+              break
+            fi
+            version=$(jq -r .version app/package.json)
+            git add -A changes app/package.json app/CHANGELOG.md
+            git commit -m "Release $version [skip ci]"
+            if git push origin HEAD:main; then
+              break
+            fi
+            echo "Push mislukt (poging $attempt); opnieuw op de nieuwste main."
+            [ "$attempt" = 5 ] && exit 1
+            sleep $((attempt * 5))
+          done
+          echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$(jq -r .version app/package.json)" >> "$GITHUB_OUTPUT"

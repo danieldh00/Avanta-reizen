@@ -1,0 +1,45 @@
+# AGENTS.md — Avanta Reizen
+
+Korte ingang voor AI-agents. Details: `CLAUDE.md` (volledig werkgeheugen), `README.md` (overzicht).
+**Eén bron voor de regels:** staat iets in beide, dan geldt `CLAUDE.md`; dit bestand is de snelle kaart.
+
+## Kaart van de codebase
+| Pad | Inhoud |
+|---|---|
+| `app/` | de applicatie; versie in `app/package.json`, `app/CHANGELOG.md` (beide automatisch) |
+| `changes/` | releasenotes-fragmenten (zie `changes/README.md`) |
+| `tools/release-notes.js` | verwerkt fragmenten na de merge; controleert PR's (`--pull-request`) |
+| `tests/` | `node --test` voor de hulpmiddelen |
+| `docs/` | `WERKWIJZE.md` (projectonafhankelijk), `AVANTA-CONTEXT.md` (product), `CLAUDE-sjabloon.md` |
+| `.claude/agents/` | verkenners `map`, `callers`, `tests` |
+| `.github/workflows/` | `ci.yml`, `version.yml`, `release.yml`, `claude-review.yml`, `security.yml` |
+
+## Commando's
+```sh
+node --test                              # alle tests (vindt tests/*.test.js)
+node tools/release-notes.js --check      # fragmenten controleren
+```
+
+## Werkwijze en PR
+- Algemene werkwijze: `docs/WERKWIJZE.md`; Avanta-context: `docs/AVANTA-CONTEXT.md`. **Wie de werkwijze verandert,
+  werkt `docs/WERKWIJZE.md` bij in dezelfde PR.**
+- Nooit rechtstreeks op `main`. Branch vers vanaf `origin/main` (`feature/<naam>` of `claude/<naam>`), kleine PR's,
+  één onderwerp per PR.
+- Volgorde: wijzigen → geraakte tests → `changes/<naam>.md` (als `app/` wijzigt) → `README.md` bij features/setup →
+  push → draft-PR → *ready for review* → CI groen + verplichte **Claude code review** en **Claude security review** →
+  bevindingen oplossen vóór auto-merge.
+- **Versie en `app/CHANGELOG.md` nooit zelf aanraken**; `release.yml` doet dat na de merge. Alleen docs/CI zonder
+  effect: PR-label `geen-releasenotes`.
+- Geen modelnamen/-ID's in commits, PR's, code of docs. Geen secrets in repo of chat.
+
+## Zuinig werken (vaste werkwijze)
+1. **Gerichte opdracht**: lees alleen de genoemde bestanden en hun directe afhankelijkheden; geen brede greps.
+2. **Reviews alleen waar het telt**: `claude-review.yml` slaat docs/tests-only over; concept-PR's worden niet
+   gereviewd. Werk in een **draft-PR** tot het werk klaar is. Een nieuwe push annuleert een lopende review.
+3. **Lokaal eerst alleen de geraakte tests**, pas daarna pushen.
+4. **Kleine PR's**: één afgebakend onderdeel per PR.
+5. **Na de merge direct stoppen**: geen extra samenvattingen of verificatierondes, tenzij Daniël erom vraagt.
+6. **Simpele klussen** (tekst, releasenotes, kleine fixes) mogen op een lichter model.
+7. Projectgeheugen compact houden: geen lijsten met afgeronde PR-nummers.
+8. **Verkenners** (`.claude/agents/`): breed zoeken (`map`), aanroepen vinden (`callers`) en tests draaien (`tests`)
+   via deze subagents; de hoofdsessie schrijft de code en beslist.
