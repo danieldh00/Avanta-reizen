@@ -251,3 +251,24 @@ h3 { font-size: 1.25rem; margin: 1.5rem 0 .5rem; }
 @media (max-width: 600px) {
   .crm-user { margin-left: 0; width: 100%; }
 }
+
+/* Beheer (/app/beheer/): zijbalk met groepen en zoekveld, inhoud rechts */
+.beheer { display: grid; grid-template-columns: minmax(0, 240px) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.beheer-side { display: grid; gap: .75rem; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); padding: .75rem; }
+.beheer-search { display: flex; gap: .4rem; }
+.beheer-search input { flex: 1 1 auto; min-width: 0; }
+.beheer-side__empty { margin: 0; font-size: .9rem; }
+.beheer-group summary { font-weight: 700; cursor: pointer; padding: .25rem 0; }
+.beheer-group ul { margin: .25rem 0 0; padding: 0; list-style: none; display: grid; gap: .15rem; }
+.beheer-group a { display: block; padding: .3rem .5rem; border-radius: var(--av-radius); color: var(--av-text); text-decoration: none; }
+.beheer-group a:hover, .beheer-group a[aria-current="page"] { background: var(--av-soil); color: var(--av-accent-dark); }
+.beheer-content { display: grid; gap: 1rem; min-width: 0; }
+.beheer-content h2 { margin: .5rem 0 0; }
+.beheer-content p { margin: 0; }
+.beheer-form { max-width: 640px; gap: 1.25rem; }
+.beheer-form input:not([type="checkbox"]), .beheer-form select, .beheer-form textarea { width: 100%; max-width: 100%; }
+.beheer-facts th { width: 11rem; }
+.beheer-content .crm-table td, .beheer-content .crm-table th { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 800px) {
+  .beheer { grid-template-columns: minmax(0, 1fr); }
+}

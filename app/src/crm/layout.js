@@ -13,6 +13,7 @@ const CRM_MENU = [
   { label: 'Overzicht', href: '/app/' },
   { label: 'Gebruikers', href: '/app/gebruikers/', right: 'gebruikers' },
   { label: 'Auditlog', href: '/app/auditlog/', right: 'gebruikers' },
+  { label: 'Beheer', href: '/app/beheer/', right: 'systeem' },
 ];
 
 /**
@@ -27,13 +28,15 @@ function formatDateTime(value) {
 
 /**
  * Maakt een volledige CRM-pagina.
- * @param {{title: string, body: object, user?: (object|null), csrf?: string, path?: string}} page Titel, inhoud, de
- *   ingelogde gebruiker (zonder: geen menu), het CSRF-token voor de uitlogknop en het huidige pad.
+ * @param {{title: string, body: object, user?: (object|null), csrf?: string, path?: string}} page Titel,
+ *   inhoud, de ingelogde gebruiker (zonder: geen menu), het CSRF-token voor de uitlogknop en het huidige pad (een
+ *   menu-item is actief op zijn eigen pad en alles eronder).
  * @returns {string} De HTML.
  */
 function renderCrmPage(page) {
   const user = page.user || null;
   const currentPath = page.path || '';
+  const isCurrent = (href) => (href === '/app/' ? currentPath === href : currentPath.startsWith(href));
   const menu = user ? CRM_MENU.filter((item) => !item.right || roleHasRight(user.role, item.right)) : [];
   return '<!doctype html>\n' + toString(html`<html lang="nl-NL">
 <head>
@@ -49,7 +52,7 @@ function renderCrmPage(page) {
   <header class="crm-header">
     <div class="container crm-header__inner">
       <a class="crm-brand" href="/app/"><img src="/images/logo.png" alt="Avanta reizen" width="80" height="47"> <span>CRM</span></a>
-      ${menu.length ? html`<nav class="crm-nav" aria-label="CRM-menu"><ul>${menu.map((item) => html`<li><a href="${item.href}"${currentPath === item.href ? html` aria-current="page"` : ''}>${item.label}</a></li>`)}</ul></nav>` : ''}
+      ${menu.length ? html`<nav class="crm-nav" aria-label="CRM-menu"><ul>${menu.map((item) => html`<li><a href="${item.href}"${isCurrent(item.href) ? html` aria-current="page"` : ''}>${item.label}</a></li>`)}</ul></nav>` : ''}
       ${user ? html`<div class="crm-user">
         <a href="/app/wachtwoord/" title="Wachtwoord wijzigen">${user.name}</a> <span class="crm-user__role">${roleLabel(user.role)}</span>
         <form method="post" action="/app/uitloggen/"><input type="hidden" name="_csrf" value="${page.csrf || ''}"><button class="btn btn--outline btn--small" type="submit">Uitloggen</button></form>

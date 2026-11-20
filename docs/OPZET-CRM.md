@@ -154,8 +154,10 @@ database in de back-up.
 ## 7. Fasering in kleine PR's
 Migratie-PR's (M) draaien na elkaar, nooit parallel; de rest kan parallel zodra de basis er is.
 
-Let op: migratie 3 is gebruikt door het contactformulier; de CRM-migraties schuiven daardoor één op (PR 1 = M4,
-PR 2 = M5, enzovoort). De nummers hieronder zijn die van het oorspronkelijke voorstel.
+Let op: de nummers in de tabel zijn die van het oorspronkelijke voorstel. Migratie 3 is gebruikt door het
+contactformulier (CRM-PR 1 werd M4), en het technische beheer (`/app/beheer/`, goedgekeurd 20-11-2026) gaat vóór de
+rest van het CRM: M5 instellingen, M6 doorverwijzingen en 404-lijst, M7 logboek, M8 bewaking. **Geldende nummering
+van de CRM-migraties: 2FA M9, persons M10, aanmeldingen M11, reizen M12, betalingen M13, opruimen M14.**
 
 | # | PR | Migratie |
 |---|---|---|

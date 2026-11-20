@@ -13,6 +13,7 @@ const { RIGHTS, ROLES, roleHasRight, roleLabel } = require('./rights');
 const { hashPassword, verifyPassword, needsRehash, passwordProblem, getDummyHash, MAX_LENGTH } = require('./passwords');
 const { renderCrmPage, renderInput, renderAlert } = require('./layout');
 const { createUserRoutes } = require('./users');
+const { createBeheerRoutes } = require('../beheer/routes');
 
 /**
  * Hoogstens zoveel mislukte pogingen op één account vanuit één IP-reeks (/24 of /48) per venster van zoveel minuten
@@ -77,8 +78,8 @@ function textField(value, max) {
 
 /**
  * Bouwt de CRM-router.
- * @param {{db: object, masterKey: Buffer, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
- *   Database, hoofdsleutel, de installatiecode voor de eerste beheerder (zonder code geen installatie), of de cookie
+ * @param {{db: object, masterKey: Buffer, settings: object, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
+ *   Database, hoofdsleutel, de instellingen (`beheer/settings.js`), de installatiecode voor de eerste beheerder (zonder code geen installatie), of de cookie
  *   `Secure` krijgt en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router, te koppelen op `/app`.
  */
@@ -103,7 +104,10 @@ function createCrmRouter(options) {
     }
     return next();
   });
-  router.use(express.urlencoded({ extended: false, limit: '16kb', parameterLimit: 20 }));
+  // Beheer heeft formulieren met meer en langere velden (bijv. robots.txt-regels); de rest blijft klein.
+  const smallForms = express.urlencoded({ extended: false, limit: '16kb', parameterLimit: 20 });
+  const beheerForms = express.urlencoded({ extended: false, limit: '64kb', parameterLimit: 100 });
+  router.use((req, res, next) => (req.path.startsWith('/beheer/') ? beheerForms : smallForms)(req, res, next));
   router.use(auth.loadSession);
 
   /**
@@ -300,6 +304,7 @@ function createCrmRouter(options) {
       body: html`<p>Welkom, ${req.user.name}. Je bent ingelogd als <strong>${roleLabel(req.user.role)}</strong>.</p>
         <p>Het CRM wordt in stappen gebouwd. De modules voor aanmeldingen, deelnemers en reizen volgen.</p>
         ${roleHasRight(req.user.role, 'gebruikers') ? html`<p><a class="btn" href="/app/gebruikers/">Gebruikers beheren</a></p>` : ''}
+        ${roleHasRight(req.user.role, 'systeem') ? html`<p><a class="btn btn--outline" href="/app/beheer/">Naar Beheer</a></p>` : ''}
         <h2>Jouw rechten</h2>
         <ul class="crm-rights">${rights.map((right) => html`<li>${RIGHTS[right]}</li>`)}</ul>`,
     }));
@@ -358,6 +363,7 @@ function createCrmRouter(options) {
   });
 
   router.use(createUserRoutes({ db, auth, normalizeEmail, textField }));
+  router.use(createBeheerRoutes({ db, auth, settings: options.settings }));
 
   router.use((req, res) => {
     res.status(404).send(renderCrmPage({

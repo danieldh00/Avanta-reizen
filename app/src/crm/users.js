@@ -29,6 +29,8 @@ const ACTION_LABELS = {
   'gebruiker.uitgeschakeld': 'Gebruiker uitgeschakeld',
   'gebruiker.ingeschakeld': 'Gebruiker ingeschakeld',
   'gebruiker.wachtwoord': 'Nieuw wachtwoord ingesteld door beheerder',
+  'instelling.gewijzigd': 'Instelling gewijzigd',
+  'instelling.teruggezet': 'Instelling teruggezet naar de startwaarde',
 };
 
 /**

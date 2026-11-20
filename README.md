@@ -47,7 +47,15 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     actieve beheerder kan niet worden gedegradeerd of uitgeschakeld. Het auditlog bewaart wie, wat, welk record, wanneer
     en een ingekort IP-adres (/24 of /48), nooit e-mailadressen, wachtwoorden of andere waarden; regels ouder dan 2 jaar
     worden bij het starten en daarna dagelijks opgeruimd, net als verlopen sessies.
-  - 2FA (verplicht voor rollen met toegang tot bijzondere gegevens) volgt in de volgende CRM-PR.
+  - 2FA (verplicht voor rollen met toegang tot bijzondere gegevens) volgt in een latere CRM-PR (na het beheergedeelte).
+- **Beheer** op `/app/beheer/` (alleen de rol beheerder, recht `systeem`; opzet zoals in AquaTech): zijbalk met groepen
+  en een zoekveld, een systeemoverzicht (versie, Node.js, PostgreSQL, laatste migratie, looptijd en de bron van elke
+  instelling) en instellingenformulieren. Instellingen staan in de tabel `settings` (`app/src/beheer/settings.js`):
+  wat in Beheer is opgeslagen gaat voor een omgevingsvariabele (startwaarde), die weer voor de standaard; per instelling
+  kan het terug naar de startwaarde. Geheimen staan versleuteld (hoofdsleutel) en gaan nooit volledig naar de browser.
+  Elke wijziging komt in het auditlog (welke instelling, nooit de waarde). Nu: *Organisatie > Contactgegevens*
+  (telefoon en e-mail in de voettekst en de gegevens voor zoekmachines). Vindbaarheid (SEO), doorverwijzingen en
+  Google Analytics volgen.
 
 ## Werkwijze
 
@@ -65,6 +73,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `docs/CLAUDE-sjabloon.md` | sjabloon voor `CLAUDE.md` in een volgend project |
 | `.claude/agents/` | verkenners `map`, `callers`, `tests` |
 | `app/` | de applicatie (`src/`, `public/`, `tools/import-wordpress.js`, `test/`); versie in `app/package.json` |
+| `app/src/beheer/` | Beheer: `settings.js` (instellingen), `indeling.js` (zijbalk), `routes.js` (`/app/beheer/`) |
 | `docs/OPZET-WEBSITE.md` | opzet, inventaris van de huidige site, fasering en open vragen |
 | `changes/` | releasenotes-fragmenten, zie `changes/README.md` |
 | `tools/release-notes.js` | verwerkt fragmenten; controleert PR's |

@@ -7,6 +7,7 @@
 /** Alle rechten met een omschrijving voor het scherm. */
 const RIGHTS = {
   gebruikers: 'Gebruikers, rollen en auditlog beheren',
+  systeem: 'Technisch beheer: instellingen, vindbaarheid en systeem',
   reizen: 'Reizen aanmaken, wijzigen en publiceren',
   aanmeldingen: 'Aanmeldingen inzien en status wijzigen',
   deelnemers: 'Deelnemers (NAW en contact) inzien en samenvoegen',
