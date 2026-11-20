@@ -25,6 +25,8 @@ const { createCaptcha, cspWith: captchaCspWith, isFormPath } = require('./securi
 const crypto = require('node:crypto');
 const { PUBLIC_DIR, MEDIA_DIR, DATA_DIR } = require('./paths');
 const { createBackupService } = require('./backup/backups');
+const { createDrive } = require('./backup/drive');
+const { roleHasRight } = require('./crm/rights');
 const { renderPage, renderPageHeader } = require('./site/layout');
 const { html } = require('./site/html');
 
@@ -67,8 +69,8 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, settings?: object, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
- *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), de back-updienst (standaard `backup/backups.js` met `databaseUrl`, `backupDir` en `pgDumpPath`; zonder `databaseUrl` geen back-ups), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
+ * @param {{db: object, masterKey: Buffer, settings?: object, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
+ *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), de back-updienst (standaard `backup/backups.js` met `databaseUrl`, `backupDir` en `pgDumpPath`; zonder `databaseUrl` geen back-ups), een eigen fetch voor Google Drive (`googleFetch`, tests), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
  *   (standaard `TRUST_PROXY`, anders loopback), de installatiecode voor de eerste CRM-beheerder en of de CRM-cookie
  *   `Secure` krijgt (standaard ja).
  * @returns {express.Express} De app.
@@ -138,14 +140,26 @@ function createApp(options) {
   app.locals.mailer = mailer;
   app.locals.settings = settings;
   const notifications = createNotifications({ mailer, settings });
-  // Versleutelde back-ups (Beheer > Back-ups en herstel); alleen met een verbindings-URL voor pg_dump.
+  // Versleutelde back-ups (Beheer > Back-ups en herstel); alleen met een verbindings-URL voor pg_dump. Na elke back-up
+  // gaat er een kopie naar Google Drive als die gekoppeld is (tests geven een eigen fetch mee als nep-Google).
+  const backupDir = options.backupDir || path.join(DATA_DIR, 'backups');
+  const drive = createDrive({
+    settings, dir: backupDir, fetchImpl: options.googleFetch, now: options.now,
+    audit: (entry, client) => client.query('INSERT INTO audit_log (user_id, action, entity) VALUES ($1, $2, $3)', [entry.userId ?? null, entry.action, 'google-drive']),
+    isAllowed: async (userId) => {
+      const [user] = await options.db.query('SELECT role, active FROM users WHERE id = $1', [userId]);
+      return Boolean(user && user.active && roleHasRight(user.role, 'systeem'));
+    },
+  });
   const backups = options.backups || createBackupService({
-    db: options.db, settings, dir: options.backupDir || path.join(DATA_DIR, 'backups'), masterKey: options.masterKey,
+    db: options.db, settings, dir: backupDir, masterKey: options.masterKey,
     connectionString: options.databaseUrl, pgDumpPath: options.pgDumpPath, now: options.now,
+    onCreated: () => drive.sync().catch((error) => console.error(`Google Drive: ${String(error.message).replace(/[\r\n]/g, ' ')}`)),
   });
   app.locals.backups = backups;
+  app.locals.drive = drive;
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now }));
@@ -198,6 +212,7 @@ async function start() {
   startCrmMaintenance(db, app.locals.settings);
   app.locals.redirects.startTimers();
   app.locals.backups.startTimer();
+  app.locals.drive.startTimer();
   const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
   // Eenmalige installatiecode voor de eerste beheerder; alleen bruikbaar zolang er geen enkele CRM-gebruiker is.
   if (!present) console.log(`CRM: nog geen gebruikers. Maak de eerste beheerder aan op /app/installatie/ met installatiecode ${setupCode}`);

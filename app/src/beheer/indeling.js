@@ -84,6 +84,14 @@ const GROUPS = [
         extra: 'back-ups',
         words: 'back-up backup herstel terugzetten restore database dump pg_dump versleuteld bewaartermijn download hoofdsleutel',
       },
+      {
+        id: 'google-drive',
+        label: 'Google Drive',
+        intro: 'Een kopie van elke back-up op Google Drive, buiten de server. De back-ups zijn al versleuteld: Google kan de inhoud niet lezen. De app krijgt alleen toegang tot de map die ze zelf aanmaakt.',
+        fields: ['driveEnabled', 'driveClientId', 'driveClientSecret', 'driveFolderName', 'driveKeepCount'],
+        extra: 'google-drive',
+        words: 'google drive kopie extern buiten de server oauth cloud console client koppelen back-up backup',
+      },
     ],
   },
   {

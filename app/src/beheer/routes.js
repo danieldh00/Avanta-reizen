@@ -14,6 +14,7 @@ const { createRedirectRoutes } = require('./redirect-routes');
 const { createMailRoutes } = require('./mail-routes');
 const { createCaptchaRoutes } = require('./captcha-routes');
 const { createBackupRoutes } = require('./backup-routes');
+const { createDriveRoutes } = require('./drive-routes');
 
 /** Versie van de app (voor het systeemoverzicht). */
 const APP_VERSION = require('../../package.json').version;
@@ -61,9 +62,9 @@ function formatUptime(seconds) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, now?: () => number}} options
+ * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, drive?: object, now?: () => number}} options
  *   Database, sessie- en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`), de mailer en
- *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de back-updienst (`backup/backups.js`) en (voor tests)
+ *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de back-updienst (`backup/backups.js`), de Drive-koppeling (`backup/drive.js`) en (voor tests)
  *   de klok van de limieten.
  * @returns {express.Router} Router, te koppelen binnen de CRM-router.
  */
@@ -249,6 +250,11 @@ function createBeheerRoutes(options) {
     const backupRoutes = createBackupRoutes({ auth, guard, settings, backups: options.backups, renderSettingsSection, notFound, now: options.now });
     extraPanels['back-ups'] = backupRoutes.renderPanel;
     router.use(backupRoutes.router);
+  }
+  if (options.drive) {
+    const driveRoutes = createDriveRoutes({ auth, guard, settings, drive: options.drive, renderSettingsSection, now: options.now });
+    extraPanels['google-drive'] = driveRoutes.renderPanel;
+    router.use(driveRoutes.router);
   }
   if (options.captcha) {
     const captchaRoutes = createCaptchaRoutes({ auth, guard, captcha: options.captcha, renderSettingsSection, now: options.now });
