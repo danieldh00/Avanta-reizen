@@ -1,6 +1,6 @@
 # Avanta Reizen
 
-Nieuwe website van Avanta Reizen (fase 1: nabouw van www.avantareizen.nl) met daarachter straks een CRM (fase 2).
+Nieuwe website van Avanta Reizen (fase 1: nabouw van www.avantareizen.nl) met daarachter een CRM (fase 2, in opbouw).
 Node 22 + Express + PostgreSQL 17, server-gerenderde HTML, geen externe scripts of fonts. Zie `docs/OPZET-WEBSITE.md`.
 
 ## Starten
@@ -28,6 +28,20 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   paspoortgegevens staan versleuteld. **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.
 - Afbeeldingen staan in het volume `/data/media` (circa 250 MB na de import).
+- **CRM** op `/app/` (in opbouw, zie `docs/OPZET-CRM.md`): inloggen met e-mail en wachtwoord (scrypt, minimaal 12
+  tekens), rollen `beheerder`, `kantoor`, `reisleider` en `boekhouding` met vaste rechten (`app/src/crm/rights.js`,
+  per route gecontroleerd met `requireRight`), gebruikersbeheer en een auditlog op `/app/auditlog/`.
+  - **Eerste beheerder**: zolang er geen CRM-gebruiker is, zet de server bij elke start een eenmalige installatiecode in
+    het log (`CRM: nog geen gebruikers … installatiecode XXXXX-…`). Open `/app/installatie/`, vul die code in en maak
+    het account aan; daarna is de installatiepagina weg (404).
+  - Sessie: cookie `avanta_sessie` (`HttpOnly`, `Secure`, `SameSite=Strict`, pad `/app`), in de database alleen de
+    SHA-256 van het token; verloopt na 8 uur zonder activiteit en uiterlijk na 7 dagen. Het CRM werkt daardoor alleen
+    via https (of `http://localhost`).
+  - Beveiliging: CSRF-token in elk formulier plus herkomstcontrole, 10 inlogpogingen per kwartier per IP, een account
+    gaat na 5 mislukte pogingen 15 minuten op slot (een nieuw wachtwoord via de beheerder heft dat op), de laatste
+    actieve beheerder kan niet worden gedegradeerd of uitgeschakeld. Het auditlog bewaart wie, wat, welk record, wanneer
+    en een ingekort IP-adres (/24 of /48), nooit e-mailadressen, wachtwoorden of andere waarden.
+  - 2FA (verplicht voor rollen met toegang tot bijzondere gegevens) volgt in de volgende CRM-PR.
 
 ## Werkwijze
 

@@ -16,6 +16,18 @@ const MAX_FILL_MS = 3 * 60 * 60 * 1000;
 const TOKEN_MESSAGE = 'Het formulier is verlopen of te snel verstuurd. Controleer je gegevens en verstuur het opnieuw.';
 
 /**
+ * Of een verzoek van een andere site komt, volgens `Sec-Fetch-Site` of `Origin`. Ontbreken beide (oude browser,
+ * script), dan telt het niet als andere site; formulieren hebben daarnaast hun eigen token.
+ * @param {object} req Express-verzoek.
+ * @returns {boolean} Waar als het verzoek van een andere site komt.
+ */
+function isCrossSite(req) {
+  const site = req.get('sec-fetch-site');
+  const origin = req.get('origin');
+  return Boolean((site && !['same-origin', 'none'].includes(site)) || (origin && origin !== `${req.protocol}://${req.get('host')}`));
+}
+
+/**
  * Maakt de bescherming voor één formulier.
  * @param {{purpose: string, formKey: Buffer, limit: number, windowMs: number, limitMessage: string, now?: () => number}} options
  *   Doel (scheidt de tokens per formulier), sleutel voor het token, limiet per venster, tekst bij 429 en (voor tests) de klok.
@@ -81,11 +93,7 @@ function createFormGuard(options) {
    * @returns {void}
    */
   const protect = (req, res, next) => {
-    const site = req.get('sec-fetch-site');
-    const origin = req.get('origin');
-    if ((site && !['same-origin', 'none'].includes(site)) || (origin && origin !== `${req.protocol}://${req.get('host')}`)) {
-      return res.status(403).type('text').send('Verzoek geweigerd.');
-    }
+    if (isCrossSite(req)) return res.status(403).type('text').send('Verzoek geweigerd.');
     if (!limiter.hit(clientKey(req))) {
       return res.status(429).set('Retry-After', retryAfterSeconds).type('text').send(options.limitMessage);
     }
@@ -95,4 +103,4 @@ function createFormGuard(options) {
   return { signToken, checkToken, hiddenFields, isBot, tokenProblem, protect };
 }
 
-module.exports = { createFormGuard, MIN_FILL_MS, MAX_FILL_MS, TOKEN_MESSAGE };
+module.exports = { createFormGuard, isCrossSite, MIN_FILL_MS, MAX_FILL_MS, TOKEN_MESSAGE };
