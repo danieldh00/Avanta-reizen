@@ -10,7 +10,7 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const passwords = require('../src/crm/passwords');
 const { roleHasRight, roleNeedsMfa, ROLES, RIGHTS } = require('../src/crm/rights');
-const { ipPrefix, hashToken, COOKIE_NAME } = require('../src/crm/auth');
+const { ipPrefix, hashToken, purgeExpired, COOKIE_NAME } = require('../src/crm/auth');
 const { generateSetupCode, normalizeSetupCode, normalizeEmail } = require('../src/crm/routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -303,11 +303,29 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal(count, 0);
   });
 
-  await t.test('auditregels ouder dan de bewaartermijn worden bij een login opgeruimd', async () => {
-    await db.query("INSERT INTO audit_log (action, created_at) VALUES ('inloggen.mislukt', now() - interval '25 months')");
+  await t.test('onderhoud ruimt oude auditregels en verlopen sessies op', async () => {
+    await db.query("INSERT INTO audit_log (action, created_at) VALUES ('inloggen.mislukt', now() - interval '25 months'), ('inloggen', now() - interval '23 months')");
+    const [user] = await db.query("SELECT id FROM users WHERE email = 'kees@example.nl'");
+    await db.query("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ('oud', $1, now() - interval '1 day')", [user.id]);
+    await purgeExpired(db);
+    const [{ old }] = await db.query("SELECT count(*)::int AS old FROM audit_log WHERE created_at < now() - interval '24 months'");
+    const [{ recent }] = await db.query("SELECT count(*)::int AS recent FROM audit_log WHERE created_at < now() - interval '22 months'");
+    const [{ sessions }] = await db.query("SELECT count(*)::int AS sessions FROM sessions WHERE token_hash = 'oud'");
+    assert.equal(old, 0);
+    assert.equal(recent, 1, 'regels binnen de termijn blijven');
+    assert.equal(sessions, 0);
+  });
+
+  await t.test('teller per account over alle IP-reeksen tegen gedistribueerd raden', async () => {
+    clock += 2 * 60 * 60 * 1000;
+    // Elke poging vanuit een andere IP-reeks (vertrouwde proxy is loopback, dus X-Forwarded-For telt).
+    for (let i = 0; i < 30; i++) {
+      await request('/app/inloggen/', { form: { email: 'kees@example.nl', password: `fout wachtwoord ${i}` }, headers: { 'x-forwarded-for': `10.${i}.0.1` } });
+    }
+    const blocked = await request('/app/inloggen/', { form: { email: 'kees@example.nl', password: 'nieuw kantoorwachtwoord' }, headers: { 'x-forwarded-for': '10.200.0.1' } });
+    assert.equal(blocked.status, 401, 'ook met juist wachtwoord vanaf een nieuwe reeks dicht');
+    clock += 61 * 60 * 1000;
     await login('kees@example.nl', 'nieuw kantoorwachtwoord');
-    const [{ count }] = await db.query("SELECT count(*)::int AS count FROM audit_log WHERE created_at < now() - interval '24 months'");
-    assert.equal(count, 0);
   });
 
   await t.test('auditlog: alle acties gelogd zonder persoonsgegevens, zichtbaar voor beheerder', async () => {
@@ -317,7 +335,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
       'gebruiker.aangemaakt', 'gebruiker.uitgeschakeld', 'gebruiker.ingeschakeld', 'gebruiker.wachtwoord', 'wachtwoord.gewijzigd', 'uitloggen']) {
       assert.ok(actions.has(action), action);
     }
-    assert.ok(rows.every((row) => row.ip_prefix === '127.0.0.0/24'));
+    assert.ok(rows.every((row) => row.ip_prefix === null || /^(127\.0|10\.\d+)\.0\.0\/24$/.test(row.ip_prefix)), 'alleen ingekorte adressen');
     const dump = JSON.stringify(rows);
     assert.doesNotMatch(dump, /example\.nl|wachtwoord /, 'geen e-mailadressen of wachtwoorden in het log');
     const session = await login('beheer@example.nl', 'nieuw beheerwachtwoord');

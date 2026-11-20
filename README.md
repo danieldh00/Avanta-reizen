@@ -40,10 +40,12 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   - Beveiliging: CSRF-token in elk formulier plus herkomstcontrole, 300 verzoeken per minuut per IP op `/app/`,
     10 inlogpogingen per kwartier per IP, en na 5 mislukte pogingen op één account vanuit één IP-reeks wacht die
     combinatie 15 minuten. Dat laatste bewust niet voor het hele account, zodat niemand de beheerder kan buitensluiten;
-    vanaf een ander netwerk of na het kwartier lukt inloggen gewoon (een herstart wist de tellers ook). De laatste
+    vanaf een ander netwerk of na het kwartier lukt inloggen gewoon (een herstart wist de tellers ook). Tegen raden
+    vanuit veel netwerken tegelijk gaat een account na 30 mislukte pogingen binnen een uur tot het einde van dat uur
+    dicht. De laatste
     actieve beheerder kan niet worden gedegradeerd of uitgeschakeld. Het auditlog bewaart wie, wat, welk record, wanneer
     en een ingekort IP-adres (/24 of /48), nooit e-mailadressen, wachtwoorden of andere waarden; regels ouder dan 2 jaar
-    worden bij een login opgeruimd.
+    worden bij het starten en daarna dagelijks opgeruimd, net als verlopen sessies.
   - 2FA (verplicht voor rollen met toegang tot bijzondere gegevens) volgt in de volgende CRM-PR.
 
 ## Werkwijze

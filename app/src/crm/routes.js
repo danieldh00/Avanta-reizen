@@ -22,6 +22,14 @@ const { createUserRoutes } = require('./users');
 const MAX_FAILED_LOGINS = 5;
 const LOCK_MINUTES = 15;
 
+/**
+ * Ruimere teller per account over alle bronnen samen, tegen gedistribueerd raden: na zoveel mislukte pogingen binnen
+ * een uur is het account tot het einde van dat uur dicht. Ruim genoeg dat één aanvaller de beheerder niet makkelijk
+ * buitensluit, en het herstelt vanzelf.
+ */
+const MAX_FAILED_LOGINS_PER_ACCOUNT = 30;
+const ACCOUNT_WINDOW_MINUTES = 60;
+
 /** Melding bij een mislukte login; verraadt niet of het account bestaat of geblokkeerd is. */
 const LOGIN_FAILED = `E-mailadres of wachtwoord klopt niet. Na ${MAX_FAILED_LOGINS} mislukte pogingen moet je ${LOCK_MINUTES} minuten wachten.`;
 
@@ -83,6 +91,7 @@ function createCrmRouter(options) {
   const setupLimiter = createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000, now: options.now });
   const passwordLimiter = createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000, now: options.now });
   const failedLoginLimiter = createRateLimiter({ limit: MAX_FAILED_LOGINS, windowMs: LOCK_MINUTES * 60 * 1000, now: options.now });
+  const accountFailureLimiter = createRateLimiter({ limit: MAX_FAILED_LOGINS_PER_ACCOUNT, windowMs: ACCOUNT_WINDOW_MINUTES * 60 * 1000, now: options.now });
   // Algemene limiet op alles onder /app/ (ook de sessiecontrole kost een databasevraag per verzoek).
   const generalLimiter = createRateLimiter({ limit: 300, windowMs: 60 * 1000, now: options.now });
 
@@ -155,14 +164,18 @@ function createCrmRouter(options) {
         ? await db.query('SELECT id, password_hash, active FROM users WHERE lower(email) = $1', [email])
         : [];
       const failureKey = `${user ? user.id : 'onbekend'}:${ipPrefix(req)}`;
-      const blocked = Boolean(user) && failedLoginLimiter.isBlocked(failureKey);
+      const accountKey = user ? `account:${user.id}` : '';
+      const blocked = Boolean(user) && (failedLoginLimiter.isBlocked(failureKey) || accountFailureLimiter.isBlocked(accountKey));
       // Ook bij een onbekend adres een volledige controle, zodat de responstijd niets verraadt.
       const passwordOk = await verifyPassword(password, user ? user.password_hash : await getDummyHash());
       if (!user || !user.active || blocked || !passwordOk) {
         let action = 'inloggen.mislukt';
         if (user && !user.active) action = 'inloggen.inactief';
         else if (blocked) action = 'inloggen.geblokkeerd';
-        if (user && !blocked) failedLoginLimiter.hit(failureKey);
+        if (user && !blocked) {
+          failedLoginLimiter.hit(failureKey);
+          accountFailureLimiter.hit(accountKey);
+        }
         await auth.audit(req, { userId: user ? user.id : null, action, entity: 'users', entityId: user ? user.id : undefined });
         return res.status(401).send(renderLogin({ email: textField(req.body.email, 200), error: LOGIN_FAILED }));
       }
@@ -352,4 +365,4 @@ function createCrmRouter(options) {
   return router;
 }
 
-module.exports = { createCrmRouter, generateSetupCode, normalizeSetupCode, normalizeEmail, MAX_FAILED_LOGINS, LOCK_MINUTES };
+module.exports = { createCrmRouter, generateSetupCode, normalizeSetupCode, normalizeEmail, MAX_FAILED_LOGINS, LOCK_MINUTES, MAX_FAILED_LOGINS_PER_ACCOUNT };

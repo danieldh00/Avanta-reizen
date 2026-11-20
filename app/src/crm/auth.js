@@ -66,6 +66,29 @@ function ipPrefix(req) {
 }
 
 /**
+ * Ruimt verlopen sessies en auditregels ouder dan de bewaartermijn op (beide via een index). Draait bij het starten
+ * van de server en daarna dagelijks (zie `startCrmMaintenance`).
+ * @param {{query: Function}} db Database.
+ * @returns {Promise<void>}
+ */
+async function purgeExpired(db) {
+  await db.query('DELETE FROM sessions WHERE expires_at < now()');
+  await db.query('DELETE FROM audit_log WHERE created_at < now() - make_interval(months => $1)', [AUDIT_RETENTION_MONTHS]);
+}
+
+/**
+ * Start het dagelijkse onderhoud: meteen een keer opruimen, daarna elke 24 uur. De timer houdt het proces niet open.
+ * Een mislukte ronde wordt gelogd (zonder gegevens) en de volgende ronde probeert het opnieuw.
+ * @param {{query: Function}} db Database.
+ * @returns {NodeJS.Timeout} De timer.
+ */
+function startCrmMaintenance(db) {
+  const run = () => purgeExpired(db).catch((error) => console.error(`CRM-onderhoud mislukt: ${String(error.message).replace(/[\r\n]/g, ' ')}`));
+  run();
+  return setInterval(run, 24 * 60 * 60 * 1000).unref();
+}
+
+/**
  * Maakt de sessie- en rechtenlaag.
  * @param {{db: object, masterKey: Buffer, secureCookies?: boolean}} options Database, hoofdsleutel (voor de CSRF-sleutel) en
  *   of de cookie `Secure` krijgt (standaard ja).
@@ -104,8 +127,7 @@ function createAuth(options) {
 
   /**
    * Maakt een nieuwe sessie (na inloggen) en zet de cookie. Ruimt meteen verlopen sessies op (via de index op
-   * `expires_at`; een sessie die door inactiviteit ongeldig is, verdwijnt uiterlijk op dat moment) en auditregels
-   * ouder dan de bewaartermijn (index op `created_at`).
+   * `expires_at`; een sessie die door inactiviteit ongeldig is, verdwijnt uiterlijk op dat moment).
    * @param {object} res Express-antwoord.
    * @param {number} userId Gebruiker.
    * @param {{query: Function}} [client] Database of transactie-client.
@@ -113,7 +135,6 @@ function createAuth(options) {
    */
   const startSession = async (res, userId, client = db) => {
     await client.query('DELETE FROM sessions WHERE expires_at < now()');
-    await client.query('DELETE FROM audit_log WHERE created_at < now() - make_interval(months => $1)', [AUDIT_RETENTION_MONTHS]);
     const token = crypto.randomBytes(32).toString('base64url');
     await client.query(
       `INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, now() + make_interval(days => $3))`,
@@ -227,4 +248,4 @@ function createAuth(options) {
   return { audit, startSession, endSession, endSessionsOf, loadSession, requireLogin, requireRight, checkCsrf };
 }
 
-module.exports = { createAuth, hashToken, readCookie, ipPrefix, COOKIE_NAME, IDLE_HOURS, MAX_DAYS, AUDIT_RETENTION_MONTHS };
+module.exports = { createAuth, purgeExpired, startCrmMaintenance, hashToken, readCookie, ipPrefix, COOKIE_NAME, IDLE_HOURS, MAX_DAYS, AUDIT_RETENTION_MONTHS };

@@ -11,6 +11,7 @@ const { createSiteRouter } = require('./site/routes');
 const { createBookingRouter } = require('./booking/routes');
 const { createContactForm } = require('./contact/routes');
 const { createCrmRouter, generateSetupCode } = require('./crm/routes');
+const { startCrmMaintenance } = require('./crm/auth');
 const seo = require('./site/seo');
 const { loadMasterKey, createVault } = require('./security/vault');
 const crypto = require('node:crypto');
@@ -127,6 +128,7 @@ async function start() {
   const port = Number(process.env.PORT) || 3400;
   const setupCode = generateSetupCode();
   const app = createApp({ db, masterKey: loadMasterKey(), indexable: process.env.SITE_INDEXABLE === 'true', setupCode });
+  startCrmMaintenance(db);
   const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
   // Eenmalige installatiecode voor de eerste beheerder; alleen bruikbaar zolang er geen enkele CRM-gebruiker is.
   if (!present) console.log(`CRM: nog geen gebruikers. Maak de eerste beheerder aan op /app/installatie/ met installatiecode ${setupCode}`);
