@@ -15,6 +15,7 @@ const { createMailRoutes } = require('./mail-routes');
 const { createCaptchaRoutes } = require('./captcha-routes');
 const { createBackupRoutes } = require('./backup-routes');
 const { createDriveRoutes } = require('./drive-routes');
+const { createRestoreTestRoutes } = require('./restore-test-routes');
 
 /** Versie van de app (voor het systeemoverzicht). */
 const APP_VERSION = require('../../package.json').version;
@@ -62,9 +63,10 @@ function formatUptime(seconds) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, drive?: object, now?: () => number}} options
+ * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, now?: () => number}} options
  *   Database, sessie- en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`), de mailer en
- *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de back-updienst (`backup/backups.js`), de Drive-koppeling (`backup/drive.js`) en (voor tests)
+ *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de back-updienst (`backup/backups.js`), de Drive-koppeling (`backup/drive.js`), de hersteltests
+ *   (`backup/restore-test.js`) en (voor tests)
  *   de klok van de limieten.
  * @returns {express.Router} Router, te koppelen binnen de CRM-router.
  */
@@ -262,6 +264,7 @@ function createBeheerRoutes(options) {
     router.use(captchaRoutes.router);
   }
 
+  if (options.restoreTests) router.use(createRestoreTestRoutes({ auth, guard, settings, restoreTests: options.restoreTests, renderBeheerPage, now: options.now }));
   // Doorverwijzingen en de 404-lijst hebben eigen routes (vóór de algemene secties).
   if (options.redirects) router.use(createRedirectRoutes({ db, auth, guard, redirects: options.redirects, renderBeheerPage, notFound }));
 

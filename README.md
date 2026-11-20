@@ -97,6 +97,14 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     (hervatbare upload als stroom); de nieuwste N blijven op Drive (standaard 30). Met status, *Nu synchroniseren* (6 per
     tien minuten), *Ontkoppelen* (token ingetrokken bij Google) en de laatste 20 gebeurtenissen; koppelen en ontkoppelen
     in het auditlog. Een ingetrokken koppeling meldt "koppel opnieuw"; Google instellen: `docs/GOOGLE-DRIVE.md`.
+  - *Back-ups en herstel > Hersteltest*: elke zondag rond 04:30 zet apps01 de nieuwste back-up terug in een
+    wegwerp-PostgreSQL (eigen container, intern netwerk zonder uitgang, tmpfs), start daarop het huidige app-image en
+    vergelijkt de rijen per tabel met de echte database (`deploy/apps01/restore-test.sh`, systemd-timer
+    `avanta-restore-test.timer`, door `install.sh` geïnstalleerd). De app bepaalt en toont de uitslag (geslaagd,
+    waarschuwing bij meer dan 25% verschil, mislukt) via `cli.js restore-test-result`. *Nu testen op de server* zet een
+    verzoek neer dat een path-unit oppikt. Daarnaast test de app wekelijks (en op verzoek) de nieuwste kopie op Google
+    Drive: downloaden, volledig ontsleutelen, controleren en vergelijken met de back-up op de server
+    (`app/src/backup/restore-test.js`). Aanvragen (3 per uur) staan in het auditlog.
   - *Vindbaarheid > Zoekmachines*: indexeren aan/uit (standaard uit; **aanzetten vraagt het wachtwoord** van de
     beheerder, `SITE_INDEXABLE` is alleen de startwaarde), basisadres (`SITE_URL` als startwaarde; canonical, sitemap
     en JSON-LD gebruiken nooit het adres uit het verzoek) en de verificatiecodes van Google Search Console en Bing.
@@ -136,8 +144,8 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `docs/CLAUDE-sjabloon.md` | sjabloon voor `CLAUDE.md` in een volgend project |
 | `.claude/agents/` | verkenners `map`, `callers`, `tests` |
 | `app/` | de applicatie (`src/`, `public/`, `tools/import-wordpress.js`, `test/`); versie in `app/package.json` |
-| `app/src/beheer/` | Beheer: `settings.js` (instellingen), `indeling.js` (zijbalk), `routes.js` (`/app/beheer/`), `mail-routes.js` (testmail, WAN-IP), `backup-routes.js` (back-ups), `drive-routes.js` (Google Drive) |
-| `app/src/backup/` | `backups.js` (versleutelde back-ups, planner), `drive.js` (kopie naar Google Drive), `cli.js` (maken, tonen, ontsleutelen op de opdrachtregel) |
+| `app/src/beheer/` | Beheer: `settings.js` (instellingen), `indeling.js` (zijbalk), `routes.js` (`/app/beheer/`), `mail-routes.js` (testmail, WAN-IP), `backup-routes.js` (back-ups), `drive-routes.js` (Google Drive), `restore-test-routes.js` (hersteltest) |
+| `app/src/backup/` | `backups.js` (versleutelde back-ups, planner), `drive.js` (kopie naar Google Drive), `restore-test.js` (hersteltests), `cli.js` (maken, tonen, ontsleutelen op de opdrachtregel) |
 | `app/src/mail/` | `mailer.js` (versturen via SMTP of Exchange-connector), `wan-ip.js` (WAN-IP van de server), `layout.js` (opmaak), `notifications.js` (meldingen aan kantoor) |
 | `docs/OPZET-WEBSITE.md` | opzet, inventaris van de huidige site, fasering en open vragen |
 | `changes/` | releasenotes-fragmenten, zie `changes/README.md` |
