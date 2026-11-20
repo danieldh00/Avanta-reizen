@@ -69,7 +69,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   - *E-mail > Mail-opmaak*: kleur van de titelbalk (contrast met wit minimaal 4,5) en voettekst; het logo van de site
     staat bovenaan elke mail (ingebed). Met een voorbeeld in een nieuw tabblad.
   - *Toegang en beveiliging > Sessies en bewaartermijnen*: uitloggen na inactiviteit (1–24 uur, standaard 8), maximale
-    sessieduur (1–30 dagen, standaard 7; beide gelden meteen, ook voor wie al is ingelogd), bewaartermijn van het
+    sessieduur (1–30 dagen, standaard 7; korter geldt meteen, ook voor wie al is ingelogd, een langere maximale duur alleen voor nieuwe sessies), bewaartermijn van het
     auditlog (standaard 24 maanden), van de IP-voorvoegsels daarin (standaard 90 dagen, daarna gewist) en van de
     404-lijst (standaard 90 dagen). Opruimen gebeurt bij het starten en daarna dagelijks.
   - *Vindbaarheid > Zoekmachines*: indexeren aan/uit (standaard uit; **aanzetten vraagt het wachtwoord** van de

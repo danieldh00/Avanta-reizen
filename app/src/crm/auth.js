@@ -2,7 +2,8 @@
  * Sessies, CSRF-bescherming, rechtencontrole en auditlog van het CRM.
  * - Sessie: willekeurig token in een cookie (`HttpOnly`, `Secure`, `SameSite=Strict`, pad `/app`); in de database staat
  *   alleen de SHA-256 ervan. Verloopt na 8 uur zonder activiteit en uiterlijk na 7 dagen (instelbaar in Beheer >
- *   Toegang en beveiliging > Sessies en bewaartermijnen; een kortere duur geldt meteen voor bestaande sessies).
+ *   Toegang en beveiliging > Sessies en bewaartermijnen; een kortere duur geldt meteen voor bestaande sessies, een
+ *   langere maximale duur alleen voor nieuwe sessies).
  * - CSRF: elk formulier met POST bevat een token dat uit de sessie is afgeleid (HMAC), plus een herkomstcontrole.
  * - Rechten: `requireRight(recht)` per route; zonder sessie naar het inlogscherm, zonder recht 403.
  * - Auditlog: wie, wat, welk record, wanneer en een ingekort IP-adres; nooit de waarde zelf of persoonsgegevens.
@@ -89,7 +90,9 @@ function ipPrefix(req) {
 async function purgeExpired(db, settings) {
   if (settings) await settings.ready();
   const maxDays = settingOr(settings, 'sessionMaxDays', MAX_DAYS);
-  await db.query('DELETE FROM sessions WHERE expires_at < now() OR created_at < now() - make_interval(days => $1)', [maxDays]);
+  // Twee aparte opdrachten, zodat de eerste de index op `expires_at` gebruikt.
+  await db.query('DELETE FROM sessions WHERE expires_at < now()');
+  await db.query('DELETE FROM sessions WHERE created_at < now() - make_interval(days => $1)', [maxDays]);
   await db.query('DELETE FROM audit_log WHERE created_at < now() - make_interval(months => $1)', [settingOr(settings, 'auditRetentionMonths', AUDIT_RETENTION_MONTHS)]);
   await db.query(
     'UPDATE audit_log SET ip_prefix = NULL WHERE created_at < now() - make_interval(days => $1) AND ip_prefix IS NOT NULL',

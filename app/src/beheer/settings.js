@@ -189,7 +189,7 @@ const SETTING_FIELDS = {
     validate: (value) => (value.split('\n').length > 6 ? 'Gebruik hoogstens 6 regels.' : ''),
   },
   sessionIdleHours: { type: 'int', label: 'Uitloggen na inactiviteit (uren)', help: 'Een sessie zonder activiteit vervalt na zoveel uur. Geldt meteen, ook voor wie al is ingelogd.', default: 8, min: 1, max: 24 },
-  sessionMaxDays: { type: 'int', label: 'Maximale duur van een sessie (dagen)', help: 'Daarna moet iedereen opnieuw inloggen, ook bij activiteit. Geldt meteen, ook voor wie al is ingelogd.', default: 7, min: 1, max: 30 },
+  sessionMaxDays: { type: 'int', label: 'Maximale duur van een sessie (dagen)', help: 'Daarna moet iedereen opnieuw inloggen, ook bij activiteit. Korter geldt meteen, ook voor wie al is ingelogd; langer alleen voor nieuwe sessies.', default: 7, min: 1, max: 30 },
   auditRetentionMonths: { type: 'int', label: 'Bewaartermijn auditlog (maanden)', help: 'Oudere regels worden dagelijks verwijderd. Advies: 24 maanden.', default: 24, min: 6, max: 120 },
   auditIpRetentionDays: { type: 'int', label: 'IP-adressen in het auditlog bewaren (dagen)', help: 'Daarna wordt het (al ingekorte) IP-adres uit de regel gewist; de regel zelf blijft.', default: 90, min: 7, max: 730 },
   notFoundRetentionDays: { type: 'int', label: 'Bewaartermijn 404-lijst (dagen)', help: 'Adressen die zo lang niet meer zijn gevraagd, verdwijnen uit de lijst onder Vindbaarheid > Niet gevonden.', default: 90, min: 7, max: 365 },
