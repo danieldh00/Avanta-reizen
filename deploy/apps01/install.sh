@@ -42,9 +42,18 @@ echo "Code op $(git -C "$REPO_DIR" rev-parse --short HEAD) ($REF)"
 
 cd "$STACK_DIR"
 if [ ! -f .env ]; then
+  # Verhuizing (docs/DRAAIBOEK-VPS-VERHUIZING.md): geef de bestaande hoofdsleutel mee als AVANTA_MASTER_KEY, anders zijn
+  # de back-ups en de versleutelde gegevens van de oude server hier onleesbaar. Zonder: een nieuwe sleutel.
+  master_key="${AVANTA_MASTER_KEY:-}"
+  if [ -n "$master_key" ]; then
+    [[ "$master_key" =~ ^[0-9a-fA-F]{64}$ ]] || die "AVANTA_MASTER_KEY moet 64 hex-tekens zijn"
+  else
+    master_key="$(openssl rand -hex 32)"
+  fi
   (umask 077
    sed -e "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" \
-       -e "s/^AVANTA_MASTER_KEY=.*/AVANTA_MASTER_KEY=$(openssl rand -hex 32)/" .env.example > .env)
+       -e "s/^AVANTA_MASTER_KEY=.*/AVANTA_MASTER_KEY=$master_key/" .env.example > .env)
+  unset master_key
   echo ".env aangemaakt met nieuwe geheimen (bewaar AVANTA_MASTER_KEY ook apart, bijv. in de wachtwoordkluis)."
 fi
 # Exact adres van cloudflared in dat netwerk: de enige proxy die de app vertrouwt (TRUST_PROXY, geen subnet).
