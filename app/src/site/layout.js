@@ -2,6 +2,7 @@
  * Paginaopbouw van de website: kop met logo en menu, inhoud en voettekst, in de huisstijl van Avanta.
  */
 const { html, toString } = require('./html');
+const { renderSeoHead } = require('./seo');
 
 /** Hoofdmenu, gelijk aan de huidige site. */
 const MENU = [
@@ -54,7 +55,7 @@ function renderMenu(currentPath) {
 
 /**
  * Maakt een volledige HTML-pagina.
- * @param {{title: string, description?: string, body: object, path?: string, header?: object, bodyClass?: string, indexable?: boolean}} page Gegevens van de pagina.
+ * @param {{title: string, description?: string, body: object, path?: string, header?: object, bodyClass?: string, indexable?: boolean, seo?: object}} page Gegevens van de pagina; `path` is het menupad, `seo` de canonical-URL, afbeelding, type en JSON-LD (zie `seo.renderSeoHead`).
  * @returns {string} De HTML.
  */
 function renderPage(page) {
@@ -68,6 +69,7 @@ function renderPage(page) {
   <title>${fullTitle}</title>
   ${page.description ? html`<meta name="description" content="${page.description}">` : ''}
   <meta name="robots" content="${page.indexable ? 'index, follow' : 'noindex, nofollow'}">
+  ${page.seo ? renderSeoHead({ title: fullTitle, description: page.description, ...page.seo }) : ''}
   <link rel="icon" type="image/png" href="/images/favicon.png">
   <link rel="stylesheet" href="/css/site.css?v=${ASSET_VERSION}">
 </head>

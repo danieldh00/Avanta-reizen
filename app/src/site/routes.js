@@ -4,10 +4,14 @@
  */
 const express = require('express');
 const { html, raw } = require('./html');
-const { renderPage, renderPageHeader } = require('./layout');
+const { renderPage, renderPageHeader, CONTACT } = require('./layout');
 const { createContent, today } = require('./content');
 const views = require('./views');
-const { formatLongDate, isoDate, toDate } = require('./format');
+const { formatLongDate, isoDate, toDate, tripPath, categoryPath, guidePath, postPath } = require('./format');
+const seo = require('./seo');
+
+/** Hoe lang de sitemap uit het geheugen komt voordat hij opnieuw wordt opgebouwd (milliseconden). */
+const SITEMAP_CACHE_MS = 10 * 60 * 1000;
 
 /**
  * Vangt fouten van een asynchrone route op en geeft ze aan Express door.
@@ -37,13 +41,36 @@ function queryValue(value) {
 
 /**
  * Bouwt de router van de website.
- * @param {{db: object, indexable?: boolean}} options Database en indexeerinstelling.
+ * @param {{db: object, indexable?: boolean, siteUrl?: string}} options Database, indexeerinstelling en basisadres
+ *   (standaard `SITE_URL` uit de omgeving, anders https://www.avantareizen.nl).
  * @returns {express.Router} De router.
  */
 function createSiteRouter(options) {
   const router = express.Router({ strict: true });
   const content = createContent(options.db);
   const indexable = Boolean(options.indexable);
+  const siteUrl = seo.normalizeSiteUrl(options.siteUrl ?? process.env.SITE_URL);
+  let sitemapCache = null;
+
+  /**
+   * Gegevens voor de SEO-tags van een pagina, met absolute URL's.
+   * @param {string} canonicalPath Echte pad van de pagina (niet het menupad), eventueel met querystring.
+   * @param {{imageUrl?: string, type?: string, structuredData?: object[]}} [extra] Afbeelding, og:type en JSON-LD.
+   * @returns {object} Gegevens voor `renderSeoHead`.
+   */
+  const seoFor = (canonicalPath, extra = {}) => ({
+    canonicalUrl: seo.absoluteUrl(siteUrl, canonicalPath),
+    imageUrl: seo.absoluteUrl(siteUrl, extra.imageUrl || '/images/logo.png'),
+    type: extra.type || 'website',
+    structuredData: extra.structuredData || [],
+  });
+
+  /**
+   * Kruimelpad als JSON-LD, altijd beginnend bij de homepage.
+   * @param {Array<{name: string, path: string}>} items Stappen na de homepage.
+   * @returns {object} `BreadcrumbList`.
+   */
+  const breadcrumbs = (items) => seo.breadcrumbData(siteUrl, [{ name: 'Home', path: '/' }, ...items]);
 
   /**
    * Stuurt een volledige pagina.
@@ -92,6 +119,7 @@ function createSiteRouter(options) {
     const heroImage = upcoming.find((trip) => trip.card_image_url)?.card_image_url;
     send(res, {
       path: '/',
+      seo: seoFor('/', { imageUrl: heroImage, structuredData: [seo.travelAgencyData(siteUrl, CONTACT)] }),
       bodyClass: 'home',
       header: html`<section class="hero"${heroImage ? html` style="--header-image: url('${heroImage}')"` : ''}>
         <div class="container hero__inner">
@@ -141,6 +169,15 @@ function createSiteRouter(options) {
     });
   }));
 
+  // Sitemap met alle openbare adressen; robots.txt verwijst er alleen naar als de site geïndexeerd mag worden.
+  router.get('/sitemap.xml', asyncRoute(async (req, res) => {
+    if (!sitemapCache || Date.now() - sitemapCache.builtAt > SITEMAP_CACHE_MS) {
+      const entries = await content.sitemapEntries();
+      sitemapCache = { builtAt: Date.now(), xml: seo.renderSitemap(siteUrl, seo.sitemapUrls(entries)) };
+    }
+    res.set('Cache-Control', 'public, max-age=600').type('application/xml').send(sitemapCache.xml);
+  }));
+
   router.get('/reis/', asyncRoute(async (req, res) => {
     const selected = { bestemming: queryValue(req.query.bestemming), type: queryValue(req.query.type), vertrek: queryValue(req.query.vertrek) };
     const departure = /^\d{4}-\d{2}-\d{2}$/.test(selected.vertrek) ? selected.vertrek : '';
@@ -151,6 +188,7 @@ function createSiteRouter(options) {
     send(res, {
       title: 'Reizen',
       path: '/reis/',
+      seo: seoFor('/reis/'),
       header: renderPageHeader({ title: 'Ons reisaanbod', subtitle: 'start exploring' }),
       body: html`<div class="container section">
         ${views.tripFinder({ ...finder, selected, compact: true })}
@@ -170,6 +208,13 @@ function createSiteRouter(options) {
       title: trip.title,
       description: trip.tagline || trip.summary,
       path: '/reis/',
+      seo: seoFor(tripPath(trip.slug), {
+        imageUrl: trip.hero_image_url || trip.card_image_url,
+        structuredData: [
+          seo.tripData(siteUrl, trip, { today: today() }),
+          breadcrumbs([{ name: 'Reizen', path: '/reis/' }, { name: trip.title, path: tripPath(trip.slug) }]),
+        ],
+      }),
       header: renderPageHeader({ title: trip.title, pretitle: destinations.join(' · '), imageUrl: trip.hero_image_url, backLink: '/reis/' }),
       body: views.tripDetail(trip, { isPast }),
     });
@@ -184,6 +229,10 @@ function createSiteRouter(options) {
       title: category.name,
       description: category.intro,
       path: '/reis/',
+      seo: seoFor(categoryPath(category.slug), {
+        imageUrl: category.image_url,
+        structuredData: [breadcrumbs([{ name: 'Reizen', path: '/reis/' }, { name: category.name, path: categoryPath(category.slug) }])],
+      }),
       header: renderPageHeader({ title: category.name, subtitle: category.intro, imageUrl: category.image_url, backLink: '/reis/' }),
       body: html`<div class="container section">
         ${category.body_html ? html`<div class="prose prose--intro">${raw(category.body_html)}</div>` : ''}
@@ -197,6 +246,7 @@ function createSiteRouter(options) {
     send(res, {
       title: 'Reisleiders',
       path: '/reisleider/',
+      seo: seoFor('/reisleider/'),
       header: renderPageHeader({ title: 'Onze reisleiders' }),
       body: html`<div class="container section"><div class="card-grid card-grid--guides">${guides.map(views.guideCard)}</div></div>`,
     });
@@ -209,7 +259,9 @@ function createSiteRouter(options) {
     if (/^\d+$/.test(reference) && guide.slug !== reference) return res.redirect(301, `/reisleider/${encodeURIComponent(guide.slug)}/`);
     return send(res, {
       title: guide.name,
+      description: guide.intro,
       path: '/reisleider/',
+      seo: seoFor(guidePath(guide.slug), { imageUrl: guide.photo_url }),
       header: renderPageHeader({ title: guide.name, subtitle: guide.intro, backLink: '/reisleider/' }),
       body: html`<div class="container section guide">
         ${guide.photo_url ? html`<img class="guide__photo" src="${guide.photo_url}" alt="${guide.name}">` : ''}
@@ -228,6 +280,7 @@ function createSiteRouter(options) {
     send(res, {
       title: 'Weblog',
       path: '/blog/',
+      seo: seoFor(page > 1 ? `/blog/?pagina=${page}` : '/blog/'),
       header: renderPageHeader({ title: 'Weblog', subtitle: 'verhalen van onderweg' }),
       body: html`<div class="container section">
         <div class="card-grid">${posts.map(views.postCard)}</div>
@@ -243,6 +296,7 @@ function createSiteRouter(options) {
     send(res, {
       title: 'Veelgestelde vragen',
       path: '/faq/',
+      seo: seoFor('/faq/'),
       header: renderPageHeader({ title: 'Veelgestelde vragen' }),
       body: html`<div class="container container--narrow section">
         ${[...groups.entries()].map(([category, items]) => html`<section class="faq-group" id="${category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}">
@@ -267,6 +321,7 @@ function createSiteRouter(options) {
     send(res, {
       title: 'Zoeken',
       path: '/zoeken/',
+      seo: seoFor('/zoeken/'),
       header: renderPageHeader({ title: term ? `Zoekresultaten voor "${term}"` : 'Zoeken' }),
       body: html`<div class="container section">
         <form class="search-form" action="/zoeken/" method="get" role="search">
@@ -297,6 +352,7 @@ function createSiteRouter(options) {
         title: page.title,
         description: page.intro,
         path,
+        seo: seoFor(seo.encodePagePath(page.path), { imageUrl: page.image_url }),
         header: renderPageHeader({ title: page.title, pretitle: page.pretitle, imageUrl: page.image_url }),
         body: html`<div class="container container--narrow section">
           ${page.intro ? html`<p class="lead">${page.intro}</p>` : ''}
@@ -312,6 +368,14 @@ function createSiteRouter(options) {
       title: post.title,
       description: post.excerpt,
       path: '/blog/',
+      seo: seoFor(postPath(post.slug), {
+        imageUrl: post.image_url,
+        type: 'article',
+        structuredData: [
+          seo.blogPostingData(siteUrl, post),
+          breadcrumbs([{ name: 'Weblog', path: '/blog/' }, { name: post.title, path: postPath(post.slug) }]),
+        ],
+      }),
       header: renderPageHeader({ title: post.title, pretitle: post.published_at ? formatLongDate(new Date(post.published_at)) : '', imageUrl: post.image_url, backLink: '/blog/' }),
       body: html`<article class="container container--narrow section">
         ${post.intro ? html`<p class="lead">${post.intro}</p>` : ''}

@@ -9,6 +9,7 @@ const net = require('node:net');
 const { createDatabase } = require('./database/db');
 const { createSiteRouter } = require('./site/routes');
 const { createBookingRouter } = require('./booking/routes');
+const seo = require('./site/seo');
 const { loadMasterKey, createVault } = require('./security/vault');
 const crypto = require('node:crypto');
 const { PUBLIC_DIR, MEDIA_DIR } = require('./paths');
@@ -50,12 +51,14 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, indexable?: boolean, trustProxy?: string, now?: () => number}} options Database, hoofdsleutel,
- *   of de site geïndexeerd mag worden en welke proxy vertrouwd wordt (standaard `TRUST_PROXY`, anders loopback).
+ * @param {{db: object, masterKey: Buffer, indexable?: boolean, siteUrl?: string, trustProxy?: string, now?: () => number}} options Database,
+ *   hoofdsleutel, of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`) en welke proxy vertrouwd wordt
+ *   (standaard `TRUST_PROXY`, anders loopback).
  * @returns {express.Express} De app.
  */
 function createApp(options) {
   const indexable = Boolean(options.indexable);
+  const siteUrl = seo.normalizeSiteUrl(options.siteUrl ?? process.env.SITE_URL);
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY));
@@ -71,7 +74,7 @@ function createApp(options) {
   });
 
   app.get('/robots.txt', (req, res) => {
-    res.type('text/plain').send(indexable ? 'User-agent: *\nAllow: /\nSitemap: /sitemap.xml\n' : 'User-agent: *\nDisallow: /\n');
+    res.type('text/plain').send(indexable ? `User-agent: *\nAllow: /\nSitemap: ${siteUrl}/sitemap.xml\n` : 'User-agent: *\nDisallow: /\n');
   });
 
   app.use(express.static(PUBLIC_DIR, { maxAge: '7d', index: false, redirect: false }));
