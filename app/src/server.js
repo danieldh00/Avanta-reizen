@@ -34,7 +34,7 @@ function securityHeaders(options) {
 
 /**
  * Welke proxy's Express vertrouwt voor `req.ip` (en daarmee de limiet per bezoeker). Standaard alleen loopback; achter
- * een reverse proxy in een andere container het adres of subnet daarvan, bijvoorbeeld `172.16.0.0/12`, of een aantal hops.
+ * een reverse proxy in een andere container het exacte adres daarvan (bijv. `172.18.0.5`); geen subnet met het Docker-bridgenetwerk.
  * @param {(string|undefined)} value Waarde uit `TRUST_PROXY` (kommagescheiden adressen/subnetten of een getal).
  * @returns {(string|number)} Instelling voor Express.
  */
@@ -130,4 +130,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createApp, start };
+module.exports = { createApp, start, parseTrustProxy };

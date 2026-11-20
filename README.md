@@ -12,9 +12,10 @@ docker compose exec app node tools/import-wordpress.js   # content + afbeeldinge
 Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-wordpress.js` en `DATABASE_URL=… node src/server.js`.
 
 - De site staat op **noindex** tot go-live (`SITE_INDEXABLE=true` pas bij de overstap).
-- `TRUST_PROXY`: welke reverse proxy Express vertrouwt voor het bezoekersadres (standaard `loopback`). Staat er een
-  proxy in een andere container of op een ander adres voor, zet dan het adres of subnet daarvan (bijv. `172.16.0.0/12`),
-  anders delen alle bezoekers één limiet op de formulieren.
+- `TRUST_PROXY`: welke reverse proxy Express vertrouwt voor het bezoekersadres (standaard `loopback`). **Leeg laten als
+  er geen proxy voor de app staat.** Staat er een proxy in een andere container voor, zet dan het **exacte** adres
+  daarvan (bijv. `TRUST_PROXY=172.18.0.5`), nooit een heel subnet: verkeer van buiten kan via het Docker-bridgeadres
+  binnenkomen en zou dan met een zelfgekozen `X-Forwarded-For` de limiet op de formulieren kunnen omzeilen.
 - Aanmeldingen komen in de tabel `bookings`; kerkgenootschap, medische bijzonderheden, geboortedatum en
   paspoortgegevens staan versleuteld. **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.

@@ -48,7 +48,19 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   await db.query("INSERT INTO faqs (slug, question, answer_html, category) VALUES ('algemeen-1', 'Paspoort nodig?', '<p>Ja</p>', 'Algemeen')");
 
   let clock = Date.now();
-  const app = createApp({ db, masterKey: MASTER_KEY, now: () => clock });
+  // Database met een schakelaar om een botsing op de unieke referentie (23505) na te bootsen.
+  const collisions = { count: 0, constraint: 'bookings_reference_key' };
+  const collidingDb = {
+    ...db,
+    query: (sql, params) => {
+      if (collisions.count > 0 && sql.trimStart().startsWith('INSERT INTO bookings')) {
+        collisions.count--;
+        return Promise.reject(Object.assign(new Error('duplicate key'), { code: '23505', constraint: collisions.constraint }));
+      }
+      return db.query(sql, params);
+    },
+  };
+  const app = createApp({ db: collidingDb, masterKey: MASTER_KEY, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => { server.close(); await db.close(); });
@@ -217,6 +229,22 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     const form = await formFor(1001);
     clock += 5000;
     assert.equal((await post(form, { 'x-forwarded-for': '203.0.113.9' })).status, 303);
+  });
+
+  await t.test('botsing op de referentie: opnieuw proberen, andere fout of drie botsingen geven 500', async () => {
+    const before = (await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total;
+    const attempt = async (count, constraint, ip) => {
+      Object.assign(collisions, { count, constraint });
+      const form = await formFor(1001);
+      clock += 5000;
+      const status = (await post(form, { 'x-forwarded-for': ip })).status;
+      collisions.count = 0;
+      return status;
+    };
+    assert.equal(await attempt(2, 'bookings_reference_key', '203.0.113.20'), 303);
+    assert.equal(await attempt(1, 'bookings_andere_key', '203.0.113.21'), 500);
+    assert.equal(await attempt(3, 'bookings_reference_key', '203.0.113.22'), 500);
+    assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, before + 1);
   });
 
   await t.test('referentiejaar volgt de Nederlandse datum, ook rond de jaarwisseling', async () => {
