@@ -1,0 +1,55 @@
+# Test/staging-stack op apps01 (Proxmox): app + eigen PostgreSQL 17. Geen eigen tunnel: de bestaande cloudflared op
+# apps01 (aquatech-cloudflared) stuurt avanta.den-hollander.com door naar http://avanta-app:3400 via zijn Docker-netwerk.
+# Projectnaam vast op "avanta", zodat containers, netwerk en volumes los staan van andere stacks op de host.
+# Instellingen in .env naast dit bestand (zie .env.example); uitleg en commando's in README.md.
+name: avanta
+
+services:
+  app:
+    # Lokaal gebouwd uit ../../app; zodra het GHCR-image bestaat: AVANTA_IMAGE=ghcr.io/... en `docker compose pull`.
+    image: ${AVANTA_IMAGE:-avanta-reizen:local}
+    build: ../../app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://avanta:${POSTGRES_PASSWORD:?zet POSTGRES_PASSWORD in .env}@db:5432/avanta
+      SITE_URL: ${SITE_URL:?zet SITE_URL in .env}
+      SITE_INDEXABLE: "${SITE_INDEXABLE:-false}"
+      AVANTA_MASTER_KEY: ${AVANTA_MASTER_KEY:-}
+      TRUST_PROXY: ${TRUST_PROXY:?zet TRUST_PROXY (IP van de cloudflared-container) in .env}
+    # Alleen op de host zelf (curl-test); cloudflared praat via het tunnelnetwerk met avanta-app:3400.
+    ports:
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3400}:3400"
+    volumes:
+      - app-data:/data
+    networks:
+      default:
+      tunnel:
+        aliases: [avanta-app]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: avanta
+      POSTGRES_DB: avanta
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?zet POSTGRES_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U avanta -d avanta"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  app-data:
+  db-data:
+
+networks:
+  # Het netwerk van de bestaande cloudflared-container; install.sh zoekt het op en zet het in .env.
+  tunnel:
+    external: true
+    name: ${TUNNEL_NETWORK:?zet TUNNEL_NETWORK in .env (netwerk van de bestaande cloudflared)}
