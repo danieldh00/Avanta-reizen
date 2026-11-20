@@ -3,6 +3,9 @@
  *   node src/backup/cli.js create [--update]        back-up maken (update.sh doet dit vóór elke update, met --update)
  *   node src/backup/cli.js list                     back-ups tonen
  *   node src/backup/cli.js decrypt <back-up> <doel>  ontsleutelen naar een pg_dump-bestand (voor pg_restore)
+ *   node src/backup/cli.js decrypt <back-up> -       ontsleutelen naar stdout (alleen voor de hersteltest: de echtheid
+ *                                                    staat pas vast als de opdracht met code 0 eindigt)
+ *   node src/backup/cli.js restore-test-result       uitslag van deploy/apps01/restore-test.sh vastleggen (JSON op stdin)
  * De hoofdsleutel komt net als in de app uit AVANTA_MASTER_KEY, AVANTA_MASTER_KEY_FILE of DATA_DIR/master-key; deze
  * opdrachten maken nooit een nieuwe sleutel aan (dan zou een back-up met de echte sleutel onleesbaar zijn).
  */
@@ -60,13 +63,18 @@ async function create(beforeUpdate) {
 }
 
 /**
- * Ontsleutelt een back-up naar een dumpbestand; eerst naar `<doel>.part`, pas na de controle van de tag hernoemd.
+ * Ontsleutelt een back-up naar een dumpbestand; eerst naar `<doel>.part`, pas na de controle van de tag hernoemd. Met
+ * `-` als doel gaat de dump naar stdout (hersteltest; een fout in de tag geeft dan pas aan het eind code 1).
  * @param {string} source Pad of naam (in de back-upmap) van de back-up.
- * @param {string} target Pad van het nieuwe dumpbestand.
+ * @param {string} target Pad van het nieuwe dumpbestand, of `-`.
  * @returns {Promise<void>}
  */
 async function decrypt(source, target) {
   const file = fs.existsSync(source) ? source : path.join(BACKUP_DIR, path.basename(source));
+  if (target === '-') {
+    await backups.decryptTo(file, existingMasterKey(), process.stdout);
+    return;
+  }
   if (fs.existsSync(target)) throw new Error(`${target} bestaat al; kies een ander doel.`);
   const partFile = `${target}.part`;
   try {
@@ -76,6 +84,20 @@ async function decrypt(source, target) {
     fs.rmSync(partFile, { force: true });
   }
   console.log(`Ontsleuteld naar ${target} (terugzetten met pg_restore, zie docs/DRAAIBOEK-VPS-VERHUIZING.md).`);
+}
+
+/**
+ * Legt de uitslag van de hersteltest op de server vast (JSON op stdin, hoogstens 64 kB; zie `backup/restore-test.js`).
+ * @returns {Promise<void>}
+ */
+async function recordRestoreTest() {
+  let text = '';
+  for await (const chunk of process.stdin) {
+    text += chunk;
+    if (text.length > 65536) throw new Error('Uitslag te groot.');
+  }
+  const run = require('./restore-test').recordHostRun(BACKUP_DIR, JSON.parse(text));
+  console.log(`Hersteltest vastgelegd: ${run.state}`);
 }
 
 /**
@@ -91,7 +113,8 @@ async function main(args) {
     return undefined;
   }
   if (command === 'decrypt' && first && second) return decrypt(first, second);
-  console.error('Gebruik: node src/backup/cli.js create [--update] | list | decrypt <back-up> <doel.dump>');
+  if (command === 'restore-test-result') return recordRestoreTest();
+  console.error('Gebruik: node src/backup/cli.js create [--update] | list | decrypt <back-up> <doel.dump|-> | restore-test-result');
   process.exitCode = 2;
   return undefined;
 }

@@ -92,6 +92,7 @@ const GROUPS = [
         extra: 'google-drive',
         words: 'google drive kopie extern buiten de server oauth cloud console client koppelen back-up backup',
       },
+      { id: 'hersteltest', label: 'Hersteltest', view: 'hersteltest', words: 'hersteltest herstel terugzetten restore test controle wekelijks back-up backup drive' },
     ],
   },
   {

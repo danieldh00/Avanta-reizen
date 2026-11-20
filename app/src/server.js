@@ -27,6 +27,7 @@ const { PUBLIC_DIR, MEDIA_DIR, DATA_DIR } = require('./paths');
 const { createBackupService } = require('./backup/backups');
 const { createDrive } = require('./backup/drive');
 const { roleHasRight } = require('./crm/rights');
+const { createRestoreTests } = require('./backup/restore-test');
 const { renderPage, renderPageHeader } = require('./site/layout');
 const { html } = require('./site/html');
 
@@ -158,8 +159,10 @@ function createApp(options) {
   });
   app.locals.backups = backups;
   app.locals.drive = drive;
+  const restoreTests = createRestoreTests({ dir: backupDir, masterKey: options.masterKey, drive, now: options.now });
+  app.locals.restoreTests = restoreTests;
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now }));
@@ -213,6 +216,7 @@ async function start() {
   app.locals.redirects.startTimers();
   app.locals.backups.startTimer();
   app.locals.drive.startTimer();
+  app.locals.restoreTests.startTimer(() => app.locals.settings.get('driveEnabled'));
   const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
   // Eenmalige installatiecode voor de eerste beheerder; alleen bruikbaar zolang er geen enkele CRM-gebruiker is.
   if (!present) console.log(`CRM: nog geen gebruikers. Maak de eerste beheerder aan op /app/installatie/ met installatiecode ${setupCode}`);

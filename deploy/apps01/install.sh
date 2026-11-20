@@ -87,8 +87,59 @@ RandomizedDelaySec=60
 [Install]
 WantedBy=timers.target
 UNIT
+  # Wekelijkse hersteltest van de back-ups (zondag 04:30) en op verzoek vanuit Beheer (bestand restore-test-now in het
+  # datavolume van de app, opgepikt door een path-unit).
+  install -m 755 "$STACK_DIR/restore-test.sh" /usr/local/sbin/avanta-restore-test
+  data_volume="$(docker volume inspect -f '{{.Mountpoint}}' avanta_app-data 2>/dev/null || true)"
+  for kind in schema handmatig; do
+    unit=avanta-restore-test; [ "$kind" = handmatig ] && unit=avanta-restore-test-now
+    # Het verzoek van de knop weghalen vóór het script start: de path-unit (PathExists) start de service anders
+    # steeds opnieuw zolang het bestand er staat, ook als het script direct stopt (er loopt al een test).
+    pre_start=""
+    if [ "$kind" = handmatig ] && [ -n "$data_volume" ]; then pre_start="ExecStartPre=/bin/rm -f $data_volume/backups/restore-test-now
+"; fi
+    cat > "/etc/systemd/system/$unit.service" <<UNIT
+[Unit]
+Description=Avanta hersteltest van de back-ups ($kind)
+After=docker.service
+
+[Service]
+Type=oneshot
+Environment=BASE_DIR=$BASE_DIR
+${pre_start}ExecStart=/usr/local/sbin/avanta-restore-test $kind
+TimeoutStartSec=45min
+Nice=10
+UNIT
+  done
+  cat > /etc/systemd/system/avanta-restore-test.timer <<'UNIT'
+[Unit]
+Description=Avanta wekelijkse hersteltest van de back-ups
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target
+UNIT
+  if [ -n "$data_volume" ]; then
+    cat > /etc/systemd/system/avanta-restore-test-now.path <<UNIT
+[Unit]
+Description=Avanta hersteltest op verzoek vanuit Beheer
+
+[Path]
+PathExists=$data_volume/backups/restore-test-now
+Unit=avanta-restore-test-now.service
+
+[Install]
+WantedBy=paths.target
+UNIT
+  fi
   systemctl daemon-reload
   systemctl enable --now avanta-update.timer >/dev/null
+  systemctl enable --now avanta-restore-test.timer >/dev/null
+  if [ -n "$data_volume" ]; then systemctl enable --now avanta-restore-test-now.path >/dev/null; fi
   echo "Automatisch bijwerken actief: avanta-update.timer (volgt $(sed -n 's/^AVANTA_TRACK=//p' .env); logboek: journalctl -u avanta-update)."
 fi
 
