@@ -298,6 +298,17 @@ test('updates, onderhoudsmodus en servertaken in Beheer', { skip: !DATABASE_URL 
   assert.deepEqual(results.sort(), [false, true]);
   assert.equal(await recordFinishedRun(db, systemUpdate), false);
   assert.deepEqual(await db.query("SELECT user_id, entity_id FROM audit_log WHERE action = 'update.geslaagd'"), [{ user_id: null, entity_id: '0.6.1' }]);
+  // Onthouden op schijf mislukt (map niet schrijfbaar): na twee rondes toch precies één regel.
+  const unwritable = { finishedRun: () => ({ run: { state: 'mislukt', version: '0.6.2', commit: AVAILABLE }, key: 'onschrijfbaar-1' }), markAudited: () => { throw Object.assign(new Error('EACCES'), { code: 'EACCES' }); } };
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    assert.equal(await recordFinishedRun(db, unwritable), true);
+    assert.equal(await recordFinishedRun(db, unwritable), false);
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal((await db.query("SELECT entity_id FROM audit_log WHERE action = 'update.mislukt' AND entity_id = '0.6.2'")).length, 1);
 
   // Onderhoudsmodus van de host: schrijven geeft 503 (ook het contactformulier), lezen werkt met een balk, inloggen blijft.
   writeJson(statusDir, 'maintenance.json', { since: new Date(clock).toISOString(), version: '0.6.1' });

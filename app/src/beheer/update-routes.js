@@ -31,22 +31,30 @@ function shortCommit(commit) {
 
 /** Uitrollen die nu worden vastgelegd (per sleutel), tegen een dubbele auditregel bij twee gelijktijdige rondes. */
 const recording = new Set();
+/** Uitrollen die dit proces al in het auditlog heeft gezet, ook als het onthouden op schijf mislukte (map niet schrijfbaar). */
+const recorded = new Set();
 
 /**
  * Legt een afgeronde uitrol (ook een automatische) één keer vast in het auditlog, zonder gebruiker. Pas na een
- * geslaagde regel wordt hij als vastgelegd onthouden; mislukt de regel, dan volgt een nieuwe poging bij de volgende ronde.
+ * geslaagde regel wordt hij als vastgelegd onthouden (in het geheugen en op schijf); mislukt de regel, dan volgt een
+ * nieuwe poging bij de volgende ronde. Mislukt alleen het onthouden op schijf, dan schrijft dit proces hem niet opnieuw.
  * @param {object} db Database.
  * @param {object} systemUpdate De koppeling met het hostscript.
  * @returns {Promise<boolean>} true als er een regel is geschreven.
  */
 async function recordFinishedRun(db, systemUpdate) {
   const finished = systemUpdate.finishedRun();
-  if (!finished || recording.has(finished.key)) return false;
+  if (!finished || recording.has(finished.key) || recorded.has(finished.key)) return false;
   recording.add(finished.key);
   try {
     const { run } = finished;
     await db.query('INSERT INTO audit_log (user_id, action, entity, entity_id) VALUES (NULL, $1, $2, $3)', [`update.${run.state}`, 'systeem', run.version || shortCommit(run.commit) || null]);
-    systemUpdate.markAudited(finished.key);
+    recorded.add(finished.key);
+    try {
+      systemUpdate.markAudited(finished.key);
+    } catch (error) {
+      console.error(`Uitrol vastgelegd, maar onthouden mislukt: ${error.code || 'fout'}`);
+    }
     return true;
   } finally {
     recording.delete(finished.key);
