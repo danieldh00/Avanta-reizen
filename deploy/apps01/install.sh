@@ -39,11 +39,45 @@ fi
 # Exact adres van cloudflared in dat netwerk: de enige proxy die de app vertrouwt (TRUST_PROXY, geen subnet).
 tunnel_ip="$(docker inspect -f "{{(index .NetworkSettings.Networks \"$tunnel_network\").IPAddress}}" "$TUNNEL_CONTAINER")"
 [ -n "$tunnel_ip" ] || die "geen IP-adres van $TUNNEL_CONTAINER in $tunnel_network (draait de container?)"
-for key in TUNNEL_NETWORK TRUST_PROXY; do grep -q "^$key=" .env || echo "$key=" >> .env; done
-sed -i -e "s|^TUNNEL_NETWORK=.*|TUNNEL_NETWORK=$tunnel_network|" -e "s|^TRUST_PROXY=.*|TRUST_PROXY=$tunnel_ip|" .env
+for key in TUNNEL_NETWORK TRUST_PROXY TUNNEL_CONTAINER; do grep -q "^$key=" .env || echo "$key=" >> .env; done
+grep -q '^AVANTA_TRACK=' .env || echo 'AVANTA_TRACK=main' >> .env
+sed -i -e "s|^TUNNEL_NETWORK=.*|TUNNEL_NETWORK=$tunnel_network|" -e "s|^TRUST_PROXY=.*|TRUST_PROXY=$tunnel_ip|" \
+       -e "s|^TUNNEL_CONTAINER=.*|TUNNEL_CONTAINER=$TUNNEL_CONTAINER|" .env
 echo "Gekoppeld aan netwerk $tunnel_network van $TUNNEL_CONTAINER (alias avanta-app); TRUST_PROXY=$tunnel_ip."
 
 docker compose up -d --build --remove-orphans
+
+# Automatisch bijwerken: update.sh via een systemd-timer (elke 15 minuten de branch AVANTA_TRACK volgen).
+if command -v systemctl >/dev/null && [ -d /run/systemd/system ]; then
+  install -m 755 "$STACK_DIR/update.sh" /usr/local/sbin/avanta-update
+  cat > /etc/systemd/system/avanta-update.service <<UNIT
+[Unit]
+Description=Avanta testomgeving bijwerken
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=BASE_DIR=$BASE_DIR
+ExecStart=/usr/local/sbin/avanta-update
+TimeoutStartSec=30min
+UNIT
+  cat > /etc/systemd/system/avanta-update.timer <<'UNIT'
+[Unit]
+Description=Avanta testomgeving elke 15 minuten bijwerken
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable --now avanta-update.timer >/dev/null
+  echo "Automatisch bijwerken actief: avanta-update.timer (volgt $(sed -n 's/^AVANTA_TRACK=//p' .env); logboek: journalctl -u avanta-update)."
+fi
 
 port="$(sed -n 's/^APP_PORT=//p' .env)"; port="${port:-3400}"
 for _ in $(seq 1 45); do
@@ -61,4 +95,4 @@ for _ in $(seq 1 45); do
   sleep 2
 done
 docker compose logs --tail 30 app >&2
-die "app niet gezond na 90 s"
+die "app niet gezond na de wachttijd"

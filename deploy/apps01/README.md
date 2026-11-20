@@ -28,7 +28,18 @@ AVANTA_REF=<sha> bash <(curl -fsSL https://raw.githubusercontent.com/danieldh00/
    wordt niet overschreven. Leeg laten = het script toont de handmatige stap hieronder.
 4. controleert `https://avanta.den-hollander.com/api/health`.
 
-Bijwerken = hetzelfde commando met een nieuwere `<sha>` (of `AVANTA_REF=main` na de merges).
+## Automatisch bijwerken
+
+`install.sh` zet de systemd-timer `avanta-update.timer` op apps01 (elke 15 minuten, `/usr/local/sbin/avanta-update`):
+- nieuwe commit op `AVANTA_TRACK` (standaard `main`, in `.env`) → `install.sh` op die commit (build, start,
+  gezondheidscheck); mislukt dat, dan terug naar de vorige commit;
+- ander IP van `aquatech-cloudflared` (bijv. na een image-update) → `TRUST_PROXY` opnieuw gezet, zelfde commit;
+- staat `deploy/apps01` nog niet op die branch, dan doet de timer niets.
+
+Logboek: `journalctl -u avanta-update`; status: `systemctl list-timers avanta-update.timer`.
+Migraties lopen alleen vooruit: een rollback zet de code terug, niet de database. Het commando van de pve opnieuw
+draaien blijft mogelijk (bijv. met een vaste `<sha>`), maar de timer gaat daarna weer naar de laatste commit van
+`AVANTA_TRACK`.
 
 ## Handmatige binding in Cloudflare (zonder API-token)
 
@@ -59,8 +70,8 @@ Een 403 op het contactformulier betekent dat `TRUST_PROXY` niet klopt (de app zi
 `TRUST_PROXY` is bewust het exacte IP van `aquatech-cloudflared` (geen subnet, zie de hoofd-README).
 Migraties draaien automatisch bij elke start van de app.
 
-Wordt `aquatech-cloudflared` opnieuw aangemaakt (bijv. bij een image-update), dan kan zijn IP veranderen en geven de
-formulieren 403. Draai dan het commando opnieuw: `install.sh` zoekt netwerk en IP elke keer opnieuw op.
+Wordt `aquatech-cloudflared` opnieuw aangemaakt (bijv. bij een image-update), dan kan zijn IP veranderen; de timer
+zet `TRUST_PROXY` dan binnen 15 minuten goed (tot die tijd geven de formulieren 403).
 
 ## Back-up en herstel
 
