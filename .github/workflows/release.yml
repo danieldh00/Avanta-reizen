@@ -1,10 +1,12 @@
 name: Release
 
-# Verwerkt na een merge op main de bestanden in changes/ tot een nieuwe versie:
-# app/package.json en app/CHANGELOG.md bijwerken, fragmenten verwijderen en committen naar main met [skip ci],
-# zodat er geen tweede run ontstaat. Zie changes/README.md.
-# Zodra de stack en hosting gekozen zijn, komen hier de jobs test → bouwen → smoketest → publiceren bij
-# (zie de AquaTech-release als voorbeeld); ze gebruiken `needs.prepare.outputs.ref` als checkout-ref.
+# Publiceert na elke release op main een getest image in GHCR:
+#   ghcr.io/danieldh00/avanta-reizen:<versie>  en  :latest
+# Volgorde: versie en releasenotes -> tests -> bouwen -> smoketest -> pushen.
+# Versie: PR's brengen alleen een bestand changes/<naam>.md mee; job `prepare` geeft dat het volgende
+# versienummer, werkt app/package.json en app/CHANGELOG.md bij, verwijdert de fragmenten en commit naar main met
+# [skip ci], zodat er geen tweede run ontstaat (zie changes/README.md). De volgende jobs werken op die commit
+# (`needs.prepare.outputs.ref`). Faalt een stap, dan komt er geen nieuw image en houdt :latest de vorige versie.
 
 on:
   push:
@@ -21,6 +23,9 @@ concurrency:
 
 permissions:
   contents: read
+
+env:
+  IMAGE: ghcr.io/danieldh00/avanta-reizen
 
 jobs:
   # Rechten: main is beschermd (PR verplicht). Zet daarom een token in het secret RELEASE_PUSH_TOKEN van een
@@ -70,3 +75,121 @@ jobs:
           done
           echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "version=$(jq -r .version app/package.json)" >> "$GITHUB_OUTPUT"
+
+  # Dezelfde tests als in ci.yml, maar op de releasecommit: alleen een groene versie wordt een image.
+  test:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: Tests app (PostgreSQL)
+        run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      - name: Kwetsbaarheden in afhankelijkheden
+        run: npm audit --omit=dev --audit-level=high
+
+  # Bouwen, smoketest en pas daarna pushen. Bestaat het image voor deze versie al (bijv. een run zonder nieuwe
+  # fragmenten of een handmatige herhaling), dan wordt niets overschreven.
+  publish:
+    needs: [prepare, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      REVISION: ${{ needs.prepare.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bestaat deze versie al?
+        id: exists
+        run: |
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "Geen versie ontvangen van prepare." >&2
+            exit 1
+          fi
+          if docker manifest inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Image $IMAGE:$VERSION bestaat al; niets te doen."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.exists.outputs.skip == 'false'
+
+      - name: Bouwen (lokaal laden voor de smoketest)
+        if: steps.exists.outputs.skip == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: app
+          platforms: linux/amd64
+          load: true
+          tags: avanta:smoke
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.REVISION }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoketest
+        if: steps.exists.outputs.skip == 'false'
+        run: |
+          docker network create smokenet
+          docker run -d --name smokedb --network smokenet -e POSTGRES_PASSWORD=smoke postgres:17
+          for i in $(seq 1 30); do docker exec smokedb pg_isready -U postgres && break; sleep 2; done
+          docker run -d --name smoke --network smokenet -p 3400:3400 -e DATABASE_URL="postgres://postgres:smoke@smokedb:5432/postgres" avanta:smoke
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3400/api/health && exit 0; sleep 2; done
+          docker logs smoke
+          exit 1
+
+      # Pas na een geslaagde smoketest naar GHCR: :latest wijst nooit naar een kapot image. Zelfde context, platform
+      # en labels als de smoketest-build; alle lagen komen uit de gha-cache, dus dit is het geteste image.
+      - name: Pushen naar GHCR
+        if: steps.exists.outputs.skip == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: app
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ env.VERSION }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.REVISION }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+          cache-from: type=gha
