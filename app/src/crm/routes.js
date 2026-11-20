@@ -78,8 +78,8 @@ function textField(value, max) {
 
 /**
  * Bouwt de CRM-router.
- * @param {{db: object, masterKey: Buffer, settings: object, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
- *   Database, hoofdsleutel, de instellingen (`beheer/settings.js`), de installatiecode voor de eerste beheerder (zonder code geen installatie), of de cookie
+ * @param {{db: object, masterKey: Buffer, settings: object, mailer?: object, wanIp?: object, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
+ *   Database, hoofdsleutel, de instellingen (`beheer/settings.js`), de mailer en WAN-IP-opzoeker (`mail/`), de installatiecode voor de eerste beheerder (zonder code geen installatie), of de cookie
  *   `Secure` krijgt en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router, te koppelen op `/app`.
  */
@@ -363,7 +363,7 @@ function createCrmRouter(options) {
   });
 
   router.use(createUserRoutes({ db, auth, normalizeEmail, textField }));
-  router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, now: options.now }));
+  router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, now: options.now }));
 
   router.use((req, res) => {
     res.status(404).send(renderCrmPage({

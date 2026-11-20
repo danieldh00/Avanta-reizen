@@ -11,6 +11,7 @@ const { SettingsError } = require('./settings');
 const { verifyPassword, MAX_LENGTH } = require('../crm/passwords');
 const { createRateLimiter } = require('../security/rate-limit');
 const { createRedirectRoutes } = require('./redirect-routes');
+const { createMailRoutes } = require('./mail-routes');
 
 /** Versie van de app (voor het systeemoverzicht). */
 const APP_VERSION = require('../../package.json').version;
@@ -58,9 +59,9 @@ function formatUptime(seconds) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: object, auth: object, settings: object, redirects?: object, now?: () => number}} options Database, sessie-
- *   en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`) en (voor tests) de klok van de
- *   limiet op wachtwoordcontroles.
+ * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, now?: () => number}} options
+ *   Database, sessie- en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`), de mailer en
+ *   WAN-IP-opzoeker (`mail/`) en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router, te koppelen binnen de CRM-router.
  */
 function createBeheerRoutes(options) {
@@ -161,8 +162,8 @@ function createBeheerRoutes(options) {
    * Het instellingenformulier van een sectie.
    * @param {object} req Express-verzoek.
    * @param {object} section Sectie uit de indeling.
-   * @param {{values?: object, errors?: object, saved?: boolean}} [state] Waarden en fouten na een mislukte poging, of
-   *   dat het opslaan gelukt is.
+   * @param {{values?: object, errors?: object, saved?: boolean, extra?: object}} [state] Waarden en fouten na een mislukte
+   *   poging, of dat het opslaan gelukt is, en de toestand van het extra paneel van de sectie (zoals de testmail).
    * @returns {string} HTML-pagina.
    */
   const renderSettingsSection = (req, section, state = {}) => renderBeheerPage(req, {
@@ -181,7 +182,8 @@ function createBeheerRoutes(options) {
           <span class="field__help">Alleen nodig als je ${confirmableKeys(section).map((key) => settings.fields[key].label.toLowerCase()).join(' of ')} aanzet.</span>
         </div>` : ''}
         <div><button class="btn" type="submit">Opslaan</button></div>
-      </form>`,
+      </form>
+      ${section.extra && extraPanels[section.extra] ? extraPanels[section.extra](req, state.extra || {}) : ''}`,
   });
 
   /**
@@ -231,6 +233,14 @@ function createBeheerRoutes(options) {
     sectionId: '',
     body: html`<p>Deze pagina bestaat niet in Beheer. Kies een onderdeel in de zijbalk.</p>`,
   }));
+
+  /** Extra panelen onder een instellingenformulier, per waarde van `extra` in de indeling. */
+  const extraPanels = {};
+  if (options.mailer && options.wanIp) {
+    const mailRoutes = createMailRoutes({ auth, guard, mailer: options.mailer, wanIp: options.wanIp, renderSettingsSection, now: options.now });
+    extraPanels.mail = mailRoutes.renderPanel;
+    router.use(mailRoutes.router);
+  }
 
   // Doorverwijzingen en de 404-lijst hebben eigen routes (vóór de algemene secties).
   if (options.redirects) router.use(createRedirectRoutes({ db, auth, guard, redirects: options.redirects, renderBeheerPage, notFound }));

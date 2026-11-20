@@ -137,6 +137,33 @@ const SETTING_FIELDS = {
     pattern: /^G-[A-Z0-9]{4,14}$/i,
     patternMessage: 'Een meet-ID begint met G- gevolgd door 4 tot 14 letters of cijfers.',
   },
+  mailMode: {
+    type: 'enum',
+    label: 'Manier van versturen',
+    help: 'SMTP: inloggen bij de mailserver. Exchange Online-connector: Microsoft 365 vertrouwt het WAN-IP van deze server (poort 25, zonder inlog).',
+    default: 'smtp',
+    values: ['smtp', 'connector'],
+    labels: { smtp: 'SMTP met gebruikersnaam en wachtwoord', connector: 'Exchange Online-connector (op IP-adres)' },
+  },
+  mailHost: {
+    type: 'text',
+    label: 'Mailserver',
+    help: 'Bijv. smtp.office365.com, of bij een connector <domein>.mail.protection.outlook.com. Leeg = de app verstuurt geen mail.',
+    default: '',
+    max: 253,
+    pattern: /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i,
+    patternMessage: 'Vul een servernaam in zoals smtp.example.nl (zonder https:// of poort).',
+  },
+  mailPort: { type: 'int', label: 'Poort', help: '587 met STARTTLS (gebruikelijk), 465 met SSL/TLS, of 25 voor een connector.', default: 587, min: 1, max: 65535 },
+  mailSecure: { type: 'bool', label: 'SSL/TLS vanaf het begin (poort 465)', help: 'Uit: de verbinding wordt met STARTTLS beveiligd; lukt dat niet, dan gaat er niets weg.', default: false },
+  mailUser: { type: 'text', label: 'Gebruikersnaam', help: 'Alleen bij SMTP; meestal het volledige e-mailadres.', default: '', max: 200 },
+  mailPassword: { type: 'secret', label: 'Wachtwoord', help: 'Alleen bij SMTP; bij Microsoft 365 of Gmail vaak een app-wachtwoord. Staat versleuteld opgeslagen.', default: '', max: 300 },
+  mailFromName: {
+    type: 'text', label: 'Naam afzender', default: 'Avanta Reizen', max: 100, required: true,
+    pattern: /^[^"<>@\\]+$/, patternMessage: 'Gebruik geen aanhalingstekens, <, >, @ of \\.',
+  },
+  mailFromAddress: { type: 'email', label: 'E-mailadres afzender', help: 'Een adres waarvoor de mailserver mag versturen. Leeg = de app verstuurt geen mail.', default: '', max: 200 },
+  mailReplyTo: { type: 'email', label: 'Antwoordadres', help: 'Waar antwoorden heen gaan (leeg = het adres van de afzender).', default: '', max: 200 },
 };
 
 class SettingsError extends Error {
