@@ -13,6 +13,8 @@ titel: Kopie van de back-ups op Google Drive
   (nooit tokens), synchroniseren na elke back-up en elk uur (na een fout een kwartier wachten, na een ingetrokken token
   pas na opnieuw koppelen), downloaden voor de hersteltest.
 - Beheer: sectie *Google Drive* (instellingen `driveEnabled`, `driveClientId`, `driveClientSecret`, `driveFolderName`,
-  `driveKeepCount`), terugkeeradres, koppelen, ontkoppelen (token ingetrokken bij Google), Nu synchroniseren (6 per
-  tien minuten); koppelen en ontkoppelen in het auditlog. De terugkeer van Google werkt zonder sessie.
+  `driveKeepCount`), terugkeeradres, koppelen, ontkoppelen (token ingetrokken bij Google; lukt dat niet, dan meldt Beheer dat met de
+  stappen om het zelf in te trekken), Nu synchroniseren (6 per
+  tien minuten); koppelen en ontkoppelen in het auditlog. De terugkeer van Google werkt zonder sessie en
+  controleert opnieuw of de beheerder nog actief is met het recht `systeem`.
 - `docs/GOOGLE-DRIVE.md`: Google Cloud-project, toestemmingsscherm en OAuth-client instellen.

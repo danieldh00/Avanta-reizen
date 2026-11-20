@@ -10,6 +10,7 @@ const { html, raw } = require('../site/html');
 const { renderCrmPage, formatDateTime } = require('../crm/layout');
 const { findSection } = require('./indeling');
 const { createRateLimiter } = require('../security/rate-limit');
+const { REVOKE_BY_HAND } = require('../backup/drive');
 
 /**
  * Maakt de routes en het paneel van Google Drive.
@@ -136,8 +137,9 @@ function createDriveRoutes(options) {
   router.post('/beheer/google-drive/ontkoppelen/', guard, auth.checkCsrf, async (req, res, next) => {
     try {
       await settings.ready();
-      await drive.disconnect(req.user.id);
-      return respond(req, res, 200, true, 'Ontkoppeld. De back-ups op Google Drive blijven staan.');
+      const { revoked } = await drive.disconnect(req.user.id);
+      if (!revoked) return respond(req, res, 200, false, `Ontkoppeld, maar intrekken bij Google is mislukt: ${REVOKE_BY_HAND}`);
+      return respond(req, res, 200, true, 'Ontkoppeld en ingetrokken bij Google. De back-ups op Google Drive blijven staan.');
     } catch (error) {
       return next(error);
     }

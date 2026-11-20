@@ -26,6 +26,7 @@ const crypto = require('node:crypto');
 const { PUBLIC_DIR, MEDIA_DIR, DATA_DIR } = require('./paths');
 const { createBackupService } = require('./backup/backups');
 const { createDrive } = require('./backup/drive');
+const { roleHasRight } = require('./crm/rights');
 const { renderPage, renderPageHeader } = require('./site/layout');
 const { html } = require('./site/html');
 
@@ -145,6 +146,10 @@ function createApp(options) {
   const drive = createDrive({
     settings, dir: backupDir, fetchImpl: options.googleFetch, now: options.now,
     audit: (entry, client) => client.query('INSERT INTO audit_log (user_id, action, entity) VALUES ($1, $2, $3)', [entry.userId ?? null, entry.action, 'google-drive']),
+    isAllowed: async (userId) => {
+      const [user] = await options.db.query('SELECT role, active FROM users WHERE id = $1', [userId]);
+      return Boolean(user && user.active && roleHasRight(user.role, 'systeem'));
+    },
   });
   const backups = options.backups || createBackupService({
     db: options.db, settings, dir: backupDir, masterKey: options.masterKey,

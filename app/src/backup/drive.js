@@ -127,11 +127,14 @@ function writeState(dir, state) {
   fs.renameSync(temporary, path.join(dir, STATE_FILE));
 }
 
+/** Wat de beheerder doet als intrekken bij Google mislukt. */
+const REVOKE_BY_HAND = 'trek de toegang van de app zelf in via https://myaccount.google.com/permissions.';
+
 /**
  * Maakt de koppeling met Google Drive.
- * @param {{settings: object, dir: string, fetchImpl?: Function, now?: () => number, audit?: Function}} options
- *   Instellingen, back-upmap, fetch (tests vervangen Google hiermee), klok en een functie die een auditregel schrijft
- *   (`{userId, action}`).
+ * @param {{settings: object, dir: string, fetchImpl?: Function, now?: () => number, audit?: Function, isAllowed?: Function}} options
+ *   Instellingen, back-upmap, fetch (tests vervangen Google hiermee), klok, een functie die een auditregel schrijft
+ *   (`{userId, action}`) en een functie die bij de terugkeer controleert of de gebruiker nog mag koppelen.
  * @returns {object} `configured`, `connected`, `redirectUri`, `startAuthorization`, `finishAuthorization`,
  *   `disconnect`, `sync`, `syncIfDue`, `startTimer`, `state`, `download`, `listRemote`.
  */
@@ -302,6 +305,8 @@ function createDrive(options) {
     const entry = typeof input.state === 'string' ? pending.get(input.state) : undefined;
     if (!entry || entry.expires < now()) throw new DriveError('state', 'Deze koppelpoging is onbekend of verlopen. Begin opnieuw vanuit Beheer.');
     pending.delete(input.state);
+    // De terugkeer heeft geen sessie: controleer opnieuw of wie begon nog actief is en het recht `systeem` heeft.
+    if (options.isAllowed && !(await options.isAllowed(entry.userId))) throw new DriveError('forbidden', 'Je account mag (niet meer) koppelen met Google Drive.');
     if (input.error || typeof input.code !== 'string' || !input.code) throw new DriveError('denied', 'Er is geen toestemming gegeven bij Google.');
     const response = await call(GOOGLE.token, {
       method: 'POST',
@@ -339,12 +344,14 @@ function createDrive(options) {
   /**
    * Ontkoppelt: het refresh-token bij Google intrekken (als dat lukt) en uit de instellingen wissen.
    * @param {number} userId Wie ontkoppelt.
-   * @returns {Promise<void>}
+   * @returns {Promise<{revoked: boolean}>} Of het intrekken bij Google lukte (of er niets in te trekken was).
    */
   const disconnect = async (userId) => {
     const token = settings.get('driveRefreshToken');
+    let revoked = true;
     if (token) {
-      await call(GOOGLE.revoke, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token }).toString() }).catch(() => {});
+      revoked = await call(GOOGLE.revoke, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token }).toString() })
+        .then(() => true, () => false);
     }
     await settings.update({ clear: ['driveRefreshToken'] }, {
       userId,
@@ -354,8 +361,11 @@ function createDrive(options) {
     access = null;
     mutateState((state) => {
       Object.assign(state, { folderId: '', account: '', uploaded: [], needsReconnect: false });
-      addEvent(state, true, 'Ontkoppeld; de bestanden op Google Drive blijven staan.');
+      addEvent(state, revoked, revoked
+        ? 'Ontkoppeld; de bestanden op Google Drive blijven staan.'
+        : `Ontkoppeld, maar intrekken bij Google is mislukt: ${REVOKE_BY_HAND}`);
     });
+    return { revoked };
   };
 
   /**
@@ -574,4 +584,4 @@ function createDrive(options) {
   };
 }
 
-module.exports = { createDrive, DriveError, readState, GOOGLE, SCOPE, CALLBACK_PATH };
+module.exports = { createDrive, DriveError, readState, GOOGLE, SCOPE, CALLBACK_PATH, REVOKE_BY_HAND };

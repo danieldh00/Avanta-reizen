@@ -374,6 +374,7 @@ test('Drive in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
   assert.equal((await request('/app/beheer/google-drive/', { cookie, form: { ...form, driveClientId: 'geen-id' } })).status, 422);
   assert.equal((await request('/app/beheer/google-drive/', { cookie, form: { ...form, driveFolderName: 'a/b' } })).status, 422);
   assert.equal((await request('/app/beheer/google-drive/', { cookie, form })).status, 303);
+  assert.equal((await request('/app/beheer/google-drive/synchroniseren/', { cookie, form: { _csrf: csrf } })).status, 422, 'nog niet gekoppeld');
 
   const start = await request('/app/beheer/google-drive/koppelen/', { cookie, form: { _csrf: csrf } });
   assert.equal(start.status, 200);
@@ -394,20 +395,59 @@ test('Drive in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
   const [stored] = await db.query("SELECT value FROM settings WHERE key = 'driveRefreshToken'");
   assert.doesNotMatch(stored.value, /refresh-geheim/, 'versleuteld opgeslagen');
 
+  // De terugkeer startte zelf een ronde; wachten tot die (en een eventuele extra ronde) klaar is.
+  await app.locals.drive.sync();
+  assert.ok([...google.files.values()].some((file) => file.name === 'avanta-20261120-020000.dump.enc' && file.bytes));
   const synced = await request('/app/beheer/google-drive/synchroniseren/', { cookie, form: { _csrf: csrf } });
   assert.equal(synced.status, 200);
-  assert.match(synced.text, /Gesynchroniseerd: [01] geüpload/);
+  assert.match(synced.text, /Gesynchroniseerd: 0 geüpload, 0 oude verwijderd/);
   assert.ok([...google.files.values()].some((file) => file.name === 'avanta-20261120-020000.dump.enc' && file.bytes));
   const connectedPage = await request('/app/beheer/google-drive/', { cookie });
   assert.match(connectedPage.text, /Gekoppeld met kantoor@example\.nl/);
   assert.doesNotMatch(connectedPage.text, /refresh-geheim|toegang-|goed-secret/, 'nooit tokens of geheimen in de pagina');
   assert.doesNotMatch((await request('/app/beheer/', { cookie })).text, /Koppeling met Google Drive/, 'het token staat in geen enkel formulier of overzicht');
 
+  // Limiet op Nu synchroniseren: 6 per tien minuten (twee zijn al gebruikt).
+  for (let i = 0; i < 4; i += 1) assert.equal((await request('/app/beheer/google-drive/synchroniseren/', { cookie, form: { _csrf: csrf } })).status, 200);
+  assert.equal((await request('/app/beheer/google-drive/synchroniseren/', { cookie, form: { _csrf: csrf } })).status, 429);
+
+  // Wie het koppelen begon maar intussen het recht `systeem` kwijt is, kan het niet afronden.
+  const pendingStart = await request('/app/beheer/google-drive/koppelen/', { cookie, form: { _csrf: csrf } });
+  const pendingState = new URL(/href="(https:\/\/accounts\.google\.com[^"]+)"/.exec(pendingStart.text)[1].replace(/&amp;/g, '&')).searchParams.get('state');
+  await db.query("UPDATE users SET role = 'kantoor' WHERE email = 'beheer@example.nl'");
+  const refused = await request(`/app/beheer/google-drive/terug/?state=${encodeURIComponent(pendingState)}&code=goede-code`);
+  await db.query("UPDATE users SET role = 'beheerder' WHERE email = 'beheer@example.nl'");
+  assert.equal(refused.status, 400);
+  assert.match(refused.text, /mag \(niet meer\) koppelen/);
+  const [linkedAudits] = await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'drive.gekoppeld'");
+  assert.equal(linkedAudits.count, 1, 'geen tweede koppeling vastgelegd');
+
+  // Intrekken bij Google mislukt: Beheer zegt dat, met de stappen om het zelf te doen.
+  google.state.down = true;
+  const failedRevoke = await request('/app/beheer/google-drive/ontkoppelen/', { cookie, form: { _csrf: csrf } });
+  google.state.down = false;
+  assert.equal(failedRevoke.status, 200);
+  assert.match(failedRevoke.text, /intrekken bij Google is mislukt.*myaccount\.google\.com\/permissions/);
+  assert.match(app.locals.drive.state().events[0].message, /intrekken bij Google is mislukt/);
+  assert.equal(app.locals.settings.get('driveRefreshToken'), '');
+  // Opnieuw koppelen en dan gewoon ontkoppelen.
+  const again = await request('/app/beheer/google-drive/koppelen/', { cookie, form: { _csrf: csrf } });
+  const againState = new URL(/href="(https:\/\/accounts\.google\.com[^"]+)"/.exec(again.text)[1].replace(/&amp;/g, '&')).searchParams.get('state');
+  assert.equal((await request(`/app/beheer/google-drive/terug/?state=${encodeURIComponent(againState)}&code=goede-code`)).status, 200);
+  await app.locals.drive.sync();
+
   const removed = await request('/app/beheer/google-drive/ontkoppelen/', { cookie, form: { _csrf: csrf } });
   assert.equal(removed.status, 200);
+  assert.match(removed.text, /Ontkoppeld en ingetrokken bij Google/);
   assert.deepEqual(google.state.revoked, ['refresh-geheim-1']);
   assert.equal(app.locals.settings.get('driveRefreshToken'), '');
   const [unlinked] = await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'drive.ontkoppeld'");
-  assert.equal(unlinked.count, 1);
-  assert.equal((await request('/app/beheer/google-drive/synchroniseren/', { cookie, form: { _csrf: csrf } })).status, 422);
+  assert.equal(unlinked.count, 2);
+
+  // Limiet op de terugkeer van Google: 20 per kwartier per bezoeker.
+  let limited = 0;
+  for (let i = 0; i < 25 && !limited; i += 1) {
+    if ((await request('/app/beheer/google-drive/terug/?state=verzonnen&code=x')).status === 429) limited = i;
+  }
+  assert.ok(limited > 0, 'na hoogstens 20 pogingen een 429');
 });
