@@ -75,10 +75,17 @@ jobs:
       - name: Afhankelijkheden app
         working-directory: app
         run: npm ci
+      - name: PostgreSQL 17-client (pg_dump voor de back-uptests, zelfde versie als de database)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-17
       - name: Tests app (PostgreSQL)
         working-directory: app
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+          PG_DUMP_PATH: /usr/lib/postgresql/17/bin/pg_dump
         run: npm test
       - name: Kwetsbaarheden in afhankelijkheden
         working-directory: app
@@ -100,6 +107,7 @@ jobs:
           docker run -d --name smokedb --network smokenet -e POSTGRES_PASSWORD=smoke postgres:17
           for i in $(seq 1 30); do docker exec smokedb pg_isready -U postgres && break; sleep 2; done
           docker run -d --name smoke --network smokenet -p 3400:3400 -e DATABASE_URL="postgres://postgres:smoke@smokedb:5432/postgres" avanta:smoke
+          docker run --rm --entrypoint pg_dump avanta:smoke --version | grep -q ' 17\.'
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3400/api/health && exit 0; sleep 2; done
           docker logs smoke
           exit 1

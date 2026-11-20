@@ -3,7 +3,8 @@
 # Volgt de branch AVANTA_TRACK uit .env (standaard main): bij een nieuwe commit draait install.sh op die commit; mislukt
 # de gezondheidscheck, dan gaat de stack terug naar de vorige commit. Verandert alleen het IP van de cloudflared-container,
 # dan zet install.sh TRUST_PROXY opnieuw (zelfde commit). Logboek: journalctl -u avanta-update.
-# Let op: migraties lopen alleen vooruit; een rollback zet de code terug, niet de database.
+# Vóór elke update maakt de app een versleutelde back-up (Beheer > Back-ups). Let op: migraties lopen alleen vooruit;
+# een rollback zet de code terug, niet de database (terugzetten: docs/DRAAIBOEK-VPS-VERHUIZING.md).
 set -euo pipefail
 
 BASE_DIR="${BASE_DIR:-/opt/apps/avanta}"
@@ -41,6 +42,13 @@ if [ "$target" != "$current" ]; then
     echo "origin/$track ($target) heeft nog geen deploy/apps01; blijf op ${current:0:7}."
   else
     echo "Nieuwe commit op $track: ${current:0:7} -> ${target:0:7}"
+    # Eerst een versleutelde back-up met de huidige versie (migraties lopen alleen vooruit). Mislukt dat (bijv. een
+    # oudere versie zonder back-ups), dan gaat de update door met een waarschuwing.
+    if (cd "$STACK_DIR" && docker compose exec -T app node src/backup/cli.js create --update); then
+      echo "Back-up vóór de update gemaakt."
+    else
+      echo "Waarschuwing: geen back-up vóór de update." >&2
+    fi
     if run_install "$target"; then
       echo "Bijgewerkt naar ${target:0:7}."
       exit 0

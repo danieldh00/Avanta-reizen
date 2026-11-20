@@ -1,0 +1,285 @@
+/**
+ * Tests voor de versleutelde back-ups (pakket C1): verbindingsgegevens voor pg_dump, de planner (uur in Nederlandse
+ * tijd, één per dag, wachten na een fout), bewaartermijn, het bestandsformaat (echte pg_dump, ontsleutelen, andere
+ * hoofdsleutel, beschadiging) en Beheer (rechten, CSRF, Nu maken, lijst, downloaden met audit, limiet). De
+ * databasetests draaien in een eigen schema en een tijdelijke map.
+ */
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const { Writable } = require('node:stream');
+const { createDatabase } = require('../src/database/db');
+const { createApp } = require('../src/server');
+const backups = require('../src/backup/backups');
+const { formatBytes, describeNext } = require('../src/beheer/backup-routes');
+const { COOKIE_NAME } = require('../src/crm/auth');
+
+const DATABASE_URL = process.env.TEST_DATABASE_URL;
+const SCHEMA = 'backup_test';
+const MASTER_KEY = Buffer.alloc(32, 7);
+const SETUP_CODE = 'ABCDE-FGHJK-LMNPQ-RSTUV';
+const ADMIN_PASSWORD = 'correct paard batterij';
+
+/**
+ * Voegt een verbindingsoptie toe die het zoekpad op het testschema zet.
+ * @param {string} url Verbindings-URL.
+ * @returns {string} URL met `options=-c search_path=…`.
+ */
+function withSchema(url) {
+  const parsed = new URL(url);
+  parsed.searchParams.set('options', `-c search_path=${SCHEMA}`);
+  return parsed.toString();
+}
+
+/**
+ * Een tijdelijke map die na de test wordt opgeruimd.
+ * @param {object} t Testcontext.
+ * @returns {string} Pad.
+ */
+function tempDir(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'avanta-backup-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+/**
+ * Nep-instellingen voor de back-updienst.
+ * @param {object} values Afwijkende waarden.
+ * @returns {{get: Function, ready: Function}} Instellingen.
+ */
+function fakeSettings(values = {}) {
+  const all = { backupEnabled: true, backupHour: 3, backupKeepDays: 14, ...values };
+  return { get: (key) => all[key], ready: async () => {} };
+}
+
+test('back-up: verbindingsgegevens voor pg_dump zonder wachtwoord in de argumenten', () => {
+  assert.deepEqual(backups.pgEnvironment('postgres://avanta:ge%40heim@db:5432/avanta'), {
+    PGHOST: 'db', PGPORT: '5432', PGUSER: 'avanta', PGPASSWORD: 'ge@heim', PGDATABASE: 'avanta',
+  });
+  const withOptions = backups.pgEnvironment('postgresql://u:p@host/db?sslmode=require&options=-c%20search_path%3Dx');
+  assert.equal(withOptions.PGPORT, '5432');
+  assert.equal(withOptions.PGSSLMODE, 'require');
+  assert.equal(withOptions.PGOPTIONS, '-c search_path=x');
+  assert.throws(() => backups.pgEnvironment('mysql://u:p@host/db'), /geen PostgreSQL/);
+  assert.throws(() => backups.pgEnvironment('geen adres'), /geen geldig/);
+});
+
+test('back-up: namen, planner en bewaartermijn', (t) => {
+  assert.equal(backups.isBackupName('avanta-20261120-020000.dump.enc'), true);
+  assert.equal(backups.isBackupName('../avanta-20261120-020000.dump.enc'), false);
+  assert.equal(backups.isBackupName('avanta-20261120-020000.dump'), false);
+  assert.equal(backups.dateOfName('avanta-20261120-020304.dump.enc').toISOString(), '2026-11-20T02:03:04.000Z');
+
+  // 20 november 2026: wintertijd, Amsterdam = UTC+1. 02:30 UTC = 03:30 in Nederland.
+  const at = (iso) => Date.parse(iso);
+  assert.equal(backups.isDue({ now: at('2026-11-20T01:30:00Z'), hour: 3, backups: [] }), false, '02:30 NL: nog niet');
+  assert.equal(backups.isDue({ now: at('2026-11-20T02:30:00Z'), hour: 3, backups: [] }), true, '03:30 NL: wel');
+  assert.equal(backups.isDue({ now: at('2026-11-20T02:30:00Z'), hour: 3, backups: [{ createdAt: '2026-11-20T02:05:00Z' }] }), false, 'vandaag al gemaakt');
+  assert.equal(backups.isDue({ now: at('2026-11-20T02:30:00Z'), hour: 3, backups: [{ createdAt: '2026-11-20T00:30:00Z' }] }), true, 'een back-up van vóór het uur telt niet');
+  assert.equal(backups.isDue({ now: at('2026-11-20T02:30:00Z'), hour: 3, backups: [], lastFailAt: '2026-11-20T02:00:00Z' }), false, 'binnen een uur na een fout');
+  assert.equal(backups.isDue({ now: at('2026-11-20T03:30:00Z'), hour: 3, backups: [], lastFailAt: '2026-11-20T02:00:00Z' }), true, 'na een uur opnieuw');
+  // Zomertijd: 1 juli, Amsterdam = UTC+2.
+  assert.equal(backups.isDue({ now: at('2026-07-01T00:30:00Z'), hour: 3, backups: [] }), false);
+  assert.equal(backups.isDue({ now: at('2026-07-01T01:00:00Z'), hour: 3, backups: [] }), true);
+
+  const dir = tempDir(t);
+  const names = ['20261101-020000', '20261105-020000', '20261110-020000', '20261118-020000', '20261119-020000', '20261120-020000'];
+  for (const name of names) fs.writeFileSync(path.join(dir, `avanta-${name}.dump.enc`), 'x');
+  fs.writeFileSync(path.join(dir, 'ander-bestand.txt'), 'x');
+  const removed = backups.pruneBackups(dir, 7, at('2026-11-20T12:00:00Z'));
+  assert.deepEqual(removed.sort(), ['avanta-20261101-020000.dump.enc', 'avanta-20261105-020000.dump.enc', 'avanta-20261110-020000.dump.enc']);
+  assert.deepEqual(backups.listBackups(dir).map((item) => item.name), ['avanta-20261120-020000.dump.enc', 'avanta-20261119-020000.dump.enc', 'avanta-20261118-020000.dump.enc']);
+  // De nieuwste drie blijven altijd, ook als ze te oud zijn.
+  assert.deepEqual(backups.pruneBackups(dir, 1, at('2027-01-01T00:00:00Z')), []);
+  assert.ok(fs.existsSync(path.join(dir, 'ander-bestand.txt')));
+  assert.deepEqual(backups.listBackups(path.join(dir, 'bestaat-niet')), []);
+
+  assert.equal(formatBytes(512), '512 bytes');
+  assert.equal(formatBytes(1536), '1,5 kB');
+  assert.equal(describeNext({ enabled: false, hour: 3, now: Date.now(), doneToday: false }), 'Automatische back-ups staan uit.');
+  assert.equal(describeNext({ enabled: true, hour: 3, now: at('2026-11-20T01:00:00Z'), doneToday: false }), 'Vandaag rond 03:00 uur.');
+  assert.equal(describeNext({ enabled: true, hour: 3, now: at('2026-11-20T05:00:00Z'), doneToday: true }), 'Morgen rond 03:00 uur.');
+});
+
+test('back-up: status overleeft een onleesbaar bestand', (t) => {
+  const dir = tempDir(t);
+  assert.deepEqual(backups.readStatus(dir), { lastRun: null, lastOkAt: '', lastFailAt: '' });
+  fs.writeFileSync(path.join(dir, 'status.json'), '{kapot');
+  assert.equal(backups.readStatus(dir).lastRun, null);
+  backups.writeStatus(dir, { at: '2026-11-20T02:00:00.000Z', ok: false, trigger: 'automatisch', message: 'regel1\nregel2' });
+  backups.writeStatus(dir, { at: '2026-11-20T03:00:00.000Z', ok: true, trigger: 'handmatig', name: 'avanta-20261120-030000.dump.enc' });
+  const status = backups.readStatus(dir);
+  assert.equal(status.lastRun.ok, true);
+  assert.equal(status.lastFailAt, '2026-11-20T02:00:00.000Z');
+  assert.equal(status.lastOkAt, '2026-11-20T03:00:00.000Z');
+});
+
+test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+  const admin = createDatabase(DATABASE_URL);
+  await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
+  await admin.query(`CREATE SCHEMA ${SCHEMA}`);
+  await admin.close();
+  const url = withSchema(DATABASE_URL);
+  const db = createDatabase(url);
+  await db.migrate();
+  await db.query("INSERT INTO pages (path, title, body_html) VALUES ('/over-ons/', 'Over ons', '<p>Hallo</p>')");
+  t.after(() => db.close());
+
+  await t.test('formaat: echte dump, ontsleutelen, andere sleutel en beschadiging', async (st) => {
+    const dir = tempDir(st);
+    const backup = await backups.createBackup({ db, connectionString: url, dir, masterKey: MASTER_KEY });
+    assert.match(backup.name, backups.BACKUP_NAME);
+    assert.ok(backup.size > 100);
+    assert.equal(fs.readdirSync(dir).filter((name) => name.endsWith('.part')).length, 0, 'geen tijdelijke bestanden');
+    const file = path.join(dir, backup.name);
+    assert.equal((fs.statSync(file).mode & 0o777).toString(8), '600');
+    assert.equal(fs.readFileSync(file).subarray(0, 4).toString(), 'AVBK');
+    assert.doesNotMatch(fs.readFileSync(file).toString('latin1'), /PGDMP|over-ons/, 'niets leesbaar');
+
+    // Ontsleuteld is het een gewone pg_dump met de tabellen van het schema.
+    const dumpFile = path.join(dir, 'terug.dump');
+    await backups.decryptTo(file, MASTER_KEY, fs.createWriteStream(dumpFile));
+    const pgRestore = path.join(path.dirname(execFileSync('sh', ['-c', `command -v ${process.env.PG_DUMP_PATH || 'pg_dump'}`]).toString().trim()), 'pg_restore');
+    const contents = execFileSync(fs.existsSync(pgRestore) ? pgRestore : 'pg_restore', ['--list', dumpFile]).toString();
+    assert.match(contents, new RegExp(`TABLE ${SCHEMA} pages`));
+    assert.match(contents, new RegExp(`TABLE DATA ${SCHEMA} settings`));
+
+    await assert.rejects(backups.verifyBackup(file, Buffer.alloc(32, 1)), /andere hoofdsleutel/);
+    const damaged = path.join(dir, 'avanta-20200101-000000.dump.enc');
+    const bytes = fs.readFileSync(file);
+    bytes[bytes.length - 40] ^= 0xff;
+    fs.writeFileSync(damaged, bytes);
+    await assert.rejects(backups.verifyBackup(damaged, MASTER_KEY), /Ontsleutelen mislukt/);
+    fs.writeFileSync(damaged, 'geen back-up maar wel lang genoeg om de kop te lezen, echt waar');
+    await assert.rejects(backups.verifyBackup(damaged, MASTER_KEY), /Geen back-up van Avanta/);
+    const sink = new Writable({ write: (chunk, encoding, callback) => callback() });
+    await assert.rejects(backups.decryptTo(path.join(dir, 'terug.dump'), MASTER_KEY, sink), /Geen back-up van Avanta/);
+  });
+
+  await t.test('mislukte pg_dump: niets achtergelaten en vastgelegd', async (st) => {
+    const dir = tempDir(st);
+    const service = backups.createBackupService({ db, settings: fakeSettings(), dir, masterKey: MASTER_KEY, connectionString: url, pgDumpPath: '/bestaat/niet/pg_dump' });
+    await assert.rejects(service.run({ trigger: 'handmatig' }), /pg_dump starten mislukt/);
+    assert.deepEqual(fs.readdirSync(dir).filter((name) => name !== 'status.json'), []);
+    assert.equal(service.status().lastRun.ok, false);
+    const wrongPassword = new URL(url);
+    wrongPassword.password = 'fout';
+    const wrong = backups.createBackupService({ db, settings: fakeSettings(), dir, masterKey: MASTER_KEY, connectionString: wrongPassword.toString() });
+    const error = await wrong.run().catch((caught) => caught);
+    assert.match(error.message, /pg_dump mislukt/);
+    assert.doesNotMatch(error.message, /fout@/, 'geen wachtwoord in de melding');
+  });
+
+  await t.test('planner: één per dag op het ingestelde uur, wachten na een fout', async (st) => {
+    const dir = tempDir(st);
+    let clock = Date.parse('2026-11-20T01:30:00Z');
+    const settings = fakeSettings();
+    const service = backups.createBackupService({ db, settings, dir, masterKey: MASTER_KEY, connectionString: url, now: () => clock });
+    assert.equal(await service.runIfDue(), null, 'vóór 03:00');
+    clock = Date.parse('2026-11-20T02:10:00Z');
+    const made = await service.runIfDue();
+    assert.equal(made.name, 'avanta-20261120-021000.dump.enc');
+    clock += 15 * 60 * 1000;
+    assert.equal(await service.runIfDue(), null, 'vandaag al gedaan');
+    const [audit] = await db.query("SELECT user_id, entity_id FROM audit_log WHERE action = 'backup.gemaakt' ORDER BY id DESC LIMIT 1");
+    assert.deepEqual(audit, { user_id: null, entity_id: made.name });
+    clock = Date.parse('2026-11-21T02:10:00Z');
+    const off = backups.createBackupService({ db, settings: fakeSettings({ backupEnabled: false }), dir, masterKey: MASTER_KEY, connectionString: url, now: () => clock });
+    assert.equal(await off.runIfDue(), null, 'uitgezet');
+    const broken = backups.createBackupService({ db, settings, dir, masterKey: MASTER_KEY, connectionString: url, pgDumpPath: '/bestaat/niet', now: () => clock });
+    await assert.rejects(broken.runIfDue(), /pg_dump/);
+    clock += 30 * 60 * 1000;
+    assert.equal(await service.runIfDue(), null, 'binnen een uur na de fout');
+    clock += 31 * 60 * 1000;
+    assert.ok(await service.runIfDue(), 'na een uur opnieuw');
+    const unavailable = backups.createBackupService({ db, settings, dir, masterKey: MASTER_KEY });
+    assert.equal(unavailable.available(), false);
+    assert.equal(await unavailable.runIfDue(), null);
+  });
+
+  await t.test('Beheer: rechten, Nu maken, lijst, downloaden en limiet', async (st) => {
+    const dir = tempDir(st);
+    const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, databaseUrl: url, backupDir: dir });
+    const server = app.listen(0);
+    st.after(() => server.close());
+    const base = `http://127.0.0.1:${server.address().port}`;
+
+    /**
+     * Doet een verzoek zonder redirects te volgen.
+     * @param {string} pathName Pad.
+     * @param {{form?: object, cookie?: string}} [init] Formulier en sessiecookie.
+     * @returns {Promise<{status: number, text: string, headers: Headers, cookie: string, bytes: Buffer}>} Antwoord.
+     */
+    const request = async (pathName, init = {}) => {
+      const headers = { 'sec-fetch-site': 'same-origin' };
+      if (init.cookie) headers.cookie = `${COOKIE_NAME}=${init.cookie}`;
+      let body;
+      if (init.form) {
+        headers['content-type'] = 'application/x-www-form-urlencoded';
+        body = new URLSearchParams(init.form).toString();
+      }
+      const response = await fetch(base + pathName, { method: init.form ? 'POST' : 'GET', headers, body, redirect: 'manual' });
+      const setCookie = response.headers.getSetCookie().find((value) => value.startsWith(`${COOKIE_NAME}=`)) || '';
+      const bytes = Buffer.from(await response.arrayBuffer());
+      return { status: response.status, text: bytes.toString('utf8'), bytes, headers: response.headers, cookie: setCookie.split(';')[0].split('=')[1] || '' };
+    };
+    const csrfFrom = (text) => (text.match(/name="_csrf" value="([^"]+)"/) || [])[1];
+
+    const installed = await request('/app/installatie/', { form: { code: SETUP_CODE, name: 'Daniël', email: 'beheer@example.nl', password: ADMIN_PASSWORD, password2: ADMIN_PASSWORD } });
+    const cookie = installed.cookie;
+    const csrf = csrfFrom((await request('/app/', { cookie })).text);
+    await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
+    const office = await request('/app/inloggen/', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } });
+    const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
+
+    const empty = await request('/app/beheer/back-ups/', { cookie });
+    assert.equal(empty.status, 200);
+    assert.match(empty.text, /Er staan nog geen back-ups op de server/);
+    assert.match(empty.text, new RegExp(app.locals.backups.keyId()));
+    assert.equal((await request('/app/beheer/back-ups/', { cookie: office.cookie })).status, 403);
+    assert.equal((await request('/app/beheer/back-ups/nu/', { cookie: office.cookie, form: { _csrf: officeCsrf } })).status, 403);
+    assert.equal((await request('/app/beheer/back-ups/nu/', { cookie, form: { _csrf: 'fout' } })).status, 403, 'CSRF');
+    assert.equal((await request('/app/beheer/back-ups/nu/', { form: { _csrf: csrf } })).status, 401, 'niet ingelogd');
+    assert.equal(fs.readdirSync(dir).filter(backups.isBackupName).length, 0);
+
+    const made = await request('/app/beheer/back-ups/nu/', { cookie, form: { _csrf: csrf } });
+    assert.equal(made.status, 200);
+    assert.match(made.text, /Back-up gemaakt: avanta-\d{8}-\d{6}\.dump\.enc/);
+    const [item] = app.locals.backups.list();
+    assert.match(made.text, new RegExp(`/app/beheer/back-ups/download/${item.name.replace(/\./g, '\\.')}`));
+    const [created] = await db.query("SELECT u.email FROM audit_log a JOIN users u ON u.id = a.user_id WHERE a.action = 'backup.gemaakt' AND a.entity_id = $1", [item.name]);
+    assert.equal(created.email, 'beheer@example.nl');
+
+    assert.equal((await request(`/app/beheer/back-ups/download/${item.name}`, { cookie: office.cookie })).status, 403);
+    const download = await request(`/app/beheer/back-ups/download/${item.name}`, { cookie });
+    assert.equal(download.status, 200);
+    assert.equal(download.headers.get('content-type'), 'application/octet-stream');
+    assert.equal(download.headers.get('cache-control'), 'no-store');
+    assert.match(download.headers.get('content-disposition'), new RegExp(`attachment; filename="${item.name}"`));
+    assert.deepEqual(download.bytes, fs.readFileSync(path.join(dir, item.name)));
+    const downloads = await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'backup.gedownload' AND entity_id = $1", [item.name]);
+    assert.equal(downloads[0].count, 1);
+    assert.equal((await request('/app/beheer/back-ups/download/avanta-20000101-000000.dump.enc', { cookie })).status, 404, 'bestaat niet');
+    assert.equal((await request('/app/beheer/back-ups/download/status.json', { cookie })).status, 404, 'geen back-up');
+    assert.equal((await request('/app/beheer/back-ups/download/..%2Fmaster-key', { cookie })).status, 404, 'geen pad');
+
+    // Instellingen opslaan werkt via het gewone formulier.
+    const saved = await request('/app/beheer/back-ups/', { cookie, form: { _csrf: csrf, backupHour: '4', backupKeepDays: '30' } });
+    assert.equal(saved.status, 303);
+    assert.equal(app.locals.settings.get('backupEnabled'), false, 'vinkje uit = uit');
+    assert.equal(app.locals.settings.get('backupHour'), 4);
+    assert.equal((await request('/app/beheer/back-ups/', { cookie, form: { _csrf: csrf, backupEnabled: 'ja', backupHour: '24', backupKeepDays: '30' } })).status, 422);
+
+    // Hoogstens 6 handmatige back-ups per uur.
+    for (let i = 0; i < 5; i += 1) assert.equal((await request('/app/beheer/back-ups/nu/', { cookie, form: { _csrf: csrf } })).status, 200);
+    assert.equal((await request('/app/beheer/back-ups/nu/', { cookie, form: { _csrf: csrf } })).status, 429);
+  });
+
+  await t.test('Beheer: zonder databaseverbinding geen back-ups', async (st) => {
+    const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, backupDir: tempDir(st) });
+    assert.equal(app.locals.backups.available(), false);
+  });
+});

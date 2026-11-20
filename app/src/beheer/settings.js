@@ -207,6 +207,9 @@ const SETTING_FIELDS = {
     type: 'enum', label: 'Als Google niet bereikbaar is', default: 'allow', values: ['allow', 'block'],
     labels: { allow: 'Doorlaten (de andere beveiligingen blijven gelden)', block: 'Blokkeren (bezoeker probeert het later opnieuw)' },
   },
+  backupEnabled: { type: 'bool', label: 'Dagelijks automatisch een back-up maken', help: 'Een versleutelde back-up van de hele database, elke dag op het ingestelde uur.', default: true },
+  backupHour: { type: 'int', label: 'Uur van de dagelijkse back-up', help: 'Nederlandse tijd, 0 tot en met 23. Kies een rustig moment, bijvoorbeeld 3 (03:00 uur).', default: 3, min: 0, max: 23 },
+  backupKeepDays: { type: 'int', label: 'Back-ups bewaren (dagen)', help: 'Oudere back-ups op de server worden na elke nieuwe back-up verwijderd; de nieuwste drie blijven altijd staan.', default: 14, min: 1, max: 365 },
 };
 
 class SettingsError extends Error {

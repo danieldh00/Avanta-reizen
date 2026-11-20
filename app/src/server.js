@@ -23,7 +23,8 @@ const { createWanIp } = require('./mail/wan-ip');
 const { createNotifications } = require('./mail/notifications');
 const { createCaptcha, cspWith: captchaCspWith, isFormPath } = require('./security/captcha');
 const crypto = require('node:crypto');
-const { PUBLIC_DIR, MEDIA_DIR } = require('./paths');
+const { PUBLIC_DIR, MEDIA_DIR, DATA_DIR } = require('./paths');
+const { createBackupService } = require('./backup/backups');
 const { renderPage, renderPageHeader } = require('./site/layout');
 const { html } = require('./site/html');
 
@@ -66,8 +67,8 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, settings?: object, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
- *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
+ * @param {{db: object, masterKey: Buffer, settings?: object, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
+ *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), de back-updienst (standaard `backup/backups.js` met `databaseUrl`, `backupDir` en `pgDumpPath`; zonder `databaseUrl` geen back-ups), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
  *   (standaard `TRUST_PROXY`, anders loopback), de installatiecode voor de eerste CRM-beheerder en of de CRM-cookie
  *   `Secure` krijgt (standaard ja).
  * @returns {express.Express} De app.
@@ -137,8 +138,14 @@ function createApp(options) {
   app.locals.mailer = mailer;
   app.locals.settings = settings;
   const notifications = createNotifications({ mailer, settings });
+  // Versleutelde back-ups (Beheer > Back-ups en herstel); alleen met een verbindings-URL voor pg_dump.
+  const backups = options.backups || createBackupService({
+    db: options.db, settings, dir: options.backupDir || path.join(DATA_DIR, 'backups'), masterKey: options.masterKey,
+    connectionString: options.databaseUrl, pgDumpPath: options.pgDumpPath, now: options.now,
+  });
+  app.locals.backups = backups;
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now }));
@@ -181,14 +188,16 @@ function createApp(options) {
  * @returns {Promise<import('node:http').Server>} De server.
  */
 async function start() {
-  const db = createDatabase(process.env.DATABASE_URL || readSecretFile(process.env.DATABASE_URL_FILE));
+  const databaseUrl = process.env.DATABASE_URL || readSecretFile(process.env.DATABASE_URL_FILE);
+  const db = createDatabase(databaseUrl);
   await db.migrate();
   fs.mkdirSync(MEDIA_DIR, { recursive: true });
   const port = Number(process.env.PORT) || 3400;
   const setupCode = generateSetupCode();
-  const app = createApp({ db, masterKey: loadMasterKey(), indexable: process.env.SITE_INDEXABLE === 'true', setupCode });
+  const app = createApp({ db, masterKey: loadMasterKey(), databaseUrl, indexable: process.env.SITE_INDEXABLE === 'true', setupCode });
   startCrmMaintenance(db, app.locals.settings);
   app.locals.redirects.startTimers();
+  app.locals.backups.startTimer();
   const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
   // Eenmalige installatiecode voor de eerste beheerder; alleen bruikbaar zolang er geen enkele CRM-gebruiker is.
   if (!present) console.log(`CRM: nog geen gebruikers. Maak de eerste beheerder aan op /app/installatie/ met installatiecode ${setupCode}`);

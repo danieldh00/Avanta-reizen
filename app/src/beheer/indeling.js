@@ -74,6 +74,19 @@ const GROUPS = [
     ],
   },
   {
+    title: 'Back-ups en herstel',
+    sections: [
+      {
+        id: 'back-ups',
+        label: 'Back-ups',
+        intro: 'Versleutelde back-ups van de hele database (pg_dump, AES-256-GCM met een sleutel afgeleid van de hoofdsleutel). Zonder de hoofdsleutel is een back-up onbruikbaar: bewaar die apart, buiten de server.',
+        fields: ['backupEnabled', 'backupHour', 'backupKeepDays'],
+        extra: 'back-ups',
+        words: 'back-up backup herstel terugzetten restore database dump pg_dump versleuteld bewaartermijn download hoofdsleutel',
+      },
+    ],
+  },
+  {
     title: 'Vindbaarheid',
     sections: [
       {

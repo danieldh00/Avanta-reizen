@@ -13,6 +13,7 @@ const { createRateLimiter } = require('../security/rate-limit');
 const { createRedirectRoutes } = require('./redirect-routes');
 const { createMailRoutes } = require('./mail-routes');
 const { createCaptchaRoutes } = require('./captcha-routes');
+const { createBackupRoutes } = require('./backup-routes');
 
 /** Versie van de app (voor het systeemoverzicht). */
 const APP_VERSION = require('../../package.json').version;
@@ -60,9 +61,10 @@ function formatUptime(seconds) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, now?: () => number}} options
+ * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, now?: () => number}} options
  *   Database, sessie- en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`), de mailer en
- *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`) en (voor tests) de klok van de limieten.
+ *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de back-updienst (`backup/backups.js`) en (voor tests)
+ *   de klok van de limieten.
  * @returns {express.Router} Router, te koppelen binnen de CRM-router.
  */
 function createBeheerRoutes(options) {
@@ -242,6 +244,11 @@ function createBeheerRoutes(options) {
     extraPanels.mail = mailRoutes.renderPanel;
     extraPanels['mail-opmaak'] = mailRoutes.renderLayoutPanel;
     router.use(mailRoutes.router);
+  }
+  if (options.backups) {
+    const backupRoutes = createBackupRoutes({ auth, guard, settings, backups: options.backups, renderSettingsSection, notFound, now: options.now });
+    extraPanels['back-ups'] = backupRoutes.renderPanel;
+    router.use(backupRoutes.router);
   }
   if (options.captcha) {
     const captchaRoutes = createCaptchaRoutes({ auth, guard, captcha: options.captcha, renderSettingsSection, now: options.now });
