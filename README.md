@@ -1,6 +1,6 @@
 # Avanta Reizen
 
-Nieuwe website van Avanta Reizen (fase 1: nabouw van www.avantareizen.nl) met daarachter straks een CRM (fase 2).
+Nieuwe website van Avanta Reizen (fase 1: nabouw van www.avantareizen.nl) met daarachter een CRM (fase 2, in opbouw).
 Node 22 + Express + PostgreSQL 17, server-gerenderde HTML, geen externe scripts of fonts. Zie `docs/OPZET-WEBSITE.md`.
 
 ## Starten
@@ -28,6 +28,26 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   paspoortgegevens staan versleuteld. **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.
 - Afbeeldingen staan in het volume `/data/media` (circa 250 MB na de import).
+- **CRM** op `/app/` (in opbouw, zie `docs/OPZET-CRM.md`): inloggen met e-mail en wachtwoord (scrypt, minimaal 12
+  tekens), rollen `beheerder`, `kantoor`, `reisleider` en `boekhouding` met vaste rechten (`app/src/crm/rights.js`,
+  per route gecontroleerd met `requireRight`), gebruikersbeheer en een auditlog op `/app/auditlog/`.
+  - **Eerste beheerder**: zolang er geen CRM-gebruiker is, zet de server bij elke start een eenmalige installatiecode in
+    het log (`CRM: nog geen gebruikers … installatiecode XXXXX-…`). Open `/app/installatie/`, vul die code in en maak
+    het account aan; daarna is de installatiepagina weg (404).
+  - Sessie: cookie `avanta_sessie` (`HttpOnly`, `Secure`, `SameSite=Strict`, pad `/app`), in de database alleen de
+    SHA-256 van het token; verloopt na 8 uur zonder activiteit en uiterlijk na 7 dagen. Het CRM werkt daardoor alleen
+    via https (of `http://localhost`).
+  - Beveiliging: CSRF-token in elk formulier plus herkomstcontrole, 300 verzoeken per minuut per IP op `/app/`,
+    10 inlogpogingen per kwartier per IP, en hoogstens 5 mislukte pogingen per kwartier op één account vanuit één
+    IP-reeks (daarna is die combinatie dicht tot het kwartier om is). Dat laatste bewust niet voor het hele account, zodat niemand de beheerder kan buitensluiten;
+    vanaf een ander netwerk of na het kwartier lukt inloggen gewoon (een herstart wist de tellers ook). Tegen raden
+    vanuit veel netwerken tegelijk gaat een account dicht tot het einde van het uur als er binnen een uur pogingen
+    komen vanuit 30 verschillende IP-reeksen; elke reeks telt daarvoor hoogstens één keer per uur mee, zodat één
+    netwerk (of een handvol) het account nooit kan dichtzetten. De laatste
+    actieve beheerder kan niet worden gedegradeerd of uitgeschakeld. Het auditlog bewaart wie, wat, welk record, wanneer
+    en een ingekort IP-adres (/24 of /48), nooit e-mailadressen, wachtwoorden of andere waarden; regels ouder dan 2 jaar
+    worden bij het starten en daarna dagelijks opgeruimd, net als verlopen sessies.
+  - 2FA (verplicht voor rollen met toegang tot bijzondere gegevens) volgt in de volgende CRM-PR.
 
 ## Werkwijze
 

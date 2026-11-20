@@ -47,6 +47,7 @@ Node 22 + Express, server-gerenderde HTML, PostgreSQL 17 (enige database), geen 
 | `app/src/database/` | `db.js` (pool, transactie, migreren), `migrations.js` (`MIGRATIONS`, positioneel) |
 | `app/src/site/` | `routes.js` (alle publieke URL's), `content.js` (queries), `views.js`/`layout.js` (HTML), `html.js` (escaping), `format.js` |
 | `app/src/booking/` | aanmeldformulier: `fields.js` (velden + validatie), `routes.js` (`/aanmelden/`) |
+| `app/src/crm/` | CRM onder `/app/`: `routes.js` (inloggen, installatie), `users.js` (gebruikers, auditlog), `auth.js` (sessies, CSRF, `requireRight`, audit), `rights.js`, `passwords.js`, `layout.js` |
 | `app/src/security/` | `vault.js` (AES-256-GCM voor gevoelige velden), `rate-limit.js` |
 | `app/public/` | `css/site.css` (huisstijl via `--av-*`-variabelen), `js/site.js`, fonts en logo lokaal |
 | `app/tools/import-wordpress.js` | import van de huidige site (`tools/import/parse.js`, `sanitize.js`) |

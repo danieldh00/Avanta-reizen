@@ -226,3 +226,28 @@ h3 { font-size: 1.25rem; margin: 1.5rem 0 .5rem; }
   .card-grid, .card-grid--four { grid-template-columns: minmax(0, 1fr); }
   .card-grid--guides { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* CRM (/app/): compacte kop, tabellen en smalle formulieren */
+.crm { background: var(--av-soft); }
+.crm-header { background: var(--av-white); border-bottom: 1px solid var(--av-line); }
+.crm-header__inner { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.5rem; padding-top: .6rem; padding-bottom: .6rem; }
+.crm-brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; color: var(--av-dark); text-decoration: none; }
+.crm-nav ul { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin: 0; padding: 0; list-style: none; }
+.crm-nav a { color: var(--av-text); text-decoration: none; font-weight: 600; }
+.crm-nav a[aria-current="page"], .crm-nav a:hover { color: var(--av-accent); }
+.crm-user { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-left: auto; font-size: .95rem; }
+.crm-user form { margin: 0; }
+.crm-user__role { color: var(--av-muted); }
+.btn--small { padding: .3rem .8rem; font-size: .9rem; }
+.crm-main { padding-top: 1.5rem; padding-bottom: 3rem; }
+.crm-title { margin: 0 0 1rem; font-size: 1.8rem; }
+.crm-narrow { max-width: 560px; display: grid; gap: 1rem; }
+.crm-narrow select, .crm-narrow input:not([type="checkbox"]) { width: 100%; max-width: 100%; }
+.crm-table-wrap { overflow-x: auto; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); }
+.crm-table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.crm-table th, .crm-table td { padding: .5rem .75rem; text-align: left; border-bottom: 1px solid var(--av-line); white-space: nowrap; }
+.crm-table th { background: var(--av-soil); }
+.crm-rights { margin: 0; padding-left: 1.25rem; }
+@media (max-width: 600px) {
+  .crm-user { margin-left: 0; width: 100%; }
+}

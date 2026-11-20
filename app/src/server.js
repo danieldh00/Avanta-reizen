@@ -1,5 +1,5 @@
 /**
- * Webserver van Avanta Reizen: de publieke website op `/` (later het CRM op `/app/`).
+ * Webserver van Avanta Reizen: de publieke website op `/` en het CRM op `/app/`.
  * Start met `node src/server.js`; vereist DATABASE_URL.
  */
 const express = require('express');
@@ -10,6 +10,8 @@ const { createDatabase } = require('./database/db');
 const { createSiteRouter } = require('./site/routes');
 const { createBookingRouter } = require('./booking/routes');
 const { createContactForm } = require('./contact/routes');
+const { createCrmRouter, generateSetupCode } = require('./crm/routes');
+const { startCrmMaintenance } = require('./crm/auth');
 const seo = require('./site/seo');
 const { loadMasterKey, createVault } = require('./security/vault');
 const crypto = require('node:crypto');
@@ -52,9 +54,10 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, indexable?: boolean, siteUrl?: string, trustProxy?: string, now?: () => number}} options Database,
- *   hoofdsleutel, of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`) en welke proxy vertrouwd wordt
- *   (standaard `TRUST_PROXY`, anders loopback).
+ * @param {{db: object, masterKey: Buffer, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
+ *   hoofdsleutel, of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
+ *   (standaard `TRUST_PROXY`, anders loopback), de installatiecode voor de eerste CRM-beheerder en of de CRM-cookie
+ *   `Secure` krijgt (standaard ja).
  * @returns {express.Express} De app.
  */
 function createApp(options) {
@@ -80,6 +83,8 @@ function createApp(options) {
 
   app.use(express.static(PUBLIC_DIR, { maxAge: '7d', index: false, redirect: false }));
   app.use('/media', express.static(MEDIA_DIR, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
+
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const vault = createVault(options.masterKey);
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
@@ -121,7 +126,12 @@ async function start() {
   await db.migrate();
   fs.mkdirSync(MEDIA_DIR, { recursive: true });
   const port = Number(process.env.PORT) || 3400;
-  const app = createApp({ db, masterKey: loadMasterKey(), indexable: process.env.SITE_INDEXABLE === 'true' });
+  const setupCode = generateSetupCode();
+  const app = createApp({ db, masterKey: loadMasterKey(), indexable: process.env.SITE_INDEXABLE === 'true', setupCode });
+  startCrmMaintenance(db);
+  const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
+  // Eenmalige installatiecode voor de eerste beheerder; alleen bruikbaar zolang er geen enkele CRM-gebruiker is.
+  if (!present) console.log(`CRM: nog geen gebruikers. Maak de eerste beheerder aan op /app/installatie/ met installatiecode ${setupCode}`);
   return app.listen(port, () => console.log(`Avanta Reizen luistert op poort ${port}`));
 }
 
