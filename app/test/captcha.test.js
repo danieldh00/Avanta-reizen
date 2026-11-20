@@ -79,6 +79,11 @@ test('captcha: controle bij Google', async () => {
   assert.deepEqual(await captcha.check({ token: 'goed', action: 'contact', remoteIp: '203.0.113.5' }), { ok: true, score: 0.9 });
   assert.equal(google.calls[0].url, VERIFY_URL);
   assert.equal(google.calls[0].remoteip, '203.0.113.5');
+  const mapped = createCaptcha({ settings: fakeSettings({}), fetchImpl: google.fetchImpl });
+  await mapped.check({ token: 'goed', action: 'contact', remoteIp: '::ffff:203.0.113.6' });
+  assert.equal(google.calls.at(-1).remoteip, '203.0.113.6', 'IPv4 achter dual-stack zonder ::ffff:');
+  await mapped.check({ token: 'goed', action: 'contact', remoteIp: '2001:db8::1' });
+  assert.equal(google.calls.at(-1).remoteip, '2001:db8::1');
   assert.equal((await captcha.check({ token: '', action: 'contact' })).reason, 'missing');
   assert.equal((await captcha.check({ token: 'x'.repeat(5000), action: 'contact' })).reason, 'missing');
   assert.equal((await captcha.check({ token: 'onbekend', action: 'contact' })).reason, 'failed');

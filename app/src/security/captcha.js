@@ -151,7 +151,8 @@ function createCaptcha(options) {
    */
   const askGoogle = async (secret, token, remoteIp) => {
     const form = new URLSearchParams({ secret, response: token });
-    if (remoteIp) form.set('remoteip', remoteIp);
+    // Een IPv4-adres achter een dual-stack socket komt binnen als `::ffff:1.2.3.4`; Google krijgt het gewone adres.
+    if (remoteIp) form.set('remoteip', String(remoteIp).replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/i, ''));
     try {
       const response = await fetchImpl(VERIFY_URL, {
         method: 'POST',
