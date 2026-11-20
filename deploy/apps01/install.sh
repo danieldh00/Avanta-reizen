@@ -20,8 +20,19 @@ docker compose version >/dev/null 2>&1 || die "docker compose-plugin ontbreekt"
 
 # Bestaande tunnel: het (eerste) Docker-netwerk van de cloudflared-container.
 docker inspect "$TUNNEL_CONTAINER" >/dev/null 2>&1 || die "container $TUNNEL_CONTAINER niet gevonden (zet TUNNEL_CONTAINER=<naam>)"
-tunnel_network="$(docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$TUNNEL_CONTAINER" | grep -v '^$' | head -n 1)"
-[ -n "$tunnel_network" ] && [ "$tunnel_network" != "host" ] || die "$TUNNEL_CONTAINER zit niet in een Docker-netwerk (network_mode host?)"
+# Keuze van het netwerk: TUNNEL_NETWORK (omgeving of bestaande .env) is leidend; anders alleen als de container in
+# precies één netwerk zit. Nooit raden: bij meerdere netwerken kan er een met de Aquatech-database tussen zitten.
+networks="$(docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$TUNNEL_CONTAINER" | grep -v '^$' || true)"
+[ -n "${TUNNEL_NETWORK:-}" ] || TUNNEL_NETWORK="$(sed -n 's/^TUNNEL_NETWORK=//p' "$STACK_DIR/.env" 2>/dev/null | tail -n 1 || true)"
+if [ -n "${TUNNEL_NETWORK:-}" ]; then
+  grep -qx "$TUNNEL_NETWORK" <<<"$networks" || die "$TUNNEL_CONTAINER zit niet in netwerk $TUNNEL_NETWORK (wel in: $(echo $networks))"
+  tunnel_network="$TUNNEL_NETWORK"
+elif [ "$(grep -c . <<<"$networks")" = "1" ]; then
+  tunnel_network="$networks"
+else
+  die "$TUNNEL_CONTAINER zit in meerdere netwerken ($(echo $networks)); kies er een met TUNNEL_NETWORK=<naam>"
+fi
+[ "$tunnel_network" != "host" ] || die "$TUNNEL_CONTAINER gebruikt network_mode host; dat wordt niet ondersteund"
 
 mkdir -p "$BASE_DIR"
 [ -d "$REPO_DIR/.git" ] || git clone -q "$REPO_URL" "$REPO_DIR"
@@ -43,6 +54,8 @@ for key in TUNNEL_NETWORK TRUST_PROXY TUNNEL_CONTAINER; do grep -q "^$key=" .env
 grep -q '^AVANTA_TRACK=' .env || echo 'AVANTA_TRACK=main' >> .env
 sed -i -e "s|^TUNNEL_NETWORK=.*|TUNNEL_NETWORK=$tunnel_network|" -e "s|^TRUST_PROXY=.*|TRUST_PROXY=$tunnel_ip|" \
        -e "s|^TUNNEL_CONTAINER=.*|TUNNEL_CONTAINER=$TUNNEL_CONTAINER|" .env
+# Compose geeft omgevingsvariabelen voorrang boven .env: zet ze hier gelijk aan wat in .env staat.
+export TUNNEL_NETWORK="$tunnel_network" TRUST_PROXY="$tunnel_ip"
 echo "Gekoppeld aan netwerk $tunnel_network van $TUNNEL_CONTAINER (alias avanta-app); TRUST_PROXY=$tunnel_ip."
 
 docker compose up -d --build --remove-orphans
@@ -83,13 +96,17 @@ port="$(sed -n 's/^APP_PORT=//p' .env)"; port="${port:-3400}"
 for _ in $(seq 1 45); do
   if curl -fsS "http://127.0.0.1:$port/api/health" >/dev/null 2>&1; then
     echo "App gezond op 127.0.0.1:$port."
-    trips="$(docker compose exec -T db psql -U avanta -d avanta -tAc 'SELECT count(*) FROM trips' 2>/dev/null || echo 0)"
-    if [ "${trips:-0}" = "0" ]; then
+    # Import alleen bij een aantoonbaar lege database; een mislukte import laat de installatie niet falen
+    # (anders zou update.sh terugrollen terwijl de app gezond is).
+    trips="$(docker compose exec -T db psql -U avanta -d avanta -tAc 'SELECT count(*) FROM trips' 2>/dev/null || echo onbekend)"
+    if [ "$trips" = "0" ]; then
       echo "Database leeg: content en afbeeldingen van www.avantareizen.nl importeren (enkele minuten)..."
-      docker compose exec -T app node tools/import-wordpress.js
+      docker compose exec -T app node tools/import-wordpress.js \
+        || echo "WAARSCHUWING: import mislukt; volgende run probeert het opnieuw." >&2
     fi
     docker compose ps
-    docker image prune -f >/dev/null
+    # Alleen oude images van deze stack opruimen, niet die van andere stacks op apps01.
+    docker image prune -f --filter label=nl.avantareizen.stack=avanta >/dev/null
     exit 0
   fi
   sleep 2
