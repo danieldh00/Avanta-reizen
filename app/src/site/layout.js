@@ -3,6 +3,7 @@
  */
 const { html, toString } = require('./html');
 const { renderSeoHead } = require('./seo');
+const { currentContext } = require('../system/request-context');
 
 /** Hoofdmenu, gelijk aan de huidige site. */
 const MENU = [
@@ -83,6 +84,7 @@ function renderPage(page) {
 </head>
 <body class="${page.bodyClass || ''}"${measurementId ? html` data-analytics="${measurementId}" data-privacy-url="/privacy/"` : ''}>
   <a class="skip-link" href="#inhoud">Naar de inhoud</a>
+  ${renderMaintenanceBanner()}
   <header class="site-header">
     <div class="container site-header__inner">
       <a class="brand" href="/"><img src="/images/logo.png" alt="${siteName}" width="140" height="82"></a>
@@ -112,6 +114,16 @@ function renderPage(page) {
 }
 
 /**
+ * De balk bovenaan elke pagina (site en CRM) zolang de onderhoudsmodus aan staat; de stand komt uit de context van
+ * het verzoek (`system/request-context.js`, gezet in `server.js`).
+ * @returns {(object|string)} HTML, of leeg buiten onderhoud.
+ */
+function renderMaintenanceBanner() {
+  const maintenance = currentContext().maintenance;
+  return maintenance && maintenance.active ? html`<div class="maintenance-banner" role="status">${maintenance.message}</div>` : '';
+}
+
+/**
  * Maakt de paginakop met titel (en optioneel pretitel, ondertitel, terug-link en achtergrondafbeelding).
  * @param {{title: string, pretitle?: string, subtitle?: string, imageUrl?: string, backLink?: string}} header Gegevens van de kop.
  * @returns {object} HTML van de kop.
@@ -127,4 +139,4 @@ function renderPageHeader(header) {
   </section>`;
 }
 
-module.exports = { MENU, CONTACT, renderPage, renderPageHeader, renderMenu };
+module.exports = { MENU, CONTACT, renderPage, renderPageHeader, renderMenu, renderMaintenanceBanner };

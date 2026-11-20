@@ -51,6 +51,7 @@ h3 { font-size: 1.25rem; margin: 1.5rem 0 .5rem; }
 .section__subtitle { text-align: center; font-family: var(--av-serif); font-style: italic; color: var(--av-accent); font-size: 1.15rem; margin: .25rem 0 2rem; }
 .section__footer { text-align: center; margin-top: 2rem; }
 .lead { font-size: 1.15rem; font-weight: 600; }
+.maintenance-banner { padding: .6rem 1rem; background: #fff4d6; color: #5c4400; border-bottom: 1px solid #e8cf86; text-align: center; font-weight: 600; }
 .notice { padding: 1rem; background: var(--av-soft); border-left: 3px solid var(--av-accent); }
 .result-count { color: var(--av-muted); margin: 1.5rem 0 1rem; }
 
@@ -285,3 +286,7 @@ h3 { font-size: 1.25rem; margin: 1.5rem 0 .5rem; }
 .consent-banner__title { margin: 0 0 .25rem; font-size: 1.2rem; }
 .consent-banner__current { color: var(--av-muted); }
 .consent-banner__actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.beheer-command { margin: 0; padding: .75rem; background: var(--av-soft); border: 1px solid var(--av-line); border-radius: var(--av-radius); white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }
+.beheer-releases { display: grid; gap: .75rem; }
+.beheer-releases h3 { margin: 0; font-size: 1rem; }
+.beheer-releases ul { margin: .25rem 0 0; padding-left: 1.25rem; }

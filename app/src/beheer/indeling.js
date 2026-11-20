@@ -11,6 +11,8 @@ const GROUPS = [
     title: 'Systeem',
     sections: [
       { id: 'overzicht', label: 'Systeemoverzicht', view: 'overzicht', words: 'versie database migratie node uptime instellingen bron omgeving status' },
+      { id: 'updates', label: 'Updates en onderhoud', view: 'updates', words: 'update updaten bijwerken versie release releasenotes changelog automatisch onderhoud onderhoudsmodus 503 uitrol' },
+      { id: 'servertaken', label: 'Servertaken', view: 'servertaken', words: 'server servertaak taken commando proxmox pve apps01 host script afvinken' },
     ],
   },
   {

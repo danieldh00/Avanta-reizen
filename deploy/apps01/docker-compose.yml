@@ -19,11 +19,17 @@ services:
       SITE_INDEXABLE: "${SITE_INDEXABLE:-false}"
       AVANTA_MASTER_KEY: ${AVANTA_MASTER_KEY:-}
       TRUST_PROXY: ${TRUST_PROXY:?zet TRUST_PROXY (IP van de cloudflared-container) in .env}
+      # Updaten vanuit de app (Beheer > Systeem > Updates en onderhoud), zie update.sh: de status alleen-lezen, alleen de
+      # aanvraagmap is schrijfbaar (uid 1000). install.sh maakt beide mappen aan en zet UPDATE_DIR in .env.
+      UPDATE_STATUS_DIR: /update/status
+      UPDATE_REQUEST_DIR: /update/request
     # Alleen op de host zelf (curl-test); cloudflared praat via het tunnelnetwerk met avanta-app:3400.
     ports:
       - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3400}:3400"
     volumes:
       - app-data:/data
+      - ${UPDATE_DIR:-/opt/apps/avanta/update}/status:/update/status:ro
+      - ${UPDATE_DIR:-/opt/apps/avanta/update}/request:/update/request
     networks:
       default:
       tunnel:
