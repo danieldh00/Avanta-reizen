@@ -212,4 +212,19 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     }
     assert.equal(lastStatus, 429);
   });
+
+  await t.test('limiet per bezoeker achter een vertrouwde proxy (X-Forwarded-For)', async () => {
+    const form = await formFor(1001);
+    clock += 5000;
+    assert.equal((await post(form, { 'x-forwarded-for': '203.0.113.9' })).status, 303);
+  });
+
+  await t.test('referentiejaar volgt de Nederlandse datum, ook rond de jaarwisseling', async () => {
+    clock = Date.UTC(2099, 11, 31, 23, 30);
+    const form = await formFor(1001);
+    clock += 5000;
+    assert.equal((await post(form, { 'x-forwarded-for': '203.0.113.10' })).status, 303);
+    const [booking] = await db.query("SELECT reference FROM bookings WHERE reference LIKE 'AV-2100-%'");
+    assert.ok(booking, 'aanmelding om 00:30 Nederlandse tijd op 1 januari 2100 krijgt jaar 2100');
+  });
 });

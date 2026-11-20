@@ -33,15 +33,28 @@ function securityHeaders(options) {
 }
 
 /**
+ * Welke proxy's Express vertrouwt voor `req.ip` (en daarmee de limiet per bezoeker). Standaard alleen loopback; achter
+ * een reverse proxy in een andere container het adres of subnet daarvan, bijvoorbeeld `172.16.0.0/12`, of een aantal hops.
+ * @param {(string|undefined)} value Waarde uit `TRUST_PROXY` (kommagescheiden adressen/subnetten of een getal).
+ * @returns {(string|number)} Instelling voor Express.
+ */
+function parseTrustProxy(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return 'loopback';
+  return /^\d+$/.test(text) ? Number(text) : text;
+}
+
+/**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, indexable?: boolean, now?: () => number}} options Database, hoofdsleutel en of de site geïndexeerd mag worden.
+ * @param {{db: object, masterKey: Buffer, indexable?: boolean, trustProxy?: string, now?: () => number}} options Database, hoofdsleutel,
+ *   of de site geïndexeerd mag worden en welke proxy vertrouwd wordt (standaard `TRUST_PROXY`, anders loopback).
  * @returns {express.Express} De app.
  */
 function createApp(options) {
   const indexable = Boolean(options.indexable);
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 'loopback');
+  app.set('trust proxy', parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY));
   app.use(securityHeaders({ indexable }));
 
   app.get('/api/health', async (req, res) => {
