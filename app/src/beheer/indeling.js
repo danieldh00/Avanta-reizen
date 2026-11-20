@@ -36,6 +36,21 @@ const GROUPS = [
         extra: 'mail',
         words: 'mail e-mail smtp exchange office 365 microsoft connector starttls tls ssl poort afzender testmail wan ip wan-ip versturen',
       },
+      {
+        id: 'meldingen',
+        label: 'Meldingen aan kantoor',
+        intro: 'Een mail naar kantoor bij een nieuw contactbericht of een nieuwe aanmelding. Werkt alleen met een ingestelde mailserver; een mislukte melding verandert niets aan de inzending.',
+        fields: ['notifyEmail', 'notifyContact', 'notifyBooking'],
+        words: 'melding meldingen kantoor notificatie contactformulier bericht aanmelding boeking inbox',
+      },
+      {
+        id: 'mail-opmaak',
+        label: 'Mail-opmaak',
+        intro: 'De opmaak van de mails van de app: het logo van de site bovenaan, een titelbalk in de huisstijlkleur en een voettekst.',
+        fields: ['mailHeaderColor', 'mailFooterText'],
+        extra: 'mail-opmaak',
+        words: 'opmaak huisstijl kleur logo voettekst voorbeeld sjabloon template',
+      },
     ],
   },
   {

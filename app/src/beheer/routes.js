@@ -237,8 +237,9 @@ function createBeheerRoutes(options) {
   /** Extra panelen onder een instellingenformulier, per waarde van `extra` in de indeling. */
   const extraPanels = {};
   if (options.mailer && options.wanIp) {
-    const mailRoutes = createMailRoutes({ auth, guard, mailer: options.mailer, wanIp: options.wanIp, renderSettingsSection, now: options.now });
+    const mailRoutes = createMailRoutes({ auth, guard, settings, mailer: options.mailer, wanIp: options.wanIp, renderSettingsSection, now: options.now });
     extraPanels.mail = mailRoutes.renderPanel;
+    extraPanels['mail-opmaak'] = mailRoutes.renderLayoutPanel;
     router.use(mailRoutes.router);
   }
 

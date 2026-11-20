@@ -8,6 +8,8 @@
  * - De waarden staan in het geheugen (één proces per database); `update()` schrijft de database en het geheugen bij.
  */
 
+const { contrastWithWhite } = require('../mail/layout');
+
 /** Hoogste lengte van een tekstwaarde als de instelling zelf geen maximum noemt. */
 const DEFAULT_MAX_LENGTH = 500;
 
@@ -164,6 +166,28 @@ const SETTING_FIELDS = {
   },
   mailFromAddress: { type: 'email', label: 'E-mailadres afzender', help: 'Een adres waarvoor de mailserver mag versturen. Leeg = de app verstuurt geen mail.', default: '', max: 200 },
   mailReplyTo: { type: 'email', label: 'Antwoordadres', help: 'Waar antwoorden heen gaan (leeg = het adres van de afzender).', default: '', max: 200 },
+  notifyEmail: { type: 'email', label: 'E-mailadres van kantoor', help: 'Hier komen de meldingen binnen. Leeg = geen meldingen.', default: '', max: 200 },
+  notifyContact: { type: 'bool', label: 'Melding bij een nieuw bericht via het contactformulier', default: true },
+  notifyBooking: { type: 'bool', label: 'Melding bij een nieuwe aanmelding', help: 'Zonder bijzondere gegevens (geboortedatum, kerk, paspoort, noodnummer, bijzonderheden); die staan alleen versleuteld in het CRM.', default: true },
+  mailHeaderColor: {
+    type: 'text',
+    label: 'Kleur van de titelbalk',
+    help: 'Als #rrggbb; witte tekst moet goed leesbaar blijven (contrast minimaal 4,5).',
+    default: '#a95c4c',
+    max: 7,
+    required: true,
+    pattern: /^#[0-9a-f]{6}$/i,
+    patternMessage: 'Gebruik een kleur als #a95c4c.',
+    validate: (value) => (contrastWithWhite(value) < 4.5 ? 'Deze kleur is te licht voor witte tekst; kies een donkerdere kleur.' : ''),
+  },
+  mailFooterText: {
+    type: 'textarea',
+    label: 'Voettekst',
+    help: 'Onder elke mail, bijv. naam, adres en website. Hoogstens 6 regels.',
+    default: 'Avanta Reizen\nwww.avantareizen.nl',
+    max: 500,
+    validate: (value) => (value.split('\n').length > 6 ? 'Gebruik hoogstens 6 regels.' : ''),
+  },
 };
 
 class SettingsError extends Error {

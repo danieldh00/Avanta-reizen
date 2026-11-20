@@ -20,6 +20,7 @@ const { createRedirects } = require('./site/redirects');
 const { cspWith } = require('./site/analytics');
 const { createMailer } = require('./mail/mailer');
 const { createWanIp } = require('./mail/wan-ip');
+const { createNotifications } = require('./mail/notifications');
 const crypto = require('node:crypto');
 const { PUBLIC_DIR, MEDIA_DIR } = require('./paths');
 const { renderPage, renderPageHeader } = require('./site/layout');
@@ -126,12 +127,13 @@ function createApp(options) {
   const mailer = options.mailer || createMailer({ settings });
   const wanIp = options.wanIp || createWanIp();
   app.locals.mailer = mailer;
+  const notifications = createNotifications({ mailer, settings });
 
   app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
-  app.use(createBookingRouter({ db: options.db, vault, formKey, now: options.now }));
-  const contactForm = createContactForm({ db: options.db, formKey, now: options.now });
+  app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, now: options.now }));
+  const contactForm = createContactForm({ db: options.db, formKey, notifications, now: options.now });
   app.use(createSiteRouter({ db: options.db, contactForm }));
 
   // 404: telt mee in de 404-lijst van Beheer; altijd noindex (kop en renderPage zonder indexable), met een canonical

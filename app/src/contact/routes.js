@@ -1,6 +1,6 @@
 /**
  * Contactformulier onder de inhoud van `/contact/`. Een bericht komt in de tabel contact_messages (status 'nieuw'),
- * zodat het CRM het later kan tonen; er wordt (nog) geen mail verstuurd. Komt een bezoeker vanaf een reis
+ * zodat het CRM het later kan tonen; daarna gaat er een melding naar kantoor (`mail/notifications.js`, als die aan staat). Komt een bezoeker vanaf een reis
  * (`/contact/?reis=<slug>`), dan wordt die reis bij het bericht bewaard.
  * Bescherming via `security/form-guard.js`: limiet per bezoeker, herkomst, honeypot en ondertekend tijdstempel.
  * De pagina zelf wordt door `site/routes.js` opgebouwd; dit bestand levert het formulier en de verwerking.
@@ -26,7 +26,8 @@ function tripSlugFrom(value) {
 
 /**
  * Bouwt het contactformulier met verwerking.
- * @param {{db: object, formKey: Buffer, now?: () => number}} options Database, sleutel voor het formuliertoken en (voor tests) de klok.
+ * @param {{db: object, formKey: Buffer, notifications?: object, now?: () => number}} options Database, sleutel voor het
+ *   formuliertoken, de meldingen aan kantoor en (voor tests) de klok.
  * @returns {{middleware: Function[], findTrip: Function, renderForm: Function, renderThanks: Function, submit: Function}} Het formulier.
  */
 function createContactForm(options) {
@@ -125,6 +126,8 @@ function createContactForm(options) {
        VALUES ($1, $2, $3, $4, $5, $6, now())`,
       [values.name, values.email.toLowerCase(), values.phone, values.subject, values.message, trip ? trip.slug : null],
     );
+    // De melding wacht niet op de mailserver en gooit nooit: de bezoeker krijgt direct de bedanktmelding.
+    if (options.notifications) void options.notifications.contactMessage(values, trip);
     return { redirect: THANKS_PATH };
   };
 
