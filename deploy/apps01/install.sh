@@ -36,9 +36,12 @@ if [ ! -f .env ]; then
        -e "s/^AVANTA_MASTER_KEY=.*/AVANTA_MASTER_KEY=$(openssl rand -hex 32)/" .env.example > .env)
   echo ".env aangemaakt met nieuwe geheimen (bewaar AVANTA_MASTER_KEY ook apart, bijv. in de wachtwoordkluis)."
 fi
-grep -q '^TUNNEL_NETWORK=' .env || echo 'TUNNEL_NETWORK=' >> .env
-sed -i "s|^TUNNEL_NETWORK=.*|TUNNEL_NETWORK=$tunnel_network|" .env
-echo "Gekoppeld aan netwerk $tunnel_network van $TUNNEL_CONTAINER (alias avanta-app)."
+# Exact adres van cloudflared in dat netwerk: de enige proxy die de app vertrouwt (TRUST_PROXY, geen subnet).
+tunnel_ip="$(docker inspect -f "{{(index .NetworkSettings.Networks \"$tunnel_network\").IPAddress}}" "$TUNNEL_CONTAINER")"
+[ -n "$tunnel_ip" ] || die "geen IP-adres van $TUNNEL_CONTAINER in $tunnel_network (draait de container?)"
+for key in TUNNEL_NETWORK TRUST_PROXY; do grep -q "^$key=" .env || echo "$key=" >> .env; done
+sed -i -e "s|^TUNNEL_NETWORK=.*|TUNNEL_NETWORK=$tunnel_network|" -e "s|^TRUST_PROXY=.*|TRUST_PROXY=$tunnel_ip|" .env
+echo "Gekoppeld aan netwerk $tunnel_network van $TUNNEL_CONTAINER (alias avanta-app); TRUST_PROXY=$tunnel_ip."
 
 docker compose up -d --build --remove-orphans
 

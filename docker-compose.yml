@@ -9,8 +9,8 @@ services:
       DATABASE_URL: postgres://avanta:${POSTGRES_PASSWORD:?zet POSTGRES_PASSWORD in .env}@db:5432/avanta
       SITE_INDEXABLE: "${SITE_INDEXABLE:-false}"
       SITE_URL: "${SITE_URL:-https://www.avantareizen.nl}"
-      AVANTA_MASTER_KEY: "${AVANTA_MASTER_KEY:-}"
       TRUST_PROXY: "${TRUST_PROXY:-}"
+      AVANTA_MASTER_KEY: "${AVANTA_MASTER_KEY:-}"
     volumes:
       - app-data:/data
     depends_on:

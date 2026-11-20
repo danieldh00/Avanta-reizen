@@ -89,7 +89,7 @@ function createContactForm(options) {
     const values = { subject: trip ? `Vraag over ${trip.title}` : '', ...(state.values || {}) };
     return html`<section class="container container--narrow section contact-form" aria-labelledby="contact-titel">
       <h2 id="contact-titel">Stuur ons een bericht</h2>
-      ${Object.keys(errors).length ? html`<div class="form-alert" role="alert">Controleer de gemarkeerde velden.</div>` : ''}
+      ${Object.keys(errors).length ? html`<div class="form-alert" role="alert">${errors._form || 'Controleer de gemarkeerde velden.'}</div>` : ''}
       <form class="form" method="post" action="/contact/" novalidate>
         ${trip ? html`<input type="hidden" name="reis" value="${trip.slug}">` : ''}
         ${guard.hiddenFields()}
@@ -108,14 +108,17 @@ function createContactForm(options) {
     </section>`;
 
   /**
-   * Verwerkt een inzending. Bots (honeypot, ongeldig of te snel token) krijgen dezelfde bedanktmelding, zonder opslag.
+   * Verwerkt een inzending. Een ingevulde honeypot krijgt dezelfde bedanktmelding, zonder opslag; een ongeldig,
+   * verlopen of te snel token geeft het formulier opnieuw met de ingevulde waarden, een melding en een nieuw token.
    * @param {object} body Ingezonden velden.
    * @returns {Promise<({redirect: string}|{values: object, errors: object, trip: (object|null)})>} Doorsturen, of het formulier met fouten.
    */
   const submit = async (body) => {
-    if (guard.isSuspicious(body)) return { redirect: THANKS_PATH };
+    if (guard.isBot(body)) return { redirect: THANKS_PATH };
     const trip = await findTrip(body.reis);
     const { values, errors } = validateContact(body);
+    const tokenProblem = guard.tokenProblem(body);
+    if (tokenProblem) return { values, errors: { ...errors, _form: tokenProblem }, trip };
     if (Object.keys(errors).length) return { values, errors, trip };
     await options.db.query(
       `INSERT INTO contact_messages (name, email, phone, subject, message, trip_slug, consent_at)

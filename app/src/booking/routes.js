@@ -117,7 +117,7 @@ function createBookingRouter(options) {
     const hasErrors = Object.keys(errors).length > 0;
     return html`<div class="container container--narrow section">
       <p>Doorloop onderstaande stappen om je aan te melden voor de reis.</p>
-      ${hasErrors ? html`<div class="form-alert" role="alert">Controleer de gemarkeerde velden${errors._form ? html`: ${errors._form}` : ''}.</div>` : ''}
+      ${hasErrors ? html`<div class="form-alert" role="alert">${errors._form || 'Controleer de gemarkeerde velden.'}</div>` : ''}
       <form class="form" method="post" action="/aanmelden/" novalidate>
         <input type="hidden" name="id" value="${trip.legacy_id || ''}">
         <input type="hidden" name="reis" value="${trip.slug}">
@@ -168,31 +168,60 @@ function createBookingRouter(options) {
       if (!trip || reason) {
         return send(res, { title: 'Aanmelden', header: renderPageHeader({ title: 'Aanmelden' }), body: html`<div class="container section"><p class="notice">${reason}</p></div>`, trip }, trip ? 409 : 404);
       }
-      // Een ingevulde honeypot of een ongeldig/te snel token: stil doen alsof het gelukt is, zonder iets op te slaan.
-      if (guard.isSuspicious(body)) return res.redirect(303, '/bedankt-voor-je-aanmelding/');
+      // Een ingevulde honeypot: stil doen alsof het gelukt is, zonder iets op te slaan.
+      if (guard.isBot(body)) return res.redirect(303, '/bedankt-voor-je-aanmelding/');
 
       const { values, errors } = validateBooking(body, { today: today() });
+      // Ongeldig, verlopen of te snel token: formulier opnieuw tonen met de waarden en een nieuw token, niets opslaan.
+      const tokenProblem = guard.tokenProblem(body);
+      if (tokenProblem) {
+        return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: renderPageHeader({ title: 'Aanmelden', subtitle: trip.title }), body: renderForm(trip, values, { ...errors, _form: tokenProblem }) }, 422);
+      }
       if (Object.keys(errors).length) {
         return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: renderPageHeader({ title: 'Aanmelden', subtitle: trip.title }), body: renderForm(trip, values, errors) }, 422);
       }
       const sensitive = Object.fromEntries(FIELDS.filter((field) => field.sensitive).map((field) => [field.name, values[field.name]]));
-      const reference = `AV-${new Date(now()).getFullYear()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+      // Referentiejaar volgens de Nederlandse datum, niet de tijdzone van de server (rond de jaarwisseling verschilt dat).
+      const year = new Date(now()).toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' }).slice(0, 4);
       const yes = (name) => values[name] === 'ja';
-      await options.db.query(
-        `INSERT INTO bookings (reference, trip_id, trip_code, trip_title, departure_date, gender, first_names, call_name, last_name,
-           email, mobile, phone, street, postal_code, city, occupation, travel_with, earlier_trip, credit_card, driver_interest,
-           driver_before, driver_when, payment_method, payment_choice, price_cents, sensitive_data, consent_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26, now())`,
-        [reference, trip.id, trip.trip_code, trip.title, isoDate(trip.departure_date), values.gender, values.first_names, values.call_name,
-          values.last_name, values.email.toLowerCase(), values.mobile, values.phone, values.street, values.postal_code.toUpperCase(),
-          values.city, values.occupation, values.travel_with, yes('earlier_trip'), yes('credit_card'), yes('driver_interest'),
-          yes('driver_before'), values.driver_when, 'handmatig', values.payment_choice, trip.price_cents, options.vault.seal(sensitive)],
-      );
+      const sealed = options.vault.seal(sensitive);
+      // De referentie is uniek; bij de (kleine) kans op een botsing opnieuw proberen met een nieuwe referentie.
+      for (let attempt = 1; ; attempt++) {
+        const reference = `AV-${year}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+        try {
+          await insertBooking(reference, trip, values, yes, sealed);
+          break;
+        } catch (error) {
+          if (error.code !== '23505' || error.constraint !== 'bookings_reference_key' || attempt >= 3) throw error;
+        }
+      }
       return res.redirect(303, '/bedankt-voor-je-aanmelding/');
     } catch (error) {
       return next(error);
     }
   });
+
+  /**
+   * Slaat een aanmelding op.
+   * @param {string} reference Referentie (AV-jjjj-XXXXXXXX).
+   * @param {object} trip De reis.
+   * @param {object} values Gecontroleerde velden.
+   * @param {(name: string) => boolean} yes Of een ja/nee-veld ja is.
+   * @param {string} sealed Versleutelde bijzondere gegevens.
+   * @returns {Promise<void>}
+   */
+  const insertBooking = async (reference, trip, values, yes, sealed) => {
+    await options.db.query(
+      `INSERT INTO bookings (reference, trip_id, trip_code, trip_title, departure_date, gender, first_names, call_name, last_name,
+         email, mobile, phone, street, postal_code, city, occupation, travel_with, earlier_trip, credit_card, driver_interest,
+         driver_before, driver_when, payment_method, payment_choice, price_cents, sensitive_data, consent_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26, now())`,
+      [reference, trip.id, trip.trip_code, trip.title, isoDate(trip.departure_date), values.gender, values.first_names, values.call_name,
+        values.last_name, values.email.toLowerCase(), values.mobile, values.phone, values.street, values.postal_code.toUpperCase(),
+        values.city, values.occupation, values.travel_with, yes('earlier_trip'), yes('credit_card'), yes('driver_interest'),
+        yes('driver_before'), values.driver_when, 'handmatig', values.payment_choice, trip.price_cents, sealed],
+    );
+  };
 
   return router;
 }

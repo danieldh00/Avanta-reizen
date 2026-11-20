@@ -13,6 +13,10 @@ const CONTACT_FIELDS = [
   { name: 'consent', label: 'Ik ga akkoord met de opslag en verwerking van mijn gegevens door deze website, zoals vermeld in onze', type: 'checkbox', required: true },
 ];
 
+/** Stuurtekens behalve tab en regeleinden; PostgreSQL weigert NUL in tekstkolommen (anders een 500). */
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARACTERS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+
 /**
  * Controleert en normaliseert de invoer van het contactformulier.
  * @param {object} body Ingezonden velden.
@@ -23,8 +27,10 @@ function validateContact(body) {
   const errors = {};
   for (const field of CONTACT_FIELDS) {
     const rawValue = body[field.name];
-    let value = typeof rawValue === 'string' ? rawValue.replace(/\r\n/g, '\n').trim() : '';
+    let value = typeof rawValue === 'string' ? rawValue.replace(CONTROL_CHARACTERS, '').replace(/\r\n/g, '\n').trim() : '';
     if (field.type !== 'textarea') value = value.replace(/\s+/g, ' ');
+    // Een selectievakje telt alleen als akkoord met precies de waarde die het formulier verstuurt (bewijs voor consent_at).
+    if (field.type === 'checkbox' && value !== 'ja') value = '';
     values[field.name] = value;
     if (field.required && !value) {
       errors[field.name] = field.type === 'checkbox' ? 'Ga akkoord met de privacyverklaring om je bericht te versturen.' : 'Dit veld is verplicht.';

@@ -5,6 +5,7 @@
 const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
+const net = require('node:net');
 const { createDatabase } = require('./database/db');
 const { createSiteRouter } = require('./site/routes');
 const { createBookingRouter } = require('./booking/routes');
@@ -35,25 +36,25 @@ function securityHeaders(options) {
 }
 
 /**
- * Welke proxy's de app vertrouwt voor X-Forwarded-For/-Proto (bezoekers-IP voor de limiet, https voor de
- * herkomstcontrole). Achter Cloudflare Tunnel in Docker komt het verzoek van een privé-adres, dus dan bijvoorbeeld
- * `uniquelocal` of het IP van de cloudflared-host. Een getal betekent "zoveel hops"; leeg geeft `loopback`.
- * @param {string} [value] Waarde van TRUST_PROXY.
- * @returns {string|number} Instelling voor Express' `trust proxy`.
+ * Welke proxy Express vertrouwt voor `req.ip` (en daarmee de limiet per bezoeker). Alleen `loopback` (standaard) of het
+ * exacte IP-adres van één reverse proxy, bijv. `172.18.0.5`. Subnetten, lijsten en hop-aantallen worden geweigerd:
+ * daarmee kan een bezoeker via het Docker-bridgeadres met een zelfgekozen `X-Forwarded-For` de limiet omzeilen.
+ * @param {(string|undefined)} value Waarde uit `TRUST_PROXY`.
+ * @returns {string} Instelling voor Express.
+ * @throws {Error} Bij een waarde die geen loopback of enkel IP-adres is.
  */
-function trustProxySetting(value) {
+function parseTrustProxy(value) {
   const text = String(value ?? '').trim();
-  if (!text) return 'loopback';
-  if (/^\d+$/.test(text)) return Number(text);
-  if (text === 'true') throw new Error('TRUST_PROXY=true vertrouwt elk adres; geef een adres, subnet of `uniquelocal`');
+  if (!text || text === 'loopback') return 'loopback';
+  if (net.isIP(text) === 0) throw new Error(`TRUST_PROXY moet leeg, 'loopback' of één exact IP-adres zijn, niet '${text}'`);
   return text;
 }
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, indexable?: boolean, siteUrl?: string, trustProxy?: string, now?: () => number}} options
- *   Database, hoofdsleutel, of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`) en de vertrouwde
- *   proxy's (standaard `TRUST_PROXY`, anders `loopback`).
+ * @param {{db: object, masterKey: Buffer, indexable?: boolean, siteUrl?: string, trustProxy?: string, now?: () => number}} options Database,
+ *   hoofdsleutel, of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`) en welke proxy vertrouwd wordt
+ *   (standaard `TRUST_PROXY`, anders loopback).
  * @returns {express.Express} De app.
  */
 function createApp(options) {
@@ -61,7 +62,7 @@ function createApp(options) {
   const siteUrl = seo.normalizeSiteUrl(options.siteUrl ?? process.env.SITE_URL);
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', trustProxySetting(options.trustProxy ?? process.env.TRUST_PROXY));
+  app.set('trust proxy', parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY));
   app.use(securityHeaders({ indexable }));
 
   app.get('/api/health', async (req, res) => {
@@ -100,7 +101,7 @@ function createApp(options) {
   // Express herkent een foutafhandelaar aan de vier parameters.
   // eslint-disable-next-line no-unused-vars
   app.use((error, req, res, next) => {
-    console.error(`Fout bij ${req.method} ${req.path}: ${error.message}`);
+    console.error(`Fout bij ${req.method} ${req.path.replace(/[\r\n]/g, ' ')}: ${String(error.message).replace(/[\r\n]/g, ' ')}`);
     res.status(500).send(renderPage({
       title: 'Er ging iets mis',
       path: req.path,
@@ -140,4 +141,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createApp, start, trustProxySetting };
+module.exports = { createApp, start, parseTrustProxy };

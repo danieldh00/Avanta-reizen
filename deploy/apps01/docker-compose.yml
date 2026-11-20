@@ -15,7 +15,7 @@ services:
       SITE_URL: ${SITE_URL:?zet SITE_URL in .env}
       SITE_INDEXABLE: "${SITE_INDEXABLE:-false}"
       AVANTA_MASTER_KEY: ${AVANTA_MASTER_KEY:-}
-      TRUST_PROXY: ${TRUST_PROXY:-uniquelocal}
+      TRUST_PROXY: ${TRUST_PROXY:?zet TRUST_PROXY (IP van de cloudflared-container) in .env}
     # Alleen op de host zelf (curl-test); cloudflared praat via het tunnelnetwerk met avanta-app:3400.
     ports:
       - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3400}:3400"

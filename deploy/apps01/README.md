@@ -19,7 +19,7 @@ AVANTA_REF=<sha> bash <(curl -fsSL https://raw.githubusercontent.com/danieldh00/
 1. zoekt apps01 zoals de Aquatech-scripts: LXC via `pct exec`, anders ssh als `daniel@apps01` met `sudo -n`
    (instelbaar met `APPS01_SSH`, `APPS01_CTID`, `APPS01_NAME`);
 2. draait daar `install.sh`: repo naar `/opt/apps/avanta/repo` op dezelfde commit, `.env` met gegenereerde geheimen
-   (eenmalig), netwerk van `aquatech-cloudflared` opzoeken (`TUNNEL_NETWORK`), image bouwen, stack starten,
+   (eenmalig), netwerk en exact IP van `aquatech-cloudflared` opzoeken (`TUNNEL_NETWORK`, `TRUST_PROXY`), image bouwen, stack starten,
    gezondheidscheck en bij een lege database de content-import van www.avantareizen.nl;
 3. leest uit de draaiende cloudflared alleen het account- en tunnel-id (het geheime deel van het token blijft op apps01)
    en vraagt een Cloudflare API-token (*Account > Cloudflare Tunnel > Edit* en *Zone > DNS > Edit*, beperkt tot
@@ -56,10 +56,11 @@ curl -sI https://avanta.den-hollander.com/ | grep -i x-robots-tag   # noindex, n
 ```
 
 Een 403 op het contactformulier betekent dat `TRUST_PROXY` niet klopt (de app ziet dan `http` in plaats van `https`).
+`TRUST_PROXY` is bewust het exacte IP van `aquatech-cloudflared` (geen subnet, zie de hoofd-README).
 Migraties draaien automatisch bij elke start van de app.
 
-Wordt `aquatech-cloudflared` met een ander netwerk opnieuw aangemaakt, draai dan het commando opnieuw: `install.sh`
-zoekt het netwerk elke keer opnieuw op.
+Wordt `aquatech-cloudflared` opnieuw aangemaakt (bijv. bij een image-update), dan kan zijn IP veranderen en geven de
+formulieren 403. Draai dan het commando opnieuw: `install.sh` zoekt netwerk en IP elke keer opnieuw op.
 
 ## Back-up en herstel
 

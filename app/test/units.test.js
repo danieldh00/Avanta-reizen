@@ -15,6 +15,7 @@ const { createVault, loadMasterKey } = require('../src/security/vault');
 const { createRateLimiter, clientKey } = require('../src/security/rate-limit');
 const { validateBooking } = require('../src/booking/fields');
 const { rewriteLink, cacheName } = require('../tools/import-wordpress');
+const { parseTrustProxy } = require('../src/server');
 
 test('html escapet ingevoegde waarden maar niet raw()', () => {
   const name = '<script>alert("x")</script>';
@@ -155,6 +156,8 @@ test('validateBooking geeft fouten voor ontbrekende en ongeldige velden', () => 
   assert.ok(errors.last_name && errors.email_confirm && errors.birth_date && errors.gender && errors.mobile && errors.consent);
   assert.ok(validateBooking({ ...validBooking(), birth_date: '2001-02-30' }, { today: '2026-11-19' }).errors.birth_date);
   assert.ok(validateBooking({ ...validBooking(), first_names: 'x'.repeat(121) }, { today: '2026-11-19' }).errors.first_names);
+  assert.ok(validateBooking({ ...validBooking(), consent: 'nee' }, { today: '2026-11-19' }).errors.consent, 'alleen consent=ja telt');
+  assert.equal(validateBooking({ ...validBooking(), particulars: 'Noten\u0000allergie' }, { today: '2026-11-19' }).values.particulars, 'Notenallergie');
 });
 
 test('form-guard: token per formulier, minimale en maximale invultijd, honeypot', () => {
@@ -168,8 +171,10 @@ test('form-guard: token per formulier, minimale en maximale invultijd, honeypot'
   clock += MIN_FILL_MS;
   assert.equal(contactGuard.checkToken(token), true);
   assert.equal(bookingGuard.checkToken(token), false, 'ander formulier');
-  assert.equal(contactGuard.isSuspicious({ token, website: 'x' }), true, 'honeypot');
-  assert.equal(contactGuard.isSuspicious({ token }), false);
+  assert.equal(contactGuard.isBot({ token, website: 'x' }), true, 'honeypot');
+  assert.equal(contactGuard.isBot({ token: 'vals' }), false, 'alleen de honeypot telt als bot');
+  assert.equal(contactGuard.tokenProblem({ token }), '');
+  assert.match(contactGuard.tokenProblem({ token: 'abc.def' }), /verlopen of te snel/);
   assert.equal(contactGuard.checkToken('abc.def'), false);
   clock += MAX_FILL_MS;
   assert.equal(contactGuard.checkToken(token), false, 'te oud');
@@ -183,20 +188,19 @@ test('contactformulier: validatie en normalisatie', () => {
   assert.equal(ok.values.message, 'Regel 1\nRegel 2');
   const bad = validateContact({ email: 'geen', phone: 'x', name: ['array'] });
   assert.deepEqual(Object.keys(bad.errors).sort(), ['consent', 'email', 'message', 'name', 'phone']);
+  assert.ok(validateContact({ name: 'A', email: 'a@b.nl', message: 'x', consent: 'nee' }).errors.consent, 'alleen consent=ja telt');
+  const control = validateContact({ name: 'Te\u0000st', email: 'a@b.nl', message: 'a\u0000b\u0007\tc\nd', consent: 'ja' });
+  assert.equal(control.values.name, 'Test', 'NUL verwijderd');
+  assert.equal(control.values.message, 'ab\tc\nd', 'stuurtekens weg, tab en regeleinde blijven');
 });
 
-test('TRUST_PROXY: standaard loopback, getal als hops, subnetten doorgeven, true geweigerd', () => {
-  const { trustProxySetting, createApp } = require('../src/server');
-  assert.equal(trustProxySetting(undefined), 'loopback');
-  assert.equal(trustProxySetting('  '), 'loopback');
-  assert.equal(trustProxySetting('1'), 1);
-  assert.equal(trustProxySetting('uniquelocal'), 'uniquelocal');
-  assert.throws(() => trustProxySetting('true'), /TRUST_PROXY/);
-  const db = { query: async () => [] };
-  const behindTunnel = createApp({ db, masterKey: Buffer.alloc(32, 1), trustProxy: 'uniquelocal' }).get('trust proxy fn');
-  assert.equal(behindTunnel('172.18.0.5', 0), true, 'cloudflared in Docker-netwerk');
-  assert.equal(behindTunnel('203.0.113.9', 0), false, 'publiek adres');
-  const standard = createApp({ db, masterKey: Buffer.alloc(32, 1), trustProxy: '' }).get('trust proxy fn');
-  assert.equal(standard('172.18.0.5', 0), false);
-  assert.equal(standard('127.0.0.1', 0), true);
+test('TRUST_PROXY: alleen leeg/loopback of één exact IP-adres', () => {
+  assert.equal(parseTrustProxy(undefined), 'loopback');
+  assert.equal(parseTrustProxy('  '), 'loopback');
+  assert.equal(parseTrustProxy('loopback'), 'loopback');
+  assert.equal(parseTrustProxy('172.18.0.5'), '172.18.0.5');
+  assert.equal(parseTrustProxy('fd00::5'), 'fd00::5');
+  for (const unsafe of ['10.0.0.0/8', '172.16.0.0/12', 'loopback, 172.18.0.5', '1', 'true', 'uniquelocal']) {
+    assert.throws(() => parseTrustProxy(unsafe), /TRUST_PROXY/);
+  }
 });
