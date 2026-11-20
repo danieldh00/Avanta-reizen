@@ -1,0 +1,21 @@
+{
+  "name": "avanta-reizen",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Avanta Reizen: website en (later) CRM",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test",
+    "import": "node tools/import-wordpress.js"
+  },
+  "dependencies": {
+    "express": "^4.22.3",
+    "node-html-parser": "^7.1.0",
+    "pg": "^8.23.1"
+  }
+}

@@ -1,0 +1,105 @@
+name: CI
+
+# Zuinig draaien: een nieuwe push annuleert de lopende run, en een PR die geen code raakt (alleen docs of changes/)
+# slaat de zware jobs over. Een overgeslagen job (`if`) telt voor de verplichte checks als geslaagd; een `paths:`-filter
+# op workflowniveau zou de checks laten hangen en wordt daarom niet gebruikt.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Bepaalt of de PR code raakt. Op main (push) en bij een mislukte vergelijking draait alles.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+    steps:
+      - name: Raakt deze wijziging code?
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -z "$NUMBER" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(gh api "repos/$REPO/pulls/$NUMBER/files" --paginate --jq '.[].filename') || { echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          echo "$files"
+          if echo "$files" | grep -Eq '^(app/|tools/|tests/|deploy/|docker-compose\.yml|Dockerfile|\.github/workflows/)'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "Geen code gewijzigd (alleen docs of changes/): tests overgeslagen."
+          fi
+
+  # De naam `test` is een verplichte controle op main; wijzig hem alleen samen met de ruleset.
+  test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Tests (hulpmiddelen)
+        run: node --test "tests/*.test.js"
+      - name: Releasenotes-fragmenten controleren
+        run: node tools/release-notes.js --check
+      - name: Afhankelijkheden app
+        working-directory: app
+        run: npm ci
+      - name: Tests app (PostgreSQL)
+        working-directory: app
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+        run: npm test
+      - name: Kwetsbaarheden in afhankelijkheden
+        working-directory: app
+        run: npm audit --omit=dev --audit-level=high
+
+  # Bouwt het image en controleert of het start (health-check tegen een echte PostgreSQL).
+  image:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image bouwen
+        run: docker build -t avanta:smoke app
+      - name: Smoketest
+        run: |
+          docker network create smokenet
+          docker run -d --name smokedb --network smokenet -e POSTGRES_PASSWORD=smoke postgres:17
+          for i in $(seq 1 30); do docker exec smokedb pg_isready -U postgres && break; sleep 2; done
+          docker run -d --name smoke --network smokenet -p 3400:3400 -e DATABASE_URL="postgres://postgres:smoke@smokedb:5432/postgres" avanta:smoke
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3400/api/health && exit 0; sleep 2; done
+          docker logs smoke
+          exit 1
