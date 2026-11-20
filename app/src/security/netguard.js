@@ -17,6 +17,8 @@ for (const [address, prefix] of [
 ]) BLOCKED_V4.addSubnet(address, prefix, 'ipv4');
 for (const [address, prefix] of [
   ['::', 128], ['::1', 128], ['::ffff:0:0', 96], ['64:ff9b::', 96], ['100::', 64], ['2001:db8::', 32],
+  // Teredo en 6to4 kunnen een (privé) IPv4-adres insluiten.
+  ['2001::', 32], ['2002::', 16],
   ['fc00::', 7], ['fe80::', 10], ['ff00::', 8],
 ]) BLOCKED_V6.addSubnet(address, prefix, 'ipv6');
 

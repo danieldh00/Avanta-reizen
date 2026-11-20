@@ -49,7 +49,7 @@ Node 22 + Express, server-gerenderde HTML, PostgreSQL 17 (enige database), geen 
 | `app/src/booking/` | aanmeldformulier: `fields.js` (velden + validatie), `routes.js` (`/aanmelden/`) |
 | `app/src/crm/` | CRM onder `/app/`: `routes.js` (inloggen, installatie), `users.js` (gebruikers, auditlog), `auth.js` (sessies, CSRF, `requireRight`, audit), `rights.js`, `passwords.js`, `layout.js` |
 | `app/src/beheer/` | Beheer onder `/app/beheer/` (recht `systeem`): `settings.js` (`SETTING_FIELDS`, database → env → standaard, geheimen via vault), `indeling.js` (groepen/secties + zoeken), `routes.js`, `redirect-routes.js` (doorverwijzingen, 404-lijst), `mail-routes.js` (testmail, WAN-IP) |
-| `app/src/mail/` | `mailer.js` (nodemailer: SMTP of Exchange-connector, alleen openbare adressen, STARTTLS verplicht), `wan-ip.js` |
+| `app/src/mail/` | `mailer.js` (nodemailer: SMTP of Exchange-connector, alleen openbare adressen, STARTTLS verplicht), `wan-ip.js`, `layout.js` (mail-opmaak, alles ge-escaped), `notifications.js` (meldingen aan kantoor, nooit gevoelige velden) |
 | `app/src/security/` | `vault.js` (AES-256-GCM voor gevoelige velden), `rate-limit.js`, `netguard.js` (alleen openbare adressen voor uitgaande verbindingen) |
 | `app/public/` | `css/site.css` (huisstijl via `--av-*`-variabelen), `js/site.js`, fonts en logo lokaal |
 | `app/tools/import-wordpress.js` | import van de huidige site (`tools/import/parse.js`, `sanitize.js`) |

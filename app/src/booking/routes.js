@@ -1,6 +1,7 @@
 /**
  * Aanmelden voor een reis (`/aanmelden/?id=<oud reis-id>`, zoals op de huidige site). De aanmelding komt in de tabel
- * bookings, de basis voor het CRM. Bijzondere en paspoortgegevens worden versleuteld opgeslagen.
+ * bookings, de basis voor het CRM. Bijzondere en paspoortgegevens worden versleuteld opgeslagen. Daarna gaat er een
+ * melding naar kantoor (`mail/notifications.js`, als die aan staat), zonder de bijzondere gegevens.
  * Bescherming via `security/form-guard.js`: limiet per bezoeker, herkomst, honeypot en ondertekend tijdstempel.
  */
 const crypto = require('node:crypto');
@@ -18,8 +19,8 @@ const BOOKING_FEE_CENTS = 1500;
 
 /**
  * Bouwt de router voor aanmeldingen.
- * @param {{db: object, vault: object, formKey: Buffer, now?: () => number}} options Database, kluis en sleutel voor het
- *   formuliertoken. Het basisadres voor de canonical en de overige site-instellingen komen uit `res.locals.site`.
+ * @param {{db: object, vault: object, formKey: Buffer, notifications?: object, now?: () => number}} options Database,
+ *   kluis, sleutel voor het formuliertoken en de meldingen aan kantoor. Het basisadres voor de canonical en de overige site-instellingen komen uit `res.locals.site`.
  * @returns {express.Router} De router.
  */
 function createBookingRouter(options) {
@@ -190,6 +191,8 @@ function createBookingRouter(options) {
         const reference = `AV-${year}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
         try {
           await insertBooking(reference, trip, values, yes, sealed);
+          // De melding wacht niet op de mailserver en gooit nooit.
+          if (options.notifications) void options.notifications.booking({ reference, trip, values });
           break;
         } catch (error) {
           if (error.code !== '23505' || error.constraint !== 'bookings_reference_key' || attempt >= 3) throw error;

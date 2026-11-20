@@ -9,25 +9,41 @@ const { html } = require('../site/html');
 const { formatDateTime } = require('../crm/layout');
 const { findSection } = require('./indeling');
 const { mailFailure, validEmail } = require('../mail/mailer');
+const { renderMail, LOGO_CID } = require('../mail/layout');
 const { createRateLimiter } = require('../security/rate-limit');
 
 /** Omschrijving van de soorten mail in het overzicht. */
-const KIND_LABELS = { testmail: 'Testmail' };
+const KIND_LABELS = { testmail: 'Testmail', 'melding-contact': 'Melding contactbericht', 'melding-aanmelding': 'Melding aanmelding' };
 
 /**
  * Maakt de routes en het paneel van de mailserver.
- * @param {{auth: object, guard: Function, mailer: object, wanIp: object, renderSettingsSection: Function, now?: () => number}} options
- *   Sessielaag, rechtencontrole, mailer (`mail/mailer.js`), WAN-IP-opzoeker (`mail/wan-ip.js`), de weergave van een
- *   instellingensectie en (voor tests) de klok van de limiet.
- * @returns {{router: express.Router, renderPanel: Function}} Router en paneel (voor onder het formulier).
+ * @param {{auth: object, guard: Function, settings: object, mailer: object, wanIp: object, renderSettingsSection: Function, now?: () => number}} options
+ *   Sessielaag, rechtencontrole, instellingen, mailer (`mail/mailer.js`), WAN-IP-opzoeker (`mail/wan-ip.js`), de
+ *   weergave van een instellingensectie en (voor tests) de klok van de limiet.
+ * @returns {{router: express.Router, renderPanel: Function, renderLayoutPanel: Function}} Router en panelen (voor onder
+ *   het formulier van de mailserver en van de mail-opmaak).
  */
 function createMailRoutes(options) {
-  const { auth, guard, mailer, wanIp } = options;
+  const { auth, guard, settings, mailer, wanIp } = options;
   const router = express.Router();
   // Testmails: hoogstens 5 per tien minuten per gebruiker; WAN-IP opzoeken: 10 per tien minuten per gebruiker.
   const testLimiter = createRateLimiter({ limit: 5, windowMs: 10 * 60 * 1000, now: options.now });
   const lookupLimiter = createRateLimiter({ limit: 10, windowMs: 10 * 60 * 1000, now: options.now });
   const section = findSection('mailserver');
+
+  /**
+   * Een mail in de huidige opmaak.
+   * @param {object} content Titel, inleiding, rijen en tekst (zie `renderMail`).
+   * @returns {{html: string, text: string, attachments: object[]}} De mail.
+   */
+  const layout = (content) => renderMail({ headerColor: settings.get('mailHeaderColor'), footerText: settings.get('mailFooterText'), siteName: settings.get('siteName'), ...content });
+
+  /**
+   * Het paneel onder de mail-opmaak: een link naar het voorbeeld.
+   * @returns {object} HTML.
+   */
+  const renderLayoutPanel = () => html`<h2>Voorbeeld</h2>
+      <p>Sla eerst op en bekijk dan het <a href="/app/beheer/mail-opmaak/voorbeeld/" target="_blank" rel="noopener">voorbeeld van een melding</a> (opent in een nieuw tabblad), of verstuur een testmail onder <a href="/app/beheer/mailserver/#testmail">Mailserver</a>.</p>`;
 
   /**
    * Het paneel onder het formulier: status, testmail, WAN-IP en de laatste verzendingen.
@@ -82,22 +98,18 @@ function createMailRoutes(options) {
       let testResult;
       if (!validEmail(to)) testResult = { ok: false, message: 'Vul een geldig e-mailadres in.' };
       else if (!mailer.configured()) testResult = { ok: false, message: 'Er is nog geen mailserver ingesteld.' };
-      else if (!testLimiter.hit(`gebruiker:${req.user.id}`)) testResult = { ok: false, message: 'Te veel testmails. Probeer het over tien minuten opnieuw.' };
+      else if (!testLimiter.hit(`gebruiker:${req.user.id}`)) testResult = { ok: false, limited: true, message: 'Te veel testmails. Probeer het over tien minuten opnieuw.' };
       else {
         try {
-          await mailer.send({
-            kind: 'testmail',
-            to,
-            subject: `Testmail van ${res.locals.site.siteName}`,
-            text: `Dit is een testmail uit Beheer van ${res.locals.site.siteName}.\n\nKomt deze mail aan, dan is de mailserver goed ingesteld.`,
-          });
+          const mail = layout({ title: 'Testmail', intro: `Dit is een testmail uit Beheer van ${res.locals.site.siteName}.\n\nKomt deze mail aan, dan is de mailserver goed ingesteld.` });
+          await mailer.send({ kind: 'testmail', to, subject: `Testmail van ${res.locals.site.siteName}`, text: mail.text, html: mail.html, attachments: mail.attachments });
           testResult = { ok: true, message: 'De testmail is verstuurd. Controleer de inbox (en de map met ongewenste mail).' };
         } catch (error) {
           testResult = { ok: false, message: mailFailure(error) };
         }
         await auth.audit(req, { userId: req.user.id, action: testResult.ok ? 'mail.test' : 'mail.test-mislukt', entity: 'settings', entityId: 'mailserver' });
       }
-      const status = testResult.ok ? 200 : (testResult.message.startsWith('Te veel') ? 429 : 422);
+      const status = testResult.ok ? 200 : (testResult.limited ? 429 : 422);
       return res.status(status).send(options.renderSettingsSection(req, section, { extra: { testTo: to, testResult } }));
     } catch (error) {
       return next(error);
@@ -107,7 +119,7 @@ function createMailRoutes(options) {
   router.post('/beheer/mailserver/wan-ip/', guard, auth.checkCsrf, async (req, res, next) => {
     try {
       let wan;
-      if (!lookupLimiter.hit(`gebruiker:${req.user.id}`)) wan = { ...(wanIp.peek() || {}), error: 'Te vaak opgezocht. Probeer het over tien minuten opnieuw.' };
+      if (!lookupLimiter.hit(`gebruiker:${req.user.id}`)) wan = { ...(wanIp.peek() || {}), limited: true, error: 'Te vaak opgezocht. Probeer het over tien minuten opnieuw.' };
       else {
         try {
           wan = await wanIp.get({ refresh: true });
@@ -115,13 +127,24 @@ function createMailRoutes(options) {
           wan = { error: 'Het WAN-IP kon niet worden bepaald: de opzoekdiensten zijn niet bereikbaar vanaf de server.' };
         }
       }
-      return res.status(wan.error ? (wan.error.startsWith('Te vaak') ? 429 : 503) : 200).send(options.renderSettingsSection(req, section, { extra: { wan } }));
+      return res.status(wan.error ? (wan.limited ? 429 : 503) : 200).send(options.renderSettingsSection(req, section, { extra: { wan } }));
     } catch (error) {
       return next(error);
     }
   });
 
-  return { router, renderPanel };
+  router.get('/beheer/mail-opmaak/voorbeeld/', guard, (req, res) => {
+    const mail = layout({
+      title: 'Nieuw bericht via het contactformulier',
+      intro: 'Er is een bericht binnengekomen via het contactformulier op de website. Antwoorden op deze mail gaat naar de afzender.',
+      rows: [['Naam', 'Jan Jansen'], ['E-mail', 'jan@example.nl'], ['Onderwerp', 'Vraag over een reis']],
+      body: 'Hallo,\n\nIs er nog plaats op de reis naar Albanië?\n\nGroet, Jan',
+    });
+    // In de browser het logo van de site zelf tonen in plaats van de ingebedde bijlage.
+    return res.type('html').send(mail.html.replace(`cid:${LOGO_CID}`, '/images/logo.png'));
+  });
+
+  return { router, renderPanel, renderLayoutPanel };
 }
 
 module.exports = { createMailRoutes };

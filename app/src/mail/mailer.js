@@ -117,7 +117,7 @@ function tagServer(error, server) {
  * @param {{settings: object, createTransport?: Function, resolveHost?: Function, now?: () => number}} options De
  *   instellingen (`beheer/settings.js`); voor tests een eigen `createTransport` (nodemailer), `resolveHost`
  *   (standaard `publicAddress`) en klok.
- * @returns {{configured: Function, server: Function, send: Function, verify: Function, recent: Function}} De mailfuncties.
+ * @returns {{configured: Function, server: Function, send: Function, recent: Function}} De mailfuncties.
  */
 function createMailer(options) {
   const { settings } = options;
@@ -195,8 +195,8 @@ function createMailer(options) {
 
   /**
    * Verstuurt een e-mail en legt de uitkomst vast. Fouten gaan zonder adressen naar het serverlog.
-   * @param {{to: (string|string[]), subject: string, text: string, html?: string, replyTo?: string, kind?: string}} message
-   *   Het bericht; `kind` is de soort voor het overzicht (bijv. `testmail`).
+   * @param {{to: (string|string[]), subject: string, text: string, html?: string, replyTo?: string, attachments?: object[], kind?: string}} message
+   *   Het bericht; `attachments` alleen uit eigen code (zoals het ingebedde logo, hoogstens 3); `kind` is de soort voor het overzicht.
    * @returns {Promise<object>} Het resultaat van nodemailer.
    * @throws {Error} Met code `not_configured`, `invalid_to` of `invalid_host`, of de fout van nodemailer (zie `mailFailure`).
    */
@@ -216,6 +216,7 @@ function createMailer(options) {
           subject: String(message.subject || '').replace(/[\r\n]+/g, ' ').slice(0, 300),
           text: message.text,
           html: message.html,
+          attachments: Array.isArray(message.attachments) && message.attachments.length ? message.attachments.slice(0, 3) : undefined,
         });
         record(kind, true, 'Verstuurd.');
         return result;
@@ -233,30 +234,12 @@ function createMailer(options) {
   };
 
   /**
-   * Controleert of de mailserver bereikbaar is en de inloggegevens accepteert, zonder iets te versturen.
-   * @returns {Promise<true>} Waar als de server de verbinding (en aanmelding) accepteert.
-   * @throws {Error} Zoals bij `send`.
-   */
-  const verify = async () => {
-    if (!configured()) throw Object.assign(new Error('er is geen mailserver ingesteld.'), { code: 'not_configured' });
-    const { transport, current } = await openTransport();
-    try {
-      await transport.verify();
-      return true;
-    } catch (error) {
-      throw tagServer(error, current);
-    } finally {
-      if (typeof transport.close === 'function') transport.close();
-    }
-  };
-
-  /**
    * De laatste verzendingen, nieuwste eerst.
    * @returns {Array<{at: Date, kind: string, ok: boolean, message: string}>} Kopie van de lijst.
    */
   const recent = () => events.map((event) => ({ ...event }));
 
-  return { configured, server, send, verify, recent };
+  return { configured, server, send, recent };
 }
 
 module.exports = { createMailer, mailFailure, validEmail, scrub, RECENT_LIMIT };

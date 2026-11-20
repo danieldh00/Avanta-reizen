@@ -67,7 +67,7 @@ function fakeTransport(behaviour = {}) {
 
 test('netwerkcontrole: alleen openbare adressen', async () => {
   assert.equal(isPublicAddress('8.8.8.8'), true);
-  for (const address of ['127.0.0.1', '10.1.2.3', '172.18.0.5', '192.168.1.1', '169.254.169.254', '::1', 'fd00::1', '::ffff:127.0.0.1', 'geen-ip']) {
+  for (const address of ['2002:0a00:0001::1', '2001:0:4136:e378::1', '127.0.0.1', '10.1.2.3', '172.18.0.5', '192.168.1.1', '169.254.169.254', '::1', 'fd00::1', '::ffff:127.0.0.1', 'geen-ip']) {
     assert.equal(isPublicAddress(address), false, address);
   }
   assert.equal(await publicAddress('mail.example.nl', { lookup: async () => [{ address: '2a00:1450::1' }, { address: '8.8.4.4' }] }), '8.8.4.4', 'IPv4 eerst');
@@ -147,7 +147,7 @@ test('mailer: connector logt niet in; SSL/TLS op 465 zonder STARTTLS-eis', async
     createTransport: transport.createTransport,
     resolveHost: async () => '8.8.8.8',
   });
-  assert.equal(await secure.verify(), true);
+  await secure.send({ to: 'jan@example.nl', subject: 'x', text: 'x' });
   assert.equal(transport.transports[1].options.secure, true);
   assert.equal(transport.transports[1].options.requireTLS, false);
   assert.equal(transport.transports[1].options.auth, undefined, 'zonder gebruikersnaam geen inlog');
