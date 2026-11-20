@@ -211,7 +211,9 @@ test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.match(page.text, new RegExp(`name="captchaToken" value="" data-site-key="${SITE_KEY}" data-captcha-action="contact"`));
     assert.match(page.text, /<script src="\/js\/captcha\.js/);
     assert.match(page.headers.get('content-security-policy'), /https:\/\/www\.google\.com\/recaptcha\//);
-    assert.doesNotMatch((await request('/reis/')).headers.get('content-security-policy'), /google/, 'andere pagina\'s niet');
+    const other = await request('/reis/');
+    assert.doesNotMatch(other.headers.get('content-security-policy'), /google/, 'andere pagina\'s niet');
+    assert.doesNotMatch(other.text, /\/js\/captcha\.js/, 'script alleen op de formulierpagina\'s');
     assert.doesNotMatch((await request('/app/inloggen/')).headers.get('content-security-policy'), /google/, 'het CRM niet');
     assert.match((await request('/aanmelden/?id=1001')).text, /data-captcha-action="aanmelden"/);
     assert.doesNotMatch(page.text, /goed-geheim/);
@@ -276,8 +278,10 @@ test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.match(page.text, /Geweigerd: score te laag/);
     assert.match(page.text, /<td>Aanmelden<\/td>\s*<td>Doorgelaten<\/td>\s*<td>0,8<\/td>/);
     assert.doesNotMatch(page.text, /mens-contact|mens-aanmelden|127\.0\.0\.1/);
+    clock += 11 * 60 * 1000; // nieuw limietvenster, los van eerdere sleutelcontroles
     const statuses = [];
     for (let i = 0; i < 11; i += 1) statuses.push((await request('/app/beheer/captcha/controleren/', { cookie, form: { _csrf: csrf } })).status);
-    assert.deepEqual(statuses.slice(-2), [200, 429], 'na 10 controles per tien minuten dicht');
+    assert.equal(statuses[9], 200);
+    assert.equal(statuses[10], 429, 'na 10 controles per tien minuten dicht');
   });
 });

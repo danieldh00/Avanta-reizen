@@ -110,8 +110,9 @@ function createApp(options) {
       // Google Analytics alleen op de publieke site en alleen met een actief meet-ID; het CRM blijft op de standaardpolicy.
       if (res.locals.site.analytics.measurementId && !inCrm) res.set('Content-Security-Policy', cspWith(BASE_CSP, res.locals.site.analytics.measurementId));
       // Captcha: de sitesleutel voor de pagina, en alleen op de formulierpagina's de adressen van Google in de CSP.
-      res.locals.site.captchaSiteKey = inCrm ? '' : captcha.siteKey();
-      if (res.locals.site.captchaSiteKey && isFormPath(req.path)) res.set('Content-Security-Policy', captchaCspWith(res.get('Content-Security-Policy')));
+      // Alleen op de formulierpagina's: daar laadt de layout het script en krijgt de CSP de Google-adressen.
+      res.locals.site.captchaSiteKey = !inCrm && isFormPath(req.path) ? captcha.siteKey() : '';
+      if (res.locals.site.captchaSiteKey) res.set('Content-Security-Policy', captchaCspWith(res.get('Content-Security-Policy')));
       return next();
     } catch (error) {
       return next(error);
