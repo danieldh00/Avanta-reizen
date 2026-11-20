@@ -187,6 +187,11 @@ test('meldingen vanuit het contact- en aanmeldformulier, en Beheer', { skip: !DA
     assert.match(preview.text, /src="\/images\/logo\.png"/);
     assert.match(preview.text, /Avanta Reizen<br>Middelburg/);
     assert.equal((await request('/app/beheer/mail-opmaak/voorbeeld/')).status, 303, 'zonder sessie naar inloggen');
+    const created = await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
+    assert.equal(created.status, 303);
+    const office = await request('/app/inloggen/', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } });
+    assert.equal((await request('/app/beheer/mail-opmaak/voorbeeld/', { cookie: office.cookie })).status, 403, 'zonder recht systeem');
+    assert.equal((await request('/app/beheer/meldingen/', { cookie: office.cookie })).status, 403);
   });
 
   await t.test('contactformulier: bericht opgeslagen en melding naar kantoor met antwoordadres van de afzender', async () => {
