@@ -246,12 +246,17 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.equal(fs.readdirSync(dir).filter(backups.isBackupName).length, 0);
 
     const made = await request('/app/beheer/back-ups/nu/', { cookie, form: { _csrf: csrf } });
-    assert.equal(made.status, 200);
-    assert.match(made.text, /Back-up gemaakt: avanta-\d{8}-\d{6}\.dump\.enc/);
+    assert.equal(made.status, 303);
+    assert.equal(made.headers.get('location'), '/app/beheer/back-ups/?gestart=1#status');
+    await app.locals.backups.idle();
+    const after = await request('/app/beheer/back-ups/?gestart=1', { cookie });
+    assert.match(after.text, /Back-up gemaakt: avanta-\d{8}-\d{6}\.dump\.enc/);
     const [item] = app.locals.backups.list();
-    assert.match(made.text, new RegExp(`/app/beheer/back-ups/download/${item.name.replace(/\./g, '\\.')}`));
+    assert.match(after.text, new RegExp(`/app/beheer/back-ups/download/${item.name.replace(/\./g, '\\.')}`));
     const [created] = await db.query("SELECT u.email FROM audit_log a JOIN users u ON u.id = a.user_id WHERE a.action = 'backup.gemaakt' AND a.entity_id = $1", [item.name]);
     assert.equal(created.email, 'beheer@example.nl');
+    const [started] = await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'backup.gestart'");
+    assert.equal(started.count, 1);
 
     assert.equal((await request(`/app/beheer/back-ups/download/${item.name}`, { cookie: office.cookie })).status, 403);
     const download = await request(`/app/beheer/back-ups/download/${item.name}`, { cookie });
@@ -273,9 +278,15 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.equal(app.locals.settings.get('backupHour'), 4);
     assert.equal((await request('/app/beheer/back-ups/', { cookie, form: { _csrf: csrf, backupEnabled: 'ja', backupHour: '24', backupKeepDays: '30' } })).status, 422);
 
-    // Hoogstens 6 handmatige back-ups per uur.
-    for (let i = 0; i < 5; i += 1) assert.equal((await request('/app/beheer/back-ups/nu/', { cookie, form: { _csrf: csrf } })).status, 200);
+    // Hoogstens 6 handmatige back-ups per uur (een lopende telt niet opnieuw mee).
+    for (let i = 0; i < 5; i += 1) {
+      assert.equal((await request('/app/beheer/back-ups/nu/', { cookie, form: { _csrf: csrf } })).status, 303);
+      await app.locals.backups.idle();
+    }
     assert.equal((await request('/app/beheer/back-ups/nu/', { cookie, form: { _csrf: csrf } })).status, 429);
+    // Hoogstens 10 downloads per uur (al gebruikt: één download en twee 404's).
+    for (let i = 0; i < 7; i += 1) assert.equal((await request(`/app/beheer/back-ups/download/${item.name}`, { cookie })).status, 200);
+    assert.equal((await request(`/app/beheer/back-ups/download/${item.name}`, { cookie })).status, 429);
   });
 
   await t.test('Beheer: zonder databaseverbinding geen back-ups', async (st) => {

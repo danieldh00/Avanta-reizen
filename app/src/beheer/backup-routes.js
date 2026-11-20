@@ -55,6 +55,8 @@ function createBackupRoutes(options) {
   const router = express.Router();
   // Handmatige back-ups: hoogstens 6 per uur per gebruiker (elke back-up is een volledige dump).
   const createLimiter = createRateLimiter({ limit: 6, windowMs: 60 * 60 * 1000, now: options.now });
+  // Downloaden: hoogstens 10 per uur per gebruiker (de hele database, versleuteld).
+  const downloadLimiter = createRateLimiter({ limit: 10, windowMs: 60 * 60 * 1000, now: options.now });
   const section = findSection('back-ups');
 
   /**
@@ -77,6 +79,8 @@ function createBackupRoutes(options) {
     const failed = status.lastRun && !status.lastRun.ok;
     return html`<h2 id="status">Status</h2>
       ${state.result ? html`<p class="${state.result.ok ? 'notice' : 'form-alert'}" role="${state.result.ok ? 'status' : 'alert'}">${state.result.message}</p>` : ''}
+      ${status.running ? html`<p class="notice" role="status">Er wordt nu een back-up gemaakt. Ververs deze pagina over een minuut.</p>` : ''}
+      ${!status.running && req.query.gestart === '1' && status.lastRun ? html`<p class="${status.lastRun.ok ? 'notice' : 'form-alert'}" role="${status.lastRun.ok ? 'status' : 'alert'}">${status.lastRun.ok ? `Back-up gemaakt: ${status.lastRun.name}.` : `De back-up is mislukt: ${status.lastRun.message}`}</p>` : ''}
       <div class="crm-table-wrap"><table class="crm-table beheer-facts"><tbody>
         <tr><th scope="row">Laatste back-up</th><td>${newest ? `${formatDateTime(newest.createdAt)} (${formatBytes(newest.size)})` : 'Nog geen'}</td></tr>
         <tr><th scope="row">Laatste poging</th><td>${status.lastRun ? html`${formatDateTime(status.lastRun.at)}, ${TRIGGER_LABELS[status.lastRun.trigger]}: ${status.lastRun.ok ? 'gelukt' : html`<strong>mislukt</strong>: ${status.lastRun.message}`}` : '–'}</td></tr>
@@ -100,21 +104,20 @@ function createBackupRoutes(options) {
       <p class="field__help">Een download blijft versleuteld; terugzetten staat in het draaiboek (docs/DRAAIBOEK-VPS-VERHUIZING.md). Afbeeldingen (media) zitten niet in de back-up; die zijn opnieuw te importeren.</p>` : html`<p>Er staan nog geen back-ups op de server.</p>`}`;
   };
 
+  // Nu maken: de back-up loopt op de achtergrond (een grote dump kan langer duren dan een verzoek); de pagina toont de
+  // status. Een lopende back-up telt niet opnieuw mee voor de limiet. De service schrijft `backup.gemaakt` na afloop.
   router.post('/beheer/back-ups/nu/', guard, auth.checkCsrf, async (req, res, next) => {
     try {
       await settings.ready();
       if (!backups.available()) return options.notFound(req, res);
-      if (!createLimiter.hit(`gebruiker:${req.user.id}`)) {
-        return res.status(429).send(options.renderSettingsSection(req, section, { extra: { result: { ok: false, message: 'Te veel back-ups in korte tijd. Probeer het over een uur opnieuw.' } } }));
+      if (!backups.status().running) {
+        if (!createLimiter.hit(`gebruiker:${req.user.id}`)) {
+          return res.status(429).send(options.renderSettingsSection(req, section, { extra: { result: { ok: false, message: 'Te veel back-ups in korte tijd. Probeer het over een uur opnieuw.' } } }));
+        }
+        await auth.audit(req, { userId: req.user.id, action: 'backup.gestart', entity: 'backup' });
+        backups.run({ trigger: 'handmatig', userId: req.user.id }).catch(() => {});
       }
-      let backup;
-      try {
-        backup = await backups.run({ trigger: 'handmatig', userId: req.user.id });
-      } catch (error) {
-        return res.status(503).send(options.renderSettingsSection(req, section, { extra: { result: { ok: false, message: `De back-up is mislukt: ${error.message}` } } }));
-      }
-      await auth.audit(req, { userId: req.user.id, action: 'backup.gemaakt', entity: 'backup', entityId: backup.name });
-      return res.send(options.renderSettingsSection(req, section, { extra: { result: { ok: true, message: `Back-up gemaakt: ${backup.name} (${formatBytes(backup.size)}).` } } }));
+      return res.redirect(303, '/app/beheer/back-ups/?gestart=1#status');
     } catch (error) {
       return next(error);
     }
@@ -122,6 +125,7 @@ function createBackupRoutes(options) {
 
   router.get('/beheer/back-ups/download/:name([a-z0-9.-]{1,60})', guard, async (req, res, next) => {
     try {
+      if (!downloadLimiter.hit(`gebruiker:${req.user.id}`)) return res.status(429).type('text').send('Te veel downloads. Probeer het over een uur opnieuw.');
       const file = backups.fileOf(req.params.name);
       if (!file) return options.notFound(req, res);
       await auth.audit(req, { userId: req.user.id, action: 'backup.gedownload', entity: 'backup', entityId: req.params.name });

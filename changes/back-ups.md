@@ -12,8 +12,9 @@ titel: Versleutelde dagelijkse back-ups
   kwartier; dagelijks op het ingestelde uur in Europe/Amsterdam, na een fout een uur wachten). Het wachtwoord gaat via
   `PGPASSWORD`, nooit in de argumenten.
 - `app/src/backup/cli.js`: `create [--update]`, `list`, `decrypt <back-up> <doel>`; maakt nooit een nieuwe hoofdsleutel.
-- Beheer: sectie *Back-ups* (instellingen `backupEnabled`, `backupHour`, `backupKeepDays`), *Nu maken* (6 per uur),
-  lijst en downloaden; maken en downloaden in het auditlog.
+- Beheer: sectie *Back-ups* (instellingen `backupEnabled`, `backupHour`, `backupKeepDays`), *Nu maken* (op de
+  achtergrond, 6 per uur), downloaden (10 per uur),
+  lijst; maken en downloaden in het auditlog.
 - Image: `postgresql17-client`; `deploy/apps01/update.sh` maakt vóór elke update een back-up; CI installeert de
   PostgreSQL 17-client voor de tests en controleert `pg_dump` in het image.
 - Eerste versie van `docs/DRAAIBOEK-VPS-VERHUIZING.md` (terugzetten van een back-up).

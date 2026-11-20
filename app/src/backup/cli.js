@@ -53,7 +53,6 @@ async function create(beforeUpdate) {
     await settings.ready();
     const service = backups.createBackupService({ db, settings, dir: BACKUP_DIR, masterKey, connectionString: url });
     const backup = await service.run({ trigger: beforeUpdate ? 'update' : 'handmatig' });
-    await db.query("INSERT INTO audit_log (user_id, action, entity, entity_id) VALUES (NULL, 'backup.gemaakt', 'backup', $1)", [backup.name]);
     console.log(`Back-up gemaakt: ${backup.name} (${backup.size} bytes)`);
   } finally {
     await db.close();

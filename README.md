@@ -83,7 +83,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     AES-256-GCM met een sleutel afgeleid van de hoofdsleutel, na het maken volledig gecontroleerd (tag + dumpformaat),
     bestanden alleen voor de app leesbaar. Bewaartermijn instelbaar (standaard 14 dagen, de nieuwste drie blijven altijd).
     Met status (laatste back-up en poging, volgende automatische, sleutel-id van de hoofdsleutel), *Nu een back-up maken*
-    (6 per uur) en downloaden (blijft versleuteld); maken en downloaden staan in het auditlog. Een mislukte automatische
+    (op de achtergrond, 6 per uur) en downloaden (blijft versleuteld, 10 per uur); maken en downloaden staan in het
+    auditlog. Een mislukte automatische
     back-up wordt na een uur opnieuw geprobeerd. Vóór elke update op apps01 maakt `update.sh` ook een back-up. Op de
     opdrachtregel: `node src/backup/cli.js create|list|decrypt` (zie `docs/DRAAIBOEK-VPS-VERHUIZING.md`). Afbeeldingen
     zitten (nog) niet in de back-up; die zijn opnieuw te importeren.

@@ -378,7 +378,7 @@ function writeStatus(dir, run) {
  *   Database, instellingen (`backupEnabled`, `backupHour`, `backupKeepDays`), back-upmap, hoofdsleutel, verbindings-URL
  *   (zonder: back-ups niet beschikbaar), pad van `pg_dump`, klok (tests) en een functie die na elke geslaagde back-up
  *   wordt aangeroepen (bijv. de kopie naar Google Drive).
- * @returns {object} `available`, `list`, `status`, `run`, `runIfDue`, `startTimer`, `fileOf`, `dir`.
+ * @returns {object} `available`, `list`, `status`, `idle`, `run`, `runIfDue`, `startTimer`, `fileOf`, `keyId`, `dir`.
  */
 function createBackupService(options) {
   const { db, settings, dir, masterKey } = options;
@@ -392,8 +392,9 @@ function createBackupService(options) {
   const available = () => Boolean(options.connectionString);
 
   /**
-   * Maakt nu een back-up (of wacht op de lopende) en ruimt daarna oude back-ups op.
-   * @param {{trigger?: string, userId?: (number|null)}} [context] Aanleiding (`automatisch`, `handmatig`) en wie.
+   * Maakt nu een back-up (of wacht op de lopende), ruimt daarna oude back-ups op en schrijft een auditregel
+   * (`backup.gemaakt`, met de gebruiker bij een handmatige back-up).
+   * @param {{trigger?: string, userId?: (number|null)}} [context] Aanleiding (`automatisch`, `handmatig`, `update`) en wie.
    * @returns {Promise<{name: string, size: number, createdAt: string}>} De back-up.
    * @throws {Error} Als de back-up mislukt (ook vastgelegd in de status).
    */
@@ -403,21 +404,29 @@ function createBackupService(options) {
     const trigger = context.trigger || 'automatisch';
     running = (async () => {
       const at = new Date(now()).toISOString();
+      let backup;
       try {
-        const backup = await createBackup({ db, connectionString: options.connectionString, dir, masterKey, pgDumpPath: options.pgDumpPath, now });
-        pruneBackups(dir, settings.get('backupKeepDays'), now());
+        backup = await createBackup({ db, connectionString: options.connectionString, dir, masterKey, pgDumpPath: options.pgDumpPath, now });
         writeStatus(dir, { at, ok: true, trigger, name: backup.name });
-        if (trigger === 'automatisch') {
-          await db.query("INSERT INTO audit_log (user_id, action, entity, entity_id) VALUES (NULL, 'backup.gemaakt', 'backup', $1)", [backup.name]);
-        }
-        if (options.onCreated) Promise.resolve().then(() => options.onCreated(backup, trigger)).catch(() => {});
-        return backup;
       } catch (error) {
         writeStatus(dir, { at, ok: false, trigger, message: error.message });
-        throw error;
-      } finally {
         running = null;
+        throw error;
       }
+      // Alleen het maken zelf bepaalt of de poging gelukt is; opruimen en het auditlog worden apart gelogd.
+      try {
+        pruneBackups(dir, settings.get('backupKeepDays'), now());
+      } catch (error) {
+        console.error(`Oude back-ups opruimen mislukt: ${shortMessage(error.message)}`);
+      }
+      try {
+        await db.query("INSERT INTO audit_log (user_id, action, entity, entity_id) VALUES ($1, 'backup.gemaakt', 'backup', $2)", [context.userId ?? null, backup.name]);
+      } catch (error) {
+        console.error(`Auditregel voor de back-up mislukt: ${shortMessage(error.message)}`);
+      }
+      running = null;
+      if (options.onCreated) Promise.resolve().then(() => options.onCreated(backup, trigger)).catch(() => {});
+      return backup;
     })();
     return running;
   };
@@ -458,6 +467,11 @@ function createBackupService(options) {
     available,
     list: () => listBackups(dir),
     status: () => ({ ...readStatus(dir), running: Boolean(running) }),
+    /**
+     * Wacht tot een lopende back-up klaar is (gelukt of niet).
+     * @returns {Promise<void>}
+     */
+    idle: () => (running ? running.then(() => {}, () => {}) : Promise.resolve()),
     run,
     runIfDue,
     startTimer,
