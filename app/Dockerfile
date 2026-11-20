@@ -1,5 +1,7 @@
 # Image van Avanta Reizen: Node 22 zonder build-stap; data (afbeeldingen, sleutel) in het volume /data.
 FROM node:22-alpine
+# pg_dump/pg_restore voor de versleutelde back-ups (zelfde hoofdversie als de database: PostgreSQL 17).
+RUN apk add --no-cache postgresql17-client
 ENV NODE_ENV=production PORT=3400 DATA_DIR=/data
 WORKDIR /app
 COPY package.json package-lock.json ./

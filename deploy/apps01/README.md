@@ -78,13 +78,13 @@ zet `TRUST_PROXY` dan binnen 15 minuten goed (tot die tijd geven de formulieren 
 
 ## Back-up en herstel
 
-```sh
-docker compose exec -T db pg_dump -U avanta -Fc avanta > /opt/apps/avanta/backup-$(date +%F).dump
-docker compose exec -T db pg_restore -U avanta -d avanta --clean --if-exists < backup-JJJJ-MM-DD.dump
-```
+De app maakt zelf dagelijks een versleutelde back-up van de database in volume `avanta_app-data` (`/data/backups`),
+plus een vóór elke update (`update.sh`). Instellen, *Nu maken* en downloaden: **Beheer > Back-ups en herstel >
+Back-ups**. Terugzetten en verhuizen: `docs/DRAAIBOEK-VPS-VERHUIZING.md`.
 
-Bewaar `AVANTA_MASTER_KEY` (in `.env`) apart van de dump; zonder sleutel zijn de versleutelde aanmeldvelden
-onleesbaar. Afbeeldingen staan in volume `avanta_app-data` (opnieuw te importeren).
+Bewaar `AVANTA_MASTER_KEY` (in `.env`) apart van de back-ups, bijvoorbeeld in de wachtwoordkluis; zonder sleutel zijn
+de back-ups en de versleutelde aanmeldvelden onleesbaar. Afbeeldingen staan in volume `avanta_app-data` (opnieuw te
+importeren).
 
 ## Opruimen
 
