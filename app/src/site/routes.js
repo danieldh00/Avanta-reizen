@@ -389,9 +389,9 @@ function createSiteRouter(options) {
     }));
 
     router.post('/contact/', ...contactForm.middleware, asyncRoute(async (req, res) => {
-      const result = await contactForm.submit(req.body || {});
+      const result = await contactForm.submit(req.body || {}, { ip: req.ip });
       if (result.redirect) return res.redirect(303, result.redirect);
-      return sendContactPage(res, contactForm.renderForm(result), 422);
+      return sendContactPage(res, contactForm.renderForm(result), result.status || 422);
     }));
   }
 

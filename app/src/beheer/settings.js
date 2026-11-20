@@ -193,6 +193,20 @@ const SETTING_FIELDS = {
   auditRetentionMonths: { type: 'int', label: 'Bewaartermijn auditlog (maanden)', help: 'Oudere regels worden dagelijks verwijderd. Advies: 24 maanden.', default: 24, min: 6, max: 120 },
   auditIpRetentionDays: { type: 'int', label: 'IP-adressen in het auditlog bewaren (dagen)', help: 'Daarna wordt het (al ingekorte) IP-adres uit de regel gewist; de regel zelf blijft.', default: 90, min: 7, max: 730 },
   notFoundRetentionDays: { type: 'int', label: 'Bewaartermijn 404-lijst (dagen)', help: 'Adressen die zo lang niet meer zijn gevraagd, verdwijnen uit de lijst onder Vindbaarheid > Niet gevonden.', default: 90, min: 7, max: 365 },
+  captchaEnabled: { type: 'bool', label: 'Onzichtbare captcha gebruiken', help: 'Alleen met een sitesleutel en geheime sleutel. Bezoekers zien niets; Google wordt pas geladen als iemand een formulier invult.', default: false },
+  captchaSiteKey: {
+    type: 'text', label: 'Sitesleutel (reCAPTCHA v3)', help: 'Uit de beheerconsole van Google reCAPTCHA (type v3, met de domeinen van de site). Begint met 6L.', default: '', max: 40,
+    pattern: /^6L[A-Za-z0-9_-]{38}$/, patternMessage: 'Een sitesleutel begint met 6L en is 40 tekens lang.',
+  },
+  captchaSecret: { type: 'secret', label: 'Geheime sleutel', help: 'Uit dezelfde console; staat versleuteld opgeslagen en gaat nooit naar de browser.', default: '', max: 100 },
+  captchaMinScore: {
+    type: 'enum', label: 'Minimale score', help: 'Google geeft 0,0 (zeker een robot) tot 1,0 (zeker een mens). 0,5 is de aanbevolen start.', default: '0.5',
+    values: ['0.3', '0.5', '0.7'], labels: { '0.3': '0,3 (soepel)', '0.5': '0,5 (aanbevolen)', '0.7': '0,7 (streng)' },
+  },
+  captchaOnUnreachable: {
+    type: 'enum', label: 'Als Google niet bereikbaar is', default: 'allow', values: ['allow', 'block'],
+    labels: { allow: 'Doorlaten (de andere beveiligingen blijven gelden)', block: 'Blokkeren (bezoeker probeert het later opnieuw)' },
+  },
 };
 
 class SettingsError extends Error {

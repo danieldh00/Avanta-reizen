@@ -2,7 +2,8 @@
  * Contactformulier onder de inhoud van `/contact/`. Een bericht komt in de tabel contact_messages (status 'nieuw'),
  * zodat het CRM het later kan tonen; daarna gaat er een melding naar kantoor (`mail/notifications.js`, als die aan staat). Komt een bezoeker vanaf een reis
  * (`/contact/?reis=<slug>`), dan wordt die reis bij het bericht bewaard.
- * Bescherming via `security/form-guard.js`: limiet per bezoeker, herkomst, honeypot en ondertekend tijdstempel.
+ * Bescherming via `security/form-guard.js`: limiet per bezoeker, herkomst, honeypot en ondertekend tijdstempel; met
+ * een actieve captcha (`security/captcha.js`) ook een onzichtbare controle door Google.
  * De pagina zelf wordt door `site/routes.js` opgebouwd; dit bestand levert het formulier en de verwerking.
  */
 const express = require('express');
@@ -10,6 +11,7 @@ const { html, raw } = require('../site/html');
 const { createContent } = require('../site/content');
 const { createFormGuard } = require('../security/form-guard');
 const { CONTACT_FIELDS, validateContact } = require('./fields');
+const { captchaField } = require('../security/captcha');
 
 /** Adres van de bedanktmelding na een geslaagde inzending. */
 const THANKS_PATH = '/contact/?verzonden=1';
@@ -26,8 +28,8 @@ function tripSlugFrom(value) {
 
 /**
  * Bouwt het contactformulier met verwerking.
- * @param {{db: object, formKey: Buffer, notifications?: object, now?: () => number}} options Database, sleutel voor het
- *   formuliertoken, de meldingen aan kantoor en (voor tests) de klok.
+ * @param {{db: object, formKey: Buffer, notifications?: object, captcha?: object, now?: () => number}} options Database,
+ *   sleutel voor het formuliertoken, de meldingen aan kantoor, de captcha en (voor tests) de klok.
  * @returns {{middleware: Function[], findTrip: Function, renderForm: Function, renderThanks: Function, submit: Function}} Het formulier.
  */
 function createContactForm(options) {
@@ -94,6 +96,7 @@ function createContactForm(options) {
       <form class="form" method="post" action="/contact/" novalidate>
         ${trip ? html`<input type="hidden" name="reis" value="${trip.slug}">` : ''}
         ${guard.hiddenFields()}
+        ${captchaField(options.captcha, 'contact')}
         <div class="form-grid">${CONTACT_FIELDS.map((field) => renderField(field, values, errors))}</div>
         <div><button class="btn btn--large" type="submit">Versturen</button></div>
       </form>
@@ -112,15 +115,20 @@ function createContactForm(options) {
    * Verwerkt een inzending. Een ingevulde honeypot krijgt dezelfde bedanktmelding, zonder opslag; een ongeldig,
    * verlopen of te snel token geeft het formulier opnieuw met de ingevulde waarden, een melding en een nieuw token.
    * @param {object} body Ingezonden velden.
-   * @returns {Promise<({redirect: string}|{values: object, errors: object, trip: (object|null)})>} Doorsturen, of het formulier met fouten.
+   * @param {{ip?: string}} [request] Adres van de bezoeker (voor de captcha).
+   * @returns {Promise<({redirect: string}|{values: object, errors: object, trip: (object|null), status?: number})>} Doorsturen, of het formulier met fouten.
    */
-  const submit = async (body) => {
+  const submit = async (body, request = {}) => {
     if (guard.isBot(body)) return { redirect: THANKS_PATH };
     const trip = await findTrip(body.reis);
     const { values, errors } = validateContact(body);
     const tokenProblem = guard.tokenProblem(body);
     if (tokenProblem) return { values, errors: { ...errors, _form: tokenProblem }, trip };
     if (Object.keys(errors).length) return { values, errors, trip };
+    if (options.captcha) {
+      const verdict = await options.captcha.check({ token: body.captchaToken, action: 'contact', remoteIp: request.ip });
+      if (!verdict.ok) return { values, errors: { _form: verdict.message }, trip, status: verdict.unavailable ? 503 : 422 };
+    }
     await options.db.query(
       `INSERT INTO contact_messages (name, email, phone, subject, message, trip_slug, consent_at)
        VALUES ($1, $2, $3, $4, $5, $6, now())`,

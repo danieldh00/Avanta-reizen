@@ -2,7 +2,8 @@
  * Aanmelden voor een reis (`/aanmelden/?id=<oud reis-id>`, zoals op de huidige site). De aanmelding komt in de tabel
  * bookings, de basis voor het CRM. Bijzondere en paspoortgegevens worden versleuteld opgeslagen. Daarna gaat er een
  * melding naar kantoor (`mail/notifications.js`, als die aan staat), zonder de bijzondere gegevens.
- * Bescherming via `security/form-guard.js`: limiet per bezoeker, herkomst, honeypot en ondertekend tijdstempel.
+ * Bescherming via `security/form-guard.js`: limiet per bezoeker, herkomst, honeypot en ondertekend tijdstempel; met
+ * een actieve captcha (`security/captcha.js`) ook een onzichtbare controle door Google.
  */
 const crypto = require('node:crypto');
 const express = require('express');
@@ -12,6 +13,7 @@ const { createContent, today } = require('../site/content');
 const { formatPrice, formatDate, isoDate, tripPath } = require('../site/format');
 const { FIELD_GROUPS, FIELDS, validateBooking } = require('./fields');
 const { createFormGuard } = require('../security/form-guard');
+const { captchaField } = require('../security/captcha');
 const seo = require('../site/seo');
 
 const SGR_CENTS = 500;
@@ -19,8 +21,8 @@ const BOOKING_FEE_CENTS = 1500;
 
 /**
  * Bouwt de router voor aanmeldingen.
- * @param {{db: object, vault: object, formKey: Buffer, notifications?: object, now?: () => number}} options Database,
- *   kluis, sleutel voor het formuliertoken en de meldingen aan kantoor. Het basisadres voor de canonical en de overige site-instellingen komen uit `res.locals.site`.
+ * @param {{db: object, vault: object, formKey: Buffer, notifications?: object, captcha?: object, now?: () => number}} options
+ *   Database, kluis, sleutel voor het formuliertoken, de meldingen aan kantoor en de captcha. Het basisadres voor de canonical en de overige site-instellingen komen uit `res.locals.site`.
  * @returns {express.Router} De router.
  */
 function createBookingRouter(options) {
@@ -123,6 +125,7 @@ function createBookingRouter(options) {
         <input type="hidden" name="id" value="${trip.legacy_id || ''}">
         <input type="hidden" name="reis" value="${trip.slug}">
         ${guard.hiddenFields()}
+        ${captchaField(options.captcha, 'aanmelden')}
         <section class="form-summary" aria-label="Reisgegevens">
           <dl>
             <dt>Reis</dt><dd><a href="${tripPath(trip.slug)}">${trip.title}</a></dd>
@@ -180,6 +183,13 @@ function createBookingRouter(options) {
       }
       if (Object.keys(errors).length) {
         return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: renderPageHeader({ title: 'Aanmelden', subtitle: trip.title }), body: renderForm(trip, values, errors) }, 422);
+      }
+      // De captcha als laatste: alleen een verder geldige aanmelding kost een controle bij Google.
+      if (options.captcha) {
+        const verdict = await options.captcha.check({ token: body.captchaToken, action: 'aanmelden', remoteIp: req.ip });
+        if (!verdict.ok) {
+          return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: renderPageHeader({ title: 'Aanmelden', subtitle: trip.title }), body: renderForm(trip, values, { _form: verdict.message }) }, verdict.unavailable ? 503 : 422);
+        }
       }
       const sensitive = Object.fromEntries(FIELDS.filter((field) => field.sensitive).map((field) => [field.name, values[field.name]]));
       // Referentiejaar volgens de Nederlandse datum, niet de tijdzone van de server (rond de jaarwisseling verschilt dat).
