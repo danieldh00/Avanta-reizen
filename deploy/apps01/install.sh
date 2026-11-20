@@ -83,13 +83,17 @@ port="$(sed -n 's/^APP_PORT=//p' .env)"; port="${port:-3400}"
 for _ in $(seq 1 45); do
   if curl -fsS "http://127.0.0.1:$port/api/health" >/dev/null 2>&1; then
     echo "App gezond op 127.0.0.1:$port."
-    trips="$(docker compose exec -T db psql -U avanta -d avanta -tAc 'SELECT count(*) FROM trips' 2>/dev/null || echo 0)"
-    if [ "${trips:-0}" = "0" ]; then
+    # Import alleen bij een aantoonbaar lege database; een mislukte import laat de installatie niet falen
+    # (anders zou update.sh terugrollen terwijl de app gezond is).
+    trips="$(docker compose exec -T db psql -U avanta -d avanta -tAc 'SELECT count(*) FROM trips' 2>/dev/null || echo onbekend)"
+    if [ "$trips" = "0" ]; then
       echo "Database leeg: content en afbeeldingen van www.avantareizen.nl importeren (enkele minuten)..."
-      docker compose exec -T app node tools/import-wordpress.js
+      docker compose exec -T app node tools/import-wordpress.js \
+        || echo "WAARSCHUWING: import mislukt; volgende run probeert het opnieuw." >&2
     fi
     docker compose ps
-    docker image prune -f >/dev/null
+    # Alleen oude images van deze stack opruimen, niet die van andere stacks op apps01.
+    docker image prune -f --filter label=nl.avantareizen.stack=avanta >/dev/null
     exit 0
   fi
   sleep 2
