@@ -41,6 +41,44 @@ function bodyText(body, name) {
   return typeof value === 'string' ? value : '';
 }
 
+/** Vaste sleutel voor `pg_advisory_xact_lock`: toevoegen van doorverwijzingen gebeurt één voor één. */
+const REDIRECTS_LOCK_KEY = 726001;
+
+/** Melding als er voor het oude pad al een doorverwijzing is. */
+const TAKEN_MESSAGE = 'Voor dit pad bestaat al een doorverwijzing. Verwijder die eerst.';
+
+/** Wat er al bestaat rond een nieuwe doorverwijzing: oud pad bezet, doel zelf doorverwezen, oud pad al een doel, aantal. */
+const CHAIN_QUERY = `SELECT
+   EXISTS (SELECT 1 FROM redirects WHERE from_path = $1) AS taken,
+   EXISTS (SELECT 1 FROM redirects WHERE from_path = ANY($2::text[])) AS target_redirected,
+   EXISTS (SELECT 1 FROM redirects WHERE split_part(to_url, '?', 1) = $1 OR split_part(to_url, '?', 1) || '/' = $1) AS source_is_target,
+   (SELECT count(*)::int FROM redirects) AS total`;
+
+/**
+ * De oude paden die een doel raakt: een doorverwijzing van `/x/` geldt ook voor `/x`, dus een doel `/x` raakt beide.
+ * @param {string} toUrl Nieuw adres.
+ * @returns {string[]} Paden (leeg bij een extern adres).
+ */
+function targetKeysOf(toUrl) {
+  const targetPath = toUrl.startsWith('/') ? toUrl.split('?')[0] : '';
+  return targetPath ? [targetPath, ...(targetPath.endsWith('/') ? [] : [`${targetPath}/`])] : [];
+}
+
+/**
+ * Controleert een nieuwe doorverwijzing tegen de bestaande: geen lus, dubbel, keten of overschrijding van het maximum.
+ * @param {{fromPath: string, toUrl: string}} values Oud pad en nieuw adres.
+ * @param {{taken: boolean, target_redirected: boolean, source_is_target: boolean, total: number}} existing Uitkomst van `CHAIN_QUERY`.
+ * @returns {object} Fouten per veld (leeg als alles klopt).
+ */
+function chainProblems(values, existing) {
+  if (targetKeysOf(values.toUrl).includes(values.fromPath)) return { to: 'Het nieuwe adres komt weer uit bij het oude pad.' };
+  if (existing.taken) return { from: TAKEN_MESSAGE };
+  if (existing.source_is_target) return { from: 'Naar dit pad wordt al doorverwezen. Pas die doorverwijzing aan, zodat er geen keten ontstaat.' };
+  if (existing.target_redirected) return { to: 'Dit adres wordt zelf doorverwezen. Kies het uiteindelijke adres.' };
+  if (existing.total >= MAX_REDIRECTS) return { from: `Er kunnen hoogstens ${MAX_REDIRECTS} doorverwijzingen zijn.` };
+  return {};
+}
+
 /**
  * Maakt een zoekterm geschikt voor `ILIKE`: `%`, `_` en `\` gelden letterlijk.
  * @param {string} text Zoekterm.
@@ -196,38 +234,28 @@ function createRedirectRoutes(options) {
       if (note.length > MAX_NOTE_LENGTH) errors.note = `Hoogstens ${MAX_NOTE_LENGTH} tekens.`;
       if (/[\u0000-\u001f\u007f]/.test(note)) errors.note = 'Gebruik geen regeleinden of stuurtekens.';
       if (!errors.from && values.fromPath === '/') errors.from = 'De homepage kan niet worden doorverwezen.';
-      if (!errors.from && !errors.to) {
-        // Geen ketens of lussen. Een doorverwijzing van `/x/` geldt ook voor `/x`, dus een doel `/x` raakt beide.
-        const targetPath = values.toUrl.startsWith('/') ? values.toUrl.split('?')[0] : '';
-        const targetKeys = targetPath ? [targetPath, ...(targetPath.endsWith('/') ? [] : [`${targetPath}/`])] : [];
-        const [chain] = await db.query(
-          `SELECT
-             EXISTS (SELECT 1 FROM redirects WHERE from_path = $1) AS taken,
-             EXISTS (SELECT 1 FROM redirects WHERE from_path = ANY($2::text[])) AS target_redirected,
-             EXISTS (SELECT 1 FROM redirects WHERE split_part(to_url, '?', 1) = $1 OR split_part(to_url, '?', 1) || '/' = $1) AS source_is_target,
-             (SELECT count(*)::int FROM redirects) AS total`,
-          [values.fromPath, targetKeys],
-        );
-        if (targetKeys.includes(values.fromPath)) errors.to = 'Het nieuwe adres komt weer uit bij het oude pad.';
-        else if (chain.taken) errors.from = 'Voor dit pad bestaat al een doorverwijzing. Verwijder die eerst.';
-        else if (chain.source_is_target) errors.from = 'Naar dit pad wordt al doorverwezen. Pas die doorverwijzing aan, zodat er geen keten ontstaat.';
-        else if (chain.target_redirected) errors.to = 'Dit adres wordt zelf doorverwezen. Kies het uiteindelijke adres.';
-        else if (chain.total >= MAX_REDIRECTS) errors.from = `Er kunnen hoogstens ${MAX_REDIRECTS} doorverwijzingen zijn.`;
-      }
       if (Object.keys(errors).length) return res.status(422).send(await renderRedirectsPage(req, { values: input, errors }));
+      // Controle en opslaan in één transactie onder een vaste advisory lock: twee gelijktijdige toevoegingen kunnen zo
+      // geen keten, lus of overschrijding van het maximum maken.
+      let problems;
       try {
-        await db.transaction(async (client) => {
+        problems = await db.transaction(async (client) => {
+          await client.query('SELECT pg_advisory_xact_lock($1)', [REDIRECTS_LOCK_KEY]);
+          const found = chainProblems(values, (await client.query(CHAIN_QUERY, [values.fromPath, targetKeysOf(values.toUrl)]))[0]);
+          if (Object.keys(found).length) return found;
           const [row] = await client.query(
             'INSERT INTO redirects (from_path, to_url, status, note, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id',
             [values.fromPath, values.toUrl, values.status, note, req.user.id],
           );
           await client.query('DELETE FROM not_found_log WHERE path = $1', [values.fromPath]);
           await auth.audit(req, { userId: req.user.id, action: 'doorverwijzing.aangemaakt', entity: 'redirects', entityId: row.id }, client);
+          return {};
         });
       } catch (error) {
         if (error.code !== '23505') throw error;
-        return res.status(422).send(await renderRedirectsPage(req, { values: input, errors: { from: 'Voor dit pad bestaat al een doorverwijzing. Verwijder die eerst.' } }));
+        problems = { from: TAKEN_MESSAGE };
       }
+      if (Object.keys(problems).length) return res.status(422).send(await renderRedirectsPage(req, { values: input, errors: problems }));
       await redirects.reload();
       return res.redirect(303, '/app/beheer/doorverwijzingen/?opgeslagen=1');
     } catch (error) {

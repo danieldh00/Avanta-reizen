@@ -186,7 +186,8 @@ function createRedirects(options) {
       pendingHits.set(match.id, (pendingHits.get(match.id) || 0) + 1);
       const query = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
       const target = match.toUrl.includes('?') || !query ? match.toUrl : match.toUrl + query;
-      res.set('Cache-Control', match.status === 301 ? 'public, max-age=3600' : 'no-store');
+      // Kort en alleen in de browser: een gecorrigeerde of verwijderde doorverwijzing werkt zo binnen vijf minuten.
+      res.set('Cache-Control', match.status === 301 ? 'private, max-age=300' : 'no-store');
       return res.redirect(match.status, target);
     } catch (error) {
       return next(error);

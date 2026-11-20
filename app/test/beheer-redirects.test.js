@@ -156,7 +156,7 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
     const moved = await request('/oude-reis/');
     assert.equal(moved.status, 301);
     assert.equal(moved.headers.get('location'), '/reis/');
-    assert.equal(moved.headers.get('cache-control'), 'public, max-age=3600');
+    assert.equal(moved.headers.get('cache-control'), 'private, max-age=300');
     assert.equal((await request('/oude-reis')).headers.get('location'), '/reis/', 'zonder slash');
     assert.equal((await request('/oude-reis/?utm_source=x')).headers.get('location'), '/reis/?utm_source=x', 'querystring gaat mee');
     assert.equal((await request('/oude-reis/', { method: 'HEAD' })).status, 301);
@@ -195,6 +195,10 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
       assert.equal(response.status, 422, JSON.stringify(form));
       assert.match(response.text, message, JSON.stringify(form));
     }
+    const racing = await Promise.all([addRedirect({ from: '/race-a/', to: '/race-b/' }), addRedirect({ from: '/race-b/', to: '/race-a/' })]);
+    assert.deepEqual(racing.map((response) => response.status).sort(), [303, 422], 'gelijktijdig: geen lus');
+    await db.query("DELETE FROM redirects WHERE from_path LIKE '/race-%'");
+    await redirects.reload();
     const twice = await request('/app/beheer/doorverwijzingen/', { cookie, form: new URLSearchParams([['_csrf', csrf], ['from', '/a/'], ['from', '/b/'], ['to', '/c/']]) });
     assert.equal(twice.status, 422, 'een dubbel veld is ongeldig');
     assert.equal((await db.query('SELECT count(*)::int AS count FROM redirects'))[0].count, 2);
