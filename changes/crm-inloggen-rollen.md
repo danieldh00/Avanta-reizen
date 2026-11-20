@@ -16,6 +16,6 @@ bump: minor
   (`auth.js`), scrypt-wachtwoorden met rehash (`passwords.js`), inloggen/uitloggen/installatie/eigen wachtwoord
   (`routes.js`), gebruikersbeheer en auditlog (`users.js`).
 - `/app/` krijgt `Cache-Control: no-store` en `noindex`; algemene limiet per IP, plus limieten op inloggen, installatie
-  en wachtwoord wijzigen. Na 5 mislukte pogingen per account en IP-reeks 15 minuten wachten, na 30 per account binnen een uur is het account
+  en wachtwoord wijzigen. Hoogstens 5 mislukte pogingen per kwartier per account en IP-reeks, na 30 per account binnen een uur is het account
   tot het einde van dat uur dicht. Auditlog: bewaartermijn 2 jaar, dagelijks opgeruimd.
 - `form-guard.js`: herkomstcontrole los beschikbaar als `isCrossSite`.

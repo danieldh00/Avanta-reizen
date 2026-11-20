@@ -38,8 +38,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     SHA-256 van het token; verloopt na 8 uur zonder activiteit en uiterlijk na 7 dagen. Het CRM werkt daardoor alleen
     via https (of `http://localhost`).
   - Beveiliging: CSRF-token in elk formulier plus herkomstcontrole, 300 verzoeken per minuut per IP op `/app/`,
-    10 inlogpogingen per kwartier per IP, en na 5 mislukte pogingen op één account vanuit één IP-reeks wacht die
-    combinatie 15 minuten. Dat laatste bewust niet voor het hele account, zodat niemand de beheerder kan buitensluiten;
+    10 inlogpogingen per kwartier per IP, en hoogstens 5 mislukte pogingen per kwartier op één account vanuit één
+    IP-reeks (daarna is die combinatie dicht tot het kwartier om is). Dat laatste bewust niet voor het hele account, zodat niemand de beheerder kan buitensluiten;
     vanaf een ander netwerk of na het kwartier lukt inloggen gewoon (een herstart wist de tellers ook). Tegen raden
     vanuit veel netwerken tegelijk gaat een account na 30 mislukte pogingen binnen een uur tot het einde van dat uur
     dicht. De laatste

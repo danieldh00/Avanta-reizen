@@ -15,8 +15,8 @@ const { renderCrmPage, renderInput, renderAlert } = require('./layout');
 const { createUserRoutes } = require('./users');
 
 /**
- * Na zoveel mislukte pogingen op één account vanuit één IP-reeks (/24 of /48) wordt die combinatie zoveel minuten
- * geblokkeerd. Bewust niet het hele account: dan zou een aanvaller die het e-mailadres kent de beheerder kunnen
+ * Hoogstens zoveel mislukte pogingen op één account vanuit één IP-reeks (/24 of /48) per venster van zoveel minuten
+ * (het venster begint bij de eerste mislukte poging); daarna is die combinatie dicht tot het venster om is. Bewust niet het hele account: dan zou een aanvaller die het e-mailadres kent de beheerder kunnen
  * buitensluiten. Vanaf een ander netwerk (of na het kwartier) kan de echte gebruiker gewoon inloggen.
  */
 const MAX_FAILED_LOGINS = 5;
@@ -31,7 +31,7 @@ const MAX_FAILED_LOGINS_PER_ACCOUNT = 30;
 const ACCOUNT_WINDOW_MINUTES = 60;
 
 /** Melding bij een mislukte login; verraadt niet of het account bestaat of geblokkeerd is. */
-const LOGIN_FAILED = `E-mailadres of wachtwoord klopt niet. Na ${MAX_FAILED_LOGINS} mislukte pogingen moet je ${LOCK_MINUTES} minuten wachten.`;
+const LOGIN_FAILED = `E-mailadres of wachtwoord klopt niet. Na ${MAX_FAILED_LOGINS} mislukte pogingen binnen ${LOCK_MINUTES} minuten moet je even wachten.`;
 
 /** Tekens voor de installatiecode (zonder 0/O en 1/I, die lijken op elkaar). */
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
