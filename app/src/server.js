@@ -279,11 +279,13 @@ async function start() {
   // maar pas nadat de fout in het logboek staat. Docker start de container daarna opnieuw.
   let stopping = false;
   process.on('unhandledRejection', (reason) => {
+    const described = describeError(reason);
+    process.stderr.write(`Onverwerkte fout${stopping ? ' tijdens het afsluiten' : ''}: ${described.name}: ${described.message}\n`);
     if (stopping) return;
     stopping = true;
-    const described = describeError(reason);
     app.locals.appLog.error('proces', `Onverwerkte fout: ${described.message}`, { data: { frames: described.frames } });
-    process.stderr.write(`Onverwerkte fout: ${described.name}: ${described.message}\n`);
+    // Harde grens: hangt de database, dan stopt het proces toch na drie seconden.
+    setTimeout(() => process.exit(1), 3000);
     app.locals.appLog.flush().catch(() => {}).finally(() => process.exit(1));
   });
   startCrmMaintenance(db, app.locals.settings);
