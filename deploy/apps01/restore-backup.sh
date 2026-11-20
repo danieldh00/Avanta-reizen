@@ -6,7 +6,8 @@
 # Stappen: (1) eerst een veiligheidsback-up van de huidige stand, (2) ontsleutelen in het datavolume (de tag wordt
 # gecontroleerd; een andere hoofdsleutel of beschadiging stopt hier), (3) app stoppen, (4) alles in één transactie
 # terugzetten, (5) de ontsleutelde dump wissen en de app starten. Mislukt stap 4, dan blijft de database zoals hij was.
-# Zonder vraag: HERSTEL_JA=1.
+# Zonder vraag: HERSTEL_JA=1. Mislukt de veiligheidsback-up, dan stopt het script; alleen met
+# ZONDER_VEILIGHEIDSBACKUP=1 gaat het toch door (bijv. een nieuwe server waar nog niets te bewaren is).
 set -euo pipefail
 
 BASE_DIR="${BASE_DIR:-/opt/apps/avanta}"
@@ -35,7 +36,19 @@ if [ "${HERSTEL_JA:-}" != "1" ]; then
 fi
 
 echo "1/5 Veiligheidsback-up van de huidige stand..."
-docker compose exec -T app node src/backup/cli.js create --update || echo "Waarschuwing: veiligheidsback-up mislukt (lege of nieuwe database?)." >&2
+if ! docker compose exec -T app node src/backup/cli.js create --update; then
+  [ "${ZONDER_VEILIGHEIDSBACKUP:-}" = "1" ] \
+    || die "veiligheidsback-up mislukt; er is niets veranderd. Alleen als er niets te bewaren is: ZONDER_VEILIGHEIDSBACKUP=1"
+  echo "Waarschuwing: veiligheidsback-up mislukt; doorgaan omdat ZONDER_VEILIGHEIDSBACKUP=1." >&2
+fi
+
+# De ontsleutelde dump nooit laten staan, ook niet als het script halverwege stopt.
+remove_dump() {
+  docker compose exec -T app rm -f /data/backups/.herstel.dump /data/backups/.herstel.dump.part >/dev/null 2>&1 \
+    || docker compose run --rm --no-deps -T --entrypoint rm app -f /data/backups/.herstel.dump /data/backups/.herstel.dump.part >/dev/null 2>&1 \
+    || echo "Let op: verwijder /data/backups/.herstel.dump handmatig uit het datavolume." >&2
+}
+trap remove_dump EXIT
 
 echo "2/5 Ontsleutelen en controleren..."
 docker compose exec -T app rm -f /data/backups/.herstel.dump

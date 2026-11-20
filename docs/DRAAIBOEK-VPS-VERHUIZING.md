@@ -31,6 +31,8 @@ bash /opt/apps/avanta/repo/deploy/apps01/restore-backup.sh avanta-JJJJMMDD-UUMMS
 stopt de app, zet alles in één transactie terug (mislukt het, dan blijft de database zoals hij was), wist de
 ontsleutelde dump en start de app weer. Een gedownloade back-up: geef het volledige pad
 (`… restore-backup.sh /root/avanta-JJJJMMDD-UUMMSS.dump.enc`). Vraag om bevestiging overslaan: `HERSTEL_JA=1`.
+Mislukt de veiligheidsback-up, dan stopt het script zonder iets te veranderen. Alleen als er echt niets te bewaren is
+(een nieuwe server die nog niet in gebruik is) kun je dan doorgaan met `ZONDER_VEILIGHEIDSBACKUP=1` ervoor.
 
 Een back-up van een **nieuwere** versie van de app kan niet in een oudere versie (migraties lopen alleen vooruit); werk
 eerst de app bij. Een oudere back-up in een nieuwere versie kan wel: de app voert bij het starten de ontbrekende
