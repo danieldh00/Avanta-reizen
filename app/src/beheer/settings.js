@@ -231,6 +231,11 @@ const SETTING_FIELDS = {
   maintenanceMessage: {
     type: 'text', label: 'Tekst van de onderhoudsmelding', help: 'Leeg = de standaardtekst.', default: '', max: 300,
   },
+  debugMode: {
+    type: 'bool', label: 'Debugmodus', help: 'Aan: bij een fout zien beheerders (en alleen zij) de details op de foutpagina: soort fout, melding en de plek in de code. Bezoekers zien altijd alleen de foutcode. Zet hem weer uit na het zoeken.', default: false,
+  },
+  logSlowMs: { type: 'int', label: 'Traag verzoek vanaf (ms)', help: 'Verzoeken die langer duren komen als "traag" in het logboek.', default: 1500, min: 200, max: 60000 },
+  logRetentionDays: { type: 'int', label: 'Logboek bewaren (dagen)', help: 'Oudere regels worden dagelijks verwijderd. Het logboek bevat geen persoonsgegevens.', default: 30, min: 1, max: 365 },
   hostTasksDone: {
     type: 'text', label: 'Met de hand afgevinkte servertaken', help: 'Alleen via Beheer > Servertaken; staat in geen enkel formulier.', default: '', max: 4000,
     pattern: /^[0-9]{3}-[a-z0-9-]{1,80}(,[0-9]{3}-[a-z0-9-]{1,80})*$/, patternMessage: 'Ongeldige lijst met servertaken.',

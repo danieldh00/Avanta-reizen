@@ -290,3 +290,9 @@ h3 { font-size: 1.25rem; margin: 1.5rem 0 .5rem; }
 .beheer-releases { display: grid; gap: .75rem; }
 .beheer-releases h3 { margin: 0; font-size: 1rem; }
 .beheer-releases ul { margin: .25rem 0 0; padding-left: 1.25rem; }
+.debug-details { margin-top: 1rem; padding: .75rem; border: 1px dashed var(--av-line); border-radius: var(--av-radius); overflow-wrap: anywhere; }
+.beheer-log td { vertical-align: top; }
+.beheer-log pre { margin: .25rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8rem; }
+.beheer-log-filter { flex-wrap: wrap; max-width: 48rem; }
+.beheer-log-filter select { flex: 1 1 9rem; min-width: 0; }
+.beheer-log-filter input { flex-basis: 12rem; }

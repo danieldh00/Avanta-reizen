@@ -34,6 +34,7 @@ const { createHostTasks } = require('./system/host-tasks');
 const { maintenanceState, maintenanceGuard } = require('./system/maintenance');
 const { runWithContext, currentContext } = require('./system/request-context');
 const { startUpdateSync } = require('./beheer/update-routes');
+const { createAppLog, normalizePath, describeError, newErrorCode, newRequestId } = require('./system/app-log');
 const { html } = require('./site/html');
 
 /** De standaard Content-Security-Policy: alleen eigen bestanden, geen inline scripts. */
@@ -75,8 +76,9 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, settings?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
- *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), de koppeling met het updatescript
+ * @param {{db: object, masterKey: Buffer, settings?: object, appLog?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
+ *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), het logboek (standaard
+ *   `system/app-log.js`; wegschrijven start pas met `appLog.start()` in `start()`), de koppeling met het updatescript
  *   (standaard `system/system-update.js` met de mappen uit `updateStatusDir`/`updateRequestDir` of UPDATE_STATUS_DIR/UPDATE_REQUEST_DIR), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), de back-updienst (standaard `backup/backups.js` met `databaseUrl`, `backupDir` en `pgDumpPath`; zonder `databaseUrl` geen back-ups), een eigen fetch voor Google Drive (`googleFetch`, tests), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
  *   (standaard `TRUST_PROXY`, anders loopback), de installatiecode voor de eerste CRM-beheerder en of de CRM-cookie
  *   `Secure` krijgt (standaard ja).
@@ -87,6 +89,23 @@ function createApp(options) {
   app.disable('x-powered-by');
   app.set('trust proxy', parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY));
   app.use(securityHeaders());
+  // Elk verzoek een eigen request-id (nooit een id van buiten) in de context en in de kop X-Request-Id; trage verzoeken
+  // komen in het logboek (genormaliseerd pad, geen querystring). Het logboek zelf wordt verderop gemaakt.
+  let appLog = null;
+  let settingsRef = null;
+  app.use((req, res, next) => {
+    const requestId = newRequestId();
+    res.set('X-Request-Id', requestId);
+    const started = process.hrtime.bigint();
+    res.on('finish', () => {
+      const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
+      const threshold = appLog && settingsRef ? Number(settingsRef.get('logSlowMs')) || 1500 : Infinity;
+      if (durationMs >= threshold) {
+        appLog.warn('traag', `${req.method} ${normalizePath(req.originalUrl)} ${res.statusCode} in ${Math.round(durationMs)} ms`, { requestId, durationMs });
+      }
+    });
+    runWithContext({ requestId }, next);
+  });
 
   app.get('/api/health', async (req, res) => {
     try {
@@ -106,6 +125,9 @@ function createApp(options) {
     SITE_URL: options.siteUrl ?? process.env.SITE_URL ?? '',
   };
   const settings = options.settings || createSettings({ db: options.db, vault, env: startValues });
+  settingsRef = settings;
+  appLog = options.appLog || createAppLog({ db: options.db, settings });
+  app.locals.appLog = appLog;
   // Onzichtbare captcha op de formulieren (tests geven een eigen fetch mee voor de controle bij Google).
   const captcha = options.captcha || createCaptcha({ settings, fetchImpl: options.captchaFetch });
   app.locals.captcha = captcha;
@@ -139,7 +161,10 @@ function createApp(options) {
   app.locals.systemUpdate = systemUpdate;
   // Onderhoudsmodus (update of met de hand): de stand per verzoek in de context (voor de balk in de layouts), daarna
   // weigert de bewaker schrijfverzoeken met 503.
-  app.use((req, res, next) => runWithContext({ maintenance: maintenanceState({ settings, systemUpdate }) }, next));
+  app.use((req, res, next) => {
+    currentContext().maintenance = maintenanceState({ settings, systemUpdate });
+    next();
+  });
   app.use(maintenanceGuard(() => currentContext().maintenance));
 
   // Doorverwijzingen uit Beheer (oude adressen naar nieuwe), vóór de statische bestanden en de site.
@@ -181,7 +206,7 @@ function createApp(options) {
   const restoreTests = createRestoreTests({ dir: backupDir, masterKey: options.masterKey, drive, now: options.now });
   app.locals.restoreTests = restoreTests;
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now }));
@@ -206,14 +231,30 @@ function createApp(options) {
   // Express herkent een foutafhandelaar aan de vier parameters.
   // eslint-disable-next-line no-unused-vars
   app.use((error, req, res, next) => {
-    console.error(`Fout bij ${req.method} ${req.path.replace(/[\r\n]/g, ' ')}: ${String(error.message).replace(/[\r\n]/g, ' ')}`);
-    res.set('X-Robots-Tag', 'noindex, nofollow');
+    // Elke onverwachte fout krijgt een foutcode: in het logboek (zonder geheimen of persoonsgegevens) en op de pagina,
+    // zodat een beheerder hem terugvindt. Details alleen in de debugmodus en alleen voor een beheerder (recht systeem).
+    if (res.headersSent) return next(error);
+    const errorCode = newErrorCode();
+    const { requestId } = currentContext();
+    const described = describeError(error);
+    appLog.error('fout', `${described.name}: ${described.message}`, {
+      errorCode, requestId, data: { method: req.method, path: normalizePath(req.originalUrl), code: described.code, frames: described.frames },
+    });
+    // Rechtstreeks naar stderr: de console gaat al naar het logboek, dan zou de fout er twee keer in staan.
+    process.stderr.write(`[fout ${errorCode}] ${req.method} ${normalizePath(req.originalUrl)}${requestId ? ` verzoek ${requestId}` : ''}: ${described.name}: ${described.message}\n`);
+    const debug = settings.get('debugMode') === true && req.user && roleHasRight(req.user.role, 'systeem');
+    res.set({ 'X-Robots-Tag': 'noindex, nofollow', 'Cache-Control': 'no-store' });
     res.status(500).send(renderPage({
       title: 'Er ging iets mis',
       path: req.path,
       site: res.locals.site,
       header: renderPageHeader({ title: 'Er ging iets mis' }),
-      body: html`<div class="container section"><p>Probeer het later opnieuw.</p></div>`,
+      body: html`<div class="container section"><p>Probeer het later opnieuw. Blijft het gebeuren, geef dan foutcode <strong>${errorCode}</strong> door.</p>
+        ${debug ? html`<details class="debug-details" open><summary>Details (debugmodus)</summary>
+          <p>${described.name}: ${described.message}${described.code ? ` (code ${described.code})` : ''}</p>
+          <p>Verzoek ${requestId}, ${req.method} ${normalizePath(req.originalUrl)}</p>
+          ${described.frames.length ? html`<ol>${described.frames.map((frame) => html`<li><code>${frame}</code></li>`)}</ol>` : ''}
+        </details>` : ''}</div>`,
     }));
   });
   return app;
@@ -231,6 +272,22 @@ async function start() {
   const port = Number(process.env.PORT) || 3400;
   const setupCode = generateSetupCode();
   const app = createApp({ db, masterKey: loadMasterKey(), databaseUrl, indexable: process.env.SITE_INDEXABLE === 'true', setupCode });
+  // Logboek: wegschrijven en opschonen, fouten van achtergrondtaken (console) en onverwerkte fouten van het proces.
+  app.locals.appLog.start();
+  app.locals.appLog.captureConsole();
+  // Een onverwerkte promise-fout stopt het proces, net als zonder deze listener (Node 22: `--unhandled-rejections=throw`),
+  // maar pas nadat de fout in het logboek staat. Docker start de container daarna opnieuw.
+  let stopping = false;
+  process.on('unhandledRejection', (reason) => {
+    const described = describeError(reason);
+    process.stderr.write(`Onverwerkte fout${stopping ? ' tijdens het afsluiten' : ''}: ${described.name}: ${described.message}\n`);
+    if (stopping) return;
+    stopping = true;
+    app.locals.appLog.error('proces', `Onverwerkte fout: ${described.message}`, { data: { frames: described.frames } });
+    // Harde grens: hangt de database, dan stopt het proces toch na drie seconden.
+    setTimeout(() => process.exit(1), 3000);
+    app.locals.appLog.flush().catch(() => {}).finally(() => process.exit(1));
+  });
   startCrmMaintenance(db, app.locals.settings);
   app.locals.redirects.startTimers();
   app.locals.backups.startTimer();
