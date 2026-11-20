@@ -13,5 +13,5 @@ titel: SEO-klaar voor de go-live (canonical, Open Graph, JSON-LD en sitemap)
 - Basisadres uit de omgevingsvariabele `SITE_URL` (standaard `https://www.avantareizen.nl`); de canonical gebruikt
   het echte pad van de pagina, niet het menupad.
 - Route `/sitemap.xml` (10 minuten in het geheugen, `lastmod` voor blogberichten); query `sitemapEntries` in
-  `content.js`. `robots.txt` verwijst er alleen naar bij `SITE_INDEXABLE=true`.
+  `content.js`. `robots.txt` verwijst er alleen naar bij `SITE_INDEXABLE=true`, met een absolute URL op `SITE_URL`.
 - Tests in `app/test/seo.test.js` (eigen databaseschema, zodat ze naast `server.test.js` draaien).

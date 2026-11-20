@@ -224,7 +224,7 @@ test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TES
     assert.doesNotMatch(closed.text, /Sitemap:/);
     const open = await get('/robots.txt', indexableBase);
     assert.match(open.text, /Allow: \//);
-    assert.match(open.text, /Sitemap: .*\/sitemap\.xml/);
+    assert.match(open.text, new RegExp(`^Sitemap: ${SITE_URL.replace(/\./g, '\\.')}/sitemap\\.xml$`, 'm'), 'absolute sitemap-URL');
     assert.equal((await get('/sitemap.xml', base)).status, 200, 'sitemap bestaat ook bij noindex');
     assert.match((await get('/reis/', indexableBase)).text, /<meta name="robots" content="index, follow">/);
   });
