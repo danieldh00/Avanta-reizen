@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.5 — 2026-11-20 — Meldingen aan kantoor en mail-opmaak
+
+- Kantoor krijgt een mail bij een nieuw bericht via het contactformulier en bij een nieuwe aanmelding (instelbaar in
+- Alle mails van de app hebben nu de huisstijl: logo, een gekleurde titelbalk en een voettekst (Beheer > E-mail >
+
+- `mail/layout.js`: e-mailveilige HTML (tabellen, inline stijlen, alle waarden ge-escaped) met platte-tekstversie en
+  het logo als ingebedde bijlage (`cid:`); kleur van de titelbalk met contrastcontrole (minimaal 4,5 tegen wit).
+- `mail/notifications.js`: melding na het opslaan van een contactbericht of aanmelding, zonder dat de bezoeker wacht;
+  een mislukte melding verandert niets aan de inzending en staat in het overzicht van de mailserver. Een aanmelding gaat
+  zonder bijzondere gegevens (geboortedatum, kerk, paspoort, noodnummer, bijzonderheden) de deur uit.
+- Instellingen `notifyEmail`, `notifyContact`, `notifyBooking`, `mailHeaderColor`, `mailFooterText`; de testmail
+  gebruikt de nieuwe opmaak. Voorbeeld op `/app/beheer/mail-opmaak/voorbeeld/` (recht `systeem`).
+- Naar aanleiding van de review van B1: Teredo (`2001::/32`) en 6to4 (`2002::/16`) gelden niet als openbaar adres,
+  de limietstatus (429) volgt uit een eigen veld in plaats van de meldingstekst, en de ongebruikte `mailer.verify` is weg.
+
 ## 0.4.4 — 2026-11-20 — E-mail versturen via een eigen mailserver
 
 - In Beheer staat een nieuw onderdeel *E-mail > Mailserver*: stel een SMTP-server of een Exchange Online-connector in,
