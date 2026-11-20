@@ -1,10 +1,11 @@
 /**
  * De instellingen die de publieke site per verzoek nodig heeft (uit Beheer, `beheer/settings.js`), in één object:
  * indexeren, basisadres, naam en titels, standaardomschrijving en -afbeelding, contact- en organisatiegegevens,
- * verificatiecodes, robots.txt-regels, sitemap-uitsluitingen en llms.txt. De middleware in `server.js` zet het op
+ * verificatiecodes, robots.txt-regels, sitemap-uitsluitingen, llms.txt en het actieve GA4-meet-ID. De middleware in `server.js` zet het op
  * `res.locals.site`; routes en `renderPage` lezen het daar.
  */
 const seo = require('./seo');
+const { activeMeasurementId } = require('./analytics');
 
 /** Instellingen met een social-media-adres, in de volgorde van `sameAs`. */
 const SOCIAL_KEYS = ['socialFacebook', 'socialInstagram', 'socialYoutube', 'socialLinkedin'];
@@ -44,6 +45,7 @@ function siteSettingsOf(settings) {
     robotsExtra: linesOf(settings.get('robotsExtra')),
     sitemapExclude: linesOf(settings.get('sitemapExclude')),
     llms: { enabled: settings.get('llmsEnabled') === true, intro: settings.get('llmsIntro') },
+    analytics: { measurementId: activeMeasurementId(settings.get('analyticsEnabled'), settings.get('analyticsMeasurementId')) },
   };
 }
 

@@ -64,6 +64,10 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     `Disallow:` geldt voor alle crawlers),
     paden die niet in de sitemap horen (`/pad/` of `/pad/*`) en `/llms.txt` voor AI-zoekmachines (alleen als de site
     geïndexeerd mag worden).
+  - *Vindbaarheid > Google Analytics en cookies*: GA4 aan/uit met meet-ID (`G-…`). Zonder actief meet-ID staat er
+    niets in de pagina en blijft de CSP gelijk. Met meet-ID krijgen bezoekers een cookiebalk; pas na *Accepteren* wordt
+    Google geladen (Consent Mode v2, alleen `analytics_storage`, nooit advertentie-opslag of Google Signals). Weigeren of
+    intrekken via *Cookie-instellingen* in de voettekst wist de `_ga`-cookies. Het CRM meet nooit.
   - *Vindbaarheid > Doorverwijzingen*: oud pad → nieuw pad op de site of `https://`-adres, 301 (permanent) of 302
     (tijdelijk), met notitie en gebruiksteller (tabel `redirects`, in het geheugen; alleen GET/HEAD, de querystring gaat
     mee, een pad zonder slash telt ook met slash). Geen ketens of lussen, niet voor `/app/`, `/api/` of de homepage.
@@ -72,7 +76,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     door te verwijzen. Tellers worden per minuut weggeschreven; hoogstens 5000 regels, na 90 dagen zonder aanvraag weg.
     Ruis van scanners (`/.env`, `.php`, `/wp-admin` e.d.) telt niet mee.
   Zolang indexeren uit staat, krijgt elke pagina `noindex` (meta én `X-Robots-Tag`) en weert robots.txt alles; het CRM
-  en foutpagina's zijn nooit indexeerbaar. Google Analytics volgt.
+  en foutpagina's zijn nooit indexeerbaar.
 
 ## Werkwijze
 

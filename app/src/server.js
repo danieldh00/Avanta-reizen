@@ -17,10 +17,14 @@ const { loadMasterKey, createVault } = require('./security/vault');
 const { createSettings } = require('./beheer/settings');
 const { siteSettingsOf } = require('./site/site-settings');
 const { createRedirects } = require('./site/redirects');
+const { cspWith } = require('./site/analytics');
 const crypto = require('node:crypto');
 const { PUBLIC_DIR, MEDIA_DIR } = require('./paths');
 const { renderPage, renderPageHeader } = require('./site/layout');
 const { html } = require('./site/html');
+
+/** De standaard Content-Security-Policy: alleen eigen bestanden, geen inline scripts. */
+const BASE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 
 /**
  * Zet de beveiligingskoppen op elk antwoord, met standaard `noindex`: de middleware met de site-instellingen haalt die
@@ -31,7 +35,7 @@ const { html } = require('./site/html');
 function securityHeaders() {
   return (req, res, next) => {
     res.set({
-      'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      'Content-Security-Policy': BASE_CSP,
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
@@ -94,7 +98,10 @@ function createApp(options) {
       res.locals.site = siteSettingsOf(settings);
       // Express routeert hoofdletterongevoelig, dus ook `/APP/…` is het CRM: dat blijft altijd noindex.
       const lowerPath = req.path.toLowerCase();
-      if (res.locals.site.indexable && !lowerPath.startsWith('/app/') && lowerPath !== '/app') res.removeHeader('X-Robots-Tag');
+      const inCrm = lowerPath.startsWith('/app/') || lowerPath === '/app';
+      if (res.locals.site.indexable && !inCrm) res.removeHeader('X-Robots-Tag');
+      // Google Analytics alleen op de publieke site en alleen met een actief meet-ID; het CRM blijft op de standaardpolicy.
+      if (res.locals.site.analytics.measurementId && !inCrm) res.set('Content-Security-Policy', cspWith(BASE_CSP, res.locals.site.analytics.measurementId));
       return next();
     } catch (error) {
       return next(error);
@@ -186,4 +193,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createApp, start, parseTrustProxy };
+module.exports = { createApp, start, parseTrustProxy, BASE_CSP };

@@ -49,6 +49,13 @@ const GROUPS = [
         fields: ['robotsExtra', 'sitemapExclude', 'llmsEnabled', 'llmsIntro'],
         words: 'seo robots.txt crawler sitemap.xml uitsluiten llms.txt ai chatgpt gptbot',
       },
+      {
+        id: 'analytics',
+        label: 'Google Analytics en cookies',
+        intro: 'Bezoekersstatistieken met Google Analytics (GA4). Zonder toestemming van de bezoeker wordt niets van Google geladen en komen er geen cookies; advertentiefuncties staan altijd uit.',
+        fields: ['analyticsEnabled', 'analyticsMeasurementId'],
+        words: 'ga4 google analytics statistieken bezoekers cookies toestemming consent cookiebalk meet-id tag',
+      },
       { id: 'doorverwijzingen', label: 'Doorverwijzingen', view: 'doorverwijzingen', words: 'seo redirect 301 302 omleiding oud adres verhuisd url' },
       { id: 'niet-gevonden', label: 'Niet gevonden (404)', view: 'niet-gevonden', words: 'seo 404 niet gevonden kapotte link dode link fout' },
     ],
