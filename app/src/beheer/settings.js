@@ -222,6 +222,19 @@ const SETTING_FIELDS = {
   },
   driveKeepCount: { type: 'int', label: 'Aantal back-ups op Google Drive', help: 'De nieuwste zoveel blijven op Drive staan; oudere verwijdert de app.', default: 30, min: 1, max: 365 },
   driveRefreshToken: { type: 'secret', label: 'Koppeling met Google Drive', help: 'Alleen via Koppelen en Ontkoppelen; staat in geen enkel formulier.', default: '', max: 4000 },
+  updateAuto: {
+    type: 'bool', label: 'Automatisch bijwerken', help: 'Aan: de server installeert een nieuwe versie van main zelf (binnen een kwartier). Uit: alleen met Nu updaten.', default: true,
+  },
+  maintenanceMode: {
+    type: 'bool', label: 'Onderhoudsmodus', help: 'Aan: versturen en opslaan (formulieren, CRM) geeft een melding; lezen blijft werken. Inloggen blijft mogelijk.', default: false,
+  },
+  maintenanceMessage: {
+    type: 'text', label: 'Tekst van de onderhoudsmelding', help: 'Leeg = de standaardtekst.', default: '', max: 300,
+  },
+  hostTasksDone: {
+    type: 'text', label: 'Met de hand afgevinkte servertaken', help: 'Alleen via Beheer > Servertaken; staat in geen enkel formulier.', default: '', max: 4000,
+    pattern: /^[0-9]{3}-[a-z0-9-]{1,80}(,[0-9]{3}-[a-z0-9-]{1,80})*$/, patternMessage: 'Ongeldige lijst met servertaken.',
+  },
 };
 
 class SettingsError extends Error {

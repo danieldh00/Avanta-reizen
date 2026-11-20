@@ -4,6 +4,7 @@
  */
 const { html, toString } = require('../site/html');
 const { roleHasRight, roleLabel } = require('./rights');
+const { renderMaintenanceBanner } = require('../site/layout');
 
 /** Versie van de statische bestanden, tegen verouderde caches. */
 const ASSET_VERSION = require('../../package.json').version;
@@ -49,6 +50,7 @@ function renderCrmPage(page) {
 </head>
 <body class="crm">
   <a class="skip-link" href="#inhoud">Naar de inhoud</a>
+  ${renderMaintenanceBanner()}
   <header class="crm-header">
     <div class="container crm-header__inner">
       <a class="crm-brand" href="/app/"><img src="/images/logo.png" alt="Avanta reizen" width="80" height="47"> <span>CRM</span></a>

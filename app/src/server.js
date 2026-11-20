@@ -29,6 +29,11 @@ const { createDrive } = require('./backup/drive');
 const { roleHasRight } = require('./crm/rights');
 const { createRestoreTests } = require('./backup/restore-test');
 const { renderPage, renderPageHeader } = require('./site/layout');
+const { createSystemUpdate } = require('./system/system-update');
+const { createHostTasks } = require('./system/host-tasks');
+const { maintenanceState, maintenanceGuard } = require('./system/maintenance');
+const { runWithContext, currentContext } = require('./system/request-context');
+const { recordFinishedRun } = require('./beheer/update-routes');
 const { html } = require('./site/html');
 
 /** De standaard Content-Security-Policy: alleen eigen bestanden, geen inline scripts. */
@@ -70,8 +75,9 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, settings?: object, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
- *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), de back-updienst (standaard `backup/backups.js` met `databaseUrl`, `backupDir` en `pgDumpPath`; zonder `databaseUrl` geen back-ups), een eigen fetch voor Google Drive (`googleFetch`, tests), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
+ * @param {{db: object, masterKey: Buffer, settings?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
+ *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), de koppeling met het updatescript
+ *   (standaard `system/system-update.js` met de mappen uit `updateStatusDir`/`updateRequestDir` of UPDATE_STATUS_DIR/UPDATE_REQUEST_DIR), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), de back-updienst (standaard `backup/backups.js` met `databaseUrl`, `backupDir` en `pgDumpPath`; zonder `databaseUrl` geen back-ups), een eigen fetch voor Google Drive (`googleFetch`, tests), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
  *   (standaard `TRUST_PROXY`, anders loopback), de installatiecode voor de eerste CRM-beheerder en of de CRM-cookie
  *   `Secure` krijgt (standaard ja).
  * @returns {express.Express} De app.
@@ -123,6 +129,19 @@ function createApp(options) {
     }
   });
 
+  // Updates vanuit de app en servertaken: de gedeelde mappen met het hostscript (leeg = niet ingericht, bijv. lokaal).
+  const updateStatusDir = options.updateStatusDir ?? process.env.UPDATE_STATUS_DIR ?? '';
+  const systemUpdate = options.systemUpdate || createSystemUpdate({
+    statusDir: updateStatusDir, requestDir: options.updateRequestDir ?? process.env.UPDATE_REQUEST_DIR ?? '',
+    currentVersion: require('../package.json').version, now: options.now,
+  });
+  const hostTasks = createHostTasks({ statusDir: updateStatusDir, settings });
+  app.locals.systemUpdate = systemUpdate;
+  // Onderhoudsmodus (update of met de hand): de stand per verzoek in de context (voor de balk in de layouts), daarna
+  // weigert de bewaker schrijfverzoeken met 503.
+  app.use((req, res, next) => runWithContext({ maintenance: maintenanceState({ settings, systemUpdate }) }, next));
+  app.use(maintenanceGuard(() => currentContext().maintenance));
+
   // Doorverwijzingen uit Beheer (oude adressen naar nieuwe), vóór de statische bestanden en de site.
   const redirects = createRedirects({ db: options.db, settings });
   app.locals.redirects = redirects;
@@ -162,7 +181,7 @@ function createApp(options) {
   const restoreTests = createRestoreTests({ dir: backupDir, masterKey: options.masterKey, drive, now: options.now });
   app.locals.restoreTests = restoreTests;
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now }));
@@ -217,6 +236,10 @@ async function start() {
   app.locals.backups.startTimer();
   app.locals.drive.startTimer();
   app.locals.restoreTests.startTimer(() => app.locals.settings.get('driveEnabled'));
+  // Updates: de stand van "automatisch bijwerken" naar het hostscript en een afgeronde uitrol in het auditlog.
+  await app.locals.settings.ready();
+  app.locals.systemUpdate.setAuto(app.locals.settings.get('updateAuto'));
+  await recordFinishedRun(db, app.locals.systemUpdate).catch((error) => console.error(`Update vastleggen mislukt: ${String(error.message).replace(/[\r\n]/g, ' ')}`));
   const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
   // Eenmalige installatiecode voor de eerste beheerder; alleen bruikbaar zolang er geen enkele CRM-gebruiker is.
   if (!present) console.log(`CRM: nog geen gebruikers. Maak de eerste beheerder aan op /app/installatie/ met installatiecode ${setupCode}`);

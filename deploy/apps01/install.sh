@@ -3,7 +3,8 @@
 # geheimen bij de eerste keer, koppeling aan het netwerk van de bestaande cloudflared, image bouwen, stack starten,
 # gezondheid controleren en bij een lege database de content importeren.
 # Draait als root op apps01; normaal aangeroepen door pve-setup.sh vanaf de Proxmox-host.
-# Gebruik: sudo install.sh [git-ref]      Optioneel: TUNNEL_CONTAINER (standaard aquatech-cloudflared), BASE_DIR.
+# Gebruik: sudo install.sh [git-ref]      Optioneel: TUNNEL_CONTAINER (standaard aquatech-cloudflared), BASE_DIR,
+#          INSTALL_PHASE=build (alleen code ophalen en het image bouwen; update.sh doet dat vóór de onderhoudsmodus).
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/danieldh00/Avanta-reizen.git}"
@@ -67,11 +68,28 @@ sed -i -e "s|^TUNNEL_NETWORK=.*|TUNNEL_NETWORK=$tunnel_network|" -e "s|^TRUST_PR
 export TUNNEL_NETWORK="$tunnel_network" TRUST_PROXY="$tunnel_ip"
 echo "Gekoppeld aan netwerk $tunnel_network van $TUNNEL_CONTAINER (alias avanta-app); TRUST_PROXY=$tunnel_ip."
 
+# Updaten vanuit de app (Beheer > Systeem > Updates en onderhoud): de statusmap schrijft alleen update.sh (root, in de
+# container alleen-lezen), de aanvraagmap is van de app (uid 1000 = gebruiker node in het image). Zie update.sh.
+update_dir="$BASE_DIR/update"
+install -d -m 755 "$update_dir" "$update_dir/status"
+install -d -m 755 -o 1000 -g 1000 "$update_dir/request"
+grep -q '^UPDATE_DIR=' .env || echo "UPDATE_DIR=$update_dir" >> .env
+sed -i "s|^UPDATE_DIR=.*|UPDATE_DIR=$update_dir|" .env
+export UPDATE_DIR="$update_dir"
+
+if [ "${INSTALL_PHASE:-}" = "build" ]; then
+  docker compose build app
+  echo "Image gebouwd voor $(git -C "$REPO_DIR" rev-parse --short HEAD); nog niet gestart."
+  exit 0
+fi
+
 docker compose up -d --build --remove-orphans
 
 # Automatisch bijwerken: update.sh via een systemd-timer (elke 15 minuten de branch AVANTA_TRACK volgen).
 if command -v systemctl >/dev/null && [ -d /run/systemd/system ]; then
-  install -m 755 "$STACK_DIR/update.sh" /usr/local/sbin/avanta-update
+  # Via een tijdelijk bestand en mv (nieuw bestand, geen overschrijven): update.sh draait mogelijk nog terwijl dit gebeurt.
+  install -m 755 "$STACK_DIR/update.sh" /usr/local/sbin/.avanta-update.new
+  mv -f /usr/local/sbin/.avanta-update.new /usr/local/sbin/avanta-update
   cat > /etc/systemd/system/avanta-update.service <<UNIT
 [Unit]
 Description=Avanta testomgeving bijwerken
@@ -95,6 +113,18 @@ RandomizedDelaySec=60
 
 [Install]
 WantedBy=timers.target
+UNIT
+  # Meteen bijwerken of controleren zodra de app een aanvraag neerzet (update.sh haalt request.json altijd als eerste weg).
+  cat > /etc/systemd/system/avanta-update-now.path <<UNIT
+[Unit]
+Description=Avanta bijwerken op aanvraag vanuit Beheer
+
+[Path]
+PathExists=$update_dir/request/request.json
+Unit=avanta-update.service
+
+[Install]
+WantedBy=paths.target
 UNIT
   # Wekelijkse hersteltest van de back-ups (zondag 04:30) en op verzoek vanuit Beheer (bestand restore-test-now in het
   # datavolume van de app, opgepikt door een path-unit).
@@ -147,6 +177,7 @@ UNIT
   fi
   systemctl daemon-reload
   systemctl enable --now avanta-update.timer >/dev/null
+  systemctl enable --now avanta-update-now.path >/dev/null
   systemctl enable --now avanta-restore-test.timer >/dev/null
   if [ -n "$data_volume" ]; then systemctl enable --now avanta-restore-test-now.path >/dev/null; fi
   echo "Automatisch bijwerken actief: avanta-update.timer (volgt $(sed -n 's/^AVANTA_TRACK=//p' .env); logboek: journalctl -u avanta-update)."

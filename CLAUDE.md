@@ -48,7 +48,8 @@ Node 22 + Express, server-gerenderde HTML, PostgreSQL 17 (enige database), geen 
 | `app/src/site/` | `routes.js` (alle publieke URL's), `content.js` (queries), `views.js`/`layout.js` (HTML), `html.js` (escaping), `format.js`, `seo.js` (JSON-LD, sitemap, robots.txt, llms.txt), `site-settings.js` (`res.locals.site`), `redirects.js` (doorverwijzingen + 404-tellers), `analytics.js` (GA4-meet-ID, CSP) |
 | `app/src/booking/` | aanmeldformulier: `fields.js` (velden + validatie), `routes.js` (`/aanmelden/`) |
 | `app/src/crm/` | CRM onder `/app/`: `routes.js` (inloggen, installatie), `users.js` (gebruikers, auditlog), `auth.js` (sessies, CSRF, `requireRight`, audit), `rights.js`, `passwords.js`, `layout.js` |
-| `app/src/beheer/` | Beheer onder `/app/beheer/` (recht `systeem`): `settings.js` (`SETTING_FIELDS`, database → env → standaard, geheimen via vault), `indeling.js` (groepen/secties + zoeken), `routes.js`, `redirect-routes.js` (doorverwijzingen, 404-lijst), `mail-routes.js` (testmail, WAN-IP), `captcha-routes.js` (sleutelcontrole), `backup-routes.js` (back-ups: Nu maken, lijst, downloaden), `drive-routes.js` (Google Drive koppelen), `restore-test-routes.js` (hersteltest) |
+| `app/src/beheer/` | Beheer onder `/app/beheer/` (recht `systeem`): `settings.js` (`SETTING_FIELDS`, database → env → standaard, geheimen via vault), `indeling.js` (groepen/secties + zoeken), `routes.js`, `redirect-routes.js` (doorverwijzingen, 404-lijst), `mail-routes.js` (testmail, WAN-IP), `captcha-routes.js` (sleutelcontrole), `backup-routes.js` (back-ups: Nu maken, lijst, downloaden), `drive-routes.js` (Google Drive koppelen), `restore-test-routes.js` (hersteltest), `update-routes.js` (updates, onderhoudsmodus), `host-task-routes.js` (servertaken) |
+| `app/src/system/` | `system-update.js` (koppeling met `deploy/apps01/update.sh` via `/update/status` en `/update/request`), `maintenance.js` (503 op schrijven + balk), `host-tasks.js` (`HOST_TASKS` + vast commando; gelijk houden met `deploy/apps01/servertaken.sh`), `request-context.js` (AsyncLocalStorage per verzoek) |
 | `app/src/backup/` | `backups.js` (pg_dump → AES-256-GCM, `DATA_DIR/backups`, planner, bewaartermijn), `drive.js` (OAuth `drive.file`, upload + bewaartermijn op Drive, stand in `drive-state.json`), `restore-test.js` (uitslag hostscript `deploy/apps01/restore-test.sh`, test van de Drive-kopie), `cli.js` (`create [--update]`, `list`, `decrypt`, `restore-test-result`) |
 | `app/src/mail/` | `mailer.js` (nodemailer: SMTP of Exchange-connector, alleen openbare adressen, STARTTLS verplicht), `wan-ip.js`, `layout.js` (mail-opmaak, alles ge-escaped), `notifications.js` (meldingen aan kantoor, nooit gevoelige velden) |
 | `app/src/security/` | `vault.js` (AES-256-GCM voor gevoelige velden), `rate-limit.js`, `netguard.js` (alleen openbare adressen voor uitgaande verbindingen), `captcha.js` (reCAPTCHA v3 op contact/aanmelden) |
@@ -101,6 +102,9 @@ Regels:
 - Geen modelnamen/-ID's in commits, PR's, code of docs. Nooit secrets, wachtwoorden of persoonsgegevens in repo,
   chat of geheugen.
 - **Servertaken**: geef Daniël nooit losse servercommando's in de chat; zie `docs/WERKWIJZE.md`, *Servertaken en scripts*.
+  Heeft een PR iets op de server nodig dat `install.sh` (draait bij elke update) niet zelf doet: één regel in
+  `HOST_TASKS` (`app/src/system/host-tasks.js`) én een functie `hosttask_<id>` + id in `deploy/apps01/servertaken.sh`;
+  Daniël draait dan het vaste commando uit Beheer > Servertaken.
 - Ruwe bestanden van GitHub altijd op een vaste commit-SHA, nooit op een branch.
 - **Nooit `pkill -f`** in de cloud-sandbox; stop een testserver op poortnummer (`kill $(lsof -ti tcp:<poort>)`).
 

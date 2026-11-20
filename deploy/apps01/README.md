@@ -31,11 +31,19 @@ AVANTA_REF=<sha> bash <(curl -fsSL https://raw.githubusercontent.com/danieldh00/
    wordt niet overschreven. Leeg laten = het script toont de handmatige stap hieronder.
 4. controleert `https://avanta.den-hollander.com/api/health`.
 
-## Automatisch bijwerken
+## Automatisch bijwerken en updaten vanuit de app
 
-`install.sh` zet de systemd-timer `avanta-update.timer` op apps01 (elke 15 minuten, `/usr/local/sbin/avanta-update`):
-- nieuwe commit op `AVANTA_TRACK` (standaard `main`, in `.env`) → `install.sh` op die commit (build, start,
-  gezondheidscheck); mislukt dat, dan terug naar de vorige commit;
+`install.sh` zet de systemd-timer `avanta-update.timer` op apps01 (elke 15 minuten, `/usr/local/sbin/avanta-update`)
+en de path-unit `avanta-update-now.path` (start dezelfde service zodra de app een aanvraag neerzet):
+- nieuwe commit op `AVANTA_TRACK` (standaard `main`, in `.env`) en *automatisch bijwerken* aan (Beheer > Systeem >
+  Updates en onderhoud) → eerst code ophalen en het image bouwen (`INSTALL_PHASE=build`, de site draait door), dan
+  onderhoudsmodus aan, back-up, `install.sh` op die commit (start, gezondheidscheck) en controle van de versie op
+  `/api/health`; mislukt dat, dan terug naar de vorige commit (die mislukte commit slaat de timer daarna over,
+  `.failed-commit`);
+- *Nu updaten* in de app installeert alleen de commit die het script zelf als nieuwste ophaalde; *Nu controleren*
+  werkt alleen de status bij;
+- koppeling met de app via `/opt/apps/avanta/update/status` (alleen root schrijft; in de container alleen-lezen) en
+  `/opt/apps/avanta/update/request` (eigenaar uid 1000, de app); uitleg bovenin `update.sh`;
 - ander IP van `aquatech-cloudflared` (bijv. na een image-update) → `TRUST_PROXY` opnieuw gezet, zelfde commit;
 - staat `deploy/apps01` nog niet op die branch, dan doet de timer niets.
 
@@ -43,6 +51,14 @@ Logboek: `journalctl -u avanta-update`; status: `systemctl list-timers avanta-up
 Migraties lopen alleen vooruit: een rollback zet de code terug, niet de database. Het commando van de pve opnieuw
 draaien blijft mogelijk (bijv. met een vaste `<sha>`), maar de timer gaat daarna weer naar de laatste commit van
 `AVANTA_TRACK`.
+
+## Servertaken
+
+Heeft een wijziging iets op de server nodig dat de automatische update niet zelf doet, dan staat het als taak in
+Beheer > Systeem > Servertaken, met één vast commando voor de Proxmox-host (als root). Dat commando haalt
+`servertaken.sh` op de nieuwste commit van main op en voert alle openstaande taken uit (na bevestiging); gelukte taken
+staan daarna afgevinkt in de app. Alleen kijken: `servertaken.sh status` (containers, updates, timers, schijf,
+geheugen, back-ups); verder `logs [uren]` en `update`.
 
 ## Handmatige binding in Cloudflare (zonder API-token)
 

@@ -16,6 +16,8 @@ const { createCaptchaRoutes } = require('./captcha-routes');
 const { createBackupRoutes } = require('./backup-routes');
 const { createDriveRoutes } = require('./drive-routes');
 const { createRestoreTestRoutes } = require('./restore-test-routes');
+const { createUpdateRoutes } = require('./update-routes');
+const { createHostTaskRoutes } = require('./host-task-routes');
 
 /** Versie van de app (voor het systeemoverzicht). */
 const APP_VERSION = require('../../package.json').version;
@@ -63,11 +65,11 @@ function formatUptime(seconds) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, now?: () => number}} options
+ * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, now?: () => number}} options
  *   Database, sessie- en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`), de mailer en
  *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de back-updienst (`backup/backups.js`), de Drive-koppeling (`backup/drive.js`), de hersteltests
- *   (`backup/restore-test.js`) en (voor tests)
- *   de klok van de limieten.
+ *   (`backup/restore-test.js`), de koppeling met het updatescript (`system/system-update.js`), de servertaken
+ *   (`system/host-tasks.js`) en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router, te koppelen binnen de CRM-router.
  */
 function createBeheerRoutes(options) {
@@ -215,6 +217,7 @@ function createBeheerRoutes(options) {
             <tr><th scope="row">Draait sinds</th><td>${formatUptime(Math.floor(process.uptime()))}</td></tr>
           </tbody>
         </table></div>
+        ${options.hostTasks && options.hostTasks.view().pending ? html`<p class="notice" role="status">Er staan servertaken open. Zie <a href="/app/beheer/servertaken/">Servertaken</a>.</p>` : ''}
         <h2>Instellingen</h2>
         <p>Waar elke instelling vandaan komt. Wat in Beheer is opgeslagen gaat voor de omgeving (startwaarde) en de standaard.</p>
         <div class="crm-table-wrap"><table class="crm-table">
@@ -264,6 +267,8 @@ function createBeheerRoutes(options) {
     router.use(captchaRoutes.router);
   }
 
+  if (options.systemUpdate) router.use(createUpdateRoutes({ db, auth, guard, settings, systemUpdate: options.systemUpdate, renderBeheerPage, now: options.now }).router);
+  if (options.hostTasks) router.use(createHostTaskRoutes({ auth, guard, settings, hostTasks: options.hostTasks, renderBeheerPage, notFound, now: options.now }));
   if (options.restoreTests) router.use(createRestoreTestRoutes({ auth, guard, settings, restoreTests: options.restoreTests, renderBeheerPage, now: options.now }));
   // Doorverwijzingen en de 404-lijst hebben eigen routes (vóór de algemene secties).
   if (options.redirects) router.use(createRedirectRoutes({ db, auth, guard, redirects: options.redirects, renderBeheerPage, notFound }));
