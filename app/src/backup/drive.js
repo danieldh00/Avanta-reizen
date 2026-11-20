@@ -46,11 +46,13 @@ class DriveError extends Error {
   /**
    * @param {string} code Foutcode, bijv. `reconnect` (opnieuw koppelen nodig) of `google`.
    * @param {string} message Melding voor de beheerder.
+   * @param {number} [status] HTTP-status van Google (als die er was).
    */
-  constructor(code, message) {
+  constructor(code, message, status = 0) {
     super(message);
     this.name = 'DriveError';
     this.code = code;
+    this.status = status;
   }
 }
 
@@ -237,8 +239,8 @@ function createDrive(options) {
     } catch (_) {
       detail = '';
     }
-    if (response.status === 401 || detail === 'invalid_grant') throw new DriveError('reconnect', 'Google weigert de koppeling; koppel opnieuw.');
-    throw new DriveError('google', `Google gaf fout ${response.status}${detail ? `: ${detail}` : ''}.`);
+    if (response.status === 401 || detail === 'invalid_grant') throw new DriveError('reconnect', 'Google weigert de koppeling; koppel opnieuw.', response.status);
+    throw new DriveError('google', `Google gaf fout ${response.status}${detail ? `: ${detail}` : ''}.`, response.status);
   };
 
   /**
@@ -353,7 +355,8 @@ function createDrive(options) {
     let revoked = true;
     if (token) {
       revoked = await call(GOOGLE.revoke, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token }).toString() })
-        .then(() => true, () => false);
+        // Een 400 (`invalid_token`) betekent dat het token al ingetrokken of verlopen is: dan is er niets meer te doen.
+        .then(() => true, (error) => error.status === 400);
     }
     await settings.update({ clear: ['driveRefreshToken'] }, {
       userId,

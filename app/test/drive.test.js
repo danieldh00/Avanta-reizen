@@ -69,6 +69,7 @@ function fakeGoogle() {
     }
     if (url === GOOGLE.revoke) {
       const token = new URLSearchParams(init.body).get('token');
+      if (!state.refreshTokens.has(token)) return json({ error: 'invalid_token' }, 400);
       state.revoked.push(token);
       state.refreshTokens.delete(token);
       return new Response('', { status: 200 });
@@ -472,10 +473,13 @@ test('Drive in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
   assert.equal((await request(`/app/beheer/google-drive/terug/?state=${encodeURIComponent(againState)}&code=goede-code`)).status, 200);
   await app.locals.drive.sync();
 
+  // Het token was bij Google al ingetrokken (400 invalid_token): dat telt als ingetrokken.
+  google.state.refreshTokens.clear();
   const removed = await request('/app/beheer/google-drive/ontkoppelen/', { cookie, form: { _csrf: csrf } });
   assert.equal(removed.status, 200);
   assert.match(removed.text, /Ontkoppeld en ingetrokken bij Google/);
-  assert.deepEqual(google.state.revoked, ['refresh-geheim-1']);
+  assert.deepEqual(google.state.revoked, [], 'al ingetrokken bij Google');
+  assert.ok(google.calls.some((call) => call === `POST ${GOOGLE.revoke}`), 'intrekken wel geprobeerd');
   assert.equal(app.locals.settings.get('driveRefreshToken'), '');
   const [unlinked] = await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'drive.ontkoppeld'");
   assert.equal(unlinked.count, 2);
