@@ -187,8 +187,6 @@ const MIGRATIONS = [
         password_hash TEXT NOT NULL,
         active BOOLEAN NOT NULL DEFAULT true,
         guide_id INTEGER REFERENCES guides(id) ON DELETE SET NULL,
-        failed_logins INTEGER NOT NULL DEFAULT 0,
-        locked_until TIMESTAMPTZ,
         last_login_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

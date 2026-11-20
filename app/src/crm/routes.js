@@ -8,18 +8,22 @@ const express = require('express');
 const { html } = require('../site/html');
 const { clientKey, createRateLimiter } = require('../security/rate-limit');
 const { isCrossSite } = require('../security/form-guard');
-const { createAuth } = require('./auth');
+const { createAuth, ipPrefix } = require('./auth');
 const { RIGHTS, ROLES, roleHasRight, roleLabel } = require('./rights');
 const { hashPassword, verifyPassword, needsRehash, passwordProblem, getDummyHash, MAX_LENGTH } = require('./passwords');
 const { renderCrmPage, renderInput, renderAlert } = require('./layout');
 const { createUserRoutes } = require('./users');
 
-/** Na zoveel mislukte pogingen wordt een account tijdelijk geblokkeerd, zoveel minuten lang. */
+/**
+ * Na zoveel mislukte pogingen op één account vanuit één IP-reeks (/24 of /48) wordt die combinatie zoveel minuten
+ * geblokkeerd. Bewust niet het hele account: dan zou een aanvaller die het e-mailadres kent de beheerder kunnen
+ * buitensluiten. Vanaf een ander netwerk (of na het kwartier) kan de echte gebruiker gewoon inloggen.
+ */
 const MAX_FAILED_LOGINS = 5;
 const LOCK_MINUTES = 15;
 
 /** Melding bij een mislukte login; verraadt niet of het account bestaat of geblokkeerd is. */
-const LOGIN_FAILED = `E-mailadres of wachtwoord klopt niet. Na ${MAX_FAILED_LOGINS} mislukte pogingen is een account ${LOCK_MINUTES} minuten geblokkeerd.`;
+const LOGIN_FAILED = `E-mailadres of wachtwoord klopt niet. Na ${MAX_FAILED_LOGINS} mislukte pogingen moet je ${LOCK_MINUTES} minuten wachten.`;
 
 /** Tekens voor de installatiecode (zonder 0/O en 1/I, die lijken op elkaar). */
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -78,6 +82,7 @@ function createCrmRouter(options) {
   const loginLimiter = createRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000, now: options.now });
   const setupLimiter = createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000, now: options.now });
   const passwordLimiter = createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000, now: options.now });
+  const failedLoginLimiter = createRateLimiter({ limit: MAX_FAILED_LOGINS, windowMs: LOCK_MINUTES * 60 * 1000, now: options.now });
   // Algemene limiet op alles onder /app/ (ook de sessiecontrole kost een databasevraag per verzoek).
   const generalLimiter = createRateLimiter({ limit: 300, windowMs: 60 * 1000, now: options.now });
 
@@ -147,30 +152,25 @@ function createCrmRouter(options) {
       const email = normalizeEmail(req.body.email);
       const password = typeof req.body.password === 'string' ? req.body.password : '';
       const [user] = email
-        ? await db.query('SELECT id, password_hash, active, (locked_until IS NOT NULL AND locked_until > now()) AS locked FROM users WHERE lower(email) = $1', [email])
+        ? await db.query('SELECT id, password_hash, active FROM users WHERE lower(email) = $1', [email])
         : [];
+      const failureKey = `${user ? user.id : 'onbekend'}:${ipPrefix(req)}`;
+      const blocked = Boolean(user) && failedLoginLimiter.isBlocked(failureKey);
       // Ook bij een onbekend adres een volledige controle, zodat de responstijd niets verraadt.
       const passwordOk = await verifyPassword(password, user ? user.password_hash : await getDummyHash());
-      if (!user || !user.active || user.locked || !passwordOk) {
+      if (!user || !user.active || blocked || !passwordOk) {
         let action = 'inloggen.mislukt';
         if (user && !user.active) action = 'inloggen.inactief';
-        else if (user && user.locked) action = 'inloggen.geblokkeerd';
-        if (user && user.active && !user.locked) {
-          await db.query(
-            `UPDATE users SET
-               locked_until = CASE WHEN failed_logins + 1 >= $2 THEN now() + make_interval(mins => $3) ELSE locked_until END,
-               failed_logins = CASE WHEN failed_logins + 1 >= $2 THEN 0 ELSE failed_logins + 1 END
-             WHERE id = $1`,
-            [user.id, MAX_FAILED_LOGINS, LOCK_MINUTES],
-          );
-        }
+        else if (blocked) action = 'inloggen.geblokkeerd';
+        if (user && !blocked) failedLoginLimiter.hit(failureKey);
         await auth.audit(req, { userId: user ? user.id : null, action, entity: 'users', entityId: user ? user.id : undefined });
         return res.status(401).send(renderLogin({ email: textField(req.body.email, 200), error: LOGIN_FAILED }));
       }
+      failedLoginLimiter.clear(failureKey);
       const newHash = needsRehash(user.password_hash) ? await hashPassword(password) : null;
       await db.transaction(async (client) => {
         await client.query(
-          'UPDATE users SET failed_logins = 0, locked_until = NULL, last_login_at = now(), password_hash = COALESCE($2, password_hash) WHERE id = $1',
+          'UPDATE users SET last_login_at = now(), password_hash = COALESCE($2, password_hash) WHERE id = $1',
           [user.id, newHash],
         );
         await auth.startSession(res, user.id, client);

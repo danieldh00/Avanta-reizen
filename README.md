@@ -37,10 +37,13 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   - Sessie: cookie `avanta_sessie` (`HttpOnly`, `Secure`, `SameSite=Strict`, pad `/app`), in de database alleen de
     SHA-256 van het token; verloopt na 8 uur zonder activiteit en uiterlijk na 7 dagen. Het CRM werkt daardoor alleen
     via https (of `http://localhost`).
-  - Beveiliging: CSRF-token in elk formulier plus herkomstcontrole, 10 inlogpogingen per kwartier per IP, een account
-    gaat na 5 mislukte pogingen 15 minuten op slot (een nieuw wachtwoord via de beheerder heft dat op), de laatste
+  - Beveiliging: CSRF-token in elk formulier plus herkomstcontrole, 300 verzoeken per minuut per IP op `/app/`,
+    10 inlogpogingen per kwartier per IP, en na 5 mislukte pogingen op één account vanuit één IP-reeks wacht die
+    combinatie 15 minuten. Dat laatste bewust niet voor het hele account, zodat niemand de beheerder kan buitensluiten;
+    vanaf een ander netwerk of na het kwartier lukt inloggen gewoon (een herstart wist de tellers ook). De laatste
     actieve beheerder kan niet worden gedegradeerd of uitgeschakeld. Het auditlog bewaart wie, wat, welk record, wanneer
-    en een ingekort IP-adres (/24 of /48), nooit e-mailadressen, wachtwoorden of andere waarden.
+    en een ingekort IP-adres (/24 of /48), nooit e-mailadressen, wachtwoorden of andere waarden; regels ouder dan 2 jaar
+    worden bij een login opgeruimd.
   - 2FA (verplicht voor rollen met toegang tot bijzondere gegevens) volgt in de volgende CRM-PR.
 
 ## Werkwijze

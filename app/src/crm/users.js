@@ -16,7 +16,7 @@ const AUDIT_PAGE_SIZE = 100;
 const ACTION_LABELS = {
   inloggen: 'Ingelogd',
   'inloggen.mislukt': 'Inloggen mislukt',
-  'inloggen.geblokkeerd': 'Inloggen geweigerd (tijdelijk geblokkeerd)',
+  'inloggen.geblokkeerd': 'Inloggen geweigerd (te veel pogingen vanaf deze IP-reeks)',
   'inloggen.inactief': 'Inloggen geweigerd (account uitgeschakeld)',
   uitloggen: 'Uitgelogd',
   installatie: 'Eerste beheerder aangemaakt',
@@ -90,7 +90,7 @@ function createUserRoutes(options) {
    */
   const findUser = async (id) => {
     const [user] = await db.query(
-      'SELECT id, email, name, role, active, last_login_at, (locked_until IS NOT NULL AND locked_until > now()) AS locked FROM users WHERE id = $1',
+      'SELECT id, email, name, role, active, last_login_at FROM users WHERE id = $1',
       [Number(id)],
     );
     return user || null;
@@ -122,7 +122,7 @@ function createUserRoutes(options) {
   router.get('/gebruikers/', guard, async (req, res, next) => {
     try {
       const users = await db.query(
-        'SELECT id, email, name, role, active, last_login_at, (locked_until IS NOT NULL AND locked_until > now()) AS locked FROM users ORDER BY active DESC, lower(name), id',
+        'SELECT id, email, name, role, active, last_login_at FROM users ORDER BY active DESC, lower(name), id',
       );
       return res.send(renderCrmPage({
         title: 'Gebruikers',
@@ -137,7 +137,7 @@ function createUserRoutes(options) {
               <td><a href="/app/gebruikers/${user.id}/">${user.name}</a></td>
               <td>${user.email}</td>
               <td>${roleLabel(user.role)}</td>
-              <td>${user.active ? (user.locked ? 'Tijdelijk geblokkeerd' : 'Actief') : 'Uitgeschakeld'}</td>
+              <td>${user.active ? 'Actief' : 'Uitgeschakeld'}</td>
               <td>${formatDateTime(user.last_login_at)}</td>
             </tr>`)}</tbody>
           </table></div>`,
@@ -216,7 +216,7 @@ function createUserRoutes(options) {
       user: req.user,
       csrf: req.session.csrf,
       body: html`<div class="crm-narrow">
-        <p><a href="/app/gebruikers/">Naar de gebruikers</a> · Laatst ingelogd: ${formatDateTime(target.last_login_at)}${target.locked ? ' · tijdelijk geblokkeerd na mislukte pogingen' : ''}</p>
+        <p><a href="/app/gebruikers/">Naar de gebruikers</a> · Laatst ingelogd: ${formatDateTime(target.last_login_at)}</p>
         ${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
         ${renderAlert(errors._form)}
         <form class="form" method="post" action="/app/gebruikers/${target.id}/">
@@ -232,7 +232,7 @@ function createUserRoutes(options) {
         <form class="form" method="post" action="/app/gebruikers/${target.id}/wachtwoord/">
           <input type="hidden" name="_csrf" value="${req.session.csrf}">
           ${renderInput({ name: 'password', label: 'Nieuw wachtwoord (minimaal 12 tekens)', type: 'password', error: passwordErrors.password, max: MAX_LENGTH, autocomplete: 'new-password' })}
-          <p class="field__help">Logt de gebruiker overal uit en heft een tijdelijke blokkade op.</p>
+          <p class="field__help">Logt de gebruiker overal uit.</p>
           <div><button class="btn btn--outline" type="submit">Wachtwoord instellen</button></div>
         </form>
       </div>`,
@@ -299,7 +299,7 @@ function createUserRoutes(options) {
       if (problem) return res.status(422).send(renderEditUser(req, target, { passwordErrors: { password: problem } }));
       const passwordHash = await hashPassword(req.body.password);
       await db.transaction(async (client) => {
-        await client.query('UPDATE users SET password_hash = $2, failed_logins = 0, locked_until = NULL, updated_at = now() WHERE id = $1', [target.id, passwordHash]);
+        await client.query('UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1', [target.id, passwordHash]);
         await auth.endSessionsOf(target.id, target.id === req.user.id ? req.session.tokenHash : '', client);
         await auth.audit(req, { userId: req.user.id, action: 'gebruiker.wachtwoord', entity: 'users', entityId: target.id }, client);
       });

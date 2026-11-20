@@ -18,6 +18,9 @@ const COOKIE_PATH = '/app';
 const IDLE_HOURS = 8;
 const MAX_DAYS = 7;
 
+/** Bewaartermijn van het auditlog (`docs/OPZET-CRM.md` §5: 2 jaar). */
+const AUDIT_RETENTION_MONTHS = 24;
+
 /** Hoe vaak `last_seen_at` hooguit wordt bijgewerkt (scheelt een schrijfactie per verzoek). */
 const TOUCH_SECONDS = 60;
 
@@ -100,14 +103,17 @@ function createAuth(options) {
   };
 
   /**
-   * Maakt een nieuwe sessie (na inloggen) en zet de cookie. Ruimt meteen verlopen sessies op.
+   * Maakt een nieuwe sessie (na inloggen) en zet de cookie. Ruimt meteen verlopen sessies op (via de index op
+   * `expires_at`; een sessie die door inactiviteit ongeldig is, verdwijnt uiterlijk op dat moment) en auditregels
+   * ouder dan de bewaartermijn (index op `created_at`).
    * @param {object} res Express-antwoord.
    * @param {number} userId Gebruiker.
    * @param {{query: Function}} [client] Database of transactie-client.
    * @returns {Promise<string>} Het token.
    */
   const startSession = async (res, userId, client = db) => {
-    await client.query(`DELETE FROM sessions WHERE expires_at < now() OR last_seen_at < now() - make_interval(hours => $1)`, [IDLE_HOURS]);
+    await client.query('DELETE FROM sessions WHERE expires_at < now()');
+    await client.query('DELETE FROM audit_log WHERE created_at < now() - make_interval(months => $1)', [AUDIT_RETENTION_MONTHS]);
     const token = crypto.randomBytes(32).toString('base64url');
     await client.query(
       `INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, now() + make_interval(days => $3))`,
@@ -221,4 +227,4 @@ function createAuth(options) {
   return { audit, startSession, endSession, endSessionsOf, loadSession, requireLogin, requireRight, checkCsrf };
 }
 
-module.exports = { createAuth, hashToken, readCookie, ipPrefix, COOKIE_NAME, IDLE_HOURS, MAX_DAYS };
+module.exports = { createAuth, hashToken, readCookie, ipPrefix, COOKIE_NAME, IDLE_HOURS, MAX_DAYS, AUDIT_RETENTION_MONTHS };

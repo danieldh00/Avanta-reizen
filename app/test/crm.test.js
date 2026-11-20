@@ -194,8 +194,6 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal(home.status, 200);
     assert.match(home.text, /Welkom, Daniël/);
     assert.match(home.text, /href="\/app\/gebruikers\/"/);
-    const [{ failed_logins: failed }] = await db.query("SELECT failed_logins FROM users WHERE email = 'beheer@example.nl'");
-    assert.equal(failed, 0, 'geslaagde login zet de teller terug');
   });
 
   let officeId;
@@ -255,12 +253,13 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal(active, true);
   });
 
-  await t.test('blokkade na vijf mislukte pogingen; beheerder heft op met nieuw wachtwoord', async () => {
+  await t.test('blokkade na vijf mislukte pogingen geldt per account en IP-reeks, en verloopt', async () => {
     clock += 60 * 60 * 1000; // nieuwe periode voor de limiet per IP
     for (let i = 0; i < 5; i++) await request('/app/inloggen/', { form: { email: 'kees@example.nl', password: `fout wachtwoord ${i}` } });
-    const [{ locked }] = await db.query("SELECT locked_until > now() AS locked FROM users WHERE email = 'kees@example.nl'");
-    assert.equal(locked, true);
     assert.equal((await request('/app/inloggen/', { form: { email: 'kees@example.nl', password: 'kantoor wachtwoord 1' } })).status, 401, 'ook met juist wachtwoord geblokkeerd');
+    await login('beheer@example.nl', ADMIN_PASSWORD); // een ander account vanaf hetzelfde IP blijft werken
+    clock += 16 * 60 * 1000;
+    await login('kees@example.nl', 'kantoor wachtwoord 1');
     const reset = await request(`/app/gebruikers/${officeId}/wachtwoord/`, { cookie: adminSession.cookie, form: { _csrf: adminSession.csrf, password: 'nieuw kantoorwachtwoord' } });
     assert.equal(reset.status, 303);
     await login('kees@example.nl', 'nieuw kantoorwachtwoord');
@@ -301,6 +300,13 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.match(out.setCookie, /Max-Age=0/);
     assert.equal((await request('/app/', { cookie: adminSession.cookie })).status, 303);
     const [{ count }] = await db.query('SELECT count(*)::int AS count FROM sessions WHERE token_hash = $1', [hashToken(adminSession.cookie)]);
+    assert.equal(count, 0);
+  });
+
+  await t.test('auditregels ouder dan de bewaartermijn worden bij een login opgeruimd', async () => {
+    await db.query("INSERT INTO audit_log (action, created_at) VALUES ('inloggen.mislukt', now() - interval '25 months')");
+    await login('kees@example.nl', 'nieuw kantoorwachtwoord');
+    const [{ count }] = await db.query("SELECT count(*)::int AS count FROM audit_log WHERE created_at < now() - interval '24 months'");
     assert.equal(count, 0);
   });
 
