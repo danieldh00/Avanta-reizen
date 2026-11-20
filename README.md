@@ -64,8 +64,15 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     `Disallow:` geldt voor alle crawlers),
     paden die niet in de sitemap horen (`/pad/` of `/pad/*`) en `/llms.txt` voor AI-zoekmachines (alleen als de site
     geïndexeerd mag worden).
+  - *Vindbaarheid > Doorverwijzingen*: oud pad → nieuw pad op de site of `https://`-adres, 301 (permanent) of 302
+    (tijdelijk), met notitie en gebruiksteller (tabel `redirects`, in het geheugen; alleen GET/HEAD, de querystring gaat
+    mee, een pad zonder slash telt ook met slash). Geen ketens of lussen, niet voor `/app/`, `/api/` of de homepage.
+  - *Vindbaarheid > Niet gevonden (404)*: de vaakst gevraagde adressen die niet bestaan (tabel `not_found_log`: alleen
+    pad, aantal, eerste/laatste keer en de host van de verwijzende site; nooit querystring of IP-adres), met een knop om
+    door te verwijzen. Tellers worden per minuut weggeschreven; hoogstens 5000 regels, na 90 dagen zonder aanvraag weg.
+    Ruis van scanners (`/.env`, `.php`, `/wp-admin` e.d.) telt niet mee.
   Zolang indexeren uit staat, krijgt elke pagina `noindex` (meta én `X-Robots-Tag`) en weert robots.txt alles; het CRM
-  en foutpagina's zijn nooit indexeerbaar. Doorverwijzingen en Google Analytics volgen.
+  en foutpagina's zijn nooit indexeerbaar. Google Analytics volgt.
 
 ## Werkwijze
 

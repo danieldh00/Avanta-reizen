@@ -49,6 +49,8 @@ const GROUPS = [
         fields: ['robotsExtra', 'sitemapExclude', 'llmsEnabled', 'llmsIntro'],
         words: 'seo robots.txt crawler sitemap.xml uitsluiten llms.txt ai chatgpt gptbot',
       },
+      { id: 'doorverwijzingen', label: 'Doorverwijzingen', view: 'doorverwijzingen', words: 'seo redirect 301 302 omleiding oud adres verhuisd url' },
+      { id: 'niet-gevonden', label: 'Niet gevonden (404)', view: 'niet-gevonden', words: 'seo 404 niet gevonden kapotte link dode link fout' },
     ],
   },
 ];

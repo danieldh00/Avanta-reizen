@@ -10,6 +10,7 @@ const { GROUPS, findSection, filterGroups } = require('./indeling');
 const { SettingsError } = require('./settings');
 const { verifyPassword, MAX_LENGTH } = require('../crm/passwords');
 const { createRateLimiter } = require('../security/rate-limit');
+const { createRedirectRoutes } = require('./redirect-routes');
 
 /** Versie van de app (voor het systeemoverzicht). */
 const APP_VERSION = require('../../package.json').version;
@@ -57,8 +58,9 @@ function formatUptime(seconds) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: object, auth: object, settings: object, now?: () => number}} options Database, sessie- en rechtenlaag,
- *   de instellingen en (voor tests) de klok van de limiet op wachtwoordcontroles.
+ * @param {{db: object, auth: object, settings: object, redirects?: object, now?: () => number}} options Database, sessie-
+ *   en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`) en (voor tests) de klok van de
+ *   limiet op wachtwoordcontroles.
  * @returns {express.Router} Router, te koppelen binnen de CRM-router.
  */
 function createBeheerRoutes(options) {
@@ -230,6 +232,9 @@ function createBeheerRoutes(options) {
     body: html`<p>Deze pagina bestaat niet in Beheer. Kies een onderdeel in de zijbalk.</p>`,
   }));
 
+  // Doorverwijzingen en de 404-lijst hebben eigen routes (vóór de algemene secties).
+  if (options.redirects) router.use(createRedirectRoutes({ db, auth, guard, redirects: options.redirects, renderBeheerPage, notFound }));
+
   router.get('/beheer/', guard, async (req, res, next) => {
     try {
       await settings.ready();
@@ -245,6 +250,7 @@ function createBeheerRoutes(options) {
       if (!section) return notFound(req, res);
       await settings.ready();
       if (section.view === 'overzicht') return res.send(await renderOverview(req));
+      if (!section.fields) return notFound(req, res);
       return res.send(renderSettingsSection(req, section, { saved: req.query.opgeslagen === '1' }));
     } catch (error) {
       return next(error);

@@ -16,6 +16,7 @@ const seo = require('./site/seo');
 const { loadMasterKey, createVault } = require('./security/vault');
 const { createSettings } = require('./beheer/settings');
 const { siteSettingsOf } = require('./site/site-settings');
+const { createRedirects } = require('./site/redirects');
 const crypto = require('node:crypto');
 const { PUBLIC_DIR, MEDIA_DIR } = require('./paths');
 const { renderPage, renderPageHeader } = require('./site/layout');
@@ -100,6 +101,11 @@ function createApp(options) {
     }
   });
 
+  // Doorverwijzingen uit Beheer (oude adressen naar nieuwe), vóór de statische bestanden en de site.
+  const redirects = createRedirects({ db: options.db });
+  app.locals.redirects = redirects;
+  app.use(redirects.middleware);
+
   app.get('/robots.txt', (req, res) => {
     res.type('text/plain').send(seo.robotsTxt(res.locals.site));
   });
@@ -107,15 +113,17 @@ function createApp(options) {
   app.use(express.static(PUBLIC_DIR, { maxAge: '7d', index: false, redirect: false }));
   app.use('/media', express.static(MEDIA_DIR, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   app.use(createBookingRouter({ db: options.db, vault, formKey, now: options.now }));
   const contactForm = createContactForm({ db: options.db, formKey, now: options.now });
   app.use(createSiteRouter({ db: options.db, contactForm }));
 
-  // 404: altijd noindex (kop en renderPage zonder indexable), met een canonical naar het gevraagde pad.
+  // 404: telt mee in de 404-lijst van Beheer; altijd noindex (kop en renderPage zonder indexable), met een canonical
+  // naar het gevraagde pad.
   app.use((req, res) => {
+    redirects.recordNotFound(req);
     res.set('X-Robots-Tag', 'noindex, nofollow');
     res.status(404).send(renderPage({
       title: 'Pagina niet gevonden',
@@ -155,6 +163,7 @@ async function start() {
   const setupCode = generateSetupCode();
   const app = createApp({ db, masterKey: loadMasterKey(), indexable: process.env.SITE_INDEXABLE === 'true', setupCode });
   startCrmMaintenance(db);
+  app.locals.redirects.startTimers();
   const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
   // Eenmalige installatiecode voor de eerste beheerder; alleen bruikbaar zolang er geen enkele CRM-gebruiker is.
   if (!present) console.log(`CRM: nog geen gebruikers. Maak de eerste beheerder aan op /app/installatie/ met installatiecode ${setupCode}`);
