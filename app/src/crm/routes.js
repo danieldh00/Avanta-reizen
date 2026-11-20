@@ -23,9 +23,10 @@ const MAX_FAILED_LOGINS = 5;
 const LOCK_MINUTES = 15;
 
 /**
- * Ruimere teller per account over alle bronnen samen, tegen gedistribueerd raden: na zoveel mislukte pogingen binnen
- * een uur is het account tot het einde van dat uur dicht. Ruim genoeg dat één aanvaller de beheerder niet makkelijk
- * buitensluit, en het herstelt vanzelf.
+ * Teller per account tegen gedistribueerd raden: elke IP-reeks telt per kwartier hoogstens één keer mee (bij haar
+ * eerste poging). Zijn er binnen een uur pogingen vanuit zoveel verschillende reeksen, dan is het account tot het einde
+ * van dat uur dicht. Eén netwerk kan zo hoogstens 4 per uur bijdragen en de beheerder dus nooit buitensluiten; dat
+ * vraagt pogingen vanuit 30 netwerken tegelijk, en dan zou die aanvaller anders ongeremd kunnen raden.
  */
 const MAX_FAILED_LOGINS_PER_ACCOUNT = 30;
 const ACCOUNT_WINDOW_MINUTES = 60;
@@ -170,7 +171,8 @@ function createCrmRouter(options) {
       let blocked = false;
       if (user) {
         const pairAllowed = failedLoginLimiter.hit(failureKey);
-        const accountAllowed = accountFailureLimiter.hit(accountKey);
+        const newRange = failedLoginLimiter.count(failureKey) === 1;
+        const accountAllowed = newRange ? accountFailureLimiter.hit(accountKey) : !accountFailureLimiter.isBlocked(accountKey);
         blocked = !pairAllowed || !accountAllowed;
       }
       // Ook bij een onbekend adres een volledige controle, zodat de responstijd niets verraadt.

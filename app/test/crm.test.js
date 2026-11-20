@@ -328,6 +328,18 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     await login('kees@example.nl', 'nieuw kantoorwachtwoord');
   });
 
+  await t.test('één IP-reeks kan het account niet langdurig dichtzetten', async () => {
+    clock += 2 * 60 * 60 * 1000;
+    // Een uur lang elk kwartier de maximale 10 pogingen vanuit één IP: alleen die reeks wacht, het account blijft open.
+    for (let quarter = 0; quarter < 4; quarter++) {
+      for (let i = 0; i < 10; i++) await request('/app/inloggen/', { form: { email: 'kees@example.nl', password: `fout ${quarter}-${i}` }, headers: { 'x-forwarded-for': '10.240.0.1' } });
+      clock += 15 * 60 * 1000 + 1000;
+    }
+    const other = await request('/app/inloggen/', { form: { email: 'kees@example.nl', password: 'nieuw kantoorwachtwoord' }, headers: { 'x-forwarded-for': '10.241.0.1' } });
+    assert.equal(other.status, 303, 'vanaf een ander netwerk lukt inloggen');
+    clock += 2 * 60 * 60 * 1000;
+  });
+
   await t.test('gelijktijdige pogingen omzeilen de teller niet', async () => {
     clock += 2 * 60 * 60 * 1000;
     const [{ last }] = await db.query('SELECT coalesce(max(id), 0) AS last FROM audit_log');

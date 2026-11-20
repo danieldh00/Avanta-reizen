@@ -17,7 +17,7 @@ function clientKey(req) {
 /**
  * Maakt een limiet.
  * @param {{limit: number, windowMs: number, now?: () => number}} options Aantal, venster en (voor tests) de klok.
- * @returns {{hit: (key: string) => boolean, isBlocked: (key: string) => boolean, clear: (key: string) => void, reset: () => void}} hit() geeft false als de limiet is bereikt.
+ * @returns {{hit: (key: string) => boolean, isBlocked: (key: string) => boolean, count: (key: string) => number, clear: (key: string) => void, reset: () => void}} hit() geeft false als de limiet is bereikt.
  */
 function createRateLimiter(options) {
   const hits = new Map();
@@ -49,6 +49,15 @@ function createRateLimiter(options) {
     isBlocked(key) {
       const entry = hits.get(key);
       return Boolean(entry && entry.resetAt > now() && entry.count >= options.limit);
+    },
+    /**
+     * Het aantal getelde verzoeken van een sleutel in het huidige venster.
+     * @param {string} key Sleutel.
+     * @returns {number} Aantal (0 als er geen lopend venster is).
+     */
+    count(key) {
+      const entry = hits.get(key);
+      return entry && entry.resetAt > now() ? entry.count : 0;
     },
     /**
      * Wist de teller van één sleutel.
