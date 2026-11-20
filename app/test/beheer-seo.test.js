@@ -155,6 +155,10 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
   });
 
   await t.test('indexeren aanzetten vraagt het wachtwoord', async () => {
+    const sneaky = await request('/app/beheer/zoekmachines/', { cookie, form: { ...searchEngines, seoIndexing: 'ja', _reset: 'seoIndexing' } });
+    assert.equal(sneaky.status, 303, 'terugzetten zonder databaserij verandert niets');
+    assert.equal((await db.query("SELECT count(*)::int AS count FROM settings WHERE key = 'seoIndexing'"))[0].count, 0);
+    assert.equal((await request('/robots.txt')).text, 'User-agent: *\nDisallow: /\n', 'aan zetten via terugzetten kan niet');
     const without = await request('/app/beheer/zoekmachines/', { cookie, form: { ...searchEngines, seoIndexing: 'ja' } });
     assert.equal(without.status, 422);
     assert.match(without.text, /Bevestig het aanzetten met je wachtwoord/);

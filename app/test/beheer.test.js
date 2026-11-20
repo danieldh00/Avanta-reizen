@@ -145,6 +145,8 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
     assert.deepEqual((await settings.update({ reset: ['count', 'title'] })).sort(), ['count', 'title']);
     assert.equal(settings.get('count'), 8, 'terug naar de omgeving');
     assert.equal(settings.get('title'), 'Standaard');
+    assert.deepEqual(await settings.update({ reset: ['mode'], values: { mode: 'b' } }), [], 'terugzetten gaat voor, ook zonder rij');
+    assert.equal(settings.get('mode'), 'a');
 
     // Mislukt het werk in dezelfde transactie, dan blijft alles zoals het was.
     await assert.rejects(settings.update({ values: { title: 'Weg' } }, { inTransaction: async () => { throw new Error('audit mislukt'); } }), /audit mislukt/);

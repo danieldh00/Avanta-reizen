@@ -373,17 +373,20 @@ function createSettings(options) {
     await ready();
     const writes = new Map();
     const removals = new Set();
-    for (const key of patch.reset || []) {
+    // Terugzetten gaat altijd voor: een teruggezette instelling neemt nooit de waarde uit het formulier over, ook niet
+    // als er geen rij in de database is.
+    const resetKeys = new Set(patch.reset || []);
+    for (const key of resetKeys) {
       if (!known(key)) throw new SettingsError(key, 'Onbekende instelling.');
       if (stored.has(key)) removals.add(key);
     }
     for (const key of patch.clear || []) {
       if (!known(key) || fields[key].type !== 'secret') throw new SettingsError(key, 'Onbekende instelling.');
-      if (!removals.has(key) && get(key) !== '') writes.set(key, '');
+      if (!resetKeys.has(key) && get(key) !== '') writes.set(key, '');
     }
     for (const [key, raw] of Object.entries(patch.values || {})) {
       if (!known(key)) throw new SettingsError(key, 'Onbekende instelling.');
-      if (removals.has(key) || writes.has(key)) continue;
+      if (resetKeys.has(key) || writes.has(key)) continue;
       const definition = fields[key];
       if (definition.type === 'secret' && (raw === undefined || raw === '')) continue;
       const value = validateValue(key, definition, raw);
