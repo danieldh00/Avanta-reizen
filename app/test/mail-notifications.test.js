@@ -14,6 +14,7 @@ const { createMailer } = require('../src/mail/mailer');
 const { renderMail, contrastWithWhite, LOGO_CID } = require('../src/mail/layout');
 const { createNotifications } = require('../src/mail/notifications');
 const { COOKIE_NAME } = require('../src/crm/auth');
+const { loginWithTwoFactor } = require('./helpers/two-factor');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'mail_meldingen_test';
@@ -189,7 +190,7 @@ test('meldingen vanuit het contact- en aanmeldformulier, en Beheer', { skip: !DA
     assert.equal((await request('/app/beheer/mail-opmaak/voorbeeld/')).status, 303, 'zonder sessie naar inloggen');
     const created = await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
     assert.equal(created.status, 303);
-    const office = await request('/app/inloggen/', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } });
+    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
     assert.equal((await request('/app/beheer/mail-opmaak/voorbeeld/', { cookie: office.cookie })).status, 403, 'zonder recht systeem');
     assert.equal((await request('/app/beheer/meldingen/', { cookie: office.cookie })).status, 403);
   });

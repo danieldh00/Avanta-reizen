@@ -14,6 +14,7 @@ const { filterGroups, findSection, SECTIONS } = require('../src/beheer/indeling'
 const { formatUptime } = require('../src/beheer/routes');
 const { roleHasRight } = require('../src/crm/rights');
 const { COOKIE_NAME } = require('../src/crm/auth');
+const { loginWithTwoFactor } = require('./helpers/two-factor');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'beheer_test';
@@ -199,7 +200,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
 
     const created = await request('/app/gebruikers/nieuw/', { cookie: adminCookie, form: { _csrf: adminCsrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
     assert.equal(created.status, 303);
-    const office = await request('/app/inloggen/', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } });
+    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
     const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
     assert.doesNotMatch((await request('/app/', { cookie: office.cookie })).text, /href="\/app\/beheer\/"/, 'geen menu-item zonder recht');
     assert.equal((await request('/app/beheer/', { cookie: office.cookie })).status, 403);
@@ -212,7 +213,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
     assert.equal(overview.headers.get('cache-control'), 'no-store');
     assert.match(overview.text, /Systeemoverzicht/);
     assert.match(overview.text, new RegExp(require('../package.json').version.replace(/\./g, '\\.')));
-    assert.match(overview.text, /8: beheer: bewaking/);
+    assert.match(overview.text, /9: CRM: tweestapsverificatie/);
     assert.match(overview.text, /Standaardwaarde/);
     assert.match(overview.text, /href="\/app\/beheer\/contact\/"/);
     assert.match((await request('/app/', { cookie: adminCookie })).text, /href="\/app\/beheer\/"/);

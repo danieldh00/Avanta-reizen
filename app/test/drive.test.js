@@ -13,6 +13,7 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { createDrive, GOOGLE, SCOPE } = require('../src/backup/drive');
 const { COOKIE_NAME } = require('../src/crm/auth');
+const { loginWithTwoFactor } = require('./helpers/two-factor');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'drive_test';
@@ -393,7 +394,7 @@ test('Drive in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
   const cookie = installed.cookie;
   const csrf = csrfFrom((await request('/app/', { cookie })).text);
   await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
-  const office = await request('/app/inloggen/', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } });
+  const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
   const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
 
   const page = await request('/app/beheer/google-drive/', { cookie });

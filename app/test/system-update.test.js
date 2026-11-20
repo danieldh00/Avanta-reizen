@@ -15,6 +15,7 @@ const { recordFinishedRun, startUpdateSync } = require('../src/beheer/update-rou
 const { createSystemUpdate, parseChangelog, compareVersions, MAINTENANCE_MAX_MS } = require('../src/system/system-update');
 const { createHostTasks, HOST_TASKS, HOST_COMMAND } = require('../src/system/host-tasks');
 const { COOKIE_NAME } = require('../src/crm/auth');
+const { loginWithTwoFactor } = require('./helpers/two-factor');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'system_update_test';
@@ -236,7 +237,7 @@ test('updates, onderhoudsmodus en servertaken in Beheer', { skip: !DATABASE_URL 
   const cookie = installed.cookie;
   const csrf = csrfFrom((await request('/app/', { cookie })).text);
   await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
-  const office = await request('/app/inloggen/', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } });
+  const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
   const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
 
   writeJson(statusDir, 'status.json', { current: '0.5.0', currentCommit: CURRENT, available: '0.6.1', availableCommit: AVAILABLE, checkedAt: new Date().toISOString() });

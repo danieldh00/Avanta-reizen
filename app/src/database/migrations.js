@@ -299,6 +299,21 @@ const MIGRATIONS = [
       CREATE INDEX monitor_incidents_opened_idx ON monitor_incidents (opened_at DESC);
     `,
   },
+  {
+    id: 9,
+    name: 'CRM: tweestapsverificatie',
+    sql: `
+      -- Geheim versleuteld (vault, AAD users:totp:<id>); zolang totp_enabled_at leeg is, is het een nog niet
+      -- bevestigde instelling. totp_last_step: elke code werkt één keer. totp_recovery: alleen SHA-256 van de herstelcodes.
+      ALTER TABLE users
+        ADD COLUMN totp_secret TEXT,
+        ADD COLUMN totp_enabled_at TIMESTAMPTZ,
+        ADD COLUMN totp_last_step BIGINT,
+        ADD COLUMN totp_recovery TEXT[] NOT NULL DEFAULT '{}';
+      -- Bestaande sessies zijn zonder tweede stap gemaakt: iedereen logt opnieuw in.
+      DELETE FROM sessions;
+    `,
+  },
 ];
 
 module.exports = { MIGRATIONS };

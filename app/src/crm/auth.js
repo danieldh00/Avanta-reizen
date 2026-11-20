@@ -6,10 +6,14 @@
  *   langere maximale duur alleen voor nieuwe sessies).
  * - CSRF: elk formulier met POST bevat een token dat uit de sessie is afgeleid (HMAC), plus een herkomstcontrole.
  * - Rechten: `requireRight(recht)` per route; zonder sessie naar het inlogscherm, zonder recht 403.
+ * - Tweestapsverificatie: na het wachtwoord krijgt wie 2FA heeft of moet hebben eerst een *halve* sessie (`mfa_ok`
+ *   onwaar, 15 minuten geldig). Daarmee is alleen de codestap of het instellen van 2FA bereikbaar (`req.pending`);
+ *   `req.user` blijft leeg, dus elke andere route behandelt zo'n bezoeker als niet ingelogd. Na de code komt er een
+ *   nieuwe, volledige sessie (nieuw token).
  * - Auditlog: wie, wat, welk record, wanneer en een ingekort IP-adres; nooit de waarde zelf of persoonsgegevens.
  */
 const crypto = require('node:crypto');
-const { roleHasRight } = require('./rights');
+const { roleHasRight, roleNeedsMfa } = require('./rights');
 const { isCrossSite } = require('../security/form-guard');
 
 /** Naam en pad van de sessiecookie. */
@@ -19,6 +23,9 @@ const COOKIE_PATH = '/app';
 /** Standaard verloop na inactiviteit en maximale levensduur van een sessie (zonder instellingen). */
 const IDLE_HOURS = 8;
 const MAX_DAYS = 7;
+
+/** Zo lang is een halve sessie (wachtwoord goed, code of 2FA-instelling nog niet) geldig. */
+const PENDING_MINUTES = 15;
 
 /** Standaard bewaartermijn van het auditlog (`docs/OPZET-CRM.md` §5: 2 jaar) en van de IP-voorvoegsels daarin. */
 const AUDIT_RETENTION_MONTHS = 24;
@@ -158,23 +165,46 @@ function createAuth(options) {
   };
 
   /**
+   * Of tweestapsverificatie verplicht is voor een rol: altijd voor rollen met een `gegevens.*`-recht, en voor alle
+   * rollen als Beheer > Toegang en beveiliging > Tweestapsverificatie op *iedereen* staat (de standaard).
+   * @param {string} role Rol.
+   * @returns {boolean} Waar als de rol 2FA moet hebben.
+   */
+  const mfaRequiredFor = (role) => roleNeedsMfa(role) || (options.settings ? options.settings.get('mfaRequiredFor') : 'iedereen') === 'iedereen';
+
+  /**
    * Maakt een nieuwe sessie (na inloggen) en zet de cookie. Ruimt meteen verlopen sessies op (via de index op
    * `expires_at`; een sessie die door inactiviteit ongeldig is, verdwijnt uiterlijk op dat moment).
    * @param {object} res Express-antwoord.
    * @param {number} userId Gebruiker.
    * @param {{query: Function}} [client] Database of transactie-client.
+   * @param {{mfaOk?: boolean}} [mode] `mfaOk: false` = halve sessie (alleen de tweede stap), 15 minuten geldig.
    * @returns {Promise<string>} Het token.
    */
-  const startSession = async (res, userId, client = db) => {
+  const startSession = async (res, userId, client = db, mode = {}) => {
     await client.query('DELETE FROM sessions WHERE expires_at < now()');
     const token = crypto.randomBytes(32).toString('base64url');
-    const { maxDays } = limits();
+    const mfaOk = mode.mfaOk !== false;
+    const lifetimeMinutes = mfaOk ? limits().maxDays * 24 * 60 : PENDING_MINUTES;
     await client.query(
-      `INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, now() + make_interval(days => $3))`,
-      [hashToken(token), userId, maxDays],
+      `INSERT INTO sessions (token_hash, user_id, expires_at, mfa_ok) VALUES ($1, $2, now() + make_interval(mins => $3), $4)`,
+      [hashToken(token), userId, lifetimeMinutes, mfaOk],
     );
-    setCookie(res, token, maxDays * 24 * 60 * 60);
+    setCookie(res, token, lifetimeMinutes * 60);
     return token;
+  };
+
+  /**
+   * Rondt de tweede stap af: de halve sessie vervalt en er komt een nieuwe, volledige sessie met een nieuw token
+   * (zo kan een vooraf bekend token nooit een volledige sessie worden).
+   * @param {object} req Express-verzoek (met `req.pending`).
+   * @param {object} res Express-antwoord.
+   * @param {{query: Function}} client Transactie-client.
+   * @returns {Promise<void>}
+   */
+  const completeMfa = async (req, res, client) => {
+    await client.query('DELETE FROM sessions WHERE token_hash = $1', [req.pending.tokenHash]);
+    await startSession(res, req.pending.id, client);
   };
 
   /**
@@ -211,6 +241,8 @@ function createAuth(options) {
    * Middleware: zoekt de sessie bij de cookie en zet `req.user` (id, e-mail, naam, rol) en `req.session`. Een
    * verlopen sessie of een geblokkeerde gebruiker telt als niet ingelogd. De ingestelde duur geldt ook voor bestaande
    * sessies: een sessie ouder dan de maximale duur telt als verlopen, ook als `expires_at` later ligt.
+   * Een halve sessie (2FA nodig, code nog niet gegeven) zet alleen `req.pending` met `step` `code` (2FA staat aan) of
+   * `setup` (2FA verplicht maar nog niet ingesteld); `req.user` blijft dan leeg.
    * @param {object} req Express-verzoek.
    * @param {object} res Express-antwoord.
    * @param {Function} next Volgende stap.
@@ -220,12 +252,14 @@ function createAuth(options) {
     try {
       req.user = null;
       req.session = null;
+      req.pending = null;
       const token = readCookie(req, COOKIE_NAME);
       if (!token || token.length > 100) return next();
       const tokenHash = hashToken(token);
       const { idleHours, maxDays } = limits();
       const [row] = await db.query(
-        `SELECT s.user_id, s.mfa_ok, (s.last_seen_at < now() - make_interval(secs => $3)) AS stale, u.email, u.name, u.role
+        `SELECT s.user_id, s.mfa_ok, (s.last_seen_at < now() - make_interval(secs => $3)) AS stale, u.email, u.name, u.role,
+                (u.totp_enabled_at IS NOT NULL) AS mfa_enabled
            FROM sessions s JOIN users u ON u.id = s.user_id
           WHERE s.token_hash = $1 AND u.active AND s.expires_at > now() AND s.last_seen_at > now() - make_interval(hours => $2)
             AND s.created_at > now() - make_interval(days => $4)`,
@@ -233,7 +267,12 @@ function createAuth(options) {
       );
       if (!row) return next();
       if (row.stale) await db.query('UPDATE sessions SET last_seen_at = now() WHERE token_hash = $1', [tokenHash]);
-      req.user = { id: row.user_id, email: row.email, name: row.name, role: row.role };
+      const account = { id: row.user_id, email: row.email, name: row.name, role: row.role };
+      if (!row.mfa_ok && (row.mfa_enabled || mfaRequiredFor(row.role))) {
+        req.pending = { ...account, step: row.mfa_enabled ? 'code' : 'setup', tokenHash, csrf: csrfToken(tokenHash) };
+        return next();
+      }
+      req.user = account;
       req.session = { tokenHash, mfaOk: row.mfa_ok, csrf: csrfToken(tokenHash) };
       return next();
     } catch (error) {
@@ -242,7 +281,18 @@ function createAuth(options) {
   };
 
   /**
-   * Middleware: alleen voor ingelogde gebruikers. Anders een GET naar het inlogscherm, een POST 401.
+   * Waar een halve sessie heen moet: de codestap of het instellen van 2FA.
+   * @param {object} req Express-verzoek.
+   * @returns {string} Pad, of leeg zonder halve sessie.
+   */
+  const pendingPath = (req) => {
+    if (!req.pending) return '';
+    return req.pending.step === 'code' ? '/app/inloggen/code/' : '/app/tweestaps/';
+  };
+
+  /**
+   * Middleware: alleen voor ingelogde gebruikers. Anders een GET naar het inlogscherm (of, met een halve sessie, naar
+   * de codestap of het instellen van 2FA), een POST 401.
    * @param {object} req Express-verzoek.
    * @param {object} res Express-antwoord.
    * @param {Function} next Volgende stap.
@@ -250,7 +300,7 @@ function createAuth(options) {
    */
   const requireLogin = (req, res, next) => {
     if (req.user) return next();
-    if (req.method === 'GET' || req.method === 'HEAD') return res.redirect(303, '/app/inloggen/');
+    if (req.method === 'GET' || req.method === 'HEAD') return res.redirect(303, pendingPath(req) || '/app/inloggen/');
     return res.status(401).type('text').send('Log opnieuw in.');
   };
 
@@ -266,7 +316,7 @@ function createAuth(options) {
 
   /**
    * Middleware: controleert bij een POST de herkomst en het CSRF-token uit het formulier (veld `_csrf`). Vereist een
-   * sessie (plaats na `requireLogin`) en een geparste body.
+   * (volledige of halve) sessie en een geparste body.
    * @param {object} req Express-verzoek.
    * @param {object} res Express-antwoord.
    * @param {Function} next Volgende stap.
@@ -274,14 +324,15 @@ function createAuth(options) {
    */
   const checkCsrf = (req, res, next) => {
     const given = Buffer.from(String(req.body?._csrf || ''));
-    const expected = Buffer.from(req.session ? req.session.csrf : '');
+    const current = req.session || req.pending;
+    const expected = Buffer.from(current ? current.csrf : '');
     if (isCrossSite(req) || !expected.length || given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
       return res.status(403).type('text').send('Verzoek geweigerd. Laad de pagina opnieuw en probeer het nog eens.');
     }
     return next();
   };
 
-  return { audit, startSession, endSession, endSessionsOf, loadSession, requireLogin, requireRight, checkCsrf };
+  return { audit, startSession, completeMfa, endSession, endSessionsOf, loadSession, requireLogin, requireRight, checkCsrf, mfaRequiredFor, pendingPath };
 }
 
-module.exports = { createAuth, purgeExpired, startCrmMaintenance, hashToken, readCookie, ipPrefix, COOKIE_NAME, IDLE_HOURS, MAX_DAYS, AUDIT_RETENTION_MONTHS, AUDIT_IP_RETENTION_DAYS };
+module.exports = { createAuth, purgeExpired, startCrmMaintenance, hashToken, readCookie, ipPrefix, COOKIE_NAME, IDLE_HOURS, MAX_DAYS, PENDING_MINUTES, AUDIT_RETENTION_MONTHS, AUDIT_IP_RETENTION_DAYS };

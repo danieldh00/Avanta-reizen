@@ -12,6 +12,7 @@ const passwords = require('../src/crm/passwords');
 const { roleHasRight, roleNeedsMfa, ROLES, RIGHTS } = require('../src/crm/rights');
 const { ipPrefix, hashToken, purgeExpired, COOKIE_NAME } = require('../src/crm/auth');
 const { generateSetupCode, normalizeSetupCode, normalizeEmail } = require('../src/crm/routes');
+const { loginWithTwoFactor } = require('./helpers/two-factor');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'crm_test';
@@ -118,17 +119,22 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
    */
   const csrfFrom = (page) => (page.match(/name="_csrf" value="([^"]+)"/) || [])[1] || '';
 
+  /** Geheimen van de tweestapsverificatie per e-mailadres (de eerste keer inloggen stelt 2FA in). */
+  const secrets = new Map();
+
   /**
-   * Logt in en geeft de sessiecookie en het CSRF-token.
+   * Logt in (wachtwoord en tweede stap) en geeft de sessiecookie en het CSRF-token.
    * @param {string} email E-mailadres.
    * @param {string} password Wachtwoord.
    * @returns {Promise<{cookie: string, csrf: string}>} Sessie.
    */
   const login = async (email, password) => {
-    const response = await request('/app/inloggen/', { form: { email, password } });
-    assert.equal(response.status, 303, `inloggen ${email}`);
-    const page = await request('/app/', { cookie: response.cookie });
-    return { cookie: response.cookie, csrf: csrfFrom(page.text) };
+    const key = email.toLowerCase();
+    // Elke code werkt één keer; deze tests loggen vaker in binnen dezelfde 30 seconden van de testklok.
+    if (secrets.has(key)) await db.query('UPDATE users SET totp_last_step = NULL WHERE email = $1', [key]);
+    const session = await loginWithTwoFactor(request, email, password, { secret: secrets.get(key), now: clock });
+    secrets.set(key, session.secret);
+    return session;
   };
 
   let adminSession;
@@ -368,7 +374,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
   await t.test('auditlog: alle acties gelogd zonder persoonsgegevens, zichtbaar voor beheerder', async () => {
     const rows = await db.query('SELECT action, entity, entity_id, ip_prefix, user_id FROM audit_log ORDER BY id');
     const actions = new Set(rows.map((row) => row.action));
-    for (const action of ['installatie.mislukt', 'installatie', 'inloggen', 'inloggen.mislukt', 'inloggen.inactief', 'inloggen.geblokkeerd',
+    for (const action of ['installatie.mislukt', 'installatie', 'inloggen', 'inloggen.wachtwoord', 'tweestaps.aan', 'inloggen.mislukt', 'inloggen.inactief', 'inloggen.geblokkeerd',
       'gebruiker.aangemaakt', 'gebruiker.uitgeschakeld', 'gebruiker.ingeschakeld', 'gebruiker.wachtwoord', 'wachtwoord.gewijzigd', 'uitloggen']) {
       assert.ok(actions.has(action), action);
     }

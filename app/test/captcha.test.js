@@ -10,6 +10,7 @@ const { createDatabase } = require('../src/database/db');
 const { createApp, BASE_CSP } = require('../src/server');
 const { createCaptcha, cspWith, isFormPath, VERIFY_URL } = require('../src/security/captcha');
 const { COOKIE_NAME } = require('../src/crm/auth');
+const { loginWithTwoFactor } = require('./helpers/two-factor');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'captcha_test';
@@ -187,7 +188,7 @@ test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DA
   await t.test('Beheer: rechten, opslaan en sleutelcontrole', async () => {
     const created = await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
     assert.equal(created.status, 303);
-    const office = await request('/app/inloggen/', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } });
+    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
     const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
     assert.equal((await request('/app/beheer/captcha/', { cookie: office.cookie })).status, 403);
     assert.equal((await request('/app/beheer/captcha/controleren/', { cookie: office.cookie, form: { _csrf: officeCsrf } })).status, 403);

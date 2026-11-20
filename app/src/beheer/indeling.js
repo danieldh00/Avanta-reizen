@@ -82,6 +82,13 @@ const GROUPS = [
         words: 'sessie inloggen uitloggen time-out inactiviteit bewaartermijn bewaren auditlog ip ip-adres avg privacy opruimen 404',
       },
       {
+        id: 'tweestaps',
+        label: 'Tweestapsverificatie',
+        intro: 'Na het wachtwoord vraagt het CRM een code uit een authenticator-app (bijv. Microsoft Authenticator of Google Authenticator). Een geraden of gelekt wachtwoord is dan niet genoeg om in te loggen. Kan iemand niet meer bij de app (toestel kwijt), dan zet een beheerder de tweestapsverificatie van die gebruiker uit onder Gebruikers.',
+        fields: ['mfaRequiredFor'],
+        words: 'tweestapsverificatie 2fa mfa totp authenticator app code herstelcode inloggen beveiliging',
+      },
+      {
         id: 'captcha',
         label: 'Captcha op formulieren',
         intro: 'Een onzichtbare captcha (Google reCAPTCHA v3) op het contact- en aanmeldformulier, naast de bestaande beveiliging (honeypot, tijdcontrole en limiet). Zonder sleutels of met de schakelaar uit staat er niets van Google in de site.',

@@ -13,6 +13,7 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { createAppLog, cleanText, cleanData, normalizePath, describeError } = require('../src/system/app-log');
 const { COOKIE_NAME } = require('../src/crm/auth');
+const { loginWithTwoFactor } = require('./helpers/two-factor');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'app_log_test';
@@ -134,7 +135,7 @@ test('logboek, foutcodes, debugmodus en Beheer > Logboek', { skip: !DATABASE_URL
   const cookie = installed.cookie;
   const csrf = csrfFrom((await request('/app/', { cookie })).text);
   await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
-  const office = await request('/app/inloggen/', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } });
+  const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
 
   // Request-id: eigen id, nooit die van buiten.
   const home = await request('/');

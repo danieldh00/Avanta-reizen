@@ -47,7 +47,7 @@ Node 22 + Express, server-gerenderde HTML, PostgreSQL 17 (enige database), geen 
 | `app/src/database/` | `db.js` (pool, transactie, migreren), `migrations.js` (`MIGRATIONS`, positioneel) |
 | `app/src/site/` | `routes.js` (alle publieke URL's), `content.js` (queries), `views.js`/`layout.js` (HTML), `html.js` (escaping), `format.js`, `seo.js` (JSON-LD, sitemap, robots.txt, llms.txt), `site-settings.js` (`res.locals.site`), `redirects.js` (doorverwijzingen + 404-tellers), `analytics.js` (GA4-meet-ID, CSP) |
 | `app/src/booking/` | aanmeldformulier: `fields.js` (velden + validatie), `routes.js` (`/aanmelden/`) |
-| `app/src/crm/` | CRM onder `/app/`: `routes.js` (inloggen, installatie), `users.js` (gebruikers, auditlog), `auth.js` (sessies, CSRF, `requireRight`, audit), `rights.js`, `passwords.js`, `layout.js` |
+| `app/src/crm/` | CRM onder `/app/`: `routes.js` (inloggen, installatie), `users.js` (gebruikers, auditlog, 2FA uitzetten), `auth.js` (sessies, halve sessie tot de tweede stap, CSRF, `requireRight`, audit), `two-factor.js` (2FA: opslag, codestap `/app/inloggen/code/`, scherm `/app/tweestaps/`), `totp.js` (TOTP + herstelcodes), `qr-code.js`, `rights.js`, `passwords.js`, `layout.js` |
 | `app/src/beheer/` | Beheer onder `/app/beheer/` (recht `systeem`): `settings.js` (`SETTING_FIELDS`, database → env → standaard, geheimen via vault), `indeling.js` (groepen/secties + zoeken), `routes.js`, `redirect-routes.js` (doorverwijzingen, 404-lijst), `mail-routes.js` (testmail, WAN-IP), `captcha-routes.js` (sleutelcontrole), `backup-routes.js` (back-ups: Nu maken, lijst, downloaden), `drive-routes.js` (Google Drive koppelen), `restore-test-routes.js` (hersteltest), `update-routes.js` (updates, onderhoudsmodus), `host-task-routes.js` (servertaken), `log-routes.js` (logboek), `monitor-routes.js` (bewaking: stand, incidenten, testmelding) |
 | `app/src/system/` | `system-update.js` (koppeling met `deploy/apps01/update.sh` via `/update/status` en `/update/request`), `maintenance.js` (503 op schrijven + balk), `host-tasks.js` (`HOST_TASKS` + vast commando; gelijk houden met `deploy/apps01/servertaken.sh`), `request-context.js` (AsyncLocalStorage per verzoek), `app-log.js` (logboek `app_logs`: privacyfilter, foutcodes, request-id's; nooit persoonsgegevens loggen), `monitor.js` (bewaking: controles, `monitor_incidents`, meldingen mail/webhook/heartbeat) |
 | `app/src/backup/` | `backups.js` (pg_dump → AES-256-GCM, `DATA_DIR/backups`, planner, bewaartermijn), `drive.js` (OAuth `drive.file`, upload + bewaartermijn op Drive, stand in `drive-state.json`), `restore-test.js` (uitslag hostscript `deploy/apps01/restore-test.sh`, test van de Drive-kopie), `cli.js` (`create [--update]`, `list`, `decrypt`, `restore-test-result`) |
@@ -66,8 +66,8 @@ Regels:
 - Openbare formulieren: limiet (`createRateLimiter`), herkomstcontrole, honeypot en ondertekend tijdstempel; plus
   `captchaField`/`captcha.check` (`security/captcha.js`, actie per formulier) als laatste controle.
 - Nieuwe migratie: achteraan in `MIGRATIONS` met het eerstvolgende nummer; een migratie op `main` verandert nooit meer.
-  Volgorde (besluit 20-11-2026): M5 instellingen, M6 doorverwijzingen/404, M7 logboek, M8 bewaking (alle vier gebouwd), daarna CRM (2FA M9,
-  persons M10, aanmeldingen M11, reizen M12). Eén migratie-PR tegelijk.
+  Volgorde (besluit 20-11-2026): M5 instellingen, M6 doorverwijzingen/404, M7 logboek, M8 bewaking, 2FA M9 (alle gebouwd),
+  daarna persons M10, aanmeldingen M11; reizen komt uit CMS-pakket G. Eén migratie-PR tegelijk.
 - **Instellingen** altijd in `SETTING_FIELDS` (`beheer/settings.js`) met een sectie in `beheer/indeling.js`, nooit een
   eigen tabel of losse env-variabele; geheimen als `type: 'secret'`. Waarden synchroon via `settings.get(key)` (geladen
   door de middleware in `server.js`); wijzigen alleen via `settings.update` met audit in dezelfde transactie.

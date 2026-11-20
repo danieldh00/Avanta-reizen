@@ -17,6 +17,7 @@ const { runChecks, CHECKS } = require('../src/system/monitor');
 const { safeRequest, SafeRequestError } = require('../src/security/safe-request');
 const { PrivateHostError } = require('../src/security/netguard');
 const { COOKIE_NAME } = require('../src/crm/auth');
+const { loginWithTwoFactor } = require('./helpers/two-factor');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'monitor_test';
@@ -227,7 +228,7 @@ test('bewaking, meldingen en Beheer > Bewaking', { skip: !DATABASE_URL && 'TEST_
   const cookie = installed.cookie;
   const csrf = csrfFrom((await request('/app/', { cookie })).text);
   await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
-  const office = await request('/app/inloggen/', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } });
+  const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
 
   await settings.update({ values: { monitorEmail: 'bewaking@example.nl', monitorWebhookUrl: 'https://hooks.example.com/geheim-token', monitorHeartbeatUrl: 'https://hc.example.com/ping/geheim-uuid', siteUrl: 'https://avanta.example.nl' } });
   // Een webhook die geen https is wordt geweigerd.

@@ -94,7 +94,8 @@ de HTML verbergt alleen. Reisleider-rechten gelden altijd alleen voor vertrekken
 | `export.deelnemers` (.xlsx) | ✔ | ✔ (volledig) | eigen vertrek (beperkt) | – |
 | `kpis` | ✔ | ✔ | – | ✔ (financieel) |
 
-- 2FA verplicht voor elke rol met een `gegevens.*`-recht (dus beheerder, kantoor, reisleider).
+- 2FA altijd verplicht voor elke rol met een `gegevens.*`-recht (dus beheerder, kantoor, reisleider); standaard ook voor
+  boekhouding (instelbaar in Beheer).
 - Bijzondere gegevens worden nooit in lijsten getoond, alleen op de detailpagina na een klik *Toon* (dat is het
   auditmoment). Exports met bijzondere gegevens worden gelogd.
 
@@ -141,8 +142,9 @@ database in de back-up.
 - **Inloggen**: e-mail + wachtwoord; hash met scrypt (Node `crypto`, geen extra pakket), minimaal 12 tekens, rehash bij
   inloggen. Sessie in tabel `sessions` (alleen SHA-256 van het token), cookie `HttpOnly`, `Secure`, `SameSite=Strict`,
   verloop na inactiviteit (bijv. 8 uur) en maximaal 7 dagen.
-- **2FA**: TOTP (authenticator-app), eigen implementatie op `crypto`; herstelcodes eenmalig getoond. Verplicht voor rollen
-  met `gegevens.*`; zonder `mfa_ok` alleen de 2FA-pagina bereikbaar.
+- **2FA**: TOTP (authenticator-app), eigen implementatie op `crypto`; herstelcodes eenmalig getoond. Altijd verplicht voor
+  rollen met `gegevens.*`; standaard voor iedereen (instelling `mfaRequiredFor`). Zonder `mfa_ok` alleen de codestap of
+  de 2FA-pagina bereikbaar (halve sessie, 15 minuten). Gebouwd in M9 (`crm/totp.js`, `crm/two-factor.js`).
 - **Eerste beheerder**: eenmalige installatiecode in het serverlog, zoals AquaTech.
 - **Rechten op de server**: middleware `requireRight(recht)` per route; vertrek-scope voor reisleider in de query zelf
   (`JOIN trip_guides … WHERE guide_id = $1`). Onbekend of niet-eigen record → 404, ontbrekend recht → 403.
@@ -157,15 +159,17 @@ Migratie-PR's (M) draaien na elkaar, nooit parallel; de rest kan parallel zodra 
 Let op: de nummers in de tabel zijn die van het oorspronkelijke voorstel. Migratie 3 is gebruikt door het
 contactformulier (CRM-PR 1 werd M4), en het technische beheer (`/app/beheer/`, goedgekeurd 20-11-2026) gaat vóór de
 rest van het CRM: M5 instellingen, M6 doorverwijzingen en 404-lijst, M7 logboek, M8 bewaking. **Geldende nummering
-van de CRM-migraties: 2FA M9, persons M10, aanmeldingen M11, reizen M12, betalingen M13, opruimen M14.**
+van de CRM-migraties: 2FA M9 (gebouwd), persons M10, aanmeldingen M11, betalingen en opruimen later.** Reizen
+beheren (PR 5) vervalt hier: dat valt onder het CMS-pakket G (zie `/mnt/project-files/cms/voorstel-cms-reizen-boekingen.md`),
+met eigen migraties na de CRM-kern.
 
 | # | PR | Migratie |
 |---|---|---|
 | 1 | Gebruikers, sessies, inloggen, rollen/rechten-module, `requireRight`, auditlog, eerste beheerder | **M3** |
-| 2 | 2FA (TOTP + herstelcodes) | **M4** (kolommen op `users`) |
+| 2 | 2FA (TOTP + herstelcodes) | **M4** (kolommen op `users`); gebouwd als **M9** |
 | 3 | `persons` + `consents` + versleuteling per blok + `match_key`; formulier schrijft naar persoon; migratiescript bestaande aanmeldingen | **M5** |
 | 4 | Aanmeldingen: lijst, detail, statusovergangen, `booking_events`, wachtlijst | **M6** |
-| 5 | Reizen beheren: CRUD, `capacity`, berekende plaatsen-teller op de site, `trip_guides`, `managed_in_crm` in de import | **M7** |
+| 5 | ~~Reizen beheren: CRUD, `capacity`, berekende plaatsen-teller op de site, `trip_guides`, `managed_in_crm` in de import~~ vervalt: CMS-pakket G | ~~M7~~ |
 | 6 | Deelnemerslijst per vertrek als .xlsx (kantoor + reisleider-variant) | – |
 | 7 | Betalingen handmatig: `booking_charges`, `payments`, saldo | **M8** |
 | 8 | AVG: dagelijkse opschoning, inzage-export, persoon wissen | – |
