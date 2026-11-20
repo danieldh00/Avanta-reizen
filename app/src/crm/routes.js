@@ -78,10 +78,15 @@ function createCrmRouter(options) {
   const loginLimiter = createRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000, now: options.now });
   const setupLimiter = createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000, now: options.now });
   const passwordLimiter = createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000, now: options.now });
+  // Algemene limiet op alles onder /app/ (ook de sessiecontrole kost een databasevraag per verzoek).
+  const generalLimiter = createRateLimiter({ limit: 300, windowMs: 60 * 1000, now: options.now });
 
   router.use((req, res, next) => {
     res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' });
-    next();
+    if (!generalLimiter.hit(clientKey(req))) {
+      return res.status(429).set('Retry-After', '60').type('text').send('Te veel verzoeken. Probeer het over een minuut opnieuw.');
+    }
+    return next();
   });
   router.use(express.urlencoded({ extended: false, limit: '16kb', parameterLimit: 20 }));
   router.use(auth.loadSession);

@@ -321,6 +321,14 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal((await request('/app/auditlog/?voor=abc', { cookie: session.cookie })).status, 200);
   });
 
+  await t.test('algemene limiet per IP op alles onder /app/ (429)', async () => {
+    clock += 60 * 60 * 1000;
+    let status = 0;
+    for (let i = 0; i < 301 && status !== 429; i++) status = (await request('/app/inloggen/')).status;
+    assert.equal(status, 429);
+    clock += 60 * 60 * 1000;
+  });
+
   await t.test('onbekende CRM-pagina geeft 404 binnen het CRM', async () => {
     const missing = await request('/app/bestaat-niet/');
     assert.equal(missing.status, 404);
