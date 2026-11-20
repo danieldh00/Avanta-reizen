@@ -34,6 +34,16 @@ test('privacyfilter, paden en foutbeschrijving', () => {
   assert.equal(described.code, '42P01');
   assert.doesNotMatch(described.message, /jan@example/);
   assert.ok(described.frames.length === 0 || !described.frames.some((frame) => frame.includes('node_modules')));
+  // Een databasefout van pg: alleen code, constraint, tabel en kolom; nooit de veldwaarden uit de tekst of `detail`.
+  const unique = describeError(Object.assign(new Error('duplicate key value violates unique constraint "persons_name_key"'), {
+    code: '23505', severity: 'ERROR', detail: 'Key (achternaam)=(Jansen) already exists.', table: 'persons', constraint: 'persons_name_key',
+  }));
+  assert.equal(unique.message, 'Databasefout 23505 (constraint persons_name_key, tabel persons)');
+  const badDate = describeError(Object.assign(new Error('invalid input syntax for type date: "12-03-1990 Jansen"'), { code: '22007', severity: 'ERROR', routine: 'DateTimeParseError' }));
+  assert.equal(badDate.message, 'Databasefout 22007');
+  assert.doesNotMatch(JSON.stringify([unique, badDate]), /Jansen|1990/);
+  // Een gewone fout met een code (zoals ENOENT) houdt zijn melding.
+  assert.match(describeError(Object.assign(new Error('bestand ontbreekt'), { code: 'ENOENT' })).message, /bestand ontbreekt/);
 });
 
 test('logboek: buffer met teller, grens per minuut, terugval en console', async () => {

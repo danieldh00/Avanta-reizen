@@ -103,6 +103,32 @@ function ownFrames(stack) {
 }
 
 /**
+ * Of een fout van PostgreSQL komt (`pg`): een SQLSTATE-code van vijf tekens met de velden die `pg` meegeeft.
+ * @param {object} error De fout.
+ * @returns {boolean} Waar bij een databasefout.
+ */
+function isDatabaseError(error) {
+  return typeof error.code === 'string' && /^[0-9A-Z]{5}$/.test(error.code)
+    && ['severity', 'detail', 'table', 'constraint', 'routine', 'where'].some((field) => field in error);
+}
+
+/**
+ * De melding van een databasefout zonder de tekst: die kan veldwaarden bevatten (`Key (naam)=(Jansen)`, `invalid input
+ * syntax for type date: "..."`). Alleen de code, de constraint, de tabel en de kolom blijven over.
+ * @param {object} error Een fout van `pg`.
+ * @returns {string} Bijvoorbeeld `Databasefout 23505 (constraint users_email_key, tabel users)`.
+ */
+function databaseMessage(error) {
+  const name = (value) => (typeof value === 'string' && /^[a-z_][a-z0-9_]{0,62}$/i.test(value) ? value : '');
+  const parts = [
+    name(error.constraint) && `constraint ${name(error.constraint)}`,
+    name(error.table) && `tabel ${name(error.table)}`,
+    name(error.column) && `kolom ${name(error.column)}`,
+  ].filter(Boolean);
+  return `Databasefout ${error.code}${parts.length ? ` (${parts.join(', ')})` : ''}`;
+}
+
+/**
  * Beschrijft een fout zonder geheimen: soort, melding, databasecode en plek in de eigen code.
  * @param {*} error De fout.
  * @returns {{name: string, message: string, code: string, frames: string[]}} De beschrijving.
@@ -111,7 +137,7 @@ function describeError(error) {
   const source = error && typeof error === 'object' ? error : { message: String(error) };
   return {
     name: cleanText(source.name || 'Error', 60),
-    message: cleanText(source.message || '', MAX_MESSAGE),
+    message: isDatabaseError(source) ? databaseMessage(source) : cleanText(source.message || '', MAX_MESSAGE),
     code: typeof source.code === 'string' ? cleanText(source.code, 20) : '',
     frames: ownFrames(source.stack),
   };

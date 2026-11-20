@@ -275,7 +275,17 @@ async function start() {
   // Logboek: wegschrijven en opschonen, fouten van achtergrondtaken (console) en onverwerkte fouten van het proces.
   app.locals.appLog.start();
   app.locals.appLog.captureConsole();
-  process.on('unhandledRejection', (reason) => app.locals.appLog.error('proces', `Onverwerkte fout: ${describeError(reason).message}`, { data: { frames: describeError(reason).frames } }));
+  // Een onverwerkte promise-fout stopt het proces, net als zonder deze listener (Node 22: `--unhandled-rejections=throw`),
+  // maar pas nadat de fout in het logboek staat. Docker start de container daarna opnieuw.
+  let stopping = false;
+  process.on('unhandledRejection', (reason) => {
+    if (stopping) return;
+    stopping = true;
+    const described = describeError(reason);
+    app.locals.appLog.error('proces', `Onverwerkte fout: ${described.message}`, { data: { frames: described.frames } });
+    process.stderr.write(`Onverwerkte fout: ${described.name}: ${described.message}\n`);
+    app.locals.appLog.flush().catch(() => {}).finally(() => process.exit(1));
+  });
   startCrmMaintenance(db, app.locals.settings);
   app.locals.redirects.startTimers();
   app.locals.backups.startTimer();

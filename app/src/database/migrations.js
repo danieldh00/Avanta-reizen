@@ -271,8 +271,8 @@ const MIGRATIONS = [
         repeat_count INTEGER NOT NULL DEFAULT 1
       );
       CREATE INDEX app_logs_created_idx ON app_logs (created_at DESC);
-      CREATE INDEX app_logs_level_created_idx ON app_logs (level, created_at DESC);
-      CREATE INDEX app_logs_source_created_idx ON app_logs (source, created_at DESC);
+      CREATE INDEX app_logs_level_idx ON app_logs (level, id DESC);
+      CREATE INDEX app_logs_source_idx ON app_logs (source, id DESC);
       CREATE INDEX app_logs_error_code_idx ON app_logs (error_code) WHERE error_code <> '';
       CREATE INDEX app_logs_request_idx ON app_logs (request_id) WHERE request_id <> '';
       -- Dagelijkse opschoning van IP-voorvoegsels in het auditlog (pakket B3): alleen rijen die nog een IP hebben.
