@@ -200,7 +200,7 @@ function sanitizeStatus(raw) {
  * Maakt de koppeling met het hostscript.
  * @param {{statusDir?: string, requestDir?: string, currentVersion: string, now?: () => number}} options De gedeelde
  *   mappen (leeg = niet ingericht op deze server, bijv. lokaal), de draaiende versie (package.json) en de klok (tests).
- * @returns {object} configured, hostMaintenance, view, request, requestCheck, cancel, setAuto en finishedRun.
+ * @returns {object} configured, hostMaintenance, view, request, requestCheck, cancel, setAuto, finishedRun en markAudited.
  */
 function createSystemUpdate({ statusDir = '', requestDir = '', currentVersion, now = () => Date.now() }) {
   const configured = Boolean(statusDir && requestDir);
@@ -362,9 +362,9 @@ function createSystemUpdate({ statusDir = '', requestDir = '', currentVersion, n
   }
 
   /**
-   * Een afgeronde uitrol die nog niet in het auditlog staat (één keer per afronding; de app onthoudt in de
-   * aanvraagmap welke al is vastgelegd).
-   * @returns {(object|null)} De status van die uitrol, of null.
+   * Een afgeronde uitrol die nog niet in het auditlog staat. Schrijft niets: pas na een geslaagde auditregel roept de
+   * aanroeper `markAudited(key)` aan, zodat een mislukte regel bij de volgende ronde opnieuw wordt geprobeerd.
+   * @returns {({run: object, key: string}|null)} De status van die uitrol en zijn sleutel, of null.
    */
   function finishedRun() {
     if (!configured) return null;
@@ -373,15 +373,19 @@ function createSystemUpdate({ statusDir = '', requestDir = '', currentVersion, n
     const key = `${status.finishedAt}|${status.requestId || ''}`;
     const seen = readJsonFile(requestDir, 'audited.json');
     if (seen && seen.key === key) return null;
-    try {
-      writeJsonFile(requestDir, 'audited.json', { key });
-    } catch (_) {
-      return null; // niet kunnen onthouden: liever niet vastleggen dan bij elke vraag opnieuw
-    }
-    return status;
+    return { run: status, key };
   }
 
-  return { configured, hostMaintenance, view, request, requestCheck, cancel, setAuto, finishedRun };
+  /**
+   * Onthoudt in de aanvraagmap dat een afgeronde uitrol in het auditlog staat.
+   * @param {string} key Sleutel uit `finishedRun()`.
+   * @returns {void}
+   */
+  function markAudited(key) {
+    writeJsonFile(requestDir, 'audited.json', { key: String(key).slice(0, 200) });
+  }
+
+  return { configured, hostMaintenance, view, request, requestCheck, cancel, setAuto, finishedRun, markAudited };
 }
 
 module.exports = {

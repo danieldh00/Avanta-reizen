@@ -24,14 +24,16 @@ function createHostTaskRoutes(options) {
   /**
    * De pagina.
    * @param {object} req Express-verzoek.
+   * @param {string} [problem] Melding als een actie is geweigerd.
    * @returns {string} HTML-pagina.
    */
-  const renderPage = (req) => {
+  const renderPage = (req, problem = '') => {
     const view = hostTasks.view();
     return options.renderBeheerPage(req, {
       title: 'Servertaken',
       sectionId: 'servertaken',
-      body: html`<p>Sommige wijzigingen vragen iets op de server dat de automatische update niet zelf kan doen. Die taken staan hieronder. Je hoeft nooit losse commando's te typen: één vast commando voert alle openstaande taken uit en vinkt ze hier af.</p>
+      body: html`${problem ? html`<p class="form-alert" role="alert">${problem}</p>` : ''}
+        <p>Sommige wijzigingen vragen iets op de server dat de automatische update niet zelf kan doen. Die taken staan hieronder. Je hoeft nooit losse commando's te typen: één vast commando voert alle openstaande taken uit en vinkt ze hier af.</p>
         ${view.pending ? html`<p class="notice" role="status">${view.pending === 1 ? 'Er staat 1 taak open.' : `Er staan ${view.pending} taken open.`}</p>` : html`<p class="notice" role="status">Alle servertaken zijn gedaan.</p>`}
         <h2>Het vaste commando</h2>
         <p>Plak dit als <strong>root</strong> in de shell van de Proxmox-host (pve). Het haalt het script op de nieuwste commit van main op, toont wat er openstaat en vraagt bevestiging voordat het iets doet.</p>
@@ -67,8 +69,8 @@ function createHostTaskRoutes(options) {
       await settings.ready();
       const { id } = req.params;
       if (!TASK_ID.test(id) || !hostTasks.known(id)) return options.notFound(req, res);
-      if (req.body.done !== 'ja' && req.body.done !== 'nee') return res.status(400).send(renderPage(req));
-      if (!changeLimiter.hit(`gebruiker:${req.user.id}`)) return res.status(429).send(renderPage(req));
+      if (req.body.done !== 'ja' && req.body.done !== 'nee') return res.status(400).send(renderPage(req, 'Ongeldige keuze; vernieuw de pagina en probeer het opnieuw.'));
+      if (!changeLimiter.hit(`gebruiker:${req.user.id}`)) return res.status(429).send(renderPage(req, 'Te vaak gewijzigd. Probeer het over een uur opnieuw.'));
       const done = req.body.done === 'ja';
       await settings.update({ values: { hostTasksDone: hostTasks.checkedValue(id, done) } }, {
         userId: req.user.id,

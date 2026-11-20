@@ -29,17 +29,49 @@ function shortCommit(commit) {
   return commit ? commit.slice(0, 7) : '';
 }
 
+/** Uitrollen die nu worden vastgelegd (per sleutel), tegen een dubbele auditregel bij twee gelijktijdige rondes. */
+const recording = new Set();
+
 /**
- * Legt een afgeronde uitrol (ook een automatische) één keer vast in het auditlog, zonder gebruiker. Draait bij het
- * opstarten van de app en bij het openen van de pagina.
+ * Legt een afgeronde uitrol (ook een automatische) één keer vast in het auditlog, zonder gebruiker. Pas na een
+ * geslaagde regel wordt hij als vastgelegd onthouden; mislukt de regel, dan volgt een nieuwe poging bij de volgende ronde.
  * @param {object} db Database.
  * @param {object} systemUpdate De koppeling met het hostscript.
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} true als er een regel is geschreven.
  */
 async function recordFinishedRun(db, systemUpdate) {
-  const run = systemUpdate.finishedRun();
-  if (!run) return;
-  await db.query('INSERT INTO audit_log (user_id, action, entity, entity_id) VALUES (NULL, $1, $2, $3)', [`update.${run.state}`, 'systeem', run.version || shortCommit(run.commit) || null]);
+  const finished = systemUpdate.finishedRun();
+  if (!finished || recording.has(finished.key)) return false;
+  recording.add(finished.key);
+  try {
+    const { run } = finished;
+    await db.query('INSERT INTO audit_log (user_id, action, entity, entity_id) VALUES (NULL, $1, $2, $3)', [`update.${run.state}`, 'systeem', run.version || shortCommit(run.commit) || null]);
+    systemUpdate.markAudited(finished.key);
+    return true;
+  } finally {
+    recording.delete(finished.key);
+  }
+}
+
+/**
+ * Houdt de host en het auditlog bij, los van de pagina (een GET schrijft niets): bij het starten en daarna elke minuut
+ * de stand van "automatisch bijwerken" naar `policy.json` en een afgeronde uitrol in het auditlog.
+ * @param {{db: object, settings: object, systemUpdate: object, intervalMs?: number}} options Database, instellingen,
+ *   koppeling met het hostscript en (voor tests) de tussentijd.
+ * @returns {{sync: Function, timer: NodeJS.Timeout}} De ronde en de timer.
+ */
+function startUpdateSync({ db, settings, systemUpdate, intervalMs = 60 * 1000 }) {
+  const sync = async () => {
+    try {
+      await settings.ready();
+      systemUpdate.setAuto(settings.get('updateAuto'));
+      await recordFinishedRun(db, systemUpdate);
+    } catch (error) {
+      console.error(`Updates bijhouden mislukt: ${String(error.message).replace(/[\r\n]/g, ' ')}`);
+    }
+  };
+  sync();
+  return { sync, timer: setInterval(sync, intervalMs).unref() };
 }
 
 /**
@@ -175,8 +207,6 @@ function createUpdateRoutes(options) {
   router.get('/beheer/updates/', guard, async (req, res, next) => {
     try {
       await settings.ready();
-      await recordFinishedRun(db, systemUpdate);
-      systemUpdate.setAuto(settings.get('updateAuto'));
       return res.send(renderPage(req, { result: req.query.klaar ? { ok: true, message: { aangevraagd: 'De update is aangevraagd; de server begint binnen een minuut.', controle: 'De server kijkt nu of er een nieuwe versie is; ververs de pagina over een minuut.', ingetrokken: 'De aanvraag is ingetrokken.', opgeslagen: 'Opgeslagen.' }[req.query.klaar] } : undefined }));
     } catch (error) {
       return next(error);
@@ -260,4 +290,4 @@ function createUpdateRoutes(options) {
   return { router };
 }
 
-module.exports = { createUpdateRoutes, recordFinishedRun };
+module.exports = { createUpdateRoutes, recordFinishedRun, startUpdateSync };

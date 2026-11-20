@@ -11,6 +11,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
+const { recordFinishedRun, startUpdateSync } = require('../src/beheer/update-routes');
 const { createSystemUpdate, parseChangelog, compareVersions, MAINTENANCE_MAX_MS } = require('../src/system/system-update');
 const { createHostTasks, HOST_TASKS, HOST_COMMAND } = require('../src/system/host-tasks');
 const { COOKIE_NAME } = require('../src/crm/auth');
@@ -146,7 +147,10 @@ test('koppeling met het hostscript: status, aanvragen, controleren, intrekken en
 
   // Afgeronde uitrol: één keer.
   writeJson(statusDir, 'run.json', { state: 'geslaagd', step: 'klaar', version: '0.6.1', commit: AVAILABLE, startedAt: '2026-11-22T10:00:00Z', finishedAt: '2026-11-22T10:02:00Z' });
-  assert.equal(update.finishedRun().version, '0.6.1');
+  const finished = update.finishedRun();
+  assert.equal(finished.run.version, '0.6.1');
+  assert.ok(update.finishedRun(), 'nog niet vastgelegd: blijft staan');
+  update.markAudited(finished.key);
   assert.equal(update.finishedRun(), null);
 
   // Onderhoudsmodus van de host: twee seconden onthouden, een achtergebleven bestand verloopt.
@@ -244,6 +248,10 @@ test('updates, onderhoudsmodus en servertaken in Beheer', { skip: !DATABASE_URL 
   assert.match(page.text, /0\.6\.1 — Logboek/);
   assert.match(page.text, /Nu updaten/);
   assert.doesNotMatch(page.text, /0\.5\.0 — Hersteltest/, 'alleen nieuwere versies');
+  assert.equal(fs.existsSync(path.join(requestDir, 'policy.json')), false, 'een GET schrijft niets');
+  const { sync, timer } = startUpdateSync({ db, settings: app.locals.settings, systemUpdate });
+  clearInterval(timer);
+  await sync();
   assert.deepEqual(readJson(requestDir, 'policy.json'), { auto: true }, 'stand doorgegeven aan de host');
   for (const pathName of ['/app/beheer/updates/', '/app/beheer/servertaken/']) assert.equal((await request(pathName, { cookie: office.cookie })).status, 403, pathName);
   for (const action of ['controleren', 'installeren', 'intrekken', 'automatisch', 'onderhoud']) {
@@ -281,10 +289,14 @@ test('updates, onderhoudsmodus en servertaken in Beheer', { skip: !DATABASE_URL 
   assert.deepEqual(readJson(requestDir, 'policy.json'), { auto: false });
   assert.deepEqual((await db.query("SELECT entity_id FROM audit_log WHERE action = 'instelling.gewijzigd'")).map((row) => row.entity_id), ['updateAuto']);
 
-  // Afgeronde uitrol van de host: één keer in het auditlog (zonder gebruiker).
+  // Afgeronde uitrol van de host: één keer in het auditlog (zonder gebruiker), ook bij gelijktijdige rondes; een
+  // mislukte auditregel wordt later opnieuw geprobeerd.
   writeJson(statusDir, 'run.json', { state: 'geslaagd', step: 'klaar', version: '0.6.1', commit: AVAILABLE, startedAt: '2026-11-22T10:00:00Z', finishedAt: '2026-11-22T10:02:00Z', automatic: true });
-  await request('/app/beheer/updates/', { cookie });
-  await request('/app/beheer/updates/', { cookie });
+  const failingDb = { query: async () => { throw new Error('database weg'); } };
+  await assert.rejects(recordFinishedRun(failingDb, systemUpdate));
+  const results = await Promise.all([recordFinishedRun(db, systemUpdate), recordFinishedRun(db, systemUpdate)]);
+  assert.deepEqual(results.sort(), [false, true]);
+  assert.equal(await recordFinishedRun(db, systemUpdate), false);
   assert.deepEqual(await db.query("SELECT user_id, entity_id FROM audit_log WHERE action = 'update.geslaagd'"), [{ user_id: null, entity_id: '0.6.1' }]);
 
   // Onderhoudsmodus van de host: schrijven geeft 503 (ook het contactformulier), lezen werkt met een balk, inloggen blijft.
@@ -301,6 +313,7 @@ test('updates, onderhoudsmodus en servertaken in Beheer', { skip: !DATABASE_URL 
   assert.equal((await request('/contact/', { form: { naam: 'x' } })).status, 503);
   assert.equal((await request('/app/beheer/updates/onderhoud/', { cookie, form: { _csrf: csrf } })).status, 503, 'tijdens een update ook het uitzetten niet');
   assert.notEqual((await request('/app/inloggen/', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } })).status, 503);
+  assert.notEqual((await request('/app/inloggen', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } })).status, 503, 'ook zonder slash');
   assert.match((await request('/app/', { cookie })).text, /maintenance-banner/);
   fs.rmSync(path.join(statusDir, 'maintenance.json'));
   clock += 2500;
@@ -323,7 +336,9 @@ test('updates, onderhoudsmodus en servertaken in Beheer', { skip: !DATABASE_URL 
   assert.equal((await request(`/app/beheer/servertaken/${id}/`, { cookie: office.cookie, form: { _csrf: officeCsrf, done: 'ja' } })).status, 403);
   assert.equal((await request(`/app/beheer/servertaken/${id}/`, { cookie, form: { _csrf: 'fout', done: 'ja' } })).status, 403);
   assert.equal((await request('/app/beheer/servertaken/999-bestaat-niet/', { cookie, form: { _csrf: csrf, done: 'ja' } })).status, 404);
-  assert.equal((await request(`/app/beheer/servertaken/${id}/`, { cookie, form: { _csrf: csrf, done: 'misschien' } })).status, 400);
+  const invalid = await request(`/app/beheer/servertaken/${id}/`, { cookie, form: { _csrf: csrf, done: 'misschien' } });
+  assert.equal(invalid.status, 400);
+  assert.match(invalid.text, /Ongeldige keuze/);
   assert.equal((await request(`/app/beheer/servertaken/${id}/`, { cookie, form: { _csrf: csrf, done: 'ja' } })).status, 303);
   assert.match((await request('/app/beheer/servertaken/', { cookie })).text, /Met de hand afgevinkt/);
   assert.equal(await auditCount('servertaak.afgevinkt'), 1);

@@ -42,7 +42,8 @@ function maintenanceGuard(stateOf) {
     if (!state.active) return next();
     res.set('X-Avanta-Maintenance', state.source);
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
-    const lowerPath = req.path.toLowerCase();
+    // Express routeert ook zonder afsluitende slash (en hoofdletterongevoelig): vergelijk genormaliseerd.
+    const lowerPath = req.path.toLowerCase().replace(/\/?$/, '/');
     if (ALWAYS_OPEN.includes(lowerPath)) return next();
     if (state.source === 'handmatig' && MANUAL_OPEN.includes(lowerPath)) return next();
     res.set({ 'Retry-After': '60', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' });

@@ -33,7 +33,7 @@ const { createSystemUpdate } = require('./system/system-update');
 const { createHostTasks } = require('./system/host-tasks');
 const { maintenanceState, maintenanceGuard } = require('./system/maintenance');
 const { runWithContext, currentContext } = require('./system/request-context');
-const { recordFinishedRun } = require('./beheer/update-routes');
+const { startUpdateSync } = require('./beheer/update-routes');
 const { html } = require('./site/html');
 
 /** De standaard Content-Security-Policy: alleen eigen bestanden, geen inline scripts. */
@@ -236,10 +236,8 @@ async function start() {
   app.locals.backups.startTimer();
   app.locals.drive.startTimer();
   app.locals.restoreTests.startTimer(() => app.locals.settings.get('driveEnabled'));
-  // Updates: de stand van "automatisch bijwerken" naar het hostscript en een afgeronde uitrol in het auditlog.
-  await app.locals.settings.ready();
-  app.locals.systemUpdate.setAuto(app.locals.settings.get('updateAuto'));
-  await recordFinishedRun(db, app.locals.systemUpdate).catch((error) => console.error(`Update vastleggen mislukt: ${String(error.message).replace(/[\r\n]/g, ' ')}`));
+  // Updates: de stand van "automatisch bijwerken" naar het hostscript en een afgeronde uitrol in het auditlog (elke minuut).
+  startUpdateSync({ db, settings: app.locals.settings, systemUpdate: app.locals.systemUpdate });
   const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
   // Eenmalige installatiecode voor de eerste beheerder; alleen bruikbaar zolang er geen enkele CRM-gebruiker is.
   if (!present) console.log(`CRM: nog geen gebruikers. Maak de eerste beheerder aan op /app/installatie/ met installatiecode ${setupCode}`);
