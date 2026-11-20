@@ -66,6 +66,7 @@ function renderPage(page) {
   const fullTitle = page.title ? `${page.title} - ${siteName}` : (site.homeTitle || 'Avontuurlijke groepsreizen over heel de wereld - Avanta reizen');
   const description = page.description || site.description || '';
   const verification = site.verification || {};
+  const measurementId = (site.analytics && site.analytics.measurementId) || '';
   const year = new Date().toLocaleDateString('nl-NL', { year: 'numeric', timeZone: 'Europe/Amsterdam' });
   return '<!doctype html>\n' + toString(html`<html lang="nl-NL">
 <head>
@@ -80,7 +81,7 @@ function renderPage(page) {
   <link rel="icon" type="image/png" href="/images/favicon.png">
   <link rel="stylesheet" href="/css/site.css?v=${ASSET_VERSION}">
 </head>
-<body class="${page.bodyClass || ''}">
+<body class="${page.bodyClass || ''}"${measurementId ? html` data-analytics="${measurementId}" data-privacy-url="/privacy/"` : ''}>
   <a class="skip-link" href="#inhoud">Naar de inhoud</a>
   <header class="site-header">
     <div class="container site-header__inner">
@@ -100,10 +101,11 @@ function renderPage(page) {
       </nav>
       <p class="site-footer__contact">T: <a href="tel:${contact.phone.replace(/[^0-9+]/g, '')}">${contact.phone}</a>
         &nbsp; E: <a href="mailto:${contact.email}">${contact.email}</a></p>
-      <p class="site-footer__copy">© ${year} ${siteName}</p>
+      <p class="site-footer__copy">© ${year} ${siteName}${measurementId ? html` · <button class="link-button" type="button" data-consent-settings>Cookie-instellingen</button>` : ''}</p>
     </div>
   </footer>
   <script src="/js/site.js?v=${ASSET_VERSION}"></script>
+  ${measurementId ? html`<script src="/js/analytics.js?v=${ASSET_VERSION}"></script>` : ''}
 </body>
 </html>`);
 }

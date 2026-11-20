@@ -127,6 +127,16 @@ const SETTING_FIELDS = {
   },
   llmsEnabled: { type: 'bool', label: 'llms.txt aanbieden', help: 'Een korte samenvatting voor AI-zoekmachines op /llms.txt, alleen als de site geïndexeerd mag worden.', default: true },
   llmsIntro: { type: 'textarea', label: 'Inleiding in llms.txt', help: 'Wie Avanta is en wat ze aanbiedt, in een paar zinnen (leeg = de standaardomschrijving).', default: '', max: 2000 },
+  analyticsEnabled: { type: 'bool', label: 'Google Analytics gebruiken', help: 'Alleen met een geldig meet-ID. Bezoekers krijgen eerst de keuze; zonder toestemming wordt niets van Google geladen.', default: false },
+  analyticsMeasurementId: {
+    type: 'text',
+    label: 'Meet-ID (GA4)',
+    help: 'Begint met G-, te vinden in Google Analytics onder Beheer > Gegevensstromen.',
+    default: '',
+    max: 20,
+    pattern: /^G-[A-Z0-9]{4,14}$/i,
+    patternMessage: 'Een meet-ID begint met G- gevolgd door 4 tot 14 letters of cijfers.',
+  },
 };
 
 class SettingsError extends Error {
