@@ -18,10 +18,36 @@ const GROUPS = [
     sections: [
       {
         id: 'contact',
-        label: 'Contactgegevens',
-        intro: 'De contactgegevens in de voettekst van de site en in de gegevens voor zoekmachines.',
-        fields: ['contactPhone', 'contactEmail'],
-        words: 'telefoon e-mail mail voettekst adres organisatie',
+        label: 'Contact en organisatie',
+        intro: 'Contactgegevens in de voettekst van de site, en adres en social media voor de gegevens voor zoekmachines (JSON-LD).',
+        fields: ['contactPhone', 'contactEmail', 'orgStreet', 'orgPostalCode', 'orgCity', 'socialFacebook', 'socialInstagram', 'socialYoutube', 'socialLinkedin'],
+        words: 'telefoon e-mail mail voettekst adres postcode plaats organisatie facebook instagram youtube linkedin social sameas json-ld',
+      },
+    ],
+  },
+  {
+    title: 'Vindbaarheid',
+    sections: [
+      {
+        id: 'zoekmachines',
+        label: 'Zoekmachines',
+        intro: 'Of zoekmachines de site mogen opnemen, het basisadres en de verificatie voor Google Search Console en Bing.',
+        fields: ['seoIndexing', 'siteUrl', 'googleVerification', 'bingVerification'],
+        words: 'seo indexeren noindex go-live live basisadres canonical domein search console bing webmaster verificatie google',
+      },
+      {
+        id: 'teksten',
+        label: 'Titels en omschrijving',
+        intro: 'De naam van de site, de titel van de homepage en de standaardomschrijving en -afbeelding voor zoekresultaten en social media.',
+        fields: ['siteName', 'homeTitle', 'defaultDescription', 'socialImage'],
+        words: 'seo titel title omschrijving description meta open graph og afbeelding social delen',
+      },
+      {
+        id: 'robots',
+        label: 'Robots, sitemap en llms.txt',
+        intro: 'Extra regels voor robots.txt, pagina\'s die niet in de sitemap horen en de samenvatting voor AI-zoekmachines.',
+        fields: ['robotsExtra', 'sitemapExclude', 'llmsEnabled', 'llmsIntro'],
+        words: 'seo robots.txt crawler sitemap.xml uitsluiten llms.txt ai chatgpt gptbot',
       },
     ],
   },

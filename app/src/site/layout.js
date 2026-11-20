@@ -23,7 +23,7 @@ const MENU = [
   { label: 'Contact', href: '/contact/' },
 ];
 
-/** Standaard contactgegevens in de voettekst; de echte komen uit Beheer > Contactgegevens (`page.contact`). */
+/** Standaard contactgegevens in de voettekst; de echte komen uit Beheer (`page.site.contact`). */
 const CONTACT = { phone: '0118 638427', email: 'info@avantareizen.nl' };
 
 /** Versie van de statische bestanden, tegen verouderde caches. */
@@ -55,22 +55,28 @@ function renderMenu(currentPath) {
 
 /**
  * Maakt een volledige HTML-pagina.
- * @param {{title: string, description?: string, body: object, path?: string, header?: object, bodyClass?: string, indexable?: boolean, seo?: object, contact?: {phone: string, email: string}}} page Gegevens van de pagina; `path` is het menupad, `seo` de canonical-URL, afbeelding, type en JSON-LD (zie `seo.renderSeoHead`), `contact` de contactgegevens uit Beheer (anders de standaard).
+ * @param {{title: string, description?: string, body: object, path?: string, header?: object, bodyClass?: string, indexable?: boolean, seo?: object, site?: object}} page Gegevens van de pagina; `path` is het menupad, `seo` de canonical-URL, afbeelding, type en JSON-LD (zie `seo.renderSeoHead`), `site` de site-instellingen uit Beheer (`site/site-settings.js`: naam, titels, omschrijving, contact, verificatie; zonder: de standaard).
  * @returns {string} De HTML.
  */
 function renderPage(page) {
   const currentPath = page.path || '/';
-  const contact = page.contact || CONTACT;
-  const fullTitle = page.title ? `${page.title} - Avanta reizen` : 'Avontuurlijke groepsreizen over heel de wereld - Avanta reizen';
+  const site = page.site || {};
+  const contact = site.contact || CONTACT;
+  const siteName = site.siteName || 'Avanta reizen';
+  const fullTitle = page.title ? `${page.title} - ${siteName}` : (site.homeTitle || 'Avontuurlijke groepsreizen over heel de wereld - Avanta reizen');
+  const description = page.description || site.description || '';
+  const verification = site.verification || {};
   const year = new Date().toLocaleDateString('nl-NL', { year: 'numeric', timeZone: 'Europe/Amsterdam' });
   return '<!doctype html>\n' + toString(html`<html lang="nl-NL">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${fullTitle}</title>
-  ${page.description ? html`<meta name="description" content="${page.description}">` : ''}
+  ${description ? html`<meta name="description" content="${description}">` : ''}
   <meta name="robots" content="${page.indexable ? 'index, follow' : 'noindex, nofollow'}">
-  ${page.seo ? renderSeoHead({ title: fullTitle, description: page.description, ...page.seo }) : ''}
+  ${verification.google ? html`<meta name="google-site-verification" content="${verification.google}">` : ''}
+  ${verification.bing ? html`<meta name="msvalidate.01" content="${verification.bing}">` : ''}
+  ${page.seo ? renderSeoHead({ title: fullTitle, description, siteName, defaultDescription: site.description, ...page.seo }) : ''}
   <link rel="icon" type="image/png" href="/images/favicon.png">
   <link rel="stylesheet" href="/css/site.css?v=${ASSET_VERSION}">
 </head>
@@ -78,7 +84,7 @@ function renderPage(page) {
   <a class="skip-link" href="#inhoud">Naar de inhoud</a>
   <header class="site-header">
     <div class="container site-header__inner">
-      <a class="brand" href="/"><img src="/images/logo.png" alt="Avanta reizen" width="140" height="82"></a>
+      <a class="brand" href="/"><img src="/images/logo.png" alt="${siteName}" width="140" height="82"></a>
       <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="hoofdmenu">Menu</button>
       <nav id="hoofdmenu" class="site-nav" aria-label="Hoofdmenu">${renderMenu(currentPath)}</nav>
     </div>
@@ -94,7 +100,7 @@ function renderPage(page) {
       </nav>
       <p class="site-footer__contact">T: <a href="tel:${contact.phone.replace(/[^0-9+]/g, '')}">${contact.phone}</a>
         &nbsp; E: <a href="mailto:${contact.email}">${contact.email}</a></p>
-      <p class="site-footer__copy">© ${year} Avanta reizen</p>
+      <p class="site-footer__copy">© ${year} ${siteName}</p>
     </div>
   </footer>
   <script src="/js/site.js?v=${ASSET_VERSION}"></script>

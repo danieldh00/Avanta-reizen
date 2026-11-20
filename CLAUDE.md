@@ -45,7 +45,7 @@ Node 22 + Express, server-gerenderde HTML, PostgreSQL 17 (enige database), geen 
 |---|---|
 | `app/src/server.js` | Express-app, beveiligingskoppen (CSP, noindex tot go-live), statische bestanden, `/media` |
 | `app/src/database/` | `db.js` (pool, transactie, migreren), `migrations.js` (`MIGRATIONS`, positioneel) |
-| `app/src/site/` | `routes.js` (alle publieke URL's), `content.js` (queries), `views.js`/`layout.js` (HTML), `html.js` (escaping), `format.js` |
+| `app/src/site/` | `routes.js` (alle publieke URL's), `content.js` (queries), `views.js`/`layout.js` (HTML), `html.js` (escaping), `format.js`, `seo.js` (JSON-LD, sitemap, robots.txt, llms.txt), `site-settings.js` (`res.locals.site`) |
 | `app/src/booking/` | aanmeldformulier: `fields.js` (velden + validatie), `routes.js` (`/aanmelden/`) |
 | `app/src/crm/` | CRM onder `/app/`: `routes.js` (inloggen, installatie), `users.js` (gebruikers, auditlog), `auth.js` (sessies, CSRF, `requireRight`, audit), `rights.js`, `passwords.js`, `layout.js` |
 | `app/src/beheer/` | Beheer onder `/app/beheer/` (recht `systeem`): `settings.js` (`SETTING_FIELDS`, database → env → standaard, geheimen via vault), `indeling.js` (groepen/secties + zoeken), `routes.js` |
@@ -69,7 +69,9 @@ Regels:
   door de middleware in `server.js`); wijzigen alleen via `settings.update` met audit in dezelfde transactie.
 - URL's gelijk houden aan de oude site (`/reis/<slug>/`, `/reisleider/<slug>/`, `/reis-categorie/<slug>/`, `/<blog-slug>/`,
   pagina's op hun volledige pad); oude varianten krijgen een 301.
-- **Noindex tot go-live** (`SITE_INDEXABLE=false`); pas op Daniëls woord op `true`.
+- **Noindex tot go-live**: indexeren staat uit (Beheer > Vindbaarheid > Zoekmachines, `seoIndexing`; `SITE_INDEXABLE`
+  is alleen de startwaarde); pas op Daniëls woord aan. Site-instellingen per verzoek uit `res.locals.site`
+  (`site/site-settings.js`): basisadres, naam, titels, contact; nooit `req.headers.host` of een vaste `SITE_URL` in code.
 - Afbeeldingen staan in `DATA_DIR/media` (niet in git); de import zet ze daar neer.
 
 ## Checklist voor elke nieuwe feature (zonder dat Daniël erom vraagt)

@@ -18,15 +18,14 @@ const BOOKING_FEE_CENTS = 1500;
 
 /**
  * Bouwt de router voor aanmeldingen.
- * @param {{db: object, vault: object, formKey: Buffer, siteUrl?: string, now?: () => number}} options Database, kluis, sleutel voor het
- *   formuliertoken en basisadres voor de canonical (standaard `SITE_URL`).
+ * @param {{db: object, vault: object, formKey: Buffer, now?: () => number}} options Database, kluis en sleutel voor het
+ *   formuliertoken. Het basisadres voor de canonical en de overige site-instellingen komen uit `res.locals.site`.
  * @returns {express.Router} De router.
  */
 function createBookingRouter(options) {
   const router = express.Router({ strict: true });
   const content = createContent(options.db);
   const now = options.now || Date.now;
-  const siteUrl = seo.normalizeSiteUrl(options.siteUrl ?? process.env.SITE_URL);
   const guard = createFormGuard({
     purpose: 'aanmelden',
     formKey: options.formKey,
@@ -70,8 +69,9 @@ function createBookingRouter(options) {
    */
   const send = (res, page, status = 200) => {
     const { trip, ...rest } = page;
-    const pageSeo = { canonicalUrl: seo.absoluteUrl(siteUrl, canonicalPath(trip)), imageUrl: seo.absoluteUrl(siteUrl, '/images/logo.png') };
-    res.status(status).set('Cache-Control', 'no-store').type('html').send(renderPage({ indexable: false, path: '/reis/', seo: pageSeo, contact: res.locals.contact, ...rest }));
+    const site = res.locals.site;
+    const pageSeo = { canonicalUrl: seo.absoluteUrl(site.siteUrl, canonicalPath(trip)), imageUrl: site.imageUrl };
+    res.status(status).set('Cache-Control', 'no-store').type('html').send(renderPage({ ...rest, indexable: false, path: '/reis/', seo: pageSeo, site }));
   };
 
   /**
