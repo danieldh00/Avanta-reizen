@@ -34,6 +34,7 @@ const { createHostTasks } = require('./system/host-tasks');
 const { maintenanceState, maintenanceGuard } = require('./system/maintenance');
 const { runWithContext, currentContext } = require('./system/request-context');
 const { startUpdateSync } = require('./beheer/update-routes');
+const { createMonitor } = require('./system/monitor');
 const { createAppLog, normalizePath, describeError, newErrorCode, newRequestId } = require('./system/app-log');
 const { html } = require('./site/html');
 
@@ -76,7 +77,7 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, settings?: object, appLog?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
+ * @param {{db: object, masterKey: Buffer, settings?: object, appLog?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, statfs?: Function, monitorRequest?: Function, monitorDataDir?: string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
  *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), het logboek (standaard
  *   `system/app-log.js`; wegschrijven start pas met `appLog.start()` in `start()`), de koppeling met het updatescript
  *   (standaard `system/system-update.js` met de mappen uit `updateStatusDir`/`updateRequestDir` of UPDATE_STATUS_DIR/UPDATE_REQUEST_DIR), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), de back-updienst (standaard `backup/backups.js` met `databaseUrl`, `backupDir` en `pgDumpPath`; zonder `databaseUrl` geen back-ups), een eigen fetch voor Google Drive (`googleFetch`, tests), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
@@ -205,8 +206,14 @@ function createApp(options) {
   app.locals.drive = drive;
   const restoreTests = createRestoreTests({ dir: backupDir, masterKey: options.masterKey, drive, now: options.now });
   app.locals.restoreTests = restoreTests;
+  // Bewaking (Beheer > Systeem > Bewaking): de planner start pas in `start()`; tests geven een eigen statfs/verzender mee.
+  const monitor = createMonitor({
+    db: options.db, settings, mailer, appLog, backups, drive, restoreTests, systemUpdate,
+    dataDir: options.monitorDataDir || DATA_DIR, now: options.now, statfs: options.statfs, request: options.monitorRequest,
+  });
+  app.locals.monitor = monitor;
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now }));
@@ -293,6 +300,7 @@ async function start() {
   app.locals.backups.startTimer();
   app.locals.drive.startTimer();
   app.locals.restoreTests.startTimer(() => app.locals.settings.get('driveEnabled'));
+  app.locals.monitor.start();
   // Updates: de stand van "automatisch bijwerken" naar het hostscript en een afgeronde uitrol in het auditlog (elke minuut).
   startUpdateSync({ db, settings: app.locals.settings, systemUpdate: app.locals.systemUpdate });
   const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');

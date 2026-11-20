@@ -13,6 +13,7 @@ const { createRateLimiter } = require('../security/rate-limit');
 const { createRedirectRoutes } = require('./redirect-routes');
 const { createMailRoutes } = require('./mail-routes');
 const { createCaptchaRoutes } = require('./captcha-routes');
+const { createMonitorRoutes } = require('./monitor-routes');
 const { createBackupRoutes } = require('./backup-routes');
 const { createDriveRoutes } = require('./drive-routes');
 const { createRestoreTestRoutes } = require('./restore-test-routes');
@@ -66,11 +67,11 @@ function formatUptime(seconds) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, now?: () => number}} options
+ * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, now?: () => number}} options
  *   Database, sessie- en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`), de mailer en
  *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de back-updienst (`backup/backups.js`), de Drive-koppeling (`backup/drive.js`), de hersteltests
  *   (`backup/restore-test.js`), de koppeling met het updatescript (`system/system-update.js`), de servertaken
- *   (`system/host-tasks.js`), het logboek (`system/app-log.js`) en (voor tests) de klok van de limieten.
+ *   (`system/host-tasks.js`), het logboek (`system/app-log.js`), de bewaking (`system/monitor.js`) en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router, te koppelen binnen de CRM-router.
  */
 function createBeheerRoutes(options) {
@@ -218,6 +219,7 @@ function createBeheerRoutes(options) {
             <tr><th scope="row">Draait sinds</th><td>${formatUptime(Math.floor(process.uptime()))}</td></tr>
           </tbody>
         </table></div>
+        ${options.monitor && options.monitor.view().open.length ? html`<p class="form-alert" role="alert">Er staan incidenten open. Zie <a href="/app/beheer/bewaking/">Bewaking en meldingen</a>.</p>` : ''}
         ${options.hostTasks && options.hostTasks.view().pending ? html`<p class="notice" role="status">Er staan servertaken open. Zie <a href="/app/beheer/servertaken/">Servertaken</a>.</p>` : ''}
         <h2>Instellingen</h2>
         <p>Waar elke instelling vandaan komt. Wat in Beheer is opgeslagen gaat voor de omgeving (startwaarde) en de standaard.</p>
@@ -261,6 +263,11 @@ function createBeheerRoutes(options) {
     const driveRoutes = createDriveRoutes({ auth, guard, settings, drive: options.drive, renderSettingsSection, now: options.now });
     extraPanels['google-drive'] = driveRoutes.renderPanel;
     router.use(driveRoutes.router);
+  }
+  if (options.monitor) {
+    const monitorRoutes = createMonitorRoutes({ auth, guard, monitor: options.monitor, renderSettingsSection, now: options.now });
+    extraPanels.bewaking = monitorRoutes.renderPanel;
+    router.use(monitorRoutes.router);
   }
   if (options.captcha) {
     const captchaRoutes = createCaptchaRoutes({ auth, guard, captcha: options.captcha, renderSettingsSection, now: options.now });

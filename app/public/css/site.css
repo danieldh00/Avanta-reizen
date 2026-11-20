@@ -296,3 +296,8 @@ h3 { font-size: 1.25rem; margin: 1.5rem 0 .5rem; }
 .beheer-log-filter { flex-wrap: wrap; max-width: 48rem; }
 .beheer-log-filter select { flex: 1 1 9rem; min-width: 0; }
 .beheer-log-filter input { flex-basis: 12rem; }
+.monitor-state { display: inline-block; padding: .05rem .45rem; border-radius: var(--av-radius); font-size: .85rem; white-space: nowrap; }
+.monitor-state--ok { background: #e6f2e6; color: #1e5a1e; }
+.monitor-state--warn { background: #fff3d6; color: #6b4a00; }
+.monitor-state--error { background: #fbe3e3; color: #8a1c1c; }
+.monitor-state--uit { background: var(--av-line); color: inherit; }
