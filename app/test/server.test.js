@@ -48,7 +48,19 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   await db.query("INSERT INTO faqs (slug, question, answer_html, category) VALUES ('algemeen-1', 'Paspoort nodig?', '<p>Ja</p>', 'Algemeen')");
 
   let clock = Date.now();
-  const app = createApp({ db, masterKey: MASTER_KEY, now: () => clock });
+  // Database met een schakelaar om een botsing op de unieke referentie (23505) na te bootsen.
+  const collisions = { count: 0, constraint: 'bookings_reference_key' };
+  const collidingDb = {
+    ...db,
+    query: (sql, params) => {
+      if (collisions.count > 0 && sql.trimStart().startsWith('INSERT INTO bookings')) {
+        collisions.count--;
+        return Promise.reject(Object.assign(new Error('duplicate key'), { code: '23505', constraint: collisions.constraint }));
+      }
+      return db.query(sql, params);
+    },
+  };
+  const app = createApp({ db: collidingDb, masterKey: MASTER_KEY, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => { server.close(); await db.close(); });
@@ -92,6 +104,8 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await get('/faq/paspoort/')).headers.get('location'), '/faq/');
     assert.equal((await get('/?s=ijsland')).headers.get('location'), '/zoeken/?s=ijsland');
     assert.equal((await get('/category/nieuws/')).status, 301);
+    // Geen open redirect via een pad dat met // begint.
+    assert.equal((await get('//evil.example')).headers.get('location'), '/evil.example/');
   });
 
   await t.test('onbekend adres is 404; filters accepteren geen rare invoer', async () => {
@@ -99,7 +113,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await get('/reis/%3Cscript%3E/')).status, 404);
     const filtered = await get('/reis/?bestemming=%3Cscript%3E');
     assert.equal(filtered.status, 200);
-    assert.doesNotMatch(filtered.text, /<script>/);
+    assert.doesNotMatch(filtered.text, /<script>/i);
   });
 
   await t.test('beveiligingskoppen en noindex tot go-live', async () => {
@@ -209,5 +223,36 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
       lastStatus = (await post(form)).status;
     }
     assert.equal(lastStatus, 429);
+  });
+
+  await t.test('limiet per bezoeker achter een vertrouwde proxy (X-Forwarded-For)', async () => {
+    const form = await formFor(1001);
+    clock += 5000;
+    assert.equal((await post(form, { 'x-forwarded-for': '203.0.113.9' })).status, 303);
+  });
+
+  await t.test('botsing op de referentie: opnieuw proberen, andere fout of drie botsingen geven 500', async () => {
+    const before = (await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total;
+    const attempt = async (count, constraint, ip) => {
+      Object.assign(collisions, { count, constraint });
+      const form = await formFor(1001);
+      clock += 5000;
+      const status = (await post(form, { 'x-forwarded-for': ip })).status;
+      collisions.count = 0;
+      return status;
+    };
+    assert.equal(await attempt(2, 'bookings_reference_key', '203.0.113.20'), 303);
+    assert.equal(await attempt(1, 'bookings_andere_key', '203.0.113.21'), 500);
+    assert.equal(await attempt(3, 'bookings_reference_key', '203.0.113.22'), 500);
+    assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, before + 1);
+  });
+
+  await t.test('referentiejaar volgt de Nederlandse datum, ook rond de jaarwisseling', async () => {
+    clock = Date.UTC(2099, 11, 31, 23, 30);
+    const form = await formFor(1001);
+    clock += 5000;
+    assert.equal((await post(form, { 'x-forwarded-for': '203.0.113.10' })).status, 303);
+    const [booking] = await db.query("SELECT reference FROM bookings WHERE reference LIKE 'AV-2100-%'");
+    assert.ok(booking, 'aanmelding om 00:30 Nederlandse tijd op 1 januari 2100 krijgt jaar 2100');
   });
 });

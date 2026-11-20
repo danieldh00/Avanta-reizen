@@ -15,6 +15,7 @@ const { createVault, loadMasterKey } = require('../src/security/vault');
 const { createRateLimiter, clientKey } = require('../src/security/rate-limit');
 const { validateBooking } = require('../src/booking/fields');
 const { rewriteLink, cacheName } = require('../tools/import-wordpress');
+const { parseTrustProxy } = require('../src/server');
 
 test('html escapet ingevoegde waarden maar niet raw()', () => {
   const name = '<script>alert("x")</script>';
@@ -155,4 +156,15 @@ test('validateBooking geeft fouten voor ontbrekende en ongeldige velden', () => 
   assert.ok(errors.last_name && errors.email_confirm && errors.birth_date && errors.gender && errors.mobile && errors.consent);
   assert.ok(validateBooking({ ...validBooking(), birth_date: '2001-02-30' }, { today: '2026-11-19' }).errors.birth_date);
   assert.ok(validateBooking({ ...validBooking(), first_names: 'x'.repeat(121) }, { today: '2026-11-19' }).errors.first_names);
+});
+
+test('TRUST_PROXY: alleen leeg/loopback of één exact IP-adres', () => {
+  assert.equal(parseTrustProxy(undefined), 'loopback');
+  assert.equal(parseTrustProxy('  '), 'loopback');
+  assert.equal(parseTrustProxy('loopback'), 'loopback');
+  assert.equal(parseTrustProxy('172.18.0.5'), '172.18.0.5');
+  assert.equal(parseTrustProxy('fd00::5'), 'fd00::5');
+  for (const unsafe of ['10.0.0.0/8', '172.16.0.0/12', 'loopback, 172.18.0.5', '1', 'true', 'uniquelocal']) {
+    assert.throws(() => parseTrustProxy(unsafe), /TRUST_PROXY/);
+  }
 });

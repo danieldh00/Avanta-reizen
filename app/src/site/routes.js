@@ -96,7 +96,9 @@ function createSiteRouter(options) {
   router.use((req, res, next) => {
     if (req.method === 'GET' && !req.path.endsWith('/') && !/\.[a-z0-9]{2,5}$/i.test(req.path) && !req.path.startsWith('/api/')) {
       const query = req.originalUrl.slice(req.path.length);
-      return res.redirect(301, `${req.path}/${query}`);
+      // Voorloop-slashes en backslashes samenvoegen: '//evil.example' zou anders een open redirect naar een ander domein zijn.
+      const localPath = req.path.replace(/^[/\\]+/, '/');
+      return res.redirect(301, `${localPath}/${query}`);
     }
     return next();
   });
