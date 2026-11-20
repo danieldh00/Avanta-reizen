@@ -328,6 +328,19 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     await login('kees@example.nl', 'nieuw kantoorwachtwoord');
   });
 
+  await t.test('gelijktijdige pogingen omzeilen de teller niet', async () => {
+    clock += 2 * 60 * 60 * 1000;
+    const [{ last }] = await db.query('SELECT coalesce(max(id), 0) AS last FROM audit_log');
+    await Promise.all(Array.from({ length: 10 }, (_, i) => request('/app/inloggen/', {
+      form: { email: 'kees@example.nl', password: `fout wachtwoord ${i}` },
+      headers: { 'x-forwarded-for': '10.250.0.1' },
+    })));
+    const rows = await db.query('SELECT action, count(*)::int AS count FROM audit_log WHERE id > $1 GROUP BY action', [last]);
+    const counts = Object.fromEntries(rows.map((row) => [row.action, row.count]));
+    assert.deepEqual(counts, { 'inloggen.mislukt': 5, 'inloggen.geblokkeerd': 5 }, 'hoogstens 5 echte pogingen, ook parallel');
+    clock += 2 * 60 * 60 * 1000;
+  });
+
   await t.test('auditlog: alle acties gelogd zonder persoonsgegevens, zichtbaar voor beheerder', async () => {
     const rows = await db.query('SELECT action, entity, entity_id, ip_prefix, user_id FROM audit_log ORDER BY id');
     const actions = new Set(rows.map((row) => row.action));

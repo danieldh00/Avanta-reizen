@@ -165,21 +165,25 @@ function createCrmRouter(options) {
         : [];
       const failureKey = `${user ? user.id : 'onbekend'}:${ipPrefix(req)}`;
       const accountKey = user ? `account:${user.id}` : '';
-      const blocked = Boolean(user) && (failedLoginLimiter.isBlocked(failureKey) || accountFailureLimiter.isBlocked(accountKey));
+      // Tel de poging vóór de (trage) wachtwoordcontrole, zodat gelijktijdige verzoeken de limiet niet kunnen omzeilen.
+      // Bij een geslaagde login worden de tellers weer gewist.
+      let blocked = false;
+      if (user) {
+        const pairAllowed = failedLoginLimiter.hit(failureKey);
+        const accountAllowed = accountFailureLimiter.hit(accountKey);
+        blocked = !pairAllowed || !accountAllowed;
+      }
       // Ook bij een onbekend adres een volledige controle, zodat de responstijd niets verraadt.
       const passwordOk = await verifyPassword(password, user ? user.password_hash : await getDummyHash());
       if (!user || !user.active || blocked || !passwordOk) {
         let action = 'inloggen.mislukt';
         if (user && !user.active) action = 'inloggen.inactief';
         else if (blocked) action = 'inloggen.geblokkeerd';
-        if (user && !blocked) {
-          failedLoginLimiter.hit(failureKey);
-          accountFailureLimiter.hit(accountKey);
-        }
         await auth.audit(req, { userId: user ? user.id : null, action, entity: 'users', entityId: user ? user.id : undefined });
         return res.status(401).send(renderLogin({ email: textField(req.body.email, 200), error: LOGIN_FAILED }));
       }
       failedLoginLimiter.clear(failureKey);
+      accountFailureLimiter.clear(accountKey);
       const newHash = needsRehash(user.password_hash) ? await hashPassword(password) : null;
       await db.transaction(async (client) => {
         await client.query(
