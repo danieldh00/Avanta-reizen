@@ -26,6 +26,19 @@ const GROUPS = [
     ],
   },
   {
+    title: 'E-mail',
+    sections: [
+      {
+        id: 'mailserver',
+        label: 'Mailserver',
+        intro: 'De mailserver waarmee de app e-mail verstuurt: via SMTP met inloggen of via een Exchange Online-connector op het WAN-IP van deze server. Zonder server en afzender verstuurt de app niets.',
+        fields: ['mailMode', 'mailHost', 'mailPort', 'mailSecure', 'mailUser', 'mailPassword', 'mailFromName', 'mailFromAddress', 'mailReplyTo'],
+        extra: 'mail',
+        words: 'mail e-mail smtp exchange office 365 microsoft connector starttls tls ssl poort afzender testmail wan ip wan-ip versturen',
+      },
+    ],
+  },
+  {
     title: 'Vindbaarheid',
     sections: [
       {

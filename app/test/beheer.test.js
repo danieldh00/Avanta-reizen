@@ -80,7 +80,7 @@ test('indeling: secties, zoeken en rechten', () => {
   assert.deepEqual(filterGroups('TELEFOON', SETTING_FIELDS).flatMap((group) => group.sections.map((section) => section.id)), ['contact']);
   assert.deepEqual(filterGroups('migratie', SETTING_FIELDS).flatMap((group) => group.sections.map((section) => section.id)), ['overzicht']);
   assert.deepEqual(filterGroups('onvindbaar woord', SETTING_FIELDS), []);
-  assert.equal(filterGroups('', SETTING_FIELDS).length, 3);
+  assert.equal(filterGroups('', SETTING_FIELDS).length, 4);
   assert.equal(roleHasRight('beheerder', 'systeem'), true);
   for (const role of ['kantoor', 'reisleider', 'boekhouding']) assert.equal(roleHasRight(role, 'systeem'), false, role);
   assert.equal(formatUptime(59), '0 minuten');

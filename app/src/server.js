@@ -18,6 +18,8 @@ const { createSettings } = require('./beheer/settings');
 const { siteSettingsOf } = require('./site/site-settings');
 const { createRedirects } = require('./site/redirects');
 const { cspWith } = require('./site/analytics');
+const { createMailer } = require('./mail/mailer');
+const { createWanIp } = require('./mail/wan-ip');
 const crypto = require('node:crypto');
 const { PUBLIC_DIR, MEDIA_DIR } = require('./paths');
 const { renderPage, renderPageHeader } = require('./site/layout');
@@ -62,8 +64,8 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, settings?: object, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
- *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
+ * @param {{db: object, masterKey: Buffer, settings?: object, mailer?: object, wanIp?: object, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
+ *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), de mailer en WAN-IP-opzoeker (standaard `mail/`), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
  *   (standaard `TRUST_PROXY`, anders loopback), de installatiecode voor de eerste CRM-beheerder en of de CRM-cookie
  *   `Secure` krijgt (standaard ja).
  * @returns {express.Express} De app.
@@ -120,7 +122,12 @@ function createApp(options) {
   app.use(express.static(PUBLIC_DIR, { maxAge: '7d', index: false, redirect: false }));
   app.use('/media', express.static(MEDIA_DIR, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  // E-mail via de mailserver uit Beheer (tests geven een eigen mailer en WAN-IP-opzoeker mee).
+  const mailer = options.mailer || createMailer({ settings });
+  const wanIp = options.wanIp || createWanIp();
+  app.locals.mailer = mailer;
+
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   app.use(createBookingRouter({ db: options.db, vault, formKey, now: options.now }));
