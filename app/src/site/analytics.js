@@ -12,6 +12,8 @@ const MEASUREMENT_ID_PATTERN = /^G-[A-Z0-9]{4,14}$/;
 const ANALYTICS_SOURCES = {
   'script-src': ['https://www.googletagmanager.com'],
   'connect-src': ['https://www.googletagmanager.com', 'https://*.google-analytics.com', 'https://*.analytics.google.com'],
+  // GA4 valt voor sommige hits terug op een afbeeldings-beacon.
+  'img-src': ['https://*.google-analytics.com', 'https://*.googletagmanager.com'],
 };
 
 /**

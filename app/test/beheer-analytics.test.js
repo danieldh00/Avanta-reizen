@@ -122,6 +122,7 @@ test('analytics: actief meet-ID en Content-Security-Policy', () => {
   const extended = cspWith(BASE_CSP, 'G-ABC123XYZ');
   assert.match(extended, /script-src 'self' https:\/\/www\.googletagmanager\.com(;|$)/);
   assert.match(extended, /connect-src 'self' https:\/\/www\.googletagmanager\.com https:\/\/\*\.google-analytics\.com https:\/\/\*\.analytics\.google\.com/);
+  assert.match(extended, /img-src 'self' data: https:\/\/\*\.google-analytics\.com https:\/\/\*\.googletagmanager\.com(;|$)/);
   assert.doesNotMatch(extended, /unsafe-inline'[^;]*script|script-src[^;]*unsafe/, 'geen inline scripts');
   assert.match(extended, /frame-ancestors 'none'/);
 });
@@ -159,9 +160,12 @@ test('analytics: eerdere keuze, weigeren en intrekken', () => {
   assert.equal(granted.find('data-consent-banner'), null, 'geen balk na een keuze');
   assert.equal(granted.scripts().length, 1, 'meteen laden na eerdere toestemming');
 
-  const denied = loadScript({ measurementId: 'G-ABC123XYZ', stored: JSON.stringify({ v: 1, analytics: false }) });
+  const denied = loadScript({ measurementId: 'G-ABC123XYZ', stored: JSON.stringify({ v: 1, analytics: false }), cookies: ['_ga=GA1.1.1', 'sessie=1'] });
   assert.equal(denied.find('data-consent-banner'), null);
   assert.deepEqual(denied.scripts(), []);
+  assert.equal(denied.window['ga-disable-G-ABC123XYZ'], true, 'bewaarde weigering zet ga-disable');
+  assert.ok(denied.cookieWrites.some((value) => /^_ga=; expires/.test(value)), 'achtergebleven _ga-cookie gewist');
+  assert.ok(!denied.cookieWrites.some((value) => /^sessie=; expires/.test(value)));
 
   const oldVersion = loadScript({ measurementId: 'G-ABC123XYZ', stored: JSON.stringify({ v: 0, analytics: true }) });
   assert.ok(oldVersion.find('data-consent-banner'), 'andere versie: opnieuw vragen');

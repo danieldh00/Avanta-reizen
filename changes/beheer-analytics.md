@@ -13,7 +13,7 @@ titel: Google Analytics met cookiekeuze
 - Zonder actief meet-ID: niets in de pagina en de Content-Security-Policy ongewijzigd. Met meet-ID (alleen de publieke
   site, nooit `/app/`): `data-analytics` op `<body>`, extern script `public/js/analytics.js`, knop *Cookie-instellingen*
   in de voettekst; `script-src` krijgt `https://www.googletagmanager.com`, `connect-src` ook `*.google-analytics.com` en
-  `*.analytics.google.com`. Geen inline scripts.
+  `*.analytics.google.com`, `img-src` `*.google-analytics.com` en `*.googletagmanager.com` (beacon). Geen inline scripts.
 - Consent Mode v2: standaard alles geweigerd; Accepteren zet alleen `analytics_storage` aan en laadt dan pas gtag
   (`allow_google_signals: false`); keuze met versie en datum in localStorage; weigeren of intrekken zet `ga-disable-<id>`
-  en wist de `_ga`-cookies.
+  en wist de `_ga`-cookies, ook bij een eerder bewaarde weigering.

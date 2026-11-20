@@ -224,6 +224,8 @@
 
     var earlier = readConsent(storage);
     if (earlier === 'granted') tracker.grant();
+    // Bewaarde weigering: ook achtergebleven _ga-cookies van een eerdere toestemming wissen.
+    else if (earlier === 'denied') tracker.deny();
     else if (earlier === null) showBanner(doc, { privacyUrl: privacyUrl, current: null, onChoice: choose });
 
     doc.addEventListener('click', function openSettings(event) {
