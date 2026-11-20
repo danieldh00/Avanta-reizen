@@ -230,20 +230,23 @@ async function createBackup(options) {
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
   cipher.setAAD(header.subarray(0, MAGIC.length + 1 + KEY_ID_LENGTH));
   const pgDump = options.pgDumpPath || process.env.PG_DUMP_PATH || 'pg_dump';
-  // De schrijfstroom vóór het starten van pg_dump: gooit die, dan draait er nog niets dat opgeruimd moet worden.
+  // Eerst alles wat synchroon kan gooien (verbindingsgegevens), dan de schrijfstroom; spawn pas binnen de try, zodat de
+  // finally de stroom en het .part-bestand altijd opruimt.
+  const env = { PATH: process.env.PATH, ...pgEnvironment(options.connectionString) };
   const output = fs.createWriteStream(partFile, { mode: 0o600 });
-  const child = spawn(pgDump, ['--format=custom', '--no-owner', '--no-acl', `--schema=${schema}`], {
-    env: { PATH: process.env.PATH, ...pgEnvironment(options.connectionString) },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  let errors = '';
-  child.stderr.on('data', (chunk) => { errors = (errors + chunk).slice(-2000); });
-  const exited = new Promise((resolve) => {
-    child.on('error', (error) => resolve({ code: -1, error }));
-    child.on('close', (code) => resolve({ code }));
-  });
-  const timer = setTimeout(() => child.kill('SIGKILL'), options.timeoutMs || DUMP_TIMEOUT_MS);
+  let timer = null;
   try {
+    const child = spawn(pgDump, ['--format=custom', '--no-owner', '--no-acl', `--schema=${schema}`], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let errors = '';
+    child.stderr.on('data', (chunk) => { errors = (errors + chunk).slice(-2000); });
+    const exited = new Promise((resolve) => {
+      child.on('error', (error) => resolve({ code: -1, error }));
+      child.on('close', (code) => resolve({ code }));
+    });
+    timer = setTimeout(() => child.kill('SIGKILL'), options.timeoutMs || DUMP_TIMEOUT_MS);
     output.write(header);
     const [written, result] = await Promise.allSettled([pipeline(child.stdout, cipher, output, { end: false }), exited]);
     const exit = result.value || { code: -1 };
@@ -254,7 +257,7 @@ async function createBackup(options) {
     await verifyBackup(partFile, masterKey);
     fs.renameSync(partFile, path.join(dir, name));
   } finally {
-    clearTimeout(timer);
+    if (timer) clearTimeout(timer);
     // Eerst de schrijfstroom echt sluiten: anders kan het bestand (bij een snelle fout) pas ná het opruimen ontstaan.
     if (!output.closed) await new Promise((resolve) => { output.once('close', resolve); output.destroy(); });
     fs.rmSync(partFile, { force: true });

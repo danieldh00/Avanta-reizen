@@ -172,6 +172,10 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.match(error.message, /pg_dump mislukt/);
     assert.doesNotMatch(error.message, /fout@/, 'geen wachtwoord in de melding');
     assert.deepEqual(fs.readdirSync(dir).filter((name) => name !== 'status.json'), [], 'ook na een snelle fout geen .part');
+    // Synchrone fout bij het starten (NUL-teken in het pad): ook dan geen .part.
+    await assert.rejects(backups.createBackup({ db, connectionString: url, dir, masterKey: MASTER_KEY, pgDumpPath: 'pg_dump\0x' }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.deepEqual(fs.readdirSync(dir).filter((name) => name !== 'status.json'), [], 'ook na een synchrone fout geen .part');
     // Een mislukte auditregel maakt een geslaagde back-up niet "mislukt".
     const failingAudit = backups.createBackupService({ db, settings: fakeSettings(), dir, masterKey: MASTER_KEY, connectionString: url });
     const made = await failingAudit.run({ trigger: 'handmatig', audit: async () => { throw new Error('audit stuk'); } });
