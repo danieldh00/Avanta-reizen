@@ -80,7 +80,7 @@ test('indeling: secties, zoeken en rechten', () => {
   assert.deepEqual(filterGroups('TELEFOON', SETTING_FIELDS).flatMap((group) => group.sections.map((section) => section.id)), ['contact']);
   assert.deepEqual(filterGroups('migratie', SETTING_FIELDS).flatMap((group) => group.sections.map((section) => section.id)), ['overzicht']);
   assert.deepEqual(filterGroups('onvindbaar woord', SETTING_FIELDS), []);
-  assert.equal(filterGroups('', SETTING_FIELDS).length, 2);
+  assert.equal(filterGroups('', SETTING_FIELDS).length, 3);
   assert.equal(roleHasRight('beheerder', 'systeem'), true);
   for (const role of ['kantoor', 'reisleider', 'boekhouding']) assert.equal(roleHasRight(role, 'systeem'), false, role);
   assert.equal(formatUptime(59), '0 minuten');
@@ -219,7 +219,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
   await t.test('zoeken en onbekende sectie', async () => {
     const found = await request('/app/beheer/?zoek=telefoon', { cookie: adminCookie });
     assert.equal(found.status, 200);
-    assert.match(found.text, /Contactgegevens/);
+    assert.match(found.text, /Contact en organisatie/);
     assert.doesNotMatch(found.text, /<li><a href="\/app\/beheer\/overzicht\/"/);
     const none = await request(`/app/beheer/?zoek=${encodeURIComponent('<script>')}`, { cookie: adminCookie });
     assert.match(none.text, /Niets gevonden voor “&lt;script&gt;”/);
@@ -243,8 +243,9 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
     assert.equal(invalid.status, 422);
     assert.match(invalid.text, /Vul een geldig e-mailadres in/);
     assert.match(invalid.text, /value="geen-adres"/, 'de invoer blijft staan');
-    const missing = await request('/app/beheer/contact/', { cookie: adminCookie, form: { _csrf: adminCsrf, contactPhone: '010 1234567' } });
-    assert.equal(missing.status, 422);
+    const empty = await request('/app/beheer/contact/', { cookie: adminCookie, form: { _csrf: adminCsrf, contactPhone: '010 1234567', contactEmail: ' ' } });
+    assert.equal(empty.status, 422);
+    assert.match(empty.text, /Vul dit veld in/);
     const doubled = new URLSearchParams([['_csrf', adminCsrf], ['contactPhone', '010 1'], ['contactPhone', '010 2'], ['contactEmail', 'a@example.nl']]);
     assert.equal((await request('/app/beheer/contact/', { cookie: adminCookie, form: doubled })).status, 422, 'een dubbel veld is ongeldig');
     assert.equal((await db.query("SELECT count(*)::int AS count FROM settings WHERE key LIKE 'contact%'"))[0].count, 0, 'niets opgeslagen');

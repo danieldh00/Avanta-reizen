@@ -53,9 +53,18 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   instelling) en instellingenformulieren. Instellingen staan in de tabel `settings` (`app/src/beheer/settings.js`):
   wat in Beheer is opgeslagen gaat voor een omgevingsvariabele (startwaarde), die weer voor de standaard; per instelling
   kan het terug naar de startwaarde. Geheimen staan versleuteld (hoofdsleutel) en gaan nooit volledig naar de browser.
-  Elke wijziging komt in het auditlog (welke instelling, nooit de waarde). Nu: *Organisatie > Contactgegevens*
-  (telefoon en e-mail in de voettekst en de gegevens voor zoekmachines). Vindbaarheid (SEO), doorverwijzingen en
-  Google Analytics volgen.
+  Elke wijziging komt in het auditlog (welke instelling, nooit de waarde). Secties:
+  - *Organisatie > Contact en organisatie*: telefoon en e-mail (voettekst), adres en social media (JSON-LD).
+  - *Vindbaarheid > Zoekmachines*: indexeren aan/uit (standaard uit; **aanzetten vraagt het wachtwoord** van de
+    beheerder, `SITE_INDEXABLE` is alleen de startwaarde), basisadres (`SITE_URL` als startwaarde; canonical, sitemap
+    en JSON-LD gebruiken nooit het adres uit het verzoek) en de verificatiecodes van Google Search Console en Bing.
+  - *Vindbaarheid > Titels en omschrijving*: naam van de site, titel van de homepage, standaardomschrijving en
+    -afbeelding voor social media.
+  - *Vindbaarheid > Robots, sitemap en llms.txt*: extra regels voor robots.txt (alleen `User-agent`/`Allow`/`Disallow`),
+    paden die niet in de sitemap horen (`/pad/` of `/pad/*`) en `/llms.txt` voor AI-zoekmachines (alleen als de site
+    geïndexeerd mag worden).
+  Zolang indexeren uit staat, krijgt elke pagina `noindex` (meta én `X-Robots-Tag`) en weert robots.txt alles; het CRM
+  en foutpagina's zijn nooit indexeerbaar. Doorverwijzingen en Google Analytics volgen.
 
 ## Werkwijze
 

@@ -4,7 +4,8 @@
  */
 const express = require('express');
 const { html, raw } = require('./html');
-const { renderPage, renderPageHeader, CONTACT } = require('./layout');
+const { renderPage, renderPageHeader } = require('./layout');
+const { isExcluded } = require('./site-settings');
 const { createContent, today } = require('./content');
 const views = require('./views');
 const { formatLongDate, isoDate, toDate, tripPath, categoryPath, guidePath, postPath } = require('./format');
@@ -41,27 +42,26 @@ function queryValue(value) {
 
 /**
  * Bouwt de router van de website.
- * @param {{db: object, indexable?: boolean, siteUrl?: string, contactForm?: object}} options Database, indexeerinstelling,
- *   basisadres (standaard `SITE_URL` uit de omgeving, anders https://www.avantareizen.nl) en het contactformulier
- *   (`contact/routes.js`; zonder formulier is `/contact/` een gewone pagina).
+ * @param {{db: object, contactForm?: object}} options Database en het contactformulier. Indexeren, basisadres, naam en
+ *   de overige site-instellingen komen per verzoek uit `res.locals.site` (Beheer, zie `site/site-settings.js`).
+ *   Zonder contactformulier (`contact/routes.js`) is `/contact/` een gewone pagina.
  * @returns {express.Router} De router.
  */
 function createSiteRouter(options) {
   const router = express.Router({ strict: true });
   const content = createContent(options.db);
-  const indexable = Boolean(options.indexable);
-  const siteUrl = seo.normalizeSiteUrl(options.siteUrl ?? process.env.SITE_URL);
   let sitemapCache = null;
 
   /**
-   * Gegevens voor de SEO-tags van een pagina, met absolute URL's.
+   * Gegevens voor de SEO-tags van een pagina, nog met relatieve paden: `send` maakt ze absoluut met het basisadres uit
+   * Beheer. JSON-LD mag een functie `(site) => object` zijn, die pas bij het versturen wordt aangeroepen.
    * @param {string} canonicalPath Echte pad van de pagina (niet het menupad), eventueel met querystring.
-   * @param {{imageUrl?: string, type?: string, structuredData?: object[]}} [extra] Afbeelding, og:type en JSON-LD.
-   * @returns {object} Gegevens voor `renderSeoHead`.
+   * @param {{imageUrl?: string, type?: string, structuredData?: Array<(object|Function)>}} [extra] Afbeelding, og:type en JSON-LD.
+   * @returns {object} Gegevens voor `send`.
    */
   const seoFor = (canonicalPath, extra = {}) => ({
-    canonicalUrl: seo.absoluteUrl(siteUrl, canonicalPath),
-    imageUrl: seo.absoluteUrl(siteUrl, extra.imageUrl || '/images/logo.png'),
+    canonicalPath,
+    imagePath: extra.imageUrl || '',
     type: extra.type || 'website',
     structuredData: extra.structuredData || [],
   });
@@ -69,19 +69,26 @@ function createSiteRouter(options) {
   /**
    * Kruimelpad als JSON-LD, altijd beginnend bij de homepage.
    * @param {Array<{name: string, path: string}>} items Stappen na de homepage.
-   * @returns {object} `BreadcrumbList`.
+   * @returns {Function} `(site) => BreadcrumbList`.
    */
-  const breadcrumbs = (items) => seo.breadcrumbData(siteUrl, [{ name: 'Home', path: '/' }, ...items]);
+  const breadcrumbs = (items) => (site) => seo.breadcrumbData(site.siteUrl, [{ name: 'Home', path: '/' }, ...items]);
 
   /**
-   * Stuurt een volledige pagina.
+   * Stuurt een volledige pagina met de site-instellingen van dit verzoek (indexeren, basisadres, naam, contact).
    * @param {object} res Express-antwoord.
-   * @param {object} page Gegevens voor renderPage.
+   * @param {object} page Gegevens voor renderPage; `seo` uit `seoFor`.
    * @param {number} [status] HTTP-status.
    * @returns {void}
    */
   const send = (res, page, status = 200) => {
-    res.status(status).type('html').send(renderPage({ indexable, contact: res.locals.contact, ...page }));
+    const site = res.locals.site;
+    const pageSeo = page.seo ? {
+      canonicalUrl: seo.absoluteUrl(site.siteUrl, page.seo.canonicalPath),
+      imageUrl: page.seo.imagePath ? seo.absoluteUrl(site.siteUrl, page.seo.imagePath) : site.imageUrl,
+      type: page.seo.type,
+      structuredData: page.seo.structuredData.map((item) => (typeof item === 'function' ? item(site) : item)),
+    } : undefined;
+    res.status(status).type('html').send(renderPage({ ...page, indexable: site.indexable, site, seo: pageSeo }));
   };
 
   /**
@@ -120,7 +127,7 @@ function createSiteRouter(options) {
     const heroImage = upcoming.find((trip) => trip.card_image_url)?.card_image_url;
     send(res, {
       path: '/',
-      seo: seoFor('/', { imageUrl: heroImage, structuredData: [seo.travelAgencyData(siteUrl, res.locals.contact || CONTACT)] }),
+      seo: seoFor('/', { imageUrl: heroImage, structuredData: [(site) => seo.travelAgencyData(site.siteUrl, site.contact, { ...site.organisation, name: site.siteName, imageUrl: site.imageUrl })] }),
       bodyClass: 'home',
       header: html`<section class="hero"${heroImage ? html` style="--header-image: url('${heroImage}')"` : ''}>
         <div class="container hero__inner">
@@ -172,11 +179,23 @@ function createSiteRouter(options) {
 
   // Sitemap met alle openbare adressen; robots.txt verwijst er alleen naar als de site geïndexeerd mag worden.
   router.get('/sitemap.xml', asyncRoute(async (req, res) => {
-    if (!sitemapCache || Date.now() - sitemapCache.builtAt > SITEMAP_CACHE_MS) {
+    const site = res.locals.site;
+    // De cache geldt voor één combinatie van basisadres en uitsluitingen; een wijziging in Beheer bouwt hem opnieuw.
+    const cacheKey = JSON.stringify([site.siteUrl, site.sitemapExclude]);
+    if (!sitemapCache || sitemapCache.key !== cacheKey || Date.now() - sitemapCache.builtAt > SITEMAP_CACHE_MS) {
       const entries = await content.sitemapEntries();
-      sitemapCache = { builtAt: Date.now(), xml: seo.renderSitemap(siteUrl, seo.sitemapUrls(entries)) };
+      const urls = seo.sitemapUrls(entries).filter((url) => !isExcluded(url.path, site.sitemapExclude));
+      sitemapCache = { key: cacheKey, builtAt: Date.now(), xml: seo.renderSitemap(site.siteUrl, urls) };
     }
     res.set('Cache-Control', 'public, max-age=600').type('application/xml').send(sitemapCache.xml);
+  }));
+
+  // llms.txt voor AI-zoekmachines: alleen als de site geïndexeerd mag worden en het in Beheer aan staat.
+  router.get('/llms.txt', asyncRoute(async (req, res, next) => {
+    const site = res.locals.site;
+    if (!site.indexable || !site.llms.enabled) return next();
+    const [destinations, types] = await Promise.all([content.categories('bestemming'), content.categories('type')]);
+    return res.set('Cache-Control', 'public, max-age=600').type('text/plain').send(seo.llmsTxt(site, { categories: [...types, ...destinations] }));
   }));
 
   router.get('/reis/', asyncRoute(async (req, res) => {
@@ -212,7 +231,7 @@ function createSiteRouter(options) {
       seo: seoFor(tripPath(trip.slug), {
         imageUrl: trip.hero_image_url || trip.card_image_url,
         structuredData: [
-          seo.tripData(siteUrl, trip, { today: today() }),
+          (site) => seo.tripData(site.siteUrl, trip, { today: today(), siteName: site.siteName }),
           breadcrumbs([{ name: 'Reizen', path: '/reis/' }, { name: trip.title, path: tripPath(trip.slug) }]),
         ],
       }),
@@ -411,7 +430,7 @@ function createSiteRouter(options) {
         imageUrl: post.image_url,
         type: 'article',
         structuredData: [
-          seo.blogPostingData(siteUrl, post),
+          (site) => seo.blogPostingData(site.siteUrl, post, site.siteName),
           breadcrumbs([{ name: 'Weblog', path: '/blog/' }, { name: post.title, path: postPath(post.slug) }]),
         ],
       }),

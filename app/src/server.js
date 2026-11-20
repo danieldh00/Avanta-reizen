@@ -15,17 +15,19 @@ const { startCrmMaintenance } = require('./crm/auth');
 const seo = require('./site/seo');
 const { loadMasterKey, createVault } = require('./security/vault');
 const { createSettings } = require('./beheer/settings');
+const { siteSettingsOf } = require('./site/site-settings');
 const crypto = require('node:crypto');
 const { PUBLIC_DIR, MEDIA_DIR } = require('./paths');
 const { renderPage, renderPageHeader } = require('./site/layout');
 const { html } = require('./site/html');
 
 /**
- * Zet de beveiligingskoppen op elk antwoord. Zolang de site niet live is, mag niets geïndexeerd worden.
- * @param {{indexable: boolean}} options Of zoekmachines de site mogen indexeren.
+ * Zet de beveiligingskoppen op elk antwoord, met standaard `noindex`: de middleware met de site-instellingen haalt die
+ * kop pas weg als indexeren in Beheer aan staat. Zo is een antwoord van vóór die middleware (of bij een fout) nooit
+ * indexeerbaar.
  * @returns {Function} Express-middleware.
  */
-function securityHeaders(options) {
+function securityHeaders() {
   return (req, res, next) => {
     res.set({
       'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
@@ -33,7 +35,7 @@ function securityHeaders(options) {
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     });
-    if (!options.indexable) res.set('X-Robots-Tag', 'noindex, nofollow');
+    res.set('X-Robots-Tag', 'noindex, nofollow');
     next();
   };
 }
@@ -62,12 +64,10 @@ function parseTrustProxy(value) {
  * @returns {express.Express} De app.
  */
 function createApp(options) {
-  const indexable = Boolean(options.indexable);
-  const siteUrl = seo.normalizeSiteUrl(options.siteUrl ?? process.env.SITE_URL);
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY));
-  app.use(securityHeaders({ indexable }));
+  app.use(securityHeaders());
 
   app.get('/api/health', async (req, res) => {
     try {
@@ -78,40 +78,47 @@ function createApp(options) {
     }
   });
 
-  app.get('/robots.txt', (req, res) => {
-    res.type('text/plain').send(indexable ? `User-agent: *\nAllow: /\nSitemap: ${siteUrl}/sitemap.xml\n` : 'User-agent: *\nDisallow: /\n');
-  });
-
-  app.use(express.static(PUBLIC_DIR, { maxAge: '7d', index: false, redirect: false }));
-  app.use('/media', express.static(MEDIA_DIR, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
-
-  // Instellingen uit Beheer: één keer geladen, daarna uit het geheugen (Beheer schrijft het geheugen bij).
+  // Instellingen uit Beheer: één keer geladen, daarna uit het geheugen (Beheer schrijft het geheugen bij). De opties
+  // `indexable` en `siteUrl` (of SITE_INDEXABLE/SITE_URL) zijn alleen de startwaarde; Beheer gaat voor.
   const vault = createVault(options.masterKey);
-  const settings = options.settings || createSettings({ db: options.db, vault });
+  const startValues = {
+    ...process.env,
+    SITE_INDEXABLE: options.indexable ? 'true' : 'false',
+    SITE_URL: options.siteUrl ?? process.env.SITE_URL ?? '',
+  };
+  const settings = options.settings || createSettings({ db: options.db, vault, env: startValues });
   app.use(async (req, res, next) => {
     try {
       await settings.ready();
-      res.locals.contact = { phone: settings.get('contactPhone'), email: settings.get('contactEmail') };
+      res.locals.site = siteSettingsOf(settings);
+      if (res.locals.site.indexable && !req.path.startsWith('/app/') && req.path !== '/app') res.removeHeader('X-Robots-Tag');
       return next();
     } catch (error) {
       return next(error);
     }
   });
 
+  app.get('/robots.txt', (req, res) => {
+    res.type('text/plain').send(seo.robotsTxt(res.locals.site));
+  });
+
+  app.use(express.static(PUBLIC_DIR, { maxAge: '7d', index: false, redirect: false }));
+  app.use('/media', express.static(MEDIA_DIR, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
+
   app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
-  app.use(createBookingRouter({ db: options.db, vault, formKey, siteUrl, now: options.now }));
+  app.use(createBookingRouter({ db: options.db, vault, formKey, now: options.now }));
   const contactForm = createContactForm({ db: options.db, formKey, now: options.now });
-  app.use(createSiteRouter({ db: options.db, indexable, siteUrl, contactForm }));
+  app.use(createSiteRouter({ db: options.db, contactForm }));
 
   // 404: altijd noindex (renderPage zonder indexable), met een canonical naar het gevraagde pad.
   app.use((req, res) => {
     res.status(404).send(renderPage({
       title: 'Pagina niet gevonden',
       path: req.path,
-      contact: res.locals.contact,
-      seo: { canonicalUrl: seo.absoluteUrl(siteUrl, req.path), imageUrl: seo.absoluteUrl(siteUrl, '/images/logo.png') },
+      site: res.locals.site,
+      seo: { canonicalUrl: seo.absoluteUrl(res.locals.site.siteUrl, req.path), imageUrl: res.locals.site.imageUrl },
       header: renderPageHeader({ title: 'Pagina niet gevonden' }),
       body: html`<div class="container section"><p>Deze pagina bestaat niet (meer). Bekijk <a href="/reis/">ons reisaanbod</a> of ga naar de <a href="/">homepage</a>.</p></div>`,
     }));
@@ -124,7 +131,7 @@ function createApp(options) {
     res.status(500).send(renderPage({
       title: 'Er ging iets mis',
       path: req.path,
-      contact: res.locals.contact,
+      site: res.locals.site,
       header: renderPageHeader({ title: 'Er ging iets mis' }),
       body: html`<div class="container section"><p>Probeer het later opnieuw.</p></div>`,
     }));

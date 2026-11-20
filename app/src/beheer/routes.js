@@ -8,6 +8,8 @@ const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
 const { GROUPS, findSection, filterGroups } = require('./indeling');
 const { SettingsError } = require('./settings');
+const { verifyPassword, MAX_LENGTH } = require('../crm/passwords');
+const { createRateLimiter } = require('../security/rate-limit');
 
 /** Versie van de app (voor het systeemoverzicht). */
 const APP_VERSION = require('../../package.json').version;
@@ -55,13 +57,23 @@ function formatUptime(seconds) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: object, auth: object, settings: object}} options Database, sessie- en rechtenlaag en de instellingen.
+ * @param {{db: object, auth: object, settings: object, now?: () => number}} options Database, sessie- en rechtenlaag,
+ *   de instellingen en (voor tests) de klok van de limiet op wachtwoordcontroles.
  * @returns {express.Router} Router, te koppelen binnen de CRM-router.
  */
 function createBeheerRoutes(options) {
   const { db, auth, settings } = options;
   const router = express.Router();
   const guard = auth.requireRight('systeem');
+  // Wachtwoordcontroles (bij het aanzetten van een instelling met `confirmOn`): 5 per kwartier per gebruiker.
+  const passwordLimiter = createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000, now: options.now });
+
+  /**
+   * De instellingen van een sectie die met het wachtwoord bevestigd moeten worden als ze aan gaan en nu uit staan.
+   * @param {object} section Sectie uit de indeling.
+   * @returns {string[]} Namen van die instellingen.
+   */
+  const confirmableKeys = (section) => (section.fields || []).filter((key) => settings.fields[key].confirmOn && settings.get(key) !== true);
 
   /**
    * De zijbalk: zoekveld (werkt zonder JavaScript via een GET) en de groepen met hun secties.
@@ -160,6 +172,12 @@ function createBeheerRoutes(options) {
       <form class="form beheer-form" method="post" action="/app/beheer/${section.id}/">
         <input type="hidden" name="_csrf" value="${req.session.csrf}">
         ${section.fields.map((key) => renderSettingField(key, { values: state.values || {}, errors: state.errors || {} }))}
+        ${confirmableKeys(section).length ? html`<input type="hidden" name="username" value="${req.user.email}" autocomplete="username">
+        <div class="field">
+          <span class="field__label"><label for="instelling-wachtwoord">Je wachtwoord</label></span>
+          <input id="instelling-wachtwoord" type="password" name="_password" autocomplete="current-password" maxlength="${MAX_LENGTH}">
+          <span class="field__help">Alleen nodig als je ${confirmableKeys(section).map((key) => settings.fields[key].label.toLowerCase()).join(' of ')} aanzet.</span>
+        </div>` : ''}
         <div><button class="btn" type="submit">Opslaan</button></div>
       </form>`,
   });
@@ -238,18 +256,38 @@ function createBeheerRoutes(options) {
       const section = findSection(req.params.section);
       if (!section || !section.fields) return notFound(req, res);
       const sectionKeys = new Set(section.fields);
+      // Een selectievakje dat ontbreekt is "uit"; een ontbrekend tekstveld laat de instelling ongewijzigd; een veld dat
+      // meer dan eens voorkomt is ongeldig.
       const values = {};
+      const errors = {};
       for (const key of section.fields) {
         const definition = settings.fields[key];
-        if (definition.type === 'bool') values[key] = formText(req.body, key) === 'ja';
-        else values[key] = formText(req.body, key) ?? (definition.type === 'secret' ? '' : undefined);
+        const text = formText(req.body, key);
+        if (Object.hasOwn(req.body, key) && text === undefined) errors[key] = 'Ongeldige waarde.';
+        else if (definition.type === 'bool') values[key] = text === 'ja';
+        else if (text !== undefined) values[key] = text;
       }
-      const errors = {};
-      for (const [key, value] of Object.entries(values)) if (value === undefined) errors[key] = 'Ongeldige waarde.';
       // Alleen instellingen van deze sectie mogen worden teruggezet of geleegd.
       const reset = formList(req.body, '_reset').filter((key) => sectionKeys.has(key));
       const clear = formList(req.body, '_clear').filter((key) => sectionKeys.has(key));
       if (Object.keys(errors).length) return res.status(422).send(renderSettingsSection(req, section, { values, errors }));
+      // Aanzetten van een instelling met `confirmOn` (zoals indexeren) vraagt het wachtwoord van de beheerder.
+      const turningOn = confirmableKeys(section).filter((key) => values[key] === true && !reset.includes(key));
+      if (turningOn.length) {
+        const password = formText(req.body, '_password') || '';
+        let problem = '';
+        if (!password) problem = 'Bevestig het aanzetten met je wachtwoord.';
+        else if (!passwordLimiter.hit(`gebruiker:${req.user.id}`)) problem = 'Te veel pogingen. Probeer het over een kwartier opnieuw.';
+        else {
+          const [user] = await db.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+          if (!user || !(await verifyPassword(password, user.password_hash))) problem = 'Je wachtwoord klopt niet.';
+          else passwordLimiter.clear(`gebruiker:${req.user.id}`);
+        }
+        if (problem) {
+          for (const key of section.fields) if (settings.fields[key].type === 'secret') delete values[key];
+          return res.status(problem.startsWith('Te veel') ? 429 : 422).send(renderSettingsSection(req, section, { values, errors: { [turningOn[0]]: problem } }));
+        }
+      }
       try {
         await settings.update({ values, reset, clear }, {
           userId: req.user.id,

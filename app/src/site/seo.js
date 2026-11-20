@@ -97,28 +97,42 @@ function priceFromCents(cents) {
 /**
  * Gestructureerde gegevens van de organisatie (homepage).
  * @param {string} siteUrl Basisadres.
- * @param {{phone: string, email: string}} contact Telefoon en e-mail (uit de layout).
+ * @param {{phone: string, email: string}} contact Telefoon en e-mail (uit Beheer).
+ * @param {{name?: string, imageUrl?: string, street?: string, postalCode?: string, city?: string, sameAs?: string[]}} [organisation]
+ *   Naam, afbeelding, adres en social-media-adressen uit Beheer; een adres alleen met straat én plaats.
  * @returns {object} `TravelAgency`.
  */
-function travelAgencyData(siteUrl, contact) {
-  return {
+function travelAgencyData(siteUrl, contact, organisation = {}) {
+  const data = {
     '@context': 'https://schema.org',
     '@type': 'TravelAgency',
     '@id': `${siteUrl}/#organisatie`,
-    name: SITE_NAME,
+    name: organisation.name || SITE_NAME,
     url: `${siteUrl}/`,
     logo: absoluteUrl(siteUrl, DEFAULT_IMAGE_PATH),
-    image: absoluteUrl(siteUrl, DEFAULT_IMAGE_PATH),
+    image: organisation.imageUrl || absoluteUrl(siteUrl, DEFAULT_IMAGE_PATH),
     telephone: contact.phone,
     email: contact.email,
   };
+  if (organisation.street && organisation.city) {
+    data.address = {
+      '@type': 'PostalAddress',
+      streetAddress: organisation.street,
+      postalCode: organisation.postalCode || undefined,
+      addressLocality: organisation.city,
+      addressCountry: 'NL',
+    };
+  }
+  if (organisation.sameAs && organisation.sameAs.length) data.sameAs = organisation.sameAs;
+  return data;
 }
 
 /**
  * Gestructureerde gegevens van een reis, met aanbod en vertrekdatum.
  * @param {string} siteUrl Basisadres.
  * @param {object} trip Reis uit `tripBySlug`.
- * @param {{today: string}} context Datum van vandaag (jjjj-mm-dd) voor beschikbaarheid en geldigheid.
+ * @param {{today: string, siteName?: string}} context Datum van vandaag (jjjj-mm-dd) voor beschikbaarheid en geldigheid,
+ *   en de naam van de site (standaard `SITE_NAME`).
  * @returns {object} `Trip`.
  */
 function tripData(siteUrl, trip, context) {
@@ -133,7 +147,7 @@ function tripData(siteUrl, trip, context) {
     description: trip.tagline || trip.summary || undefined,
     image: absoluteUrl(siteUrl, trip.hero_image_url || trip.card_image_url) || undefined,
     departureTime: departure || undefined,
-    provider: { '@type': 'TravelAgency', '@id': `${siteUrl}/#organisatie`, name: SITE_NAME, url: `${siteUrl}/` },
+    provider: { '@type': 'TravelAgency', '@id': `${siteUrl}/#organisatie`, name: context.siteName || SITE_NAME, url: `${siteUrl}/` },
   };
   if (Number.isFinite(Number(trip.price_cents)) && trip.price_cents !== null) {
     const offerUntil = isoDate(trip.offer_until);
@@ -155,11 +169,12 @@ function tripData(siteUrl, trip, context) {
  * Gestructureerde gegevens van een blogbericht.
  * @param {string} siteUrl Basisadres.
  * @param {object} post Bericht uit `postBySlug`.
+ * @param {string} [siteName] Naam van de site (standaard `SITE_NAME`).
  * @returns {object} `BlogPosting`.
  */
-function blogPostingData(siteUrl, post) {
+function blogPostingData(siteUrl, post, siteName = SITE_NAME) {
   const url = absoluteUrl(siteUrl, postPath(post.slug));
-  const organisation = { '@type': 'Organization', name: SITE_NAME, url: `${siteUrl}/`, logo: { '@type': 'ImageObject', url: absoluteUrl(siteUrl, DEFAULT_IMAGE_PATH) } };
+  const organisation = { '@type': 'Organization', name: siteName, url: `${siteUrl}/`, logo: { '@type': 'ImageObject', url: absoluteUrl(siteUrl, DEFAULT_IMAGE_PATH) } };
   return {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
@@ -195,16 +210,17 @@ function breadcrumbData(siteUrl, items) {
 
 /**
  * Maakt de SEO-tags voor de `<head>`: canonical, Open Graph, Twitter en JSON-LD.
- * @param {{title: string, description?: string, canonicalUrl: string, imageUrl?: string, type?: string, structuredData?: object[]}} seo Gegevens (URL's al absoluut).
+ * @param {{title: string, description?: string, canonicalUrl: string, imageUrl?: string, type?: string, structuredData?: object[], siteName?: string, defaultDescription?: string}} seo
+ *   Gegevens (URL's al absoluut), met de naam van de site en de standaardomschrijving uit Beheer.
  * @returns {object} HTML van de tags.
  */
 function renderSeoHead(seo) {
-  const description = seo.description || DEFAULT_DESCRIPTION;
+  const description = seo.description || seo.defaultDescription || DEFAULT_DESCRIPTION;
   const card = seo.imageUrl ? 'summary_large_image' : 'summary';
   return html`<link rel="canonical" href="${seo.canonicalUrl}">
   <meta property="og:type" content="${seo.type || 'website'}">
   <meta property="og:locale" content="nl_NL">
-  <meta property="og:site_name" content="${SITE_NAME}">
+  <meta property="og:site_name" content="${seo.siteName || SITE_NAME}">
   <meta property="og:title" content="${seo.title}">
   <meta property="og:description" content="${description}">
   <meta property="og:url" content="${seo.canonicalUrl}">
@@ -260,7 +276,64 @@ function renderSitemap(siteUrl, urls) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${lines.join('\n')}\n</urlset>\n`;
 }
 
+/**
+ * Maakt robots.txt. Zonder indexeren worden alle crawlers geweerd (ook AI-zoekers); met indexeren alles open, plus de
+ * eigen regels uit Beheer en de verwijzing naar de sitemap.
+ * @param {{indexable: boolean, siteUrl: string, robotsExtra: string[]}} site Site-instellingen.
+ * @returns {string} Inhoud van robots.txt.
+ */
+function robotsTxt(site) {
+  if (!site.indexable) return 'User-agent: *\nDisallow: /\n';
+  const extra = site.robotsExtra.length ? `\n${site.robotsExtra.join('\n')}\n` : '';
+  return `User-agent: *\nAllow: /\n${extra}\nSitemap: ${site.siteUrl}/sitemap.xml\n`;
+}
+
+/**
+ * Haalt Markdown-opmaak uit een tekst voor llms.txt (zodat een naam geen link of kop kan worden).
+ * @param {string} text Tekst.
+ * @returns {string} Tekst met `[]()#*_` vervangen door spaties of weggelaten.
+ */
+function plainMarkdown(text) {
+  return String(text || '').replace(/[[\]()#*_`<>]/g, '').replace(/[ \t]+/g, ' ').trim();
+}
+
+/**
+ * Maakt llms.txt: een korte samenvatting in Markdown voor AI-zoekmachines met wie Avanta is en waar de belangrijkste
+ * pagina's staan (zie llmstxt.org).
+ * @param {{siteUrl: string, siteName: string, description: string, llms: {intro: string}}} site Site-instellingen.
+ * @param {{categories: Array<{name: string, slug: string}>}} content Reiscategorieën voor de lijst met bestemmingen en soorten.
+ * @returns {string} Inhoud van llms.txt.
+ */
+function llmsTxt(site, content) {
+  const intro = plainMarkdown(site.llms.intro || site.description);
+  const pages = [
+    ['Reisaanbod', '/reis/', 'alle groepsreizen met vertrekdata en prijzen'],
+    ['Reisleiders', '/reisleider/', 'wie de reizen begeleidt'],
+    ['Veelgestelde vragen', '/faq/', 'praktische vragen over boeken en reizen'],
+    ['Weblog', '/blog/', 'verhalen en nieuws'],
+    ['Contact', '/contact/', 'telefoon, e-mail en contactformulier'],
+  ];
+  const lines = [
+    `# ${plainMarkdown(site.siteName)}`,
+    '',
+    `> ${plainMarkdown(site.description)}`,
+    '',
+    intro,
+    '',
+    '## Belangrijke pagina\'s',
+    ...pages.map(([name, path, note]) => `- [${name}](${site.siteUrl}${path}): ${note}`),
+  ];
+  if (content.categories.length) {
+    lines.push('', '## Bestemmingen en soorten reizen');
+    for (const category of content.categories) lines.push(`- [${plainMarkdown(category.name)}](${absoluteUrl(site.siteUrl, categoryPath(category.slug))})`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 module.exports = {
+  robotsTxt,
+  llmsTxt,
+  plainMarkdown,
   DEFAULT_SITE_URL,
   SITE_NAME,
   normalizeSiteUrl,
