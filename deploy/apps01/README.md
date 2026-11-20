@@ -19,11 +19,14 @@ AVANTA_REF=<sha> bash <(curl -fsSL https://raw.githubusercontent.com/danieldh00/
 1. zoekt apps01 zoals de Aquatech-scripts: LXC via `pct exec`, anders ssh als `daniel@apps01` met `sudo -n`
    (instelbaar met `APPS01_SSH`, `APPS01_CTID`, `APPS01_NAME`);
 2. draait daar `install.sh`: repo naar `/opt/apps/avanta/repo` op dezelfde commit, `.env` met gegenereerde geheimen
-   (eenmalig), netwerk en exact IP van `aquatech-cloudflared` opzoeken (`TUNNEL_NETWORK`, `TRUST_PROXY`), image bouwen, stack starten,
+   (eenmalig), netwerk en exact IP van `aquatech-cloudflared` opzoeken (zit die in meerdere netwerken, geef dan
+   `TUNNEL_NETWORK=<naam>` mee; daarna onthoudt `.env` de keuze) (`TUNNEL_NETWORK`, `TRUST_PROXY`), image bouwen, stack starten,
    gezondheidscheck en bij een lege database de content-import van www.avantareizen.nl;
 3. leest uit de draaiende cloudflared alleen het account- en tunnel-id (het geheime deel van het token blijft op apps01)
    en vraagt een Cloudflare API-token (*Account > Cloudflare Tunnel > Edit* en *Zone > DNS > Edit*, beperkt tot
-   den-hollander.com). Daarmee voegt het de ingress-regel toe vóór de catch-all (bestaande regels blijven staan) en
+   den-hollander.com; het token komt niet in de proceslijst). Het bewaart eerst de huidige tunnelconfiguratie in
+   `/root/cf-tunnel-<id>-<tijd>.json`, toont de nieuwe regels en vraagt bevestiging (`CF_YES=1` slaat dat over).
+   Daarna voegt het de ingress-regel toe vóór de catch-all (bestaande regels blijven staan) en
    maakt het de proxied CNAME `avanta -> <tunnel-id>.cfargotunnel.com`. Een andere bestaande record voor die naam
    wordt niet overschreven. Leeg laten = het script toont de handmatige stap hieronder.
 4. controleert `https://avanta.den-hollander.com/api/health`.

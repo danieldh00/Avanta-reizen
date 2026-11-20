@@ -8,7 +8,10 @@ services:
   app:
     # Lokaal gebouwd uit ../../app; zodra het GHCR-image bestaat: AVANTA_IMAGE=ghcr.io/... en `docker compose pull`.
     image: ${AVANTA_IMAGE:-avanta-reizen:local}
-    build: ../../app
+    build:
+      context: ../../app
+      labels:
+        nl.avantareizen.stack: avanta
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://avanta:${POSTGRES_PASSWORD:?zet POSTGRES_PASSWORD in .env}@db:5432/avanta

@@ -6,7 +6,7 @@
 #
 # Gebruik (vaste commit, zie deploy/apps01/README.md):
 #   AVANTA_REF=<sha> bash <(curl -fsSL https://raw.githubusercontent.com/danieldh00/Avanta-reizen/<sha>/deploy/apps01/pve-setup.sh)
-# Optioneel: APPS01_NAME (apps01), APPS01_CTID, APPS01_SSH (daniel@apps01), TUNNEL_CONTAINER (aquatech-cloudflared),
+# Optioneel: APPS01_NAME (apps01), APPS01_CTID, APPS01_SSH (daniel@apps01), TUNNEL_CONTAINER (aquatech-cloudflared), TUNNEL_NETWORK, CF_YES=1,
 #            HOSTNAME_FQDN (avanta.den-hollander.com), CF_API_TOKEN (anders gevraagd; leeg = hostname met de hand).
 set -euo pipefail
 
@@ -37,8 +37,8 @@ SUDO=""; [ "$MODE" = "ssh" ] && [ "${SSH_TARGET%%@*}" != "root" ] && SUDO="sudo 
 
 # run_guest SCRIPT: voert een bash-script als root uit op apps01.
 run_guest() {
-  if [ "$MODE" = "pct" ]; then pct exec "$GUEST_ID" -- bash -c "$1"
-  else ssh -o ConnectTimeout=10 "$SSH_TARGET" "$SUDO bash -c $(printf '%q' "$1")"; fi
+  if [ "$MODE" = "pct" ]; then pct exec "$GUEST_ID" -- bash -c "$1" </dev/null
+  else ssh -n -o ConnectTimeout=10 "$SSH_TARGET" "$SUDO bash -c $(printf '%q' "$1")"; fi
 }
 run_guest true || die "apps01 niet bereikbaar (of sudo vraagt een wachtwoord); zet APPS01_SSH of APPS01_CTID"
 
@@ -46,7 +46,7 @@ run_guest true || die "apps01 niet bereikbaar (of sudo vraagt een wachtwoord); z
 run_guest "set -euo pipefail
 tmp=\$(mktemp -d); trap 'rm -rf \"\$tmp\"' EXIT
 curl -fsSL '$RAW' -o \"\$tmp/install.sh\"
-TUNNEL_CONTAINER='$TUNNEL_CONTAINER' bash \"\$tmp/install.sh\" '$REF'"
+TUNNEL_CONTAINER='$TUNNEL_CONTAINER' ${TUNNEL_NETWORK:+TUNNEL_NETWORK='$TUNNEL_NETWORK'} bash \"\$tmp/install.sh\" '$REF'"
 
 # ---------- 3. Losse public hostname op de bestaande tunnel ----------
 # Account- en tunnel-id uit het token van de draaiende cloudflared (het geheime deel verlaat apps01 niet).
@@ -73,39 +73,39 @@ if [ -z "${CF_API_TOKEN:-}" ]; then
 fi
 [ -n "$CF_API_TOKEN" ] || { manual "$tunnel_id"; exit 0; }
 
-# cf METHODE PAD [JSON-BESTAND]: Cloudflare-API; stopt bij success=false.
+# cf METHODE PAD [JSON-BESTAND]: Cloudflare-API; stopt bij success=false. Het token gaat via stdin naar curl (-K -)
+# en het antwoord via stdin naar python, zodat geen van beide in de proceslijst (ps) staat.
 cf() {
   local out
-  out="$(curl -sS -X "$1" "$API$2" -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" ${3:+--data-binary "@$3"})"
-  python3 -c 'import json,sys
-r=json.loads(sys.argv[1])
-if not r.get("success"): sys.exit("Cloudflare-fout: " + json.dumps(r.get("errors")))' "$out"
+  out="$(printf 'header = "Authorization: Bearer %s"\n' "$CF_API_TOKEN" \
+    | curl -sS -K - -X "$1" "$API$2" -H "Content-Type: application/json" ${3:+--data-binary "@$3"})"
+  printf '%s' "$out" | python3 -c 'import json,sys
+r=json.load(sys.stdin)
+if not r.get("success"): sys.exit("Cloudflare-fout: " + json.dumps(r.get("errors")))'
   printf '%s' "$out"
 }
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 
-# Ingress: bestaande regels behouden; regel voor FQDN toevoegen vóór de catch-all, of bijwerken als hij er al is.
+# Ingress van de bestaande (productie)tunnel: eerst een back-up, dan de nieuwe regels tonen en laten bevestigen.
+# Bestaande regels blijven staan; de regel voor FQDN komt vóór de catch-all (logica en tests: tunnel-ingress.py).
+curl -fsSL "${RAW%/install.sh}/tunnel-ingress.py" -o "$work/tunnel-ingress.py"
 cf GET "/accounts/$account_id/cfd_tunnel/$tunnel_id/configurations" > "$work/current.json"
-python3 - "$work/current.json" "$work/new.json" "$FQDN" "$SERVICE_URL" <<'PY'
-import json, sys
-current, target, fqdn, service = sys.argv[1:5]
-config = (json.load(open(current)).get("result") or {}).get("config") or {}
-ingress = config.get("ingress") or [{"service": "http_status:404"}]
-for rule in ingress:
-    if rule.get("hostname") == fqdn:
-        rule["service"] = service
-        break
-else:
-    position = len(ingress) - 1 if ingress and "hostname" not in ingress[-1] else len(ingress)
-    ingress.insert(position, {"hostname": fqdn, "service": service})
-if "hostname" in ingress[-1]:
-    ingress.append({"service": "http_status:404"})
-config["ingress"] = ingress
-json.dump({"config": config}, open(target, "w"))
-print("Ingress-regels:", ", ".join(r.get("hostname", "(rest) " + r["service"]) for r in ingress))
-PY
-cf PUT "/accounts/$account_id/cfd_tunnel/$tunnel_id/configurations" "$work/new.json" >/dev/null
-echo "Binding $FQDN -> $SERVICE_URL op de bestaande tunnel gezet."
+backup="/root/cf-tunnel-$tunnel_id-$(date +%Y%m%d-%H%M%S).json"
+install -m 600 "$work/current.json" "$backup"
+echo "Back-up van de huidige tunnelconfiguratie: $backup"
+echo "Nieuwe ingress-regels:"
+python3 "$work/tunnel-ingress.py" "$work/current.json" "$work/new.json" "$FQDN" "$SERVICE_URL"
+if cmp -s <(python3 -c 'import json,sys; print(json.dumps((json.load(open(sys.argv[1])).get("result") or {}).get("config") or {}, sort_keys=True))' "$work/current.json") \
+          <(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1]))["config"], sort_keys=True))' "$work/new.json"); then
+  echo "Ingress ongewijzigd; niets te doen."
+else
+  if [ "${CF_YES:-}" != "1" ]; then
+    read -r -p "Deze configuratie op de tunnel zetten? [j/N] " answer
+    [[ "$answer" =~ ^[jJyY]$ ]] || die "afgebroken; er is niets gewijzigd in Cloudflare"
+  fi
+  cf PUT "/accounts/$account_id/cfd_tunnel/$tunnel_id/configurations" "$work/new.json" >/dev/null
+  echo "Binding $FQDN -> $SERVICE_URL op de bestaande tunnel gezet (terugzetten: PUT van de back-up)."
+fi
 
 # DNS: proxied CNAME naar de tunnel; een andere bestaande record wordt niet overschreven.
 zone_id="$(cf GET "/zones?name=$ZONE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["result"][0]["id"])')"
