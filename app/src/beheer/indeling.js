@@ -54,6 +54,18 @@ const GROUPS = [
     ],
   },
   {
+    title: 'Toegang en beveiliging',
+    sections: [
+      {
+        id: 'sessies',
+        label: 'Sessies en bewaartermijnen',
+        intro: 'Hoe lang een sessie in het CRM geldig blijft en hoe lang het auditlog, de IP-adressen daarin en de 404-lijst worden bewaard. Opruimen gebeurt bij het starten van de app en daarna dagelijks.',
+        fields: ['sessionIdleHours', 'sessionMaxDays', 'auditRetentionMonths', 'auditIpRetentionDays', 'notFoundRetentionDays'],
+        words: 'sessie inloggen uitloggen time-out inactiviteit bewaartermijn bewaren auditlog ip ip-adres avg privacy opruimen 404',
+      },
+    ],
+  },
+  {
     title: 'Vindbaarheid',
     sections: [
       {

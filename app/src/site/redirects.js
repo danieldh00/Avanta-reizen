@@ -6,7 +6,7 @@
  *   het aantal keer, eerste/laatste keer en de host van de verwijzende site. Nooit een IP-adres of volledige URL (AVG).
  * - Tellers worden in het geheugen verzameld en per minuut in één keer weggeschreven (`flush`), zodat een bezoek of
  *   een bot nooit een schrijfactie per verzoek kost. De lijst groeit tot hoogstens `MAX_NOT_FOUND_ROWS` regels en
- *   regels die `NOT_FOUND_RETENTION_DAYS` niet meer zijn gezien, worden opgeruimd.
+ *   regels die de bewaartermijn (instelling `notFoundRetentionDays`, standaard `NOT_FOUND_RETENTION_DAYS`) niet meer zijn gezien, worden opgeruimd.
  */
 
 /** Hoogste aantal regels in de 404-lijst; daarna worden alleen bestaande regels nog bijgeteld. */
@@ -133,7 +133,7 @@ function referrerHostOf(referrer, ownHost) {
 
 /**
  * Maakt de laag voor doorverwijzingen en de 404-lijst.
- * @param {{db: object}} options Database.
+ * @param {{db: object, settings?: object}} options Database en de instellingen (bewaartermijn van de 404-lijst).
  * @returns {object} Functies: `ready`, `reload`, `middleware`, `recordNotFound`, `flush`, `purge`, `forgetKnownNotFound`,
  *   `startTimers`.
  */
@@ -257,7 +257,9 @@ function createRedirects(options) {
    * @returns {Promise<void>}
    */
   const purge = async () => {
-    await db.query('DELETE FROM not_found_log WHERE last_seen_at < now() - make_interval(days => $1)', [NOT_FOUND_RETENTION_DAYS]);
+    if (options.settings) await options.settings.ready();
+    const retentionDays = options.settings ? options.settings.get('notFoundRetentionDays') : NOT_FOUND_RETENTION_DAYS;
+    await db.query('DELETE FROM not_found_log WHERE last_seen_at < now() - make_interval(days => $1)', [retentionDays]);
     await db.query(
       `DELETE FROM not_found_log WHERE (SELECT count(*) FROM not_found_log) >= $1
           AND hits <= 1 AND last_seen_at < now() - make_interval(days => $2)`,

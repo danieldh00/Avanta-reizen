@@ -112,7 +112,7 @@ function createApp(options) {
   });
 
   // Doorverwijzingen uit Beheer (oude adressen naar nieuwe), vóór de statische bestanden en de site.
-  const redirects = createRedirects({ db: options.db });
+  const redirects = createRedirects({ db: options.db, settings });
   app.locals.redirects = redirects;
   app.use(redirects.middleware);
 
@@ -127,6 +127,7 @@ function createApp(options) {
   const mailer = options.mailer || createMailer({ settings });
   const wanIp = options.wanIp || createWanIp();
   app.locals.mailer = mailer;
+  app.locals.settings = settings;
   const notifications = createNotifications({ mailer, settings });
 
   app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
@@ -178,7 +179,7 @@ async function start() {
   const port = Number(process.env.PORT) || 3400;
   const setupCode = generateSetupCode();
   const app = createApp({ db, masterKey: loadMasterKey(), indexable: process.env.SITE_INDEXABLE === 'true', setupCode });
-  startCrmMaintenance(db);
+  startCrmMaintenance(db, app.locals.settings);
   app.locals.redirects.startTimers();
   const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
   // Eenmalige installatiecode voor de eerste beheerder; alleen bruikbaar zolang er geen enkele CRM-gebruiker is.

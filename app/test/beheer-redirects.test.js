@@ -72,7 +72,7 @@ test('doorverwijzingen: paden normaliseren en controleren', () => {
   assert.equal(readablePath('/caf%C3%A9/'), '/café/');
   assert.equal(readablePath('/%E0%A4%A/'), '/%E0%A4%A/', 'onleesbaar blijft letterlijk');
   assert.deepEqual(filterGroups('redirect', SETTING_FIELDS).flatMap((group) => group.sections.map((section) => section.id)), ['doorverwijzingen']);
-  assert.deepEqual(filterGroups('404', SETTING_FIELDS).flatMap((group) => group.sections.map((section) => section.id)), ['niet-gevonden']);
+  assert.deepEqual(filterGroups('404', SETTING_FIELDS).flatMap((group) => group.sections.map((section) => section.id)), ['sessies', 'niet-gevonden'], 'ook de bewaartermijn van de 404-lijst');
 });
 
 test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
