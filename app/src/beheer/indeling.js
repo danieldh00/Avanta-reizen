@@ -63,6 +63,14 @@ const GROUPS = [
         fields: ['sessionIdleHours', 'sessionMaxDays', 'auditRetentionMonths', 'auditIpRetentionDays', 'notFoundRetentionDays'],
         words: 'sessie inloggen uitloggen time-out inactiviteit bewaartermijn bewaren auditlog ip ip-adres avg privacy opruimen 404',
       },
+      {
+        id: 'captcha',
+        label: 'Captcha op formulieren',
+        intro: 'Een onzichtbare captcha (Google reCAPTCHA v3) op het contact- en aanmeldformulier, naast de bestaande beveiliging (honeypot, tijdcontrole en limiet). Zonder sleutels of met de schakelaar uit staat er niets van Google in de site.',
+        fields: ['captchaEnabled', 'captchaSiteKey', 'captchaSecret', 'captchaMinScore', 'captchaOnUnreachable'],
+        extra: 'captcha',
+        words: 'captcha recaptcha google robot spam bot formulier contact aanmelden beveiliging score',
+      },
     ],
   },
   {

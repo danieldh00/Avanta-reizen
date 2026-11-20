@@ -106,6 +106,7 @@ function renderPage(page) {
   </footer>
   <script src="/js/site.js?v=${ASSET_VERSION}"></script>
   ${measurementId ? html`<script src="/js/analytics.js?v=${ASSET_VERSION}"></script>` : ''}
+  ${site.captchaSiteKey ? html`<script src="/js/captcha.js?v=${ASSET_VERSION}"></script>` : ''}
 </body>
 </html>`);
 }

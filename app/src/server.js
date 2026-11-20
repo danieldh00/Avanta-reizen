@@ -21,6 +21,7 @@ const { cspWith } = require('./site/analytics');
 const { createMailer } = require('./mail/mailer');
 const { createWanIp } = require('./mail/wan-ip');
 const { createNotifications } = require('./mail/notifications');
+const { createCaptcha, cspWith: captchaCspWith, isFormPath } = require('./security/captcha');
 const crypto = require('node:crypto');
 const { PUBLIC_DIR, MEDIA_DIR } = require('./paths');
 const { renderPage, renderPageHeader } = require('./site/layout');
@@ -65,8 +66,8 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, settings?: object, mailer?: object, wanIp?: object, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
- *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), de mailer en WAN-IP-opzoeker (standaard `mail/`), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
+ * @param {{db: object, masterKey: Buffer, settings?: object, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
+ *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
  *   (standaard `TRUST_PROXY`, anders loopback), de installatiecode voor de eerste CRM-beheerder en of de CRM-cookie
  *   `Secure` krijgt (standaard ja).
  * @returns {express.Express} De app.
@@ -95,6 +96,9 @@ function createApp(options) {
     SITE_URL: options.siteUrl ?? process.env.SITE_URL ?? '',
   };
   const settings = options.settings || createSettings({ db: options.db, vault, env: startValues });
+  // Onzichtbare captcha op de formulieren (tests geven een eigen fetch mee voor de controle bij Google).
+  const captcha = options.captcha || createCaptcha({ settings, fetchImpl: options.captchaFetch });
+  app.locals.captcha = captcha;
   app.use(async (req, res, next) => {
     try {
       await settings.ready();
@@ -105,6 +109,10 @@ function createApp(options) {
       if (res.locals.site.indexable && !inCrm) res.removeHeader('X-Robots-Tag');
       // Google Analytics alleen op de publieke site en alleen met een actief meet-ID; het CRM blijft op de standaardpolicy.
       if (res.locals.site.analytics.measurementId && !inCrm) res.set('Content-Security-Policy', cspWith(BASE_CSP, res.locals.site.analytics.measurementId));
+      // Captcha: de sitesleutel voor de pagina, en alleen op de formulierpagina's de adressen van Google in de CSP.
+      // Alleen op de formulierpagina's: daar laadt de layout het script en krijgt de CSP de Google-adressen.
+      res.locals.site.captchaSiteKey = !inCrm && isFormPath(req.path) ? captcha.siteKey() : '';
+      if (res.locals.site.captchaSiteKey) res.set('Content-Security-Policy', captchaCspWith(res.get('Content-Security-Policy')));
       return next();
     } catch (error) {
       return next(error);
@@ -130,11 +138,11 @@ function createApp(options) {
   app.locals.settings = settings;
   const notifications = createNotifications({ mailer, settings });
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
-  app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, now: options.now }));
-  const contactForm = createContactForm({ db: options.db, formKey, notifications, now: options.now });
+  app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now }));
+  const contactForm = createContactForm({ db: options.db, formKey, notifications, captcha, now: options.now });
   app.use(createSiteRouter({ db: options.db, contactForm }));
 
   // 404: telt mee in de 404-lijst van Beheer; altijd noindex (kop en renderPage zonder indexable), met een canonical
