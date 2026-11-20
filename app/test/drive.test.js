@@ -261,6 +261,62 @@ test('Drive: synchroniseren, bewaartermijn, opnieuw koppelen en ontkoppelen', as
   assert.equal(timed.state().account, '');
 });
 
+/**
+ * Een nep-Google waarvan de volgende upload (PUT) wacht tot `release()` wordt aangeroepen.
+ * @returns {{google: object, fetchImpl: Function, started: Promise<void>, release: Function}} Nep-Google met een rem.
+ */
+function blockingGoogle() {
+  const google = fakeGoogle();
+  let release;
+  let markStarted;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const started = new Promise((resolve) => { markStarted = resolve; });
+  let blocked = false;
+  const fetchImpl = async (url, init = {}) => {
+    if (!blocked && init.method === 'PUT') {
+      blocked = true;
+      markStarted();
+      await gate;
+    }
+    return google.fetchImpl(url, init);
+  };
+  return { google, fetchImpl, started, release };
+}
+
+test('Drive: gelijktijdig synchroniseren, koppelen en ontkoppelen', async (t) => {
+  // Een nieuwe back-up tijdens een lopende ronde gaat in een extra ronde direct mee.
+  const first = blockingGoogle();
+  first.google.state.refreshTokens.add('refresh-geheim-1');
+  const dir = tempDir(t);
+  const drive = createDrive({ settings: fakeSettings({ driveRefreshToken: 'refresh-geheim-1', driveKeepCount: 5 }), dir, fetchImpl: first.fetchImpl });
+  writeBackups(dir, ['20261119-020000']);
+  const running = drive.sync();
+  await first.started;
+  writeBackups(dir, ['20261120-020000']);
+  const followUp = drive.sync();
+  assert.equal(drive.sync(), followUp, 'nog een aanvraag sluit aan bij dezelfde extra ronde');
+  first.release();
+  assert.deepEqual((await running).uploaded, ['avanta-20261119-020000.dump.enc']);
+  assert.deepEqual((await followUp).uploaded, ['avanta-20261120-020000.dump.enc']);
+  assert.deepEqual(drive.state().uploaded.map((entry) => entry.name), ['avanta-20261120-020000.dump.enc', 'avanta-20261119-020000.dump.enc']);
+
+  // Ontkoppelen tijdens een lopende ronde: de ronde zet de oude koppeling niet terug.
+  const second = blockingGoogle();
+  second.google.state.refreshTokens.add('refresh-geheim-1');
+  const otherDir = tempDir(t);
+  const settings = fakeSettings({ driveRefreshToken: 'refresh-geheim-1' });
+  const other = createDrive({ settings, dir: otherDir, fetchImpl: second.fetchImpl });
+  writeBackups(otherDir, ['20261120-020000']);
+  const syncing = other.sync();
+  await second.started;
+  await other.disconnect(3);
+  second.release();
+  await syncing;
+  const state = other.state();
+  assert.deepEqual([state.folderId, state.account, state.uploaded, state.needsReconnect], ['', '', [], false]);
+  assert.match(state.events[0].message, /Ontkoppeld/);
+});
+
 test('Drive in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);

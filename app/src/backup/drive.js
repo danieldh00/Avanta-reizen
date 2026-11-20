@@ -143,7 +143,11 @@ function createDrive(options) {
   const pending = new Map();
   /** Toegangstoken in het geheugen (nooit op schijf): {token, expires}. */
   let access = null;
+  /** Lopende synchronisatie, en de synchronisatie die erna nog moet lopen (een aanvraag tijdens een lopende). */
   let syncing = null;
+  let queued = null;
+  /** Telt koppelen en ontkoppelen: een synchronisatie die daarvóór begon, schrijft haar uitkomst niet meer weg. */
+  let generation = 0;
 
   /**
    * Of client-ID en -secret zijn ingevuld.
@@ -175,6 +179,34 @@ function createDrive(options) {
     state.events = [{ at, ok, message: cleanText(message, 300) }, ...state.events].slice(0, MAX_EVENTS);
     if (ok) state.lastOkAt = at;
     else state.lastFailAt = at;
+  };
+
+  /**
+   * Wijzigt de stand op schijf: vlak ervoor opnieuw lezen, alleen de eigen velden aanpassen en meteen wegschrijven
+   * (synchroon, dus zonder andere schrijvers ertussen).
+   * @param {(state: object) => void} change Past de stand aan.
+   * @returns {object} De nieuwe stand.
+   */
+  const mutateState = (change) => {
+    const state = readState(dir);
+    change(state);
+    writeState(dir, state);
+    return state;
+  };
+
+  /**
+   * Legt de gevonden map vast, tenzij er intussen gekoppeld of ontkoppeld is.
+   * @param {{folderId: string, folderName: string}} work Werkkopie met de map.
+   * @param {number} startedIn De `generation` bij de start.
+   * @returns {void}
+   */
+  const saveFolder = (work, startedIn) => {
+    if (generation !== startedIn) return;
+    mutateState((state) => {
+      if (state.folderId !== work.folderId) state.uploaded = [];
+      state.folderId = work.folderId;
+      state.folderName = work.folderName;
+    });
   };
 
   /**
@@ -288,19 +320,20 @@ function createDrive(options) {
       userId: entry.userId,
       inTransaction: async (client) => options.audit && options.audit({ userId: entry.userId, action: 'drive.gekoppeld' }, client),
     });
+    generation += 1;
     access = typeof body.access_token === 'string' ? { token: body.access_token, expires: now() + (Number(body.expires_in) || 3600) * 1000 } : null;
-    const state = readState(dir);
-    state.needsReconnect = false;
-    state.folderId = '';
+    let account = '';
     try {
       const about = await (await api(`${GOOGLE.api}/about?fields=user(emailAddress)`)).json();
-      state.account = cleanText(about && about.user && about.user.emailAddress, 200);
+      account = cleanText(about && about.user && about.user.emailAddress, 200);
     } catch (_) {
-      state.account = '';
+      account = '';
     }
-    addEvent(state, true, `Gekoppeld${state.account ? ` met ${state.account}` : ''}.`);
-    writeState(dir, state);
-    return { userId: entry.userId, account: state.account };
+    mutateState((state) => {
+      Object.assign(state, { needsReconnect: false, folderId: '', uploaded: [], account });
+      addEvent(state, true, `Gekoppeld${account ? ` met ${account}` : ''}.`);
+    });
+    return { userId: entry.userId, account };
   };
 
   /**
@@ -317,11 +350,12 @@ function createDrive(options) {
       userId,
       inTransaction: async (client) => options.audit && options.audit({ userId, action: 'drive.ontkoppeld' }, client),
     });
+    generation += 1;
     access = null;
-    const state = readState(dir);
-    Object.assign(state, { folderId: '', account: '', uploaded: [], needsReconnect: false });
-    addEvent(state, true, 'Ontkoppeld; de bestanden op Google Drive blijven staan.');
-    writeState(dir, state);
+    mutateState((state) => {
+      Object.assign(state, { folderId: '', account: '', uploaded: [], needsReconnect: false });
+      addEvent(state, true, 'Ontkoppeld; de bestanden op Google Drive blijven staan.');
+    });
   };
 
   /**
@@ -402,55 +436,83 @@ function createDrive(options) {
   };
 
   /**
+   * Eén synchronisatieronde (zie `sync`).
+   * @returns {Promise<{skipped?: string, uploaded?: string[], removed?: string[]}>} Uitkomst.
+   */
+  const runSync = async () => {
+    await settings.ready();
+    if (!settings.get('driveEnabled')) return { skipped: 'uit' };
+    if (!connected()) return { skipped: 'niet gekoppeld' };
+    const startedIn = generation;
+    // Werkkopie voor de map; de stand op schijf wordt pas aan het eind (opnieuw gelezen) bijgewerkt.
+    const work = readState(dir);
+    const newEntries = [];
+    const removed = [];
+    /**
+     * Verwerkt de uploads en verwijderingen van deze ronde in de actuele stand.
+     * @param {object} state De stand.
+     * @returns {void}
+     */
+    const mergeUploads = (state) => {
+      if (state.folderId !== work.folderId) state.uploaded = [];
+      state.folderId = work.folderId;
+      state.folderName = work.folderName;
+      const skip = new Set([...removed, ...newEntries.map((entry) => entry.name)]);
+      state.uploaded = [...newEntries, ...state.uploaded.filter((entry) => !skip.has(entry.name))].slice(0, MAX_UPLOADED);
+    };
+    try {
+      const folderId = await ensureFolder(work);
+      const remote = await listFolder(folderId);
+      const remoteNames = new Set(remote.map((file) => file.name));
+      const keep = settings.get('driveKeepCount');
+      // Alleen back-ups die na het uploaden binnen de bewaartermijn op Drive vallen.
+      const wanted = listBackups(dir).slice(0, keep).filter((backup) => !remoteNames.has(backup.name)).reverse();
+      for (const backup of wanted) {
+        const driveId = await upload(folderId, backup);
+        remote.push({ id: driveId, name: backup.name, size: backup.size });
+        newEntries.unshift({ name: backup.name, driveId, size: backup.size, at: new Date(now()).toISOString() });
+      }
+      remote.sort((left, right) => right.name.localeCompare(left.name));
+      for (const file of remote.slice(keep)) {
+        await api(`${GOOGLE.api}/files/${file.id}`, { method: 'DELETE' });
+        removed.push(file.name);
+      }
+      if (generation === startedIn) {
+        mutateState((state) => {
+          mergeUploads(state);
+          state.needsReconnect = false;
+          addEvent(state, true, newEntries.length || removed.length
+            ? `${newEntries.length} geüpload, ${removed.length} oude verwijderd.`
+            : 'Alles stond al op Google Drive.');
+        });
+      }
+      return { uploaded: newEntries.map((entry) => entry.name).reverse(), removed };
+    } catch (error) {
+      // Intussen gekoppeld of ontkoppeld: die stand is leidend, deze uitkomst hoort bij de oude koppeling.
+      if (generation === startedIn) {
+        if (error.code === 'reconnect') access = null;
+        mutateState((state) => {
+          if (work.folderId) mergeUploads(state);
+          if (error.code === 'reconnect') state.needsReconnect = true;
+          addEvent(state, false, error instanceof DriveError ? error.message : `Onverwachte fout: ${cleanText(error.message, 150)}`);
+        });
+      }
+      throw error;
+    }
+  };
+
+  /**
    * Synchroniseert: ontbrekende back-ups uploaden (oudste eerst) en oude bestanden op Drive verwijderen (alleen
-   * bestanden met een back-upnaam in de eigen map; de nieuwste `driveKeepCount` blijven).
+   * bestanden met een back-upnaam in de eigen map; de nieuwste `driveKeepCount` blijven). Loopt er al een, dan volgt
+   * daarna nog precies één ronde, zodat een back-up die tijdens de lopende ronde ontstond ook meegaat.
    * @returns {Promise<{skipped?: string, uploaded?: string[], removed?: string[]}>} Uitkomst.
    */
   const sync = () => {
-    if (syncing) return syncing;
-    syncing = (async () => {
-      await settings.ready();
-      if (!settings.get('driveEnabled')) return { skipped: 'uit' };
-      if (!connected()) return { skipped: 'niet gekoppeld' };
-      const state = readState(dir);
-      try {
-        const folderId = await ensureFolder(state);
-        const remote = await listFolder(folderId);
-        const remoteNames = new Set(remote.map((file) => file.name));
-        const keep = settings.get('driveKeepCount');
-        // Alleen back-ups die na het uploaden binnen de bewaartermijn op Drive vallen.
-        const wanted = listBackups(dir).slice(0, keep).filter((backup) => !remoteNames.has(backup.name)).reverse();
-        const uploaded = [];
-        for (const backup of wanted) {
-          const driveId = await upload(folderId, backup);
-          uploaded.push(backup.name);
-          remote.push({ id: driveId, name: backup.name, size: backup.size });
-          state.uploaded = [{ name: backup.name, driveId, size: backup.size, at: new Date(now()).toISOString() }, ...state.uploaded].slice(0, MAX_UPLOADED);
-        }
-        remote.sort((left, right) => right.name.localeCompare(left.name));
-        const removed = [];
-        for (const file of remote.slice(keep)) {
-          await api(`${GOOGLE.api}/files/${file.id}`, { method: 'DELETE' });
-          removed.push(file.name);
-        }
-        const removedSet = new Set(removed);
-        state.uploaded = state.uploaded.filter((entry) => !removedSet.has(entry.name));
-        state.needsReconnect = false;
-        addEvent(state, true, uploaded.length || removed.length
-          ? `${uploaded.length} geüpload, ${removed.length} oude verwijderd.`
-          : 'Alles stond al op Google Drive.');
-        return { uploaded, removed };
-      } catch (error) {
-        if (error.code === 'reconnect') {
-          state.needsReconnect = true;
-          access = null;
-        }
-        addEvent(state, false, error instanceof DriveError ? error.message : `Onverwachte fout: ${cleanText(error.message, 150)}`);
-        throw error;
-      } finally {
-        writeState(dir, state);
-      }
-    })().finally(() => { syncing = null; });
+    if (syncing) {
+      if (!queued) queued = syncing.catch(() => {}).then(() => { queued = null; return sync(); });
+      return queued;
+    }
+    syncing = runSync().finally(() => { syncing = null; });
     return syncing;
   };
 
@@ -483,9 +545,10 @@ function createDrive(options) {
    * @throws {DriveError} Als het bestand niet op Drive staat.
    */
   const download = async (name, target) => {
-    const state = readState(dir);
-    const folderId = await ensureFolder(state);
-    writeState(dir, state);
+    const startedIn = generation;
+    const work = readState(dir);
+    const folderId = await ensureFolder(work);
+    saveFolder(work, startedIn);
     const file = (await listFolder(folderId)).find((entry) => entry.name === name);
     if (!file) throw new DriveError('missing', `${name} staat niet op Google Drive.`);
     const response = await api(`${GOOGLE.api}/files/${file.id}?alt=media`, {}, UPLOAD_TIMEOUT_MS);
@@ -498,9 +561,10 @@ function createDrive(options) {
    * @returns {Promise<Array<{id: string, name: string, size: number}>>} Bestanden, nieuwste eerst.
    */
   const listRemote = async () => {
-    const state = readState(dir);
-    const folderId = await ensureFolder(state);
-    writeState(dir, state);
+    const startedIn = generation;
+    const work = readState(dir);
+    const folderId = await ensureFolder(work);
+    saveFolder(work, startedIn);
     return listFolder(folderId);
   };
 
