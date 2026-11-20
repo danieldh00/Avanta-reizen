@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.9 — 2026-11-20 — Kopie van de back-ups op Google Drive
+
+- Beheer > Back-ups en herstel > Google Drive: elke back-up gaat (versleuteld) ook naar een map op Google Drive,
+
+- `app/src/backup/drive.js`: OAuth 2.0 (scope `drive.file`, eenmalige state van 15 minuten gebonden aan de beheerder),
+  refresh-token versleuteld in de instellingen (`driveRefreshToken`, in geen formulier), map zoeken/maken, hervatbare
+  upload als stroom, bewaartermijn op Drive (alleen eigen back-upnamen), stand en gebeurtenissen in `drive-state.json`
+  (nooit tokens), synchroniseren na elke back-up en elk uur (na een fout een kwartier wachten, na een ingetrokken token
+  pas na opnieuw koppelen), downloaden voor de hersteltest.
+- Beheer: sectie *Google Drive* (instellingen `driveEnabled`, `driveClientId`, `driveClientSecret`, `driveFolderName`,
+  `driveKeepCount`), terugkeeradres, koppelen, ontkoppelen (token ingetrokken bij Google; lukt dat niet, dan meldt Beheer dat met de
+  stappen om het zelf in te trekken), Nu synchroniseren (6 per
+  tien minuten); koppelen en ontkoppelen in het auditlog. De terugkeer van Google werkt zonder sessie en
+  controleert opnieuw of de beheerder nog actief is met het recht `systeem`.
+- `docs/GOOGLE-DRIVE.md`: Google Cloud-project, toestemmingsscherm en OAuth-client instellen.
+
 ## 0.4.8 — 2026-11-20 — Versleutelde dagelijkse back-ups
 
 - Beheer > Back-ups en herstel: de app maakt elke nacht een versleutelde back-up van de database, met een overzicht,
