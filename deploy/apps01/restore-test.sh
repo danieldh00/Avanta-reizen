@@ -51,9 +51,10 @@ record() {
 }
 fail() { log "MISLUKT: $1"; record "\"state\":\"mislukt\",\"message\":\"$1\""; exit 1; }
 
+# Eerst "bezig" vastleggen: zo ziet Beheer meteen een lopende test en vraagt een tweede klik geen extra run aan.
+record '"state":"bezig"'
 # Het verzoek van de knop weghalen (de service doet dat al vóór de start; dit is voor een handmatige run).
 app_exec rm -f /data/backups/restore-test-now >/dev/null 2>&1 || true
-record '"state":"bezig"'
 
 BACKUP="$(app_exec node src/backup/cli.js list | head -n 1 | cut -f 1)"
 [[ "$BACKUP" =~ ^avanta-[0-9]{8}-[0-9]{6}\.dump\.enc$ ]] || { BACKUP=""; fail "Geen back-up gevonden op de server."; }

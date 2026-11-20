@@ -80,7 +80,9 @@ zet `TRUST_PROXY` dan binnen 15 minuten goed (tot die tijd geven de formulieren 
 
 De app maakt zelf dagelijks een versleutelde back-up van de database in volume `avanta_app-data` (`/data/backups`),
 plus een vóór elke update (`update.sh`). Instellen, *Nu maken* en downloaden: **Beheer > Back-ups en herstel >
-Back-ups**. Terugzetten en verhuizen: `docs/DRAAIBOEK-VPS-VERHUIZING.md`.
+Back-ups**. Terugzetten: `sudo bash restore-backup.sh <back-up>` (veiligheidsback-up, controle, één transactie);
+verhuizen naar een andere server: `docs/DRAAIBOEK-VPS-VERHUIZING.md` (`install.sh` neemt daarvoor een bestaande
+`AVANTA_MASTER_KEY` over).
 
 Elke zondag rond 04:30 draait de hersteltest (`restore-test.sh`, timer `avanta-restore-test.timer`; op verzoek via
 `avanta-restore-test-now.path`): de nieuwste back-up gaat in een wegwerpdatabase met wegwerp-app, de uitslag staat in
