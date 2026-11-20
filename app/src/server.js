@@ -91,7 +91,9 @@ function createApp(options) {
     try {
       await settings.ready();
       res.locals.site = siteSettingsOf(settings);
-      if (res.locals.site.indexable && !req.path.startsWith('/app/') && req.path !== '/app') res.removeHeader('X-Robots-Tag');
+      // Express routeert hoofdletterongevoelig, dus ook `/APP/…` is het CRM: dat blijft altijd noindex.
+      const lowerPath = req.path.toLowerCase();
+      if (res.locals.site.indexable && !lowerPath.startsWith('/app/') && lowerPath !== '/app') res.removeHeader('X-Robots-Tag');
       return next();
     } catch (error) {
       return next(error);
@@ -112,8 +114,9 @@ function createApp(options) {
   const contactForm = createContactForm({ db: options.db, formKey, now: options.now });
   app.use(createSiteRouter({ db: options.db, contactForm }));
 
-  // 404: altijd noindex (renderPage zonder indexable), met een canonical naar het gevraagde pad.
+  // 404: altijd noindex (kop en renderPage zonder indexable), met een canonical naar het gevraagde pad.
   app.use((req, res) => {
+    res.set('X-Robots-Tag', 'noindex, nofollow');
     res.status(404).send(renderPage({
       title: 'Pagina niet gevonden',
       path: req.path,
@@ -128,6 +131,7 @@ function createApp(options) {
   // eslint-disable-next-line no-unused-vars
   app.use((error, req, res, next) => {
     console.error(`Fout bij ${req.method} ${req.path.replace(/[\r\n]/g, ' ')}: ${String(error.message).replace(/[\r\n]/g, ' ')}`);
+    res.set('X-Robots-Tag', 'noindex, nofollow');
     res.status(500).send(renderPage({
       title: 'Er ging iets mis',
       path: req.path,

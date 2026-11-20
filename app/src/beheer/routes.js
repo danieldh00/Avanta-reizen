@@ -272,7 +272,8 @@ function createBeheerRoutes(options) {
       const clear = formList(req.body, '_clear').filter((key) => sectionKeys.has(key));
       if (Object.keys(errors).length) return res.status(422).send(renderSettingsSection(req, section, { values, errors }));
       // Aanzetten van een instelling met `confirmOn` (zoals indexeren) vraagt het wachtwoord van de beheerder.
-      const turningOn = confirmableKeys(section).filter((key) => values[key] === true && !reset.includes(key));
+      // Ook terugzetten telt als aanzetten als de startwaarde (bijvoorbeeld SITE_INDEXABLE=true) aan is.
+      const turningOn = confirmableKeys(section).filter((key) => (reset.includes(key) ? settings.startValue(key) === true : values[key] === true));
       if (turningOn.length) {
         const password = formText(req.body, '_password') || '';
         let problem = '';

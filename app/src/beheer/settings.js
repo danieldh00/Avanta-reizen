@@ -332,13 +332,20 @@ function createSettings(options) {
    * @returns {*} De waarde.
    * @throws {Error} Bij een onbekende instelling.
    */
-  const get = (key) => {
+  const get = (key) => (source(key) === 'database' ? coerce(fields[key], stored.get(key)) : startValue(key));
+
+  /**
+   * De startwaarde van een instelling: wat geldt zonder waarde in de database (omgeving, anders standaard). Dit is
+   * ook de waarde na "terugzetten".
+   * @param {string} key Naam van de instelling.
+   * @returns {*} De waarde.
+   * @throws {Error} Bij een onbekende instelling.
+   */
+  const startValue = (key) => {
+    if (!known(key)) throw new Error(`Onbekende instelling ${key}`);
     const definition = fields[key];
-    switch (source(key)) {
-      case 'database': return coerce(definition, stored.get(key));
-      case 'omgeving': return coerce(definition, env[definition.env]);
-      default: return definition.default;
-    }
+    if (definition.env && env[definition.env] !== undefined && env[definition.env] !== '') return coerce(definition, env[definition.env]);
+    return definition.default;
   };
 
   /**
@@ -401,7 +408,7 @@ function createSettings(options) {
     return changed;
   };
 
-  return { load, ready, get, source, view, update, fields };
+  return { load, ready, get, source, startValue, view, update, fields };
 }
 
 module.exports = { SETTING_FIELDS, SettingsError, createSettings, validateValue, coerce };

@@ -82,6 +82,11 @@ test('vindbaarheid: site-instellingen, robots.txt, llms.txt en JSON-LD', () => {
 
   assert.equal(seo.robotsTxt({ ...site, indexable: false }), 'User-agent: *\nDisallow: /\n');
   assert.equal(seo.robotsTxt(site), 'User-agent: *\nAllow: /\n\nUser-agent: GPTBot\nDisallow: /\n\nSitemap: https://test.example.nl/sitemap.xml\n');
+  assert.equal(
+    seo.robotsTxt({ ...site, robotsExtra: ['Disallow: /intern/', 'User-agent: GPTBot', 'User-agent: CCBot', 'Disallow: /'] }),
+    'User-agent: *\nAllow: /\nDisallow: /intern/\n\nUser-agent: GPTBot\nUser-agent: CCBot\nDisallow: /\n\nSitemap: https://test.example.nl/sitemap.xml\n',
+    'een losse Disallow hoort bij de groep User-agent: *',
+  );
 
   const llms = seo.llmsTxt({ ...site, siteName: '[Evil](https://x)', llms: { enabled: true, intro: '# kop' } }, { categories: [{ name: 'Albanië', slug: 'albanie' }] });
   assert.match(llms, /^# Evilhttps:\/\/x\n/);
@@ -175,7 +180,10 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
     assert.match(trips.text, /<meta name="google-site-verification" content="GoogleCode_123">/);
     assert.match(trips.text, /<meta name="msvalidate.01" content="BINGCODE1234">/);
     assert.equal((await request('/app/inloggen/')).headers.get('x-robots-tag'), 'noindex, nofollow', 'het CRM nooit');
-    assert.match((await request('/bestaat-niet/')).text, /<meta name="robots" content="noindex, nofollow">/, 'een 404 nooit');
+    assert.equal((await request('/APP/inloggen/')).headers.get('x-robots-tag'), 'noindex, nofollow', 'ook niet in hoofdletters');
+    const missing = await request('/bestaat-niet/');
+    assert.match(missing.text, /<meta name="robots" content="noindex, nofollow">/, 'een 404 nooit');
+    assert.equal(missing.headers.get('x-robots-tag'), 'noindex, nofollow', 'ook de kop van een 404');
     const sitemap = await request('/sitemap.xml');
     assert.match(sitemap.text, /<loc>https:\/\/www\.nieuw\.example\.nl\/faq\/<\/loc>/);
     assert.match(sitemap.text, /<loc>https:\/\/www\.nieuw\.example\.nl\/faq-extra\/<\/loc>/);
@@ -229,5 +237,31 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
     assert.deepEqual(statuses.slice(-2), [422, 429]);
     clock += 16 * 60 * 1000;
     assert.equal((await request('/app/beheer/zoekmachines/', { cookie, form: { ...searchEngines, seoIndexing: 'ja', _password: 'fout wachtwoord!!' } })).status, 422, 'na het kwartier weer');
+  });
+
+  await t.test('terugzetten naar een startwaarde die aan staat, vraagt ook het wachtwoord', async () => {
+    const indexableApp = createApp({ db, masterKey: Buffer.alloc(32, 5), setupCode: SETUP_CODE, indexable: true, siteUrl: 'https://start.example.nl', now: () => clock });
+    const indexableServer = indexableApp.listen(0);
+    t.after(() => indexableServer.close());
+    const indexableBase = `http://127.0.0.1:${indexableServer.address().port}`;
+    /**
+     * Zet indexeren terug naar de startwaarde (aan) via de tweede app.
+     * @param {object} extra Extra formuliervelden.
+     * @returns {Promise<number>} Statuscode.
+     */
+    const reset = async (extra) => {
+      const response = await fetch(`${indexableBase}/app/beheer/zoekmachines/`, {
+        method: 'POST',
+        headers: { cookie: `${COOKIE_NAME}=${cookie}`, 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ ...searchEngines, siteUrl: 'https://www.nieuw.example.nl', _reset: 'seoIndexing', ...extra }).toString(),
+        redirect: 'manual',
+      });
+      await response.text();
+      return response.status;
+    };
+    assert.equal(await reset({}), 422, 'zonder wachtwoord');
+    assert.equal((await fetch(`${indexableBase}/robots.txt`).then((response) => response.text())), 'User-agent: *\nDisallow: /\n', 'nog steeds dicht');
+    assert.equal(await reset({ _password: ADMIN_PASSWORD }), 303, 'met wachtwoord');
+    assert.match(await fetch(`${indexableBase}/robots.txt`).then((response) => response.text()), /^User-agent: \*\nAllow: \/\n/);
   });
 });

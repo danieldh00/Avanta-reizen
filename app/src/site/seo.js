@@ -284,8 +284,14 @@ function renderSitemap(siteUrl, urls) {
  */
 function robotsTxt(site) {
   if (!site.indexable) return 'User-agent: *\nDisallow: /\n';
-  const extra = site.robotsExtra.length ? `\n${site.robotsExtra.join('\n')}\n` : '';
-  return `User-agent: *\nAllow: /\n${extra}\nSitemap: ${site.siteUrl}/sitemap.xml\n`;
+  // De extra regels sluiten direct aan op de groep `User-agent: *`, zodat een losse `Disallow:` voor alle crawlers
+  // geldt; een nieuwe `User-agent:` na regels begint een eigen groep (met een lege regel ervoor, alleen voor de leesbaarheid).
+  const lines = ['User-agent: *', 'Allow: /'];
+  for (const line of site.robotsExtra) {
+    if (/^user-agent:/i.test(line) && !/^user-agent:/i.test(lines[lines.length - 1])) lines.push('');
+    lines.push(line);
+  }
+  return `${lines.join('\n')}\n\nSitemap: ${site.siteUrl}/sitemap.xml\n`;
 }
 
 /**
