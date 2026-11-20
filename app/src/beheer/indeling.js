@@ -12,6 +12,14 @@ const GROUPS = [
     sections: [
       { id: 'overzicht', label: 'Systeemoverzicht', view: 'overzicht', words: 'versie database migratie node uptime instellingen bron omgeving status' },
       { id: 'updates', label: 'Updates en onderhoud', view: 'updates', words: 'update updaten bijwerken versie release releasenotes changelog automatisch onderhoud onderhoudsmodus 503 uitrol' },
+      { id: 'logboek', label: 'Logboek', view: 'logboek', words: 'logboek log fout fouten foutcode error waarschuwing traag request-id verzoek console' },
+      {
+        id: 'foutopsporing',
+        label: 'Foutopsporing',
+        intro: 'Bij elke fout krijgt de bezoeker een foutcode; die staat met de details in het logboek. De debugmodus toont beheerders de details meteen op de foutpagina.',
+        fields: ['debugMode', 'logSlowMs', 'logRetentionDays'],
+        words: 'debug debugmodus foutcode stacktrace traag drempel bewaartermijn logboek opsporen',
+      },
       { id: 'servertaken', label: 'Servertaken', view: 'servertaken', words: 'server servertaak taken commando proxmox pve apps01 host script afvinken' },
     ],
   },

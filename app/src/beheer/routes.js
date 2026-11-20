@@ -18,6 +18,7 @@ const { createDriveRoutes } = require('./drive-routes');
 const { createRestoreTestRoutes } = require('./restore-test-routes');
 const { createUpdateRoutes } = require('./update-routes');
 const { createHostTaskRoutes } = require('./host-task-routes');
+const { createLogRoutes } = require('./log-routes');
 
 /** Versie van de app (voor het systeemoverzicht). */
 const APP_VERSION = require('../../package.json').version;
@@ -65,11 +66,11 @@ function formatUptime(seconds) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, now?: () => number}} options
+ * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, now?: () => number}} options
  *   Database, sessie- en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`), de mailer en
  *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de back-updienst (`backup/backups.js`), de Drive-koppeling (`backup/drive.js`), de hersteltests
  *   (`backup/restore-test.js`), de koppeling met het updatescript (`system/system-update.js`), de servertaken
- *   (`system/host-tasks.js`) en (voor tests) de klok van de limieten.
+ *   (`system/host-tasks.js`), het logboek (`system/app-log.js`) en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router, te koppelen binnen de CRM-router.
  */
 function createBeheerRoutes(options) {
@@ -269,6 +270,7 @@ function createBeheerRoutes(options) {
 
   if (options.systemUpdate) router.use(createUpdateRoutes({ db, auth, guard, settings, systemUpdate: options.systemUpdate, renderBeheerPage, now: options.now }).router);
   if (options.hostTasks) router.use(createHostTaskRoutes({ auth, guard, settings, hostTasks: options.hostTasks, renderBeheerPage, notFound, now: options.now }));
+  router.use(createLogRoutes({ db, guard, settings, appLog: options.appLog, renderBeheerPage, now: options.now }));
   if (options.restoreTests) router.use(createRestoreTestRoutes({ auth, guard, settings, restoreTests: options.restoreTests, renderBeheerPage, now: options.now }));
   // Doorverwijzingen en de 404-lijst hebben eigen routes (vóór de algemene secties).
   if (options.redirects) router.use(createRedirectRoutes({ db, auth, guard, redirects: options.redirects, renderBeheerPage, notFound }));
