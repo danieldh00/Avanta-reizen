@@ -340,6 +340,18 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     clock += 2 * 60 * 60 * 1000;
   });
 
+  await t.test('acht reeksen die elk kwartier proberen zetten het account niet dicht', async () => {
+    for (let quarter = 0; quarter < 4; quarter++) {
+      for (let range = 0; range < 8; range++) {
+        await request('/app/inloggen/', { form: { email: 'kees@example.nl', password: `fout ${quarter}-${range}` }, headers: { 'x-forwarded-for': `10.230.${range}.1` } });
+      }
+      clock += 15 * 60 * 1000 - 60 * 1000; // vier kwartieren binnen één uur
+    }
+    const other = await request('/app/inloggen/', { form: { email: 'kees@example.nl', password: 'nieuw kantoorwachtwoord' }, headers: { 'x-forwarded-for': '10.231.0.1' } });
+    assert.equal(other.status, 303);
+    clock += 2 * 60 * 60 * 1000;
+  });
+
   await t.test('gelijktijdige pogingen omzeilen de teller niet', async () => {
     clock += 2 * 60 * 60 * 1000;
     const [{ last }] = await db.query('SELECT coalesce(max(id), 0) AS last FROM audit_log');
@@ -360,7 +372,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
       'gebruiker.aangemaakt', 'gebruiker.uitgeschakeld', 'gebruiker.ingeschakeld', 'gebruiker.wachtwoord', 'wachtwoord.gewijzigd', 'uitloggen']) {
       assert.ok(actions.has(action), action);
     }
-    assert.ok(rows.every((row) => row.ip_prefix === null || /^(127\.0|10\.\d+)\.0\.0\/24$/.test(row.ip_prefix)), 'alleen ingekorte adressen');
+    assert.ok(rows.every((row) => row.ip_prefix === null || /^(127\.0|10\.\d+)\.\d+\.0\/24$/.test(row.ip_prefix)), 'alleen ingekorte adressen');
     const dump = JSON.stringify(rows);
     assert.doesNotMatch(dump, /example\.nl|wachtwoord /, 'geen e-mailadressen of wachtwoorden in het log');
     const session = await login('beheer@example.nl', 'nieuw beheerwachtwoord');

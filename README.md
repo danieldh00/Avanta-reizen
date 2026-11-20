@@ -42,8 +42,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     IP-reeks (daarna is die combinatie dicht tot het kwartier om is). Dat laatste bewust niet voor het hele account, zodat niemand de beheerder kan buitensluiten;
     vanaf een ander netwerk of na het kwartier lukt inloggen gewoon (een herstart wist de tellers ook). Tegen raden
     vanuit veel netwerken tegelijk gaat een account dicht tot het einde van het uur als er binnen een uur pogingen
-    komen vanuit 30 verschillende IP-reeksen; elke reeks telt daarvoor hoogstens één keer per kwartier mee, zodat één
-    netwerk het account nooit kan dichtzetten. De laatste
+    komen vanuit 30 verschillende IP-reeksen; elke reeks telt daarvoor hoogstens één keer per uur mee, zodat één
+    netwerk (of een handvol) het account nooit kan dichtzetten. De laatste
     actieve beheerder kan niet worden gedegradeerd of uitgeschakeld. Het auditlog bewaart wie, wat, welk record, wanneer
     en een ingekort IP-adres (/24 of /48), nooit e-mailadressen, wachtwoorden of andere waarden; regels ouder dan 2 jaar
     worden bij het starten en daarna dagelijks opgeruimd, net als verlopen sessies.

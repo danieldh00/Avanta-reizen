@@ -23,10 +23,9 @@ const MAX_FAILED_LOGINS = 5;
 const LOCK_MINUTES = 15;
 
 /**
- * Teller per account tegen gedistribueerd raden: elke IP-reeks telt per kwartier hoogstens één keer mee (bij haar
- * eerste poging). Zijn er binnen een uur pogingen vanuit zoveel verschillende reeksen, dan is het account tot het einde
- * van dat uur dicht. Eén netwerk kan zo hoogstens 4 per uur bijdragen en de beheerder dus nooit buitensluiten; dat
- * vraagt pogingen vanuit 30 netwerken tegelijk, en dan zou die aanvaller anders ongeremd kunnen raden.
+ * Teller per account tegen gedistribueerd raden: elke IP-reeks telt per uur hoogstens één keer mee (bij haar eerste
+ * poging). Zijn er binnen een uur pogingen vanuit zoveel verschillende reeksen, dan is het account tot het einde van
+ * dat uur dicht. Buitensluiten vraagt dus echt 30 verschillende netwerken per uur; één netwerk kan het nooit.
  */
 const MAX_FAILED_LOGINS_PER_ACCOUNT = 30;
 const ACCOUNT_WINDOW_MINUTES = 60;
@@ -92,6 +91,7 @@ function createCrmRouter(options) {
   const setupLimiter = createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000, now: options.now });
   const passwordLimiter = createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000, now: options.now });
   const failedLoginLimiter = createRateLimiter({ limit: MAX_FAILED_LOGINS, windowMs: LOCK_MINUTES * 60 * 1000, now: options.now });
+  const accountRangeLimiter = createRateLimiter({ limit: 1, windowMs: ACCOUNT_WINDOW_MINUTES * 60 * 1000, now: options.now });
   const accountFailureLimiter = createRateLimiter({ limit: MAX_FAILED_LOGINS_PER_ACCOUNT, windowMs: ACCOUNT_WINDOW_MINUTES * 60 * 1000, now: options.now });
   // Algemene limiet op alles onder /app/ (ook de sessiecontrole kost een databasevraag per verzoek).
   const generalLimiter = createRateLimiter({ limit: 300, windowMs: 60 * 1000, now: options.now });
@@ -171,7 +171,7 @@ function createCrmRouter(options) {
       let blocked = false;
       if (user) {
         const pairAllowed = failedLoginLimiter.hit(failureKey);
-        const newRange = failedLoginLimiter.count(failureKey) === 1;
+        const newRange = accountRangeLimiter.hit(failureKey);
         const accountAllowed = newRange ? accountFailureLimiter.hit(accountKey) : !accountFailureLimiter.isBlocked(accountKey);
         blocked = !pairAllowed || !accountAllowed;
       }

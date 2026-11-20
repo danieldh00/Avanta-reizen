@@ -17,5 +17,5 @@ bump: minor
   (`routes.js`), gebruikersbeheer en auditlog (`users.js`).
 - `/app/` krijgt `Cache-Control: no-store` en `noindex`; algemene limiet per IP, plus limieten op inloggen, installatie
   en wachtwoord wijzigen. Hoogstens 5 mislukte pogingen per kwartier per account en IP-reeks, pogingen vanuit 30 verschillende IP-reeksen
-  binnen een uur zetten het account tot het einde van dat uur dicht (één reeks telt hoogstens eens per kwartier). Auditlog: bewaartermijn 2 jaar, dagelijks opgeruimd.
+  binnen een uur zetten het account tot het einde van dat uur dicht (één reeks telt hoogstens eens per uur). Auditlog: bewaartermijn 2 jaar, dagelijks opgeruimd.
 - `form-guard.js`: herkomstcontrole los beschikbaar als `isCrossSite`.
