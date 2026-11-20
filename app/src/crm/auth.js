@@ -81,7 +81,8 @@ function ipPrefix(req) {
 
 /**
  * Ruimt verlopen sessies en auditregels ouder dan de bewaartermijn op en wist IP-voorvoegsels ouder dan hun termijn
- * (via de indexen op `expires_at` en `created_at`). Draait bij het starten van de server en daarna dagelijks (zie
+ * (verlopen sessies via de index op `expires_at`, auditregels via `audit_log_created_idx`; de tweede opdracht op
+ * `sessions.created_at` scant de kleine tabel). Draait bij het starten van de server en daarna dagelijks (zie
  * `startCrmMaintenance`).
  * @param {{query: Function}} db Database.
  * @param {object} [settings] De instellingen (`beheer/settings.js`); zonder instellingen gelden de standaardtermijnen.
