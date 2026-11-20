@@ -151,6 +151,8 @@ function createDrive(options) {
   let queued = null;
   /** Telt koppelen en ontkoppelen: een synchronisatie die daarvóór begon, schrijft haar uitkomst niet meer weg. */
   let generation = 0;
+  /** Keten van mapzoekacties (één tegelijk). */
+  let folderQueue = Promise.resolve();
 
   /**
    * Of client-ID en -secret zijn ingevuld.
@@ -369,11 +371,23 @@ function createDrive(options) {
   };
 
   /**
-   * Zoekt of maakt de back-upmap op Drive.
-   * @param {object} state De stand (wordt bijgewerkt).
+   * Zoekt of maakt de back-upmap op Drive, één zoekactie tegelijk (anders kunnen twee gelijktijdige aanroepen elk een
+   * map met dezelfde naam aanmaken).
+   * @param {object} state De werkkopie van de stand (wordt bijgewerkt).
    * @returns {Promise<string>} Id van de map.
    */
-  const ensureFolder = async (state) => {
+  const ensureFolder = (state) => {
+    const run = folderQueue.then(() => findFolder(state));
+    folderQueue = run.catch(() => {});
+    return run;
+  };
+
+  /**
+   * Zoekt of maakt de back-upmap op Drive (zie `ensureFolder`).
+   * @param {object} state De werkkopie van de stand (wordt bijgewerkt).
+   * @returns {Promise<string>} Id van de map.
+   */
+  const findFolder = async (state) => {
     const name = settings.get('driveFolderName');
     if (state.folderId && state.folderName === name) {
       try {
@@ -459,6 +473,14 @@ function createDrive(options) {
     const newEntries = [];
     const removed = [];
     /**
+     * Stopt de ronde als er intussen gekoppeld of ontkoppeld is: dan geen verzoeken meer met de nieuwe koppeling.
+     * @returns {void}
+     * @throws {DriveError} Als de koppeling is gewijzigd.
+     */
+    const stillCurrent = () => {
+      if (generation !== startedIn) throw new DriveError('stale', 'Gestopt: de koppeling met Google is intussen gewijzigd.');
+    };
+    /**
      * Verwerkt de uploads en verwijderingen van deze ronde in de actuele stand.
      * @param {object} state De stand.
      * @returns {void}
@@ -472,30 +494,33 @@ function createDrive(options) {
     };
     try {
       const folderId = await ensureFolder(work);
+      stillCurrent();
+      saveFolder(work, startedIn);
       const remote = await listFolder(folderId);
       const remoteNames = new Set(remote.map((file) => file.name));
       const keep = settings.get('driveKeepCount');
       // Alleen back-ups die na het uploaden binnen de bewaartermijn op Drive vallen.
       const wanted = listBackups(dir).slice(0, keep).filter((backup) => !remoteNames.has(backup.name)).reverse();
       for (const backup of wanted) {
+        stillCurrent();
         const driveId = await upload(folderId, backup);
         remote.push({ id: driveId, name: backup.name, size: backup.size });
         newEntries.unshift({ name: backup.name, driveId, size: backup.size, at: new Date(now()).toISOString() });
       }
       remote.sort((left, right) => right.name.localeCompare(left.name));
       for (const file of remote.slice(keep)) {
+        stillCurrent();
         await api(`${GOOGLE.api}/files/${file.id}`, { method: 'DELETE' });
         removed.push(file.name);
       }
-      if (generation === startedIn) {
-        mutateState((state) => {
-          mergeUploads(state);
-          state.needsReconnect = false;
-          addEvent(state, true, newEntries.length || removed.length
-            ? `${newEntries.length} geüpload, ${removed.length} oude verwijderd.`
-            : 'Alles stond al op Google Drive.');
-        });
-      }
+      stillCurrent();
+      mutateState((state) => {
+        mergeUploads(state);
+        state.needsReconnect = false;
+        addEvent(state, true, newEntries.length || removed.length
+          ? `${newEntries.length} geüpload, ${removed.length} oude verwijderd.`
+          : 'Alles stond al op Google Drive.');
+      });
       return { uploaded: newEntries.map((entry) => entry.name).reverse(), removed };
     } catch (error) {
       // Intussen gekoppeld of ontkoppeld: die stand is leidend, deze uitkomst hoort bij de oude koppeling.

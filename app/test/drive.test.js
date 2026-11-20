@@ -283,7 +283,7 @@ function blockingGoogle() {
   return { google, fetchImpl, started, release };
 }
 
-test('Drive: gelijktijdig synchroniseren, koppelen en ontkoppelen', async (t) => {
+test('Drive: gelijktijdig synchroniseren, ontkoppelen en opnieuw koppelen', async (t) => {
   // Een nieuwe back-up tijdens een lopende ronde gaat in een extra ronde direct mee.
   const first = blockingGoogle();
   first.google.state.refreshTokens.add('refresh-geheim-1');
@@ -311,10 +311,46 @@ test('Drive: gelijktijdig synchroniseren, koppelen en ontkoppelen', async (t) =>
   await second.started;
   await other.disconnect(3);
   second.release();
-  await syncing;
+  await assert.rejects(syncing, /koppeling met Google is intussen gewijzigd/);
   const state = other.state();
   assert.deepEqual([state.folderId, state.account, state.uploaded, state.needsReconnect], ['', '', [], false]);
   assert.match(state.events[0].message, /Ontkoppeld/);
+
+  // Ontkoppelen en opnieuw koppelen tijdens een ronde: de oude ronde doet daarna geen verzoeken meer (geen tweede
+  // upload, niets verwijderd) en de nieuwe koppeling blijft in de stand staan.
+  const third = blockingGoogle();
+  third.google.state.refreshTokens.add('refresh-geheim-1');
+  const thirdDir = tempDir(t);
+  const relink = createDrive({ settings: fakeSettings({ driveRefreshToken: 'refresh-geheim-1', driveKeepCount: 1 }), dir: thirdDir, fetchImpl: third.fetchImpl });
+  writeBackups(thirdDir, ['20261119-020000']);
+  const oldRound = relink.sync();
+  await third.started;
+  writeBackups(thirdDir, ['20261120-020000']);
+  await relink.disconnect(3);
+  const state3 = new URL(relink.startAuthorization(3)).searchParams.get('state');
+  await relink.finishAuthorization({ state: state3, code: 'goede-code' });
+  const putsBefore = third.google.calls.filter((call) => call.startsWith('PUT ')).length;
+  third.release();
+  await assert.rejects(oldRound, /intussen gewijzigd/);
+  assert.equal(third.google.calls.filter((call) => call.startsWith('PUT ')).length, putsBefore + 1, 'alleen de al lopende upload');
+  assert.equal(third.google.calls.filter((call) => call.startsWith('DELETE ')).length, 0);
+  const relinked = relink.state();
+  assert.equal(relinked.account, 'kantoor@example.nl');
+  assert.deepEqual(relinked.uploaded, []);
+  assert.match(relinked.events[0].message, /Gekoppeld/);
+  // Een nieuwe ronde met de nieuwe koppeling werkt gewoon.
+  assert.deepEqual((await relink.sync()).uploaded, ['avanta-20261120-020000.dump.enc']);
+});
+
+test('Drive: één mapzoekactie tegelijk', async (t) => {
+  const google = fakeGoogle();
+  google.state.refreshTokens.add('refresh-geheim-1');
+  const dir = tempDir(t);
+  const drive = createDrive({ settings: fakeSettings({ driveRefreshToken: 'refresh-geheim-1' }), dir, fetchImpl: google.fetchImpl });
+  writeBackups(dir, ['20261120-020000']);
+  await Promise.all([drive.listRemote(), drive.listRemote(), drive.sync()]);
+  const folders = [...google.files.values()].filter((file) => file.mimeType === 'application/vnd.google-apps.folder');
+  assert.equal(folders.length, 1, 'geen dubbele map op Drive');
 });
 
 test('Drive in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
