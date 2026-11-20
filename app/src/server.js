@@ -5,6 +5,7 @@
 const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
+const net = require('node:net');
 const { createDatabase } = require('./database/db');
 const { createSiteRouter } = require('./site/routes');
 const { createBookingRouter } = require('./booking/routes');
@@ -33,15 +34,18 @@ function securityHeaders(options) {
 }
 
 /**
- * Welke proxy's Express vertrouwt voor `req.ip` (en daarmee de limiet per bezoeker). Standaard alleen loopback; achter
- * een reverse proxy in een andere container het exacte adres daarvan (bijv. `172.18.0.5`); geen subnet met het Docker-bridgenetwerk.
- * @param {(string|undefined)} value Waarde uit `TRUST_PROXY` (kommagescheiden adressen/subnetten of een getal).
- * @returns {(string|number)} Instelling voor Express.
+ * Welke proxy Express vertrouwt voor `req.ip` (en daarmee de limiet per bezoeker). Alleen `loopback` (standaard) of het
+ * exacte IP-adres van één reverse proxy, bijv. `172.18.0.5`. Subnetten, lijsten en hop-aantallen worden geweigerd:
+ * daarmee kan een bezoeker via het Docker-bridgeadres met een zelfgekozen `X-Forwarded-For` de limiet omzeilen.
+ * @param {(string|undefined)} value Waarde uit `TRUST_PROXY`.
+ * @returns {string} Instelling voor Express.
+ * @throws {Error} Bij een waarde die geen loopback of enkel IP-adres is.
  */
 function parseTrustProxy(value) {
   const text = String(value ?? '').trim();
-  if (!text) return 'loopback';
-  return /^\d+$/.test(text) ? Number(text) : text;
+  if (!text || text === 'loopback') return 'loopback';
+  if (net.isIP(text) === 0) throw new Error(`TRUST_PROXY moet leeg, 'loopback' of één exact IP-adres zijn, niet '${text}'`);
+  return text;
 }
 
 /**
