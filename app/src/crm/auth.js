@@ -1,7 +1,8 @@
 /**
  * Sessies, CSRF-bescherming, rechtencontrole en auditlog van het CRM.
  * - Sessie: willekeurig token in een cookie (`HttpOnly`, `Secure`, `SameSite=Strict`, pad `/app`); in de database staat
- *   alleen de SHA-256 ervan. Verloopt na 8 uur zonder activiteit en uiterlijk na 7 dagen.
+ *   alleen de SHA-256 ervan. Verloopt na 8 uur zonder activiteit en uiterlijk na 7 dagen (instelbaar in Beheer >
+ *   Toegang en beveiliging > Sessies en bewaartermijnen; een kortere duur geldt meteen voor bestaande sessies).
  * - CSRF: elk formulier met POST bevat een token dat uit de sessie is afgeleid (HMAC), plus een herkomstcontrole.
  * - Rechten: `requireRight(recht)` per route; zonder sessie naar het inlogscherm, zonder recht 403.
  * - Auditlog: wie, wat, welk record, wanneer en een ingekort IP-adres; nooit de waarde zelf of persoonsgegevens.
@@ -14,12 +15,24 @@ const { isCrossSite } = require('../security/form-guard');
 const COOKIE_NAME = 'avanta_sessie';
 const COOKIE_PATH = '/app';
 
-/** Verloop na inactiviteit en maximale levensduur van een sessie. */
+/** Standaard verloop na inactiviteit en maximale levensduur van een sessie (zonder instellingen). */
 const IDLE_HOURS = 8;
 const MAX_DAYS = 7;
 
-/** Bewaartermijn van het auditlog (`docs/OPZET-CRM.md` §5: 2 jaar). */
+/** Standaard bewaartermijn van het auditlog (`docs/OPZET-CRM.md` §5: 2 jaar) en van de IP-voorvoegsels daarin. */
 const AUDIT_RETENTION_MONTHS = 24;
+const AUDIT_IP_RETENTION_DAYS = 90;
+
+/**
+ * Een instelling als die er is, anders de standaard (voor code en tests zonder instellingenlaag).
+ * @param {(object|undefined)} settings De instellingen (`beheer/settings.js`).
+ * @param {string} key Naam van de instelling.
+ * @param {number} fallback Standaardwaarde.
+ * @returns {number} De waarde.
+ */
+function settingOr(settings, key, fallback) {
+  return settings ? settings.get(key) : fallback;
+}
 
 /** Hoe vaak `last_seen_at` hooguit wordt bijgewerkt (scheelt een schrijfactie per verzoek). */
 const TOUCH_SECONDS = 60;
@@ -66,38 +79,53 @@ function ipPrefix(req) {
 }
 
 /**
- * Ruimt verlopen sessies en auditregels ouder dan de bewaartermijn op (beide via een index). Draait bij het starten
- * van de server en daarna dagelijks (zie `startCrmMaintenance`).
+ * Ruimt verlopen sessies en auditregels ouder dan de bewaartermijn op en wist IP-voorvoegsels ouder dan hun termijn
+ * (via de indexen op `expires_at` en `created_at`). Draait bij het starten van de server en daarna dagelijks (zie
+ * `startCrmMaintenance`).
  * @param {{query: Function}} db Database.
+ * @param {object} [settings] De instellingen (`beheer/settings.js`); zonder instellingen gelden de standaardtermijnen.
  * @returns {Promise<void>}
  */
-async function purgeExpired(db) {
-  await db.query('DELETE FROM sessions WHERE expires_at < now()');
-  await db.query('DELETE FROM audit_log WHERE created_at < now() - make_interval(months => $1)', [AUDIT_RETENTION_MONTHS]);
+async function purgeExpired(db, settings) {
+  if (settings) await settings.ready();
+  const maxDays = settingOr(settings, 'sessionMaxDays', MAX_DAYS);
+  await db.query('DELETE FROM sessions WHERE expires_at < now() OR created_at < now() - make_interval(days => $1)', [maxDays]);
+  await db.query('DELETE FROM audit_log WHERE created_at < now() - make_interval(months => $1)', [settingOr(settings, 'auditRetentionMonths', AUDIT_RETENTION_MONTHS)]);
+  await db.query(
+    'UPDATE audit_log SET ip_prefix = NULL WHERE created_at < now() - make_interval(days => $1) AND ip_prefix IS NOT NULL',
+    [settingOr(settings, 'auditIpRetentionDays', AUDIT_IP_RETENTION_DAYS)],
+  );
 }
 
 /**
  * Start het dagelijkse onderhoud: meteen een keer opruimen, daarna elke 24 uur. De timer houdt het proces niet open.
  * Een mislukte ronde wordt gelogd (zonder gegevens) en de volgende ronde probeert het opnieuw.
  * @param {{query: Function}} db Database.
+ * @param {object} [settings] De instellingen (bewaartermijnen).
  * @returns {NodeJS.Timeout} De timer.
  */
-function startCrmMaintenance(db) {
-  const run = () => purgeExpired(db).catch((error) => console.error(`CRM-onderhoud mislukt: ${String(error.message).replace(/[\r\n]/g, ' ')}`));
+function startCrmMaintenance(db, settings) {
+  const run = () => purgeExpired(db, settings).catch((error) => console.error(`CRM-onderhoud mislukt: ${String(error.message).replace(/[\r\n]/g, ' ')}`));
   run();
   return setInterval(run, 24 * 60 * 60 * 1000).unref();
 }
 
 /**
  * Maakt de sessie- en rechtenlaag.
- * @param {{db: object, masterKey: Buffer, secureCookies?: boolean}} options Database, hoofdsleutel (voor de CSRF-sleutel) en
- *   of de cookie `Secure` krijgt (standaard ja).
+ * @param {{db: object, masterKey: Buffer, settings?: object, secureCookies?: boolean}} options Database, hoofdsleutel (voor
+ *   de CSRF-sleutel), de instellingen (sessieduur) en of de cookie `Secure` krijgt (standaard ja).
  * @returns {object} Functies en middleware, zie onder.
  */
 function createAuth(options) {
   const { db } = options;
   const csrfKey = crypto.createHmac('sha256', options.masterKey).update('crm-csrf').digest();
   const secure = options.secureCookies !== false;
+
+  /**
+   * De huidige sessieduur uit de instellingen.
+   * @returns {{idleHours: number, maxDays: number}} Uren zonder activiteit en maximale dagen.
+   */
+  const limits = () => ({ idleHours: settingOr(options.settings, 'sessionIdleHours', IDLE_HOURS), maxDays: settingOr(options.settings, 'sessionMaxDays', MAX_DAYS) });
 
   /**
    * Schrijft een regel in het auditlog. Fouten bij het schrijven laten het verzoek mislukken: een actie die niet gelogd
@@ -136,11 +164,12 @@ function createAuth(options) {
   const startSession = async (res, userId, client = db) => {
     await client.query('DELETE FROM sessions WHERE expires_at < now()');
     const token = crypto.randomBytes(32).toString('base64url');
+    const { maxDays } = limits();
     await client.query(
       `INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, now() + make_interval(days => $3))`,
-      [hashToken(token), userId, MAX_DAYS],
+      [hashToken(token), userId, maxDays],
     );
-    setCookie(res, token, MAX_DAYS * 24 * 60 * 60);
+    setCookie(res, token, maxDays * 24 * 60 * 60);
     return token;
   };
 
@@ -176,7 +205,8 @@ function createAuth(options) {
 
   /**
    * Middleware: zoekt de sessie bij de cookie en zet `req.user` (id, e-mail, naam, rol) en `req.session`. Een
-   * verlopen sessie of een geblokkeerde gebruiker telt als niet ingelogd.
+   * verlopen sessie of een geblokkeerde gebruiker telt als niet ingelogd. De ingestelde duur geldt ook voor bestaande
+   * sessies: een sessie ouder dan de maximale duur telt als verlopen, ook als `expires_at` later ligt.
    * @param {object} req Express-verzoek.
    * @param {object} res Express-antwoord.
    * @param {Function} next Volgende stap.
@@ -189,11 +219,13 @@ function createAuth(options) {
       const token = readCookie(req, COOKIE_NAME);
       if (!token || token.length > 100) return next();
       const tokenHash = hashToken(token);
+      const { idleHours, maxDays } = limits();
       const [row] = await db.query(
         `SELECT s.user_id, s.mfa_ok, (s.last_seen_at < now() - make_interval(secs => $3)) AS stale, u.email, u.name, u.role
            FROM sessions s JOIN users u ON u.id = s.user_id
-          WHERE s.token_hash = $1 AND u.active AND s.expires_at > now() AND s.last_seen_at > now() - make_interval(hours => $2)`,
-        [tokenHash, IDLE_HOURS, TOUCH_SECONDS],
+          WHERE s.token_hash = $1 AND u.active AND s.expires_at > now() AND s.last_seen_at > now() - make_interval(hours => $2)
+            AND s.created_at > now() - make_interval(days => $4)`,
+        [tokenHash, idleHours, TOUCH_SECONDS, maxDays],
       );
       if (!row) return next();
       if (row.stale) await db.query('UPDATE sessions SET last_seen_at = now() WHERE token_hash = $1', [tokenHash]);
@@ -248,4 +280,4 @@ function createAuth(options) {
   return { audit, startSession, endSession, endSessionsOf, loadSession, requireLogin, requireRight, checkCsrf };
 }
 
-module.exports = { createAuth, purgeExpired, startCrmMaintenance, hashToken, readCookie, ipPrefix, COOKIE_NAME, IDLE_HOURS, MAX_DAYS, AUDIT_RETENTION_MONTHS };
+module.exports = { createAuth, purgeExpired, startCrmMaintenance, hashToken, readCookie, ipPrefix, COOKIE_NAME, IDLE_HOURS, MAX_DAYS, AUDIT_RETENTION_MONTHS, AUDIT_IP_RETENTION_DAYS };

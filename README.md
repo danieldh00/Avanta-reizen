@@ -35,7 +35,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     het log (`CRM: nog geen gebruikers … installatiecode XXXXX-…`). Open `/app/installatie/`, vul die code in en maak
     het account aan; daarna is de installatiepagina weg (404).
   - Sessie: cookie `avanta_sessie` (`HttpOnly`, `Secure`, `SameSite=Strict`, pad `/app`), in de database alleen de
-    SHA-256 van het token; verloopt na 8 uur zonder activiteit en uiterlijk na 7 dagen. Het CRM werkt daardoor alleen
+    SHA-256 van het token; verloopt standaard na 8 uur zonder activiteit en uiterlijk na 7 dagen (instelbaar in Beheer). Het CRM werkt daardoor alleen
     via https (of `http://localhost`).
   - Beveiliging: CSRF-token in elk formulier plus herkomstcontrole, 300 verzoeken per minuut per IP op `/app/`,
     10 inlogpogingen per kwartier per IP, en hoogstens 5 mislukte pogingen per kwartier op één account vanuit één
@@ -45,8 +45,9 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     komen vanuit 30 verschillende IP-reeksen; elke reeks telt daarvoor hoogstens één keer per uur mee, zodat één
     netwerk (of een handvol) het account nooit kan dichtzetten. De laatste
     actieve beheerder kan niet worden gedegradeerd of uitgeschakeld. Het auditlog bewaart wie, wat, welk record, wanneer
-    en een ingekort IP-adres (/24 of /48), nooit e-mailadressen, wachtwoorden of andere waarden; regels ouder dan 2 jaar
-    worden bij het starten en daarna dagelijks opgeruimd, net als verlopen sessies.
+    en een ingekort IP-adres (/24 of /48), nooit e-mailadressen, wachtwoorden of andere waarden; regels ouder dan de
+    bewaartermijn (standaard 2 jaar) en IP-voorvoegsels ouder dan hun termijn (standaard 90 dagen) worden bij het starten
+    en daarna dagelijks opgeruimd, net als verlopen sessies (instelbaar in Beheer).
   - 2FA (verplicht voor rollen met toegang tot bijzondere gegevens) volgt in een latere CRM-PR (na het beheergedeelte).
 - **Beheer** op `/app/beheer/` (alleen de rol beheerder, recht `systeem`; opzet zoals in AquaTech): zijbalk met groepen
   en een zoekveld, een systeemoverzicht (versie, Node.js, PostgreSQL, laatste migratie, looptijd en de bron van elke
@@ -67,6 +68,10 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     zonder bijzondere gegevens (geboortedatum, kerk, paspoort, noodnummer, bijzonderheden) de deur uit.
   - *E-mail > Mail-opmaak*: kleur van de titelbalk (contrast met wit minimaal 4,5) en voettekst; het logo van de site
     staat bovenaan elke mail (ingebed). Met een voorbeeld in een nieuw tabblad.
+  - *Toegang en beveiliging > Sessies en bewaartermijnen*: uitloggen na inactiviteit (1–24 uur, standaard 8), maximale
+    sessieduur (1–30 dagen, standaard 7; beide gelden meteen, ook voor wie al is ingelogd), bewaartermijn van het
+    auditlog (standaard 24 maanden), van de IP-voorvoegsels daarin (standaard 90 dagen, daarna gewist) en van de
+    404-lijst (standaard 90 dagen). Opruimen gebeurt bij het starten en daarna dagelijks.
   - *Vindbaarheid > Zoekmachines*: indexeren aan/uit (standaard uit; **aanzetten vraagt het wachtwoord** van de
     beheerder, `SITE_INDEXABLE` is alleen de startwaarde), basisadres (`SITE_URL` als startwaarde; canonical, sitemap
     en JSON-LD gebruiken nooit het adres uit het verzoek) en de verificatiecodes van Google Search Console en Bing.
