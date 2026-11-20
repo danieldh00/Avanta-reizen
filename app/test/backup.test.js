@@ -171,6 +171,12 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     const error = await wrong.run().catch((caught) => caught);
     assert.match(error.message, /pg_dump mislukt/);
     assert.doesNotMatch(error.message, /fout@/, 'geen wachtwoord in de melding');
+    assert.deepEqual(fs.readdirSync(dir).filter((name) => name !== 'status.json'), [], 'ook na een snelle fout geen .part');
+    // Een mislukte auditregel maakt een geslaagde back-up niet "mislukt".
+    const failingAudit = backups.createBackupService({ db, settings: fakeSettings(), dir, masterKey: MASTER_KEY, connectionString: url });
+    const made = await failingAudit.run({ trigger: 'handmatig', audit: async () => { throw new Error('audit stuk'); } });
+    assert.ok(fs.existsSync(path.join(dir, made.name)));
+    assert.equal(failingAudit.status().lastRun.ok, true);
   });
 
   await t.test('planner: één per dag op het ingestelde uur, wachten na een fout', async (st) => {
@@ -253,8 +259,8 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.match(after.text, /Back-up gemaakt: avanta-\d{8}-\d{6}\.dump\.enc/);
     const [item] = app.locals.backups.list();
     assert.match(after.text, new RegExp(`/app/beheer/back-ups/download/${item.name.replace(/\./g, '\\.')}`));
-    const [created] = await db.query("SELECT u.email FROM audit_log a JOIN users u ON u.id = a.user_id WHERE a.action = 'backup.gemaakt' AND a.entity_id = $1", [item.name]);
-    assert.equal(created.email, 'beheer@example.nl');
+    const [created] = await db.query("SELECT u.email, a.ip_prefix FROM audit_log a JOIN users u ON u.id = a.user_id WHERE a.action = 'backup.gemaakt' AND a.entity_id = $1", [item.name]);
+    assert.deepEqual(created, { email: 'beheer@example.nl', ip_prefix: '127.0.0.0/24' }, 'met gebruiker en IP-voorvoegsel');
     const [started] = await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'backup.gestart'");
     assert.equal(started.count, 1);
 
@@ -287,6 +293,43 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     // Hoogstens 10 downloads per uur (al gebruikt: één download en twee 404's).
     for (let i = 0; i < 7; i += 1) assert.equal((await request(`/app/beheer/back-ups/download/${item.name}`, { cookie })).status, 200);
     assert.equal((await request(`/app/beheer/back-ups/download/${item.name}`, { cookie })).status, 429);
+  });
+
+  await t.test('Beheer: twee keer Nu maken tegelijk of tijdens een lopende back-up', async (st) => {
+    const dir = tempDir(st);
+    // Een trage pg_dump (eerst een seconde wachten), zodat de back-up nog loopt bij de volgende verzoeken.
+    const realPgDump = execFileSync('sh', ['-c', `command -v ${process.env.PG_DUMP_PATH || 'pg_dump'}`]).toString().trim();
+    const slowPgDump = path.join(dir, 'trage-pg_dump');
+    fs.writeFileSync(slowPgDump, `#!/bin/sh\nsleep 1\nexec ${realPgDump} "$@"\n`, { mode: 0o755 });
+    await db.query('TRUNCATE users CASCADE');
+    const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, databaseUrl: url, backupDir: dir, pgDumpPath: slowPgDump });
+    const server = app.listen(0);
+    st.after(() => server.close());
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const post = (pathName, cookie, form) => fetch(base + pathName, {
+      method: 'POST', redirect: 'manual',
+      headers: { 'sec-fetch-site': 'same-origin', 'content-type': 'application/x-www-form-urlencoded', ...(cookie ? { cookie: `${COOKIE_NAME}=${cookie}` } : {}) },
+      body: new URLSearchParams(form).toString(),
+    });
+    const installed = await post('/app/installatie/', '', { code: SETUP_CODE, name: 'Daniël', email: 'beheer@example.nl', password: ADMIN_PASSWORD, password2: ADMIN_PASSWORD });
+    const cookie = installed.headers.getSetCookie().find((value) => value.startsWith(`${COOKIE_NAME}=`)).split(';')[0].split('=')[1];
+    const home = await (await fetch(`${base}/app/`, { headers: { cookie: `${COOKIE_NAME}=${cookie}` } })).text();
+    const csrf = /name="_csrf" value="([^"]+)"/.exec(home)[1];
+    const before = (await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'backup.gestart'"))[0].count;
+    const answers = await Promise.all([1, 2, 3].map(() => post('/app/beheer/back-ups/nu/', cookie, { _csrf: csrf })));
+    assert.deepEqual(answers.map((answer) => answer.status), [303, 303, 303]);
+    assert.equal(app.locals.backups.status().running, true);
+    assert.equal((await post('/app/beheer/back-ups/nu/', cookie, { _csrf: csrf })).status, 303, 'tijdens de back-up');
+    await app.locals.backups.idle();
+    const after = (await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'backup.gestart'"))[0].count;
+    assert.equal(after - before, 1, 'één keer gestart');
+    assert.equal(app.locals.backups.list().length, 1, 'één back-up');
+    // Telde maar één keer mee: nog vijf handmatige back-ups mogelijk.
+    for (let i = 0; i < 5; i += 1) {
+      assert.equal((await post('/app/beheer/back-ups/nu/', cookie, { _csrf: csrf })).status, 303);
+      await app.locals.backups.idle();
+    }
+    assert.equal((await post('/app/beheer/back-ups/nu/', cookie, { _csrf: csrf })).status, 429);
   });
 
   await t.test('Beheer: zonder databaseverbinding geen back-ups', async (st) => {

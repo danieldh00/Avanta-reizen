@@ -105,17 +105,28 @@ function createBackupRoutes(options) {
   };
 
   // Nu maken: de back-up loopt op de achtergrond (een grote dump kan langer duren dan een verzoek); de pagina toont de
-  // status. Een lopende back-up telt niet opnieuw mee voor de limiet. De service schrijft `backup.gemaakt` na afloop.
+  // status. Een lopende back-up telt niet opnieuw mee voor de limiet. `starting` sluit de tijd tussen de controle en de
+  // start af (de auditregel `backup.gestart` komt daartussen), zodat twee gelijktijdige verzoeken er één worden. Na
+  // afloop schrijft de route via de service `backup.gemaakt`, met gebruiker en IP-voorvoegsel.
+  let starting = false;
   router.post('/beheer/back-ups/nu/', guard, auth.checkCsrf, async (req, res, next) => {
     try {
       await settings.ready();
       if (!backups.available()) return options.notFound(req, res);
-      if (!backups.status().running) {
+      if (!backups.status().running && !starting) {
         if (!createLimiter.hit(`gebruiker:${req.user.id}`)) {
           return res.status(429).send(options.renderSettingsSection(req, section, { extra: { result: { ok: false, message: 'Te veel back-ups in korte tijd. Probeer het over een uur opnieuw.' } } }));
         }
-        await auth.audit(req, { userId: req.user.id, action: 'backup.gestart', entity: 'backup' });
-        backups.run({ trigger: 'handmatig', userId: req.user.id }).catch(() => {});
+        starting = true;
+        try {
+          await auth.audit(req, { userId: req.user.id, action: 'backup.gestart', entity: 'backup' });
+          backups.run({
+            trigger: 'handmatig',
+            audit: (backup) => auth.audit(req, { userId: req.user.id, action: 'backup.gemaakt', entity: 'backup', entityId: backup.name }),
+          }).catch(() => {});
+        } finally {
+          starting = false;
+        }
       }
       return res.redirect(303, '/app/beheer/back-ups/?gestart=1#status');
     } catch (error) {

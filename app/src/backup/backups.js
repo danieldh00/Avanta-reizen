@@ -230,6 +230,8 @@ async function createBackup(options) {
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
   cipher.setAAD(header.subarray(0, MAGIC.length + 1 + KEY_ID_LENGTH));
   const pgDump = options.pgDumpPath || process.env.PG_DUMP_PATH || 'pg_dump';
+  // De schrijfstroom vóór het starten van pg_dump: gooit die, dan draait er nog niets dat opgeruimd moet worden.
+  const output = fs.createWriteStream(partFile, { mode: 0o600 });
   const child = spawn(pgDump, ['--format=custom', '--no-owner', '--no-acl', `--schema=${schema}`], {
     env: { PATH: process.env.PATH, ...pgEnvironment(options.connectionString) },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -241,7 +243,6 @@ async function createBackup(options) {
     child.on('close', (code) => resolve({ code }));
   });
   const timer = setTimeout(() => child.kill('SIGKILL'), options.timeoutMs || DUMP_TIMEOUT_MS);
-  const output = fs.createWriteStream(partFile, { mode: 0o600 });
   try {
     output.write(header);
     const [written, result] = await Promise.allSettled([pipeline(child.stdout, cipher, output, { end: false }), exited]);
@@ -395,8 +396,10 @@ function createBackupService(options) {
 
   /**
    * Maakt nu een back-up (of wacht op de lopende), ruimt daarna oude back-ups op en schrijft een auditregel
-   * (`backup.gemaakt`, met de gebruiker bij een handmatige back-up).
-   * @param {{trigger?: string, userId?: (number|null)}} [context] Aanleiding (`automatisch`, `handmatig`, `update`) en wie.
+   * `backup.gemaakt`: via `context.audit` (de route, met gebruiker en IP-voorvoegsel), anders zonder gebruiker
+   * (automatisch, opdrachtregel). Het verzoek is dan al beantwoord; een mislukte auditregel wordt gelogd.
+   * @param {{trigger?: string, audit?: (backup: object) => Promise<void>}} [context] Aanleiding (`automatisch`,
+   *   `handmatig`, `update`) en de functie die de auditregel schrijft.
    * @returns {Promise<{name: string, size: number, createdAt: string}>} De back-up.
    * @throws {Error} Als de back-up mislukt (ook vastgelegd in de status).
    */
@@ -422,7 +425,8 @@ function createBackupService(options) {
         console.error(`Oude back-ups opruimen mislukt: ${shortMessage(error.message)}`);
       }
       try {
-        await db.query("INSERT INTO audit_log (user_id, action, entity, entity_id) VALUES ($1, 'backup.gemaakt', 'backup', $2)", [context.userId ?? null, backup.name]);
+        if (context.audit) await context.audit(backup);
+        else await db.query("INSERT INTO audit_log (user_id, action, entity, entity_id) VALUES (NULL, 'backup.gemaakt', 'backup', $1)", [backup.name]);
       } catch (error) {
         console.error(`Auditregel voor de back-up mislukt: ${shortMessage(error.message)}`);
       }
