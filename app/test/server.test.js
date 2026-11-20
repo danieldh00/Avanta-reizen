@@ -348,6 +348,19 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal(await contactCount(), before);
   });
 
+  await t.test('contact: NUL-tekens in de invoer geven geen 500', async () => {
+    clock += 11 * 60 * 1000;
+    const before = await contactCount();
+    const form = await contactFormFor();
+    form.set('message', 'Hallo\u0000wereld');
+    form.set('name', 'Test\u0000 Persoon');
+    clock += 5000;
+    assert.equal((await postContact(form, { 'x-forwarded-for': '203.0.113.50' })).status, 303);
+    const [row] = await db.query('SELECT name, message FROM contact_messages ORDER BY id DESC LIMIT 1');
+    assert.deepEqual(row, { name: 'Test Persoon', message: 'Hallowereld' });
+    assert.equal(await contactCount(), before + 1);
+  });
+
   await t.test('contact: honeypot stil, ongeldig/verlopen/te snel token geeft 422 met waarden en nieuw token', async () => {
     clock += 11 * 60 * 1000; // nieuw limietvenster na de vorige tests
     const ip = { 'x-forwarded-for': '203.0.113.40' };
