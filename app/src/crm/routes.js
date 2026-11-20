@@ -363,7 +363,7 @@ function createCrmRouter(options) {
   });
 
   router.use(createUserRoutes({ db, auth, normalizeEmail, textField }));
-  router.use(createBeheerRoutes({ db, auth, settings: options.settings, now: options.now }));
+  router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, now: options.now }));
 
   router.use((req, res) => {
     res.status(404).send(renderCrmPage({
