@@ -48,6 +48,7 @@ Node 22 + Express, server-gerenderde HTML, PostgreSQL 17 (enige database), geen 
 | `app/src/site/` | `routes.js` (alle publieke URL's), `content.js` (queries), `views.js`/`layout.js` (HTML), `html.js` (escaping), `format.js` |
 | `app/src/booking/` | aanmeldformulier: `fields.js` (velden + validatie), `routes.js` (`/aanmelden/`) |
 | `app/src/crm/` | CRM onder `/app/`: `routes.js` (inloggen, installatie), `users.js` (gebruikers, auditlog), `auth.js` (sessies, CSRF, `requireRight`, audit), `rights.js`, `passwords.js`, `layout.js` |
+| `app/src/beheer/` | Beheer onder `/app/beheer/` (recht `systeem`): `settings.js` (`SETTING_FIELDS`, database → env → standaard, geheimen via vault), `indeling.js` (groepen/secties + zoeken), `routes.js` |
 | `app/src/security/` | `vault.js` (AES-256-GCM voor gevoelige velden), `rate-limit.js` |
 | `app/public/` | `css/site.css` (huisstijl via `--av-*`-variabelen), `js/site.js`, fonts en logo lokaal |
 | `app/tools/import-wordpress.js` | import van de huidige site (`tools/import/parse.js`, `sanitize.js`) |
@@ -61,6 +62,11 @@ Regels:
   paspoort) alleen versleuteld opslaan via `vault.seal`. Hoofdsleutel: `AVANTA_MASTER_KEY` of `DATA_DIR/master-key`.
 - Openbare formulieren: limiet (`createRateLimiter`), herkomstcontrole, honeypot en ondertekend tijdstempel.
 - Nieuwe migratie: achteraan in `MIGRATIONS` met het eerstvolgende nummer; een migratie op `main` verandert nooit meer.
+  Volgorde (besluit 20-11-2026): M5 instellingen, M6 doorverwijzingen/404, M7 logboek, M8 bewaking, daarna CRM (2FA M9,
+  persons M10, aanmeldingen M11, reizen M12). Eén migratie-PR tegelijk.
+- **Instellingen** altijd in `SETTING_FIELDS` (`beheer/settings.js`) met een sectie in `beheer/indeling.js`, nooit een
+  eigen tabel of losse env-variabele; geheimen als `type: 'secret'`. Waarden synchroon via `settings.get(key)` (geladen
+  door de middleware in `server.js`); wijzigen alleen via `settings.update` met audit in dezelfde transactie.
 - URL's gelijk houden aan de oude site (`/reis/<slug>/`, `/reisleider/<slug>/`, `/reis-categorie/<slug>/`, `/<blog-slug>/`,
   pagina's op hun volledige pad); oude varianten krijgen een 301.
 - **Noindex tot go-live** (`SITE_INDEXABLE=false`); pas op Daniëls woord op `true`.

@@ -71,7 +71,7 @@ function createBookingRouter(options) {
   const send = (res, page, status = 200) => {
     const { trip, ...rest } = page;
     const pageSeo = { canonicalUrl: seo.absoluteUrl(siteUrl, canonicalPath(trip)), imageUrl: seo.absoluteUrl(siteUrl, '/images/logo.png') };
-    res.status(status).set('Cache-Control', 'no-store').type('html').send(renderPage({ indexable: false, path: '/reis/', seo: pageSeo, ...rest }));
+    res.status(status).set('Cache-Control', 'no-store').type('html').send(renderPage({ indexable: false, path: '/reis/', seo: pageSeo, contact: res.locals.contact, ...rest }));
   };
 
   /**

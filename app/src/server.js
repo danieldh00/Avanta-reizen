@@ -14,6 +14,7 @@ const { createCrmRouter, generateSetupCode } = require('./crm/routes');
 const { startCrmMaintenance } = require('./crm/auth');
 const seo = require('./site/seo');
 const { loadMasterKey, createVault } = require('./security/vault');
+const { createSettings } = require('./beheer/settings');
 const crypto = require('node:crypto');
 const { PUBLIC_DIR, MEDIA_DIR } = require('./paths');
 const { renderPage, renderPageHeader } = require('./site/layout');
@@ -54,8 +55,8 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
- *   hoofdsleutel, of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
+ * @param {{db: object, masterKey: Buffer, settings?: object, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number}} options Database,
+ *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
  *   (standaard `TRUST_PROXY`, anders loopback), de installatiecode voor de eerste CRM-beheerder en of de CRM-cookie
  *   `Secure` krijgt (standaard ja).
  * @returns {express.Express} De app.
@@ -84,9 +85,21 @@ function createApp(options) {
   app.use(express.static(PUBLIC_DIR, { maxAge: '7d', index: false, redirect: false }));
   app.use('/media', express.static(MEDIA_DIR, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
-
+  // Instellingen uit Beheer: één keer geladen, daarna uit het geheugen (Beheer schrijft het geheugen bij).
   const vault = createVault(options.masterKey);
+  const settings = options.settings || createSettings({ db: options.db, vault });
+  app.use(async (req, res, next) => {
+    try {
+      await settings.ready();
+      res.locals.contact = { phone: settings.get('contactPhone'), email: settings.get('contactEmail') };
+      return next();
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   app.use(createBookingRouter({ db: options.db, vault, formKey, siteUrl, now: options.now }));
   const contactForm = createContactForm({ db: options.db, formKey, now: options.now });
@@ -97,6 +110,7 @@ function createApp(options) {
     res.status(404).send(renderPage({
       title: 'Pagina niet gevonden',
       path: req.path,
+      contact: res.locals.contact,
       seo: { canonicalUrl: seo.absoluteUrl(siteUrl, req.path), imageUrl: seo.absoluteUrl(siteUrl, '/images/logo.png') },
       header: renderPageHeader({ title: 'Pagina niet gevonden' }),
       body: html`<div class="container section"><p>Deze pagina bestaat niet (meer). Bekijk <a href="/reis/">ons reisaanbod</a> of ga naar de <a href="/">homepage</a>.</p></div>`,
@@ -110,6 +124,7 @@ function createApp(options) {
     res.status(500).send(renderPage({
       title: 'Er ging iets mis',
       path: req.path,
+      contact: res.locals.contact,
       header: renderPageHeader({ title: 'Er ging iets mis' }),
       body: html`<div class="container section"><p>Probeer het later opnieuw.</p></div>`,
     }));

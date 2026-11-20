@@ -81,7 +81,7 @@ function createSiteRouter(options) {
    * @returns {void}
    */
   const send = (res, page, status = 200) => {
-    res.status(status).type('html').send(renderPage({ indexable, ...page }));
+    res.status(status).type('html').send(renderPage({ indexable, contact: res.locals.contact, ...page }));
   };
 
   /**
@@ -120,7 +120,7 @@ function createSiteRouter(options) {
     const heroImage = upcoming.find((trip) => trip.card_image_url)?.card_image_url;
     send(res, {
       path: '/',
-      seo: seoFor('/', { imageUrl: heroImage, structuredData: [seo.travelAgencyData(siteUrl, CONTACT)] }),
+      seo: seoFor('/', { imageUrl: heroImage, structuredData: [seo.travelAgencyData(siteUrl, res.locals.contact || CONTACT)] }),
       bodyClass: 'home',
       header: html`<section class="hero"${heroImage ? html` style="--header-image: url('${heroImage}')"` : ''}>
         <div class="container hero__inner">

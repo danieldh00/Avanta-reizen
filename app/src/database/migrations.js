@@ -215,6 +215,18 @@ const MIGRATIONS = [
       CREATE INDEX audit_log_created_idx ON audit_log (created_at);
     `,
   },
+  {
+    id: 5,
+    name: 'beheer: instellingen',
+    sql: `
+      CREATE TABLE settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+      );
+    `,
+  },
 ];
 
 module.exports = { MIGRATIONS };

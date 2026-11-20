@@ -23,7 +23,7 @@ const MENU = [
   { label: 'Contact', href: '/contact/' },
 ];
 
-/** Contactgegevens in de voettekst. */
+/** Standaard contactgegevens in de voettekst; de echte komen uit Beheer > Contactgegevens (`page.contact`). */
 const CONTACT = { phone: '0118 638427', email: 'info@avantareizen.nl' };
 
 /** Versie van de statische bestanden, tegen verouderde caches. */
@@ -55,11 +55,12 @@ function renderMenu(currentPath) {
 
 /**
  * Maakt een volledige HTML-pagina.
- * @param {{title: string, description?: string, body: object, path?: string, header?: object, bodyClass?: string, indexable?: boolean, seo?: object}} page Gegevens van de pagina; `path` is het menupad, `seo` de canonical-URL, afbeelding, type en JSON-LD (zie `seo.renderSeoHead`).
+ * @param {{title: string, description?: string, body: object, path?: string, header?: object, bodyClass?: string, indexable?: boolean, seo?: object, contact?: {phone: string, email: string}}} page Gegevens van de pagina; `path` is het menupad, `seo` de canonical-URL, afbeelding, type en JSON-LD (zie `seo.renderSeoHead`), `contact` de contactgegevens uit Beheer (anders de standaard).
  * @returns {string} De HTML.
  */
 function renderPage(page) {
   const currentPath = page.path || '/';
+  const contact = page.contact || CONTACT;
   const fullTitle = page.title ? `${page.title} - Avanta reizen` : 'Avontuurlijke groepsreizen over heel de wereld - Avanta reizen';
   const year = new Date().toLocaleDateString('nl-NL', { year: 'numeric', timeZone: 'Europe/Amsterdam' });
   return '<!doctype html>\n' + toString(html`<html lang="nl-NL">
@@ -91,8 +92,8 @@ function renderPage(page) {
         <a href="/blog/">Weblog</a>
         <a href="/contact/">Contact</a>
       </nav>
-      <p class="site-footer__contact">T: <a href="tel:${CONTACT.phone.replace(/\s/g, '')}">${CONTACT.phone}</a>
-        &nbsp; E: <a href="mailto:${CONTACT.email}">${CONTACT.email}</a></p>
+      <p class="site-footer__contact">T: <a href="tel:${contact.phone.replace(/[^0-9+]/g, '')}">${contact.phone}</a>
+        &nbsp; E: <a href="mailto:${contact.email}">${contact.email}</a></p>
       <p class="site-footer__copy">© ${year} Avanta reizen</p>
     </div>
   </footer>
