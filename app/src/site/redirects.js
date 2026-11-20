@@ -21,6 +21,15 @@ const NOT_FOUND_RETENTION_DAYS = 90;
 /** Hoogste lengte van een pad (doorverwijzing of 404-regel). */
 const MAX_PATH_LENGTH = 300;
 
+/** Bestandsextensies die alleen scanners vragen (de site heeft geen PHP, ASP of configuratiebestanden). */
+const NOISE_EXTENSIONS = /\.(php\d?|phtml|asp|aspx|jsp|cgi|pl|env|ini|cfg|conf|sql|bak|old|swp|log|git|htaccess|ds_store)$/i;
+
+/** Paden die alleen scanners vragen: een verborgen map of bestand (`/.env`, `/.git/`) of bekende beheerroutes. */
+const NOISE_PREFIXES = ['/wp-admin', '/wp-includes', '/cgi-bin', '/phpmyadmin', '/vendor/phpunit'];
+
+/** Na zoveel dagen mag een regel die maar één keer is gevraagd wijken voor nieuwe, als de lijst vol is. */
+const FULL_LIST_SINGLE_HIT_DAYS = 7;
+
 /** Paden die nooit worden doorverwezen of als 404 geteld (CRM, API, beheerbestanden van de site). */
 const RESERVED_PREFIXES = ['/app/', '/api/'];
 
@@ -54,6 +63,20 @@ function isReservedPath(path) {
   // Express routeert hoofdletterongevoelig: `/APP/` is ook het CRM.
   const lower = String(path || '').toLowerCase();
   return RESERVED_PREFIXES.some((prefix) => lower === prefix.slice(0, -1) || lower.startsWith(prefix));
+}
+
+/**
+ * Of een (genormaliseerd) pad ruis van scanners is die niet in de 404-lijst hoort: een verborgen map of bestand, een
+ * extensie van een andere techniek (PHP, ASP, configuratie) of een bekende beheerroute. Oude WordPress-adressen zoals
+ * `/wp-content/uploads/…` en gewone pagina's tellen wel.
+ * @param {string} path Genormaliseerd pad.
+ * @returns {boolean} Waar als het pad wordt overgeslagen.
+ */
+function isNoisePath(path) {
+  const lower = path.toLowerCase();
+  if (lower.split('/').some((segment) => segment.startsWith('.') || segment.startsWith('%2e'))) return true;
+  if (NOISE_PREFIXES.some((prefix) => lower === prefix || lower.startsWith(`${prefix}/`) || lower.startsWith(`${prefix}.`))) return true;
+  return NOISE_EXTENSIONS.test(lower.replace(/\/+$/, ''));
 }
 
 /**
@@ -111,7 +134,8 @@ function referrerHostOf(referrer, ownHost) {
 /**
  * Maakt de laag voor doorverwijzingen en de 404-lijst.
  * @param {{db: object}} options Database.
- * @returns {object} Functies: `ready`, `reload`, `middleware`, `recordNotFound`, `flush`, `purge`, `startTimers`.
+ * @returns {object} Functies: `ready`, `reload`, `middleware`, `recordNotFound`, `flush`, `purge`, `forgetKnownNotFound`,
+ *   `startTimers`.
  */
 function createRedirects(options) {
   const { db } = options;
@@ -122,6 +146,8 @@ function createRedirects(options) {
   const pendingHits = new Map();
   /** 404's sinds de laatste keer wegschrijven (pad → {hits, referrerHost}). */
   const pendingNotFound = new Map();
+  /** Paden die al in de 404-lijst staan (na de eerste keer wegschrijven); die tellen ook door als het geheugen vol is. */
+  let knownNotFound = null;
 
   /**
    * Leest alle doorverwijzingen in het geheugen.
@@ -175,10 +201,12 @@ function createRedirects(options) {
   const recordNotFound = (req) => {
     if ((req.method !== 'GET' && req.method !== 'HEAD') || isReservedPath(req.path)) return;
     const path = normalizePath(req.path);
-    if (!path) return;
+    if (!path || isNoisePath(path)) return;
     const entry = pendingNotFound.get(path);
     if (entry) entry.hits += 1;
-    else if (pendingNotFound.size < MAX_PENDING_PATHS) pendingNotFound.set(path, { hits: 1, referrerHost: referrerHostOf(req.get('referer'), req.hostname) });
+    else if (pendingNotFound.size < MAX_PENDING_PATHS || (knownNotFound && knownNotFound.has(path))) {
+      pendingNotFound.set(path, { hits: 1, referrerHost: referrerHostOf(req.get('referer'), req.hostname) });
+    }
   };
 
   /**
@@ -200,7 +228,8 @@ function createRedirects(options) {
     }
     if (notFound.length) {
       // Bekende paden worden altijd bijgeteld; nieuwe alleen zolang er ruimte is onder het maximum (de vaakst gevraagde eerst).
-      await db.query(
+      if (!knownNotFound) knownNotFound = new Set((await db.query('SELECT path FROM not_found_log')).map((row) => row.path));
+      const written = await db.query(
         `WITH input AS (
            SELECT n.path, n.hits, n.referrer_host, n.ord, EXISTS (SELECT 1 FROM not_found_log e WHERE e.path = n.path) AS known
              FROM unnest($1::text[], $2::int[], $3::text[]) WITH ORDINALITY AS n(path, hits, referrer_host, ord)
@@ -212,19 +241,36 @@ function createRedirects(options) {
          INSERT INTO not_found_log (path, hits, referrer_host)
            SELECT ranked.path, ranked.hits, ranked.referrer_host FROM ranked, room WHERE ranked.known OR ranked.rank <= room.free
          ON CONFLICT (path) DO UPDATE SET hits = not_found_log.hits + EXCLUDED.hits, last_seen_at = now(),
-           referrer_host = CASE WHEN EXCLUDED.referrer_host <> '' THEN EXCLUDED.referrer_host ELSE not_found_log.referrer_host END`,
+           referrer_host = CASE WHEN EXCLUDED.referrer_host <> '' THEN EXCLUDED.referrer_host ELSE not_found_log.referrer_host END
+         RETURNING path`,
         [notFound.map(([path]) => path), notFound.map(([, entry]) => entry.hits), notFound.map(([, entry]) => entry.referrerHost), MAX_NOT_FOUND_ROWS],
       );
+      for (const row of written) knownNotFound.add(row.path);
     }
   };
 
   /**
-   * Ruimt 404-regels op die langer dan de bewaartermijn niet zijn gezien.
+   * Ruimt 404-regels op die langer dan de bewaartermijn niet zijn gezien. Is de lijst vol, dan wijken ook regels die
+   * maar één keer zijn gevraagd en een week niet meer zijn gezien, zodat eenmalige ruis echte oude adressen niet
+   * maandenlang buiten houdt.
    * @returns {Promise<void>}
    */
   const purge = async () => {
     await db.query('DELETE FROM not_found_log WHERE last_seen_at < now() - make_interval(days => $1)', [NOT_FOUND_RETENTION_DAYS]);
+    await db.query(
+      `DELETE FROM not_found_log WHERE (SELECT count(*) FROM not_found_log) >= $1
+          AND hits <= 1 AND last_seen_at < now() - make_interval(days => $2)`,
+      [MAX_NOT_FOUND_ROWS, FULL_LIST_SINGLE_HIT_DAYS],
+    );
+    knownNotFound = null;
   };
+
+  /**
+   * Vergeet welke paden in de 404-lijst staan (na verwijderen of leegmaken in Beheer); de volgende keer wegschrijven
+   * leest dat opnieuw.
+   * @returns {void}
+   */
+  const forgetKnownNotFound = () => { knownNotFound = null; };
 
   /**
    * Start het wegschrijven (elke minuut) en het opruimen (dagelijks). De timers houden het proces niet open.
@@ -245,10 +291,10 @@ function createRedirects(options) {
     ];
   };
 
-  return { ready, reload, middleware, recordNotFound, flush, purge, startTimers };
+  return { ready, reload, middleware, recordNotFound, flush, purge, forgetKnownNotFound, startTimers };
 }
 
 module.exports = {
-  createRedirects, validateRedirect, normalizePath, isReservedPath, referrerHostOf,
-  MAX_NOT_FOUND_ROWS, NOT_FOUND_RETENTION_DAYS, MAX_PATH_LENGTH,
+  createRedirects, validateRedirect, normalizePath, isReservedPath, isNoisePath, referrerHostOf,
+  MAX_NOT_FOUND_ROWS, MAX_PENDING_PATHS, NOT_FOUND_RETENTION_DAYS, MAX_PATH_LENGTH,
 };

@@ -9,7 +9,7 @@ const assert = require('node:assert/strict');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { normalizePath, isReservedPath, validateRedirect, referrerHostOf, MAX_NOT_FOUND_ROWS } = require('../src/site/redirects');
+const { normalizePath, isReservedPath, isNoisePath, validateRedirect, referrerHostOf, MAX_NOT_FOUND_ROWS, MAX_PENDING_PATHS } = require('../src/site/redirects');
 const { likePattern, readablePath } = require('../src/beheer/redirect-routes');
 const { filterGroups } = require('../src/beheer/indeling');
 const { SETTING_FIELDS } = require('../src/beheer/settings');
@@ -44,6 +44,12 @@ test('doorverwijzingen: paden normaliseren en controleren', () => {
   assert.equal(isReservedPath('/APP/inloggen/'), true, 'hoofdletterongevoelig');
   assert.equal(isReservedPath('/api'), true);
   assert.equal(isReservedPath('/apple/'), false);
+  for (const noise of ['/.env', '/.git/config', '/a/.DS_Store', '/wp-login.php', '/xmlrpc.php', '/wp-admin/', '/wp-admin/setup.php', '/cgi-bin/x', '/backup.sql', '/index.php/', '/%2Eenv']) {
+    assert.equal(isNoisePath(normalizePath(noise) || noise), true, noise);
+  }
+  for (const real of ['/oude-reis/', '/wp-content/uploads/2019/05/foto.jpg', '/reis/albanie/', '/sitemap.xml', '/feed/', '/caf%C3%A9/']) {
+    assert.equal(isNoisePath(real), false, real);
+  }
 
   const ok = validateRedirect({ from: '/oude-reis', to: '/reis/albanie/?bron=oud', status: '302' });
   assert.deepEqual(ok, { values: { fromPath: '/oude-reis', toUrl: '/reis/albanie/?bron=oud', status: 302 }, errors: {} });
@@ -248,6 +254,30 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
     assert.equal((await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'niet-gevonden.geleegd'"))[0].count, 1);
   });
 
+  await t.test('ruis telt niet mee; bekende paden tellen door als het geheugen vol is', async () => {
+    await db.query('DELETE FROM not_found_log');
+    redirects.forgetKnownNotFound();
+    await request('/.env');
+    await request('/wp-login.php');
+    await request('/echt-oud/');
+    await redirects.flush();
+    assert.deepEqual((await db.query('SELECT path FROM not_found_log')).map((row) => row.path), ['/echt-oud/']);
+    /**
+     * Een nagebootst GET-verzoek voor `recordNotFound`.
+     * @param {string} path Pad.
+     * @returns {object} Verzoek.
+     */
+    const fakeRequest = (path) => ({ method: 'GET', path, hostname: 'localhost', get: () => '' });
+    for (let i = 0; i < MAX_PENDING_PATHS; i += 1) redirects.recordNotFound(fakeRequest(`/scan-${i}/`));
+    redirects.recordNotFound(fakeRequest('/nieuw-na-vol/'));
+    redirects.recordNotFound(fakeRequest('/echt-oud/'));
+    await redirects.flush();
+    assert.equal((await db.query("SELECT hits FROM not_found_log WHERE path = '/echt-oud/'"))[0].hits, 2, 'bekend pad telt door');
+    assert.equal((await db.query("SELECT count(*)::int AS count FROM not_found_log WHERE path = '/nieuw-na-vol/'"))[0].count, 0, 'nieuw pad wacht');
+    await db.query('DELETE FROM not_found_log');
+    redirects.forgetKnownNotFound();
+  });
+
   await t.test('maximum en opruimen', async () => {
     await db.query("INSERT INTO not_found_log (path, hits) SELECT '/vol-' || i || '/', 1 FROM generate_series(1, $1 - 1) AS i", [MAX_NOT_FOUND_ROWS]);
     await request('/nieuw-a/');
@@ -260,6 +290,11 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
     assert.deepEqual(added.map((row) => row.path), ['/nieuw-b/'], 'de vaakst gevraagde nieuwe eerst');
     assert.equal((await db.query("SELECT hits FROM not_found_log WHERE path = '/vol-1/'"))[0].hits, 2, 'bestaande tellen door');
 
+    await db.query("UPDATE not_found_log SET last_seen_at = now() - interval '8 days' WHERE path = '/vol-2/'");
+    await db.query("UPDATE not_found_log SET hits = 3, last_seen_at = now() - interval '8 days' WHERE path = '/vol-3/'");
+    await redirects.purge();
+    assert.equal((await db.query("SELECT count(*)::int AS count FROM not_found_log WHERE path = '/vol-2/'"))[0].count, 0, 'vol: eenmalig en een week oud wijkt');
+    assert.equal((await db.query("SELECT count(*)::int AS count FROM not_found_log WHERE path IN ('/vol-3/', '/vol-4/')"))[0].count, 2, 'vaker gevraagd of recent blijft');
     await db.query("UPDATE not_found_log SET last_seen_at = now() - interval '91 days' WHERE path <> '/nieuw-b/'");
     await redirects.purge();
     assert.deepEqual((await db.query('SELECT path FROM not_found_log')).map((row) => row.path), ['/nieuw-b/']);

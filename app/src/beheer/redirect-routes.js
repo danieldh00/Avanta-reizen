@@ -269,6 +269,7 @@ function createRedirectRoutes(options) {
         return rows.length > 0;
       });
       if (!deleted) return notFound(req, res);
+      redirects.forgetKnownNotFound();
       return res.redirect(303, '/app/beheer/niet-gevonden/?verwijderd=1');
     } catch (error) {
       return next(error);
@@ -281,6 +282,7 @@ function createRedirectRoutes(options) {
         await client.query('DELETE FROM not_found_log');
         await auth.audit(req, { userId: req.user.id, action: 'niet-gevonden.geleegd', entity: 'not_found_log' }, client);
       });
+      redirects.forgetKnownNotFound();
       return res.redirect(303, '/app/beheer/niet-gevonden/?geleegd=1');
     } catch (error) {
       return next(error);

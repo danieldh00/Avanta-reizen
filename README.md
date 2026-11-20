@@ -70,6 +70,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   - *Vindbaarheid > Niet gevonden (404)*: de vaakst gevraagde adressen die niet bestaan (tabel `not_found_log`: alleen
     pad, aantal, eerste/laatste keer en de host van de verwijzende site; nooit querystring of IP-adres), met een knop om
     door te verwijzen. Tellers worden per minuut weggeschreven; hoogstens 5000 regels, na 90 dagen zonder aanvraag weg.
+    Ruis van scanners (`/.env`, `.php`, `/wp-admin` e.d.) telt niet mee.
   Zolang indexeren uit staat, krijgt elke pagina `noindex` (meta én `X-Robots-Tag`) en weert robots.txt alles; het CRM
   en foutpagina's zijn nooit indexeerbaar. Google Analytics volgt.
 

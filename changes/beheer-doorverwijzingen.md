@@ -12,7 +12,9 @@ titel: Doorverwijzingen en 404-lijst in Beheer
   eerste/laatste keer, host van de verwijzer; indexen op `last_seen_at` en `hits`).
 - `site/redirects.js`: genormaliseerde paden, doorverwijzingen in het geheugen (middleware vóór statische bestanden en
   site; alleen GET/HEAD, querystring gaat mee, pad zonder slash telt ook met slash), 404's en gebruik geteld in het
-  geheugen en per minuut weggeschreven, hoogstens 5000 regels (de vaakst gevraagde nieuwe eerst), opruimen na 90 dagen.
+  geheugen en per minuut weggeschreven, hoogstens 5000 regels (de vaakst gevraagde nieuwe eerst), opruimen na 90 dagen;
+  is de lijst vol, dan wijken eenmalige regels na 7 dagen. Ruis van scanners (verborgen bestanden, `.php`/`.env` e.d.,
+  `/wp-admin`) telt niet mee; paden die al in de lijst staan tellen door, ook als het geheugen vol is.
   Nooit querystring, volledige verwijzer of IP-adres (AVG); `/app/` en `/api/` (ook in hoofdletters) vallen erbuiten.
 - `beheer/redirect-routes.js`: secties *Doorverwijzingen* (toevoegen met controle op dubbel, ketens, lussen, homepage en
   CRM; filteren; verwijderen) en *Niet gevonden (404)* (doorverwijzen, regel verwijderen, lijst leegmaken). Auditacties
