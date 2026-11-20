@@ -169,8 +169,10 @@ test('form-guard: token per formulier, minimale en maximale invultijd, honeypot'
   clock += MIN_FILL_MS;
   assert.equal(contactGuard.checkToken(token), true);
   assert.equal(bookingGuard.checkToken(token), false, 'ander formulier');
-  assert.equal(contactGuard.isSuspicious({ token, website: 'x' }), true, 'honeypot');
-  assert.equal(contactGuard.isSuspicious({ token }), false);
+  assert.equal(contactGuard.isBot({ token, website: 'x' }), true, 'honeypot');
+  assert.equal(contactGuard.isBot({ token: 'vals' }), false, 'alleen de honeypot telt als bot');
+  assert.equal(contactGuard.tokenProblem({ token }), '');
+  assert.match(contactGuard.tokenProblem({ token: 'abc.def' }), /verlopen of te snel/);
   assert.equal(contactGuard.checkToken('abc.def'), false);
   clock += MAX_FILL_MS;
   assert.equal(contactGuard.checkToken(token), false, 'te oud');

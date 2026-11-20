@@ -10,6 +10,7 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { createVault } = require('../src/security/vault');
 const { today } = require('../src/site/content');
+const { MAX_FILL_MS } = require('../src/security/form-guard');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const MASTER_KEY = Buffer.alloc(32, 3);
@@ -189,17 +190,43 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, 1);
   });
 
-  await t.test('honeypot, te snel invullen en een vals token slaan niets op', async () => {
+  await t.test('honeypot: stil doorsturen naar de bedanktpagina zonder op te slaan', async () => {
     const honeypot = await formFor(1001);
     honeypot.set('website', 'spam');
     clock += 5000;
-    assert.equal((await post(honeypot)).status, 303);
-    const quick = await formFor(1001);
-    assert.equal((await post(quick)).status, 303);
+    const response = await post(honeypot, { 'x-forwarded-for': '203.0.113.30' });
+    assert.equal(response.status, 303);
+    assert.equal(response.headers.get('location'), '/bedankt-voor-je-aanmelding/');
+    assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, 1);
+  });
+
+  await t.test('te snel, verlopen of vals token: 422 met ingevulde waarden, melding en nieuw token', async () => {
+    const ip = { 'x-forwarded-for': '203.0.113.31' };
     const forged = await formFor(1001);
     forged.set('token', `${clock - 10000}.vals`);
-    assert.equal((await post(forged)).status, 303);
+    const expired = await formFor(1001);
+    clock += MAX_FILL_MS + 1000;
+    const expiredResponse = await post(expired, ip);
+    const quickForm = await formFor(1001);
+    const quickResponse = await post(quickForm, ip);
+    clock += 5000;
+    const forgedResponse = await post(forged, ip);
+    for (const [name, response, sent] of [['verlopen', expiredResponse, expired], ['te snel', quickResponse, quickForm], ['vals', forgedResponse, forged]]) {
+      assert.equal(response.status, 422, name);
+      assert.match(response.text, /Het formulier is verlopen of te snel verstuurd/, name);
+      assert.match(response.text, /value="Anna Maria"/, `${name}: ingevulde waarden blijven staan`);
+      const newToken = /name="token" value="([^"]+)"/.exec(response.text)[1];
+      // Te snel: hetzelfde tijdstip geeft hetzelfde (geldige) token; verlopen en vals krijgen een nieuw token.
+      if (name !== 'te snel') assert.notEqual(newToken, sent.get('token'), `${name}: nieuw token`);
+    }
     assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, 1);
+    // Opnieuw versturen met het nieuwe token lukt.
+    const retry = new URLSearchParams(forged);
+    retry.set('token', /name="token" value="([^"]+)"/.exec(forgedResponse.text)[1]);
+    clock += 5000;
+    assert.equal((await post(retry, ip)).status, 303);
+    assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, 2);
+    await db.query("DELETE FROM bookings WHERE reference = (SELECT reference FROM bookings ORDER BY created_at DESC LIMIT 1)");
   });
 
   await t.test('aanmelden kan niet voor volle, vertrokken of onbekende reizen', async () => {
@@ -321,23 +348,33 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal(await contactCount(), before);
   });
 
-  await t.test('contact: honeypot, te snel invullen en een vals token slaan niets op', async () => {
+  await t.test('contact: honeypot stil, ongeldig/verlopen/te snel token geeft 422 met waarden en nieuw token', async () => {
     clock += 11 * 60 * 1000; // nieuw limietvenster na de vorige tests
+    const ip = { 'x-forwarded-for': '203.0.113.40' };
     const before = await contactCount();
     const honeypot = await contactFormFor();
     honeypot.set('website', 'spam');
     clock += 5000;
-    assert.equal((await postContact(honeypot)).headers.get('location'), '/contact/?verzonden=1');
+    assert.equal((await postContact(honeypot, ip)).headers.get('location'), '/contact/?verzonden=1');
+    const expired = await contactFormFor();
+    clock += MAX_FILL_MS + 1000;
     const quick = await contactFormFor();
-    assert.equal((await postContact(quick)).status, 303);
     const forged = await contactFormFor();
     forged.set('token', `${clock - 10000}.vals`);
-    assert.equal((await postContact(forged)).status, 303);
     const bookingToken = await formFor(1001);
     const crossForm = await contactFormFor();
     crossForm.set('token', bookingToken.get('token'));
+    const responses = [['te snel', await postContact(quick, ip)]];
     clock += 5000;
-    assert.equal((await postContact(crossForm)).status, 303, 'token van het aanmeldformulier geldt niet voor contact');
+    responses.push(['verlopen', await postContact(expired, ip)], ['vals', await postContact(forged, ip)]);
+    clock += 11 * 60 * 1000;
+    responses.push(['ander formulier', await postContact(crossForm, ip)]);
+    for (const [name, response] of responses) {
+      assert.equal(response.status, 422, name);
+      assert.match(response.text, /Het formulier is verlopen of te snel verstuurd/, name);
+      assert.match(response.text, /value="Test Persoon"/, `${name}: ingevulde waarden blijven staan`);
+      assert.match(response.text, /name="token" value="[^"]+"/, `${name}: nieuw token`);
+    }
     assert.equal(await contactCount(), before);
   });
 

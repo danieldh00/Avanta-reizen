@@ -117,7 +117,7 @@ function createBookingRouter(options) {
     const hasErrors = Object.keys(errors).length > 0;
     return html`<div class="container container--narrow section">
       <p>Doorloop onderstaande stappen om je aan te melden voor de reis.</p>
-      ${hasErrors ? html`<div class="form-alert" role="alert">Controleer de gemarkeerde velden${errors._form ? html`: ${errors._form}` : ''}.</div>` : ''}
+      ${hasErrors ? html`<div class="form-alert" role="alert">${errors._form || 'Controleer de gemarkeerde velden.'}</div>` : ''}
       <form class="form" method="post" action="/aanmelden/" novalidate>
         <input type="hidden" name="id" value="${trip.legacy_id || ''}">
         <input type="hidden" name="reis" value="${trip.slug}">
@@ -168,10 +168,15 @@ function createBookingRouter(options) {
       if (!trip || reason) {
         return send(res, { title: 'Aanmelden', header: renderPageHeader({ title: 'Aanmelden' }), body: html`<div class="container section"><p class="notice">${reason}</p></div>`, trip }, trip ? 409 : 404);
       }
-      // Een ingevulde honeypot of een ongeldig/te snel token: stil doen alsof het gelukt is, zonder iets op te slaan.
-      if (guard.isSuspicious(body)) return res.redirect(303, '/bedankt-voor-je-aanmelding/');
+      // Een ingevulde honeypot: stil doen alsof het gelukt is, zonder iets op te slaan.
+      if (guard.isBot(body)) return res.redirect(303, '/bedankt-voor-je-aanmelding/');
 
       const { values, errors } = validateBooking(body, { today: today() });
+      // Ongeldig, verlopen of te snel token: formulier opnieuw tonen met de waarden en een nieuw token, niets opslaan.
+      const tokenProblem = guard.tokenProblem(body);
+      if (tokenProblem) {
+        return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: renderPageHeader({ title: 'Aanmelden', subtitle: trip.title }), body: renderForm(trip, values, { ...errors, _form: tokenProblem }) }, 422);
+      }
       if (Object.keys(errors).length) {
         return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: renderPageHeader({ title: 'Aanmelden', subtitle: trip.title }), body: renderForm(trip, values, errors) }, 422);
       }

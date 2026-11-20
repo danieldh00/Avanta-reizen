@@ -12,11 +12,14 @@ const MIN_FILL_MS = 3000;
 /** Maximale leeftijd van een formuliertoken. */
 const MAX_FILL_MS = 3 * 60 * 60 * 1000;
 
+/** Melding als het token ongeldig, verlopen of te snel is: de bezoeker kan het formulier gewoon opnieuw versturen. */
+const TOKEN_MESSAGE = 'Het formulier is verlopen of te snel verstuurd. Controleer je gegevens en verstuur het opnieuw.';
+
 /**
  * Maakt de bescherming voor één formulier.
  * @param {{purpose: string, formKey: Buffer, limit: number, windowMs: number, limitMessage: string, now?: () => number}} options
  *   Doel (scheidt de tokens per formulier), sleutel voor het token, limiet per venster, tekst bij 429 en (voor tests) de klok.
- * @returns {{signToken: Function, checkToken: Function, hiddenFields: Function, isSuspicious: Function, protect: Function}} De bescherming.
+ * @returns {{signToken: Function, checkToken: Function, hiddenFields: Function, isBot: Function, tokenProblem: Function, protect: Function}} De bescherming.
  */
 function createFormGuard(options) {
   const now = options.now || Date.now;
@@ -54,11 +57,21 @@ function createFormGuard(options) {
         <div class="honeypot" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>`;
 
   /**
-   * Of een inzending van een bot lijkt te komen: ingevulde honeypot, of een ongeldig of te snel token.
+   * Of de honeypot is ingevuld. Alleen dan wordt een inzending stil genegeerd (met de gewone bedanktmelding);
+   * een mens ziet dat verborgen veld niet.
    * @param {object} body Ingezonden velden.
-   * @returns {boolean} Waar als de inzending stil genegeerd moet worden.
+   * @returns {boolean} Waar als de inzending van een bot komt.
    */
-  const isSuspicious = (body) => Boolean(body.website) || !checkToken(body.token);
+  const isBot = (body) => Boolean(body.website);
+
+  /**
+   * Controleert het token van een inzending en geeft bij een probleem een melding voor de bezoeker. Een ongeldig,
+   * verlopen of te snel token kan ook een mens overkomen (formulier lang open laten staan, automatisch invullen):
+   * dan toont de route het formulier opnieuw (422) met de ingevulde waarden en een nieuw token.
+   * @param {object} body Ingezonden velden.
+   * @returns {string} Lege tekst als het token geldig is, anders de melding.
+   */
+  const tokenProblem = (body) => (checkToken(body.token) ? '' : TOKEN_MESSAGE);
 
   /**
    * Express-middleware: weigert verzoeken van een andere site (403) en bezoekers boven de limiet (429).
@@ -79,7 +92,7 @@ function createFormGuard(options) {
     return next();
   };
 
-  return { signToken, checkToken, hiddenFields, isSuspicious, protect };
+  return { signToken, checkToken, hiddenFields, isBot, tokenProblem, protect };
 }
 
-module.exports = { createFormGuard, MIN_FILL_MS, MAX_FILL_MS };
+module.exports = { createFormGuard, MIN_FILL_MS, MAX_FILL_MS, TOKEN_MESSAGE };
