@@ -61,6 +61,10 @@ const FIELD_GROUPS = [
 
 const FIELDS = FIELD_GROUPS.flatMap((group) => group.fields);
 
+/** Stuurtekens behalve tab en regeleinden; PostgreSQL weigert NUL in tekstkolommen (anders een 500). */
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARACTERS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+
 /**
  * Controleert of een datum (jjjj-mm-dd) bestaat.
  * @param {string} value De datum.
@@ -83,8 +87,10 @@ function validateBooking(body, context) {
   const errors = {};
   for (const field of FIELDS) {
     const raw = body[field.name];
-    let value = typeof raw === 'string' ? raw.replace(/\r\n/g, '\n').trim() : '';
+    let value = typeof raw === 'string' ? raw.replace(CONTROL_CHARACTERS, '').replace(/\r\n/g, '\n').trim() : '';
     if (field.type !== 'textarea') value = value.replace(/\s+/g, ' ');
+    // Een selectievakje telt alleen als akkoord met precies de waarde die het formulier verstuurt (bewijs voor consent_at).
+    if (field.type === 'checkbox' && value !== 'ja') value = '';
     values[field.name] = value;
     if (field.required && !value) {
       errors[field.name] = field.type === 'checkbox' ? 'Ga akkoord om je aan te melden.' : 'Dit veld is verplicht.';

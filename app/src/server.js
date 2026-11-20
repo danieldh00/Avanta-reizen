@@ -9,6 +9,7 @@ const net = require('node:net');
 const { createDatabase } = require('./database/db');
 const { createSiteRouter } = require('./site/routes');
 const { createBookingRouter } = require('./booking/routes');
+const { createContactForm } = require('./contact/routes');
 const seo = require('./site/seo');
 const { loadMasterKey, createVault } = require('./security/vault');
 const crypto = require('node:crypto');
@@ -82,13 +83,16 @@ function createApp(options) {
 
   const vault = createVault(options.masterKey);
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
-  app.use(createBookingRouter({ db: options.db, vault, formKey, now: options.now }));
-  app.use(createSiteRouter({ db: options.db, indexable }));
+  app.use(createBookingRouter({ db: options.db, vault, formKey, siteUrl, now: options.now }));
+  const contactForm = createContactForm({ db: options.db, formKey, now: options.now });
+  app.use(createSiteRouter({ db: options.db, indexable, siteUrl, contactForm }));
 
+  // 404: altijd noindex (renderPage zonder indexable), met een canonical naar het gevraagde pad.
   app.use((req, res) => {
     res.status(404).send(renderPage({
       title: 'Pagina niet gevonden',
       path: req.path,
+      seo: { canonicalUrl: seo.absoluteUrl(siteUrl, req.path), imageUrl: seo.absoluteUrl(siteUrl, '/images/logo.png') },
       header: renderPageHeader({ title: 'Pagina niet gevonden' }),
       body: html`<div class="container section"><p>Deze pagina bestaat niet (meer). Bekijk <a href="/reis/">ons reisaanbod</a> of ga naar de <a href="/">homepage</a>.</p></div>`,
     }));

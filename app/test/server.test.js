@@ -1,6 +1,7 @@
 /**
  * End-to-end-tests tegen PostgreSQL (TEST_DATABASE_URL): migraties, alle paginasoorten, redirects van oude
- * WordPress-adressen, beveiligingskoppen en het aanmeldformulier (opslag, versleuteling, honeypot, limiet, herkomst).
+ * WordPress-adressen, beveiligingskoppen, het aanmeldformulier (opslag, versleuteling, honeypot, limiet, herkomst) en het
+ * contactformulier (opslag, meldingen, honeypot, token, herkomst, limiet).
  * Zonder TEST_DATABASE_URL worden ze overgeslagen.
  */
 const test = require('node:test');
@@ -9,6 +10,7 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { createVault } = require('../src/security/vault');
 const { today } = require('../src/site/content');
+const { MAX_FILL_MS } = require('../src/security/form-guard');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const MASTER_KEY = Buffer.alloc(32, 3);
@@ -28,7 +30,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   const db = createDatabase(DATABASE_URL);
   await db.query('DROP SCHEMA public CASCADE');
   await db.query('CREATE SCHEMA public');
-  assert.deepEqual(await db.migrate(), [1, 2]);
+  assert.deepEqual(await db.migrate(), [1, 2, 3]);
   assert.deepEqual(await db.migrate(), [], 'tweede keer migreren doet niets');
 
   const [guide] = await db.query("INSERT INTO guides (legacy_id, slug, name, body_html) VALUES (500, 'harmen', 'Harmen', '<p>Ervaren</p>') RETURNING id");
@@ -188,17 +190,43 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, 1);
   });
 
-  await t.test('honeypot, te snel invullen en een vals token slaan niets op', async () => {
+  await t.test('honeypot: stil doorsturen naar de bedanktpagina zonder op te slaan', async () => {
     const honeypot = await formFor(1001);
     honeypot.set('website', 'spam');
     clock += 5000;
-    assert.equal((await post(honeypot)).status, 303);
-    const quick = await formFor(1001);
-    assert.equal((await post(quick)).status, 303);
+    const response = await post(honeypot, { 'x-forwarded-for': '203.0.113.30' });
+    assert.equal(response.status, 303);
+    assert.equal(response.headers.get('location'), '/bedankt-voor-je-aanmelding/');
+    assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, 1);
+  });
+
+  await t.test('te snel, verlopen of vals token: 422 met ingevulde waarden, melding en nieuw token', async () => {
+    const ip = { 'x-forwarded-for': '203.0.113.31' };
     const forged = await formFor(1001);
     forged.set('token', `${clock - 10000}.vals`);
-    assert.equal((await post(forged)).status, 303);
+    const expired = await formFor(1001);
+    clock += MAX_FILL_MS + 1000;
+    const expiredResponse = await post(expired, ip);
+    const quickForm = await formFor(1001);
+    const quickResponse = await post(quickForm, ip);
+    clock += 5000;
+    const forgedResponse = await post(forged, ip);
+    for (const [name, response, sent] of [['verlopen', expiredResponse, expired], ['te snel', quickResponse, quickForm], ['vals', forgedResponse, forged]]) {
+      assert.equal(response.status, 422, name);
+      assert.match(response.text, /Het formulier is verlopen of te snel verstuurd/, name);
+      assert.match(response.text, /value="Anna Maria"/, `${name}: ingevulde waarden blijven staan`);
+      const newToken = /name="token" value="([^"]+)"/.exec(response.text)[1];
+      // Te snel: hetzelfde tijdstip geeft hetzelfde (geldige) token; verlopen en vals krijgen een nieuw token.
+      if (name !== 'te snel') assert.notEqual(newToken, sent.get('token'), `${name}: nieuw token`);
+    }
     assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, 1);
+    // Opnieuw versturen met het nieuwe token lukt.
+    const retry = new URLSearchParams(forged);
+    retry.set('token', /name="token" value="([^"]+)"/.exec(forgedResponse.text)[1]);
+    clock += 5000;
+    assert.equal((await post(retry, ip)).status, 303);
+    assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, 2);
+    await db.query("DELETE FROM bookings WHERE reference = (SELECT reference FROM bookings ORDER BY created_at DESC LIMIT 1)");
   });
 
   await t.test('aanmelden kan niet voor volle, vertrokken of onbekende reizen', async () => {
@@ -223,6 +251,167 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
       lastStatus = (await post(form)).status;
     }
     assert.equal(lastStatus, 429);
+  });
+
+  /**
+   * Haalt het contactformulier op en geeft de velden terug die een browser zou meesturen.
+   * @param {string} [query] Querystring, bijvoorbeeld `?reis=8-dagen-albanie`.
+   * @returns {Promise<URLSearchParams>} Formuliervelden.
+   */
+  const contactFormFor = async (query = '') => {
+    const page = await get(`/contact/${query}`);
+    assert.equal(page.status, 200);
+    const token = /name="token" value="([^"]+)"/.exec(page.text)[1];
+    const reis = /name="reis" value="([^"]+)"/.exec(page.text)?.[1];
+    return new URLSearchParams({
+      ...(reis ? { reis } : {}), token, website: '',
+      name: 'Test Persoon', phone: '0612345678', email: 'Test@Example.nl', subject: '', message: 'Hallo,\nIk heb een vraag.', consent: 'ja',
+    });
+  };
+
+  /**
+   * Verstuurt het contactformulier.
+   * @param {URLSearchParams} form Velden.
+   * @param {object} [headers] Extra koppen.
+   * @returns {Promise<{status: number, text: string, headers: Headers}>} Antwoord.
+   */
+  const postContact = (form, headers = {}) => get('/contact/', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', 'sec-fetch-site': 'same-origin', ...headers },
+    body: form.toString(),
+  });
+
+  /**
+   * Aantal opgeslagen contactberichten.
+   * @returns {Promise<number>} Aantal.
+   */
+  const contactCount = async () => (await db.query('SELECT COUNT(*)::int AS total FROM contact_messages'))[0].total;
+
+  await t.test('contact: formulier staat onder de pagina-inhoud en een bericht wordt opgeslagen', async () => {
+    const page = await get('/contact/');
+    assert.equal(page.headers.get('cache-control'), 'no-store');
+    assert.ok(page.text.indexOf('Bel ons') < page.text.indexOf('<form class="form" method="post" action="/contact/"'));
+    assert.match(page.text, /name="consent"/);
+    const form = await contactFormFor();
+    clock += 5000;
+    const response = await postContact(form);
+    assert.equal(response.status, 303);
+    assert.equal(response.headers.get('location'), '/contact/?verzonden=1');
+    assert.match((await get('/contact/?verzonden=1')).text, /Bedankt voor je bericht/);
+    const [message] = await db.query('SELECT name, email, phone, subject, message, trip_slug, status, consent_at FROM contact_messages');
+    assert.deepEqual(
+      { name: message.name, email: message.email, phone: message.phone, subject: message.subject, message: message.message, trip: message.trip_slug, status: message.status },
+      { name: 'Test Persoon', email: 'test@example.nl', phone: '0612345678', subject: '', message: 'Hallo,\nIk heb een vraag.', trip: null, status: 'nieuw' },
+    );
+    assert.ok(message.consent_at instanceof Date);
+  });
+
+  await t.test('contact: vanaf een reis wordt de reis bewaard; een onbekende reis niet', async () => {
+    const form = await contactFormFor('?reis=8-dagen-albanie');
+    assert.equal(form.get('reis'), '8-dagen-albanie');
+    assert.match((await get('/contact/?reis=8-dagen-albanie')).text, /value="Vraag over 8 dagen Albanië"/);
+    form.set('subject', 'Vraag over 8 dagen Albanië');
+    clock += 5000;
+    assert.equal((await postContact(form)).status, 303);
+    const unknown = await contactFormFor();
+    unknown.set('reis', 'bestaat-niet');
+    clock += 5000;
+    assert.equal((await postContact(unknown)).status, 303);
+    const rows = await db.query('SELECT trip_slug, subject FROM contact_messages ORDER BY id DESC LIMIT 2');
+    assert.deepEqual(rows.map((row) => row.trip_slug), [null, '8-dagen-albanie']);
+    assert.equal(rows[1].subject, 'Vraag over 8 dagen Albanië');
+  });
+
+  await t.test('contact: fouten geven 422 met Nederlandse meldingen en bewaren niets', async () => {
+    const before = await contactCount();
+    const form = await contactFormFor();
+    for (const name of ['name', 'message', 'consent']) form.delete(name);
+    form.set('email', 'geen-adres');
+    form.set('phone', 'abc');
+    form.set('subject', '<script>x</script>');
+    clock += 5000;
+    const response = await postContact(form);
+    assert.equal(response.status, 422);
+    assert.match(response.text, /Controleer de gemarkeerde velden/);
+    assert.equal((response.text.match(/Dit veld is verplicht\./g) || []).length, 2);
+    assert.match(response.text, /Vul een geldig e-mailadres in\./);
+    assert.match(response.text, /Vul een geldig telefoonnummer in\./);
+    assert.match(response.text, /Ga akkoord met de privacyverklaring/);
+    assert.doesNotMatch(response.text, /<script>x<\/script>/);
+    assert.match(response.text, /value="&lt;script&gt;x&lt;\/script&gt;"/, 'ingevulde waarde blijft staan, ge-escaped');
+    const tooLong = await contactFormFor();
+    tooLong.set('message', 'x'.repeat(5001));
+    clock += 5000;
+    const long = await postContact(tooLong);
+    assert.equal(long.status, 422);
+    assert.match(long.text, /Maximaal 5000 tekens\./);
+    assert.equal(await contactCount(), before);
+  });
+
+  await t.test('contact: NUL-tekens in de invoer geven geen 500', async () => {
+    clock += 11 * 60 * 1000;
+    const before = await contactCount();
+    const form = await contactFormFor();
+    form.set('message', 'Hallo\u0000wereld');
+    form.set('name', 'Test\u0000 Persoon');
+    clock += 5000;
+    assert.equal((await postContact(form, { 'x-forwarded-for': '203.0.113.50' })).status, 303);
+    const [row] = await db.query('SELECT name, message FROM contact_messages ORDER BY id DESC LIMIT 1');
+    assert.deepEqual(row, { name: 'Test Persoon', message: 'Hallowereld' });
+    assert.equal(await contactCount(), before + 1);
+  });
+
+  await t.test('contact: honeypot stil, ongeldig/verlopen/te snel token geeft 422 met waarden en nieuw token', async () => {
+    clock += 11 * 60 * 1000; // nieuw limietvenster na de vorige tests
+    const ip = { 'x-forwarded-for': '203.0.113.40' };
+    const before = await contactCount();
+    const honeypot = await contactFormFor();
+    honeypot.set('website', 'spam');
+    clock += 5000;
+    assert.equal((await postContact(honeypot, ip)).headers.get('location'), '/contact/?verzonden=1');
+    const expired = await contactFormFor();
+    clock += MAX_FILL_MS + 1000;
+    const quick = await contactFormFor();
+    const forged = await contactFormFor();
+    forged.set('token', `${clock - 10000}.vals`);
+    const bookingToken = await formFor(1001);
+    const crossForm = await contactFormFor();
+    crossForm.set('token', bookingToken.get('token'));
+    const responses = [['te snel', await postContact(quick, ip)]];
+    clock += 5000;
+    responses.push(['verlopen', await postContact(expired, ip)], ['vals', await postContact(forged, ip)]);
+    clock += 11 * 60 * 1000;
+    responses.push(['ander formulier', await postContact(crossForm, ip)]);
+    for (const [name, response] of responses) {
+      assert.equal(response.status, 422, name);
+      assert.match(response.text, /Het formulier is verlopen of te snel verstuurd/, name);
+      assert.match(response.text, /value="Test Persoon"/, `${name}: ingevulde waarden blijven staan`);
+      assert.match(response.text, /name="token" value="[^"]+"/, `${name}: nieuw token`);
+    }
+    assert.equal(await contactCount(), before);
+  });
+
+  await t.test('contact: verzoek van een andere site wordt geweigerd', async () => {
+    const before = await contactCount();
+    const form = await contactFormFor();
+    clock += 5000;
+    assert.equal((await postContact(form, { 'sec-fetch-site': 'cross-site' })).status, 403);
+    assert.equal((await postContact(form, { origin: 'https://kwaad.example' })).status, 403);
+    assert.equal(await contactCount(), before);
+  });
+
+  await t.test('contact: limiet van 5 berichten per 10 minuten, daarna 429', async () => {
+    clock += 11 * 60 * 1000;
+    const statuses = [];
+    for (let i = 0; i < 6; i++) {
+      const form = await contactFormFor();
+      clock += 5000;
+      statuses.push((await postContact(form)).status);
+    }
+    assert.deepEqual(statuses, [303, 303, 303, 303, 303, 429]);
+    const limited = await postContact(await contactFormFor());
+    assert.equal(limited.headers.get('retry-after'), '600');
+    assert.match(limited.text, /Te veel berichten/);
   });
 
   await t.test('limiet per bezoeker achter een vertrouwde proxy (X-Forwarded-For)', async () => {
