@@ -22,12 +22,14 @@ function loadMasterKey(options = {}) {
   let hex = fromEnvironment || (keyFile ? fs.readFileSync(keyFile, 'utf8').trim() : '');
   if (!hex) {
     const file = path.join(options.dataDir || DATA_DIR, 'master-key');
-    if (fs.existsSync(file)) {
-      hex = fs.readFileSync(file, 'utf8').trim();
-    } else {
-      fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    try {
+      // 'wx' maakt het bestand alleen aan als het nog niet bestaat; zo overschrijft een gelijktijdige start nooit een sleutel.
       hex = crypto.randomBytes(32).toString('hex');
-      fs.writeFileSync(file, `${hex}\n`, { mode: 0o600 });
+      fs.writeFileSync(file, `${hex}\n`, { mode: 0o600, flag: 'wx' });
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      hex = fs.readFileSync(file, 'utf8').trim();
     }
   }
   if (!/^[0-9a-f]{64}$/i.test(hex)) throw new Error('hoofdsleutel moet 64 hex-tekens zijn');

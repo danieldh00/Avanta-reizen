@@ -15,6 +15,7 @@ const { createVault, loadMasterKey } = require('../src/security/vault');
 const { createRateLimiter, clientKey } = require('../src/security/rate-limit');
 const { validateBooking } = require('../src/booking/fields');
 const { rewriteLink, cacheName } = require('../tools/import-wordpress');
+const { parseTrustProxy } = require('../src/server');
 
 test('html escapet ingevoegde waarden maar niet raw()', () => {
   const name = '<script>alert("x")</script>';
@@ -183,4 +184,15 @@ test('contactformulier: validatie en normalisatie', () => {
   assert.equal(ok.values.message, 'Regel 1\nRegel 2');
   const bad = validateContact({ email: 'geen', phone: 'x', name: ['array'] });
   assert.deepEqual(Object.keys(bad.errors).sort(), ['consent', 'email', 'message', 'name', 'phone']);
+});
+
+test('TRUST_PROXY: alleen leeg/loopback of één exact IP-adres', () => {
+  assert.equal(parseTrustProxy(undefined), 'loopback');
+  assert.equal(parseTrustProxy('  '), 'loopback');
+  assert.equal(parseTrustProxy('loopback'), 'loopback');
+  assert.equal(parseTrustProxy('172.18.0.5'), '172.18.0.5');
+  assert.equal(parseTrustProxy('fd00::5'), 'fd00::5');
+  for (const unsafe of ['10.0.0.0/8', '172.16.0.0/12', 'loopback, 172.18.0.5', '1', 'true', 'uniquelocal']) {
+    assert.throws(() => parseTrustProxy(unsafe), /TRUST_PROXY/);
+  }
 });

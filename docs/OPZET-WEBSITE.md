@@ -60,7 +60,7 @@ koppen Playfair Display, tekst Open Sans.
 4. ✅ Pagina's: home, reisoverzicht met zoeker/filters, reisdetail, categorie, reisleiders, blog, FAQ, zoeken, losse pagina's.
 5. ✅ Aanmeldformulier → opslag in database (basis voor CRM). ⏳ Bevestigingsmail (wacht op mailkeuze).
 6. ⏳ Contactformulier, nieuwsbrief, sitemap.xml bij go-live, iDEAL (wacht op providerkeuze).
-7. ⏳ CRM fase 2: aparte opzet.
+7. ⏳ CRM fase 2: aparte opzet in `docs/OPZET-CRM.md`.
 
 ## Open vragen
 1. Hosting: dezelfde server als AquaTech (Docker + tunnel) of elders?

@@ -18,6 +18,10 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   reis als de bezoeker via `/contact/?reis=<slug>` komt). Er wordt nog geen mail verstuurd. Het formulier heeft dezelfde
   bescherming als aanmelden (`app/src/security/form-guard.js`): herkomstcontrole, 5 per 10 minuten per bezoeker,
   honeypot en ondertekend tijdstempel.
+- `TRUST_PROXY`: welke reverse proxy Express vertrouwt voor het bezoekersadres (standaard `loopback`). **Leeg laten als
+  er geen proxy voor de app staat.** Staat er een proxy in een andere container voor, zet dan het **exacte** adres
+  daarvan (bijv. `TRUST_PROXY=172.18.0.5`), nooit een heel subnet: verkeer van buiten kan via het Docker-bridgeadres
+  binnenkomen en zou dan met een zelfgekozen `X-Forwarded-For` de limiet op de formulieren kunnen omzeilen.
 - Aanmeldingen komen in de tabel `bookings`; kerkgenootschap, medische bijzonderheden, geboortedatum en
   paspoortgegevens staan versleuteld. **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.
@@ -64,6 +68,7 @@ Alleen docs/CI zonder effect op de app: label `geen-releasenotes`.
 | Settings > General | *Allow auto-merge* aan, *Automatically delete head branches* aan |
 | Settings > Code security | Secret scanning + push protection aan |
 | Issues > Labels | label `geen-releasenotes` aanmaken |
+| Packages (na de eerste release) | package `avanta-reizen` aan deze repo koppelen (*Connect repository*) en de zichtbaarheid kiezen (privé: de server logt in op GHCR met een token met *read:packages*) |
 | GitHub Apps | Claude GitHub App installeren op deze repo (voor de reviews) |
 | Renovate (optioneel) | Renovate-app activeren; config staat in `renovate.json` |
 
