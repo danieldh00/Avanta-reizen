@@ -52,7 +52,7 @@ function createRestoreTestRoutes(options) {
    */
   const renderPage = (req, state = {}) => {
     const hostRuns = restoreTests.hostRuns();
-    const hostBusy = restoreTests.hostRequested() || (hostRuns[0] && hostRuns[0].state === 'bezig');
+    const hostBusy = hostTestBusy(hostRuns);
     return options.renderBeheerPage(req, {
       title: 'Hersteltest',
       sectionId: 'hersteltest',
@@ -77,6 +77,15 @@ function createRestoreTestRoutes(options) {
     });
   };
 
+  /**
+   * Of er op de server al een hersteltest is aangevraagd of loopt.
+   * @param {object[]} [hostRuns] De runs (anders opnieuw gelezen).
+   * @returns {boolean} Waar als aangevraagd of bezig.
+   */
+  function hostTestBusy(hostRuns = restoreTests.hostRuns()) {
+    return restoreTests.hostRequested() || Boolean(hostRuns[0] && hostRuns[0].state === 'bezig');
+  }
+
   router.get('/beheer/hersteltest/', guard, async (req, res, next) => {
     try {
       await settings.ready();
@@ -89,9 +98,12 @@ function createRestoreTestRoutes(options) {
   router.post('/beheer/hersteltest/server/', guard, auth.checkCsrf, async (req, res, next) => {
     try {
       await settings.ready();
-      if (!hostLimiter.hit(`gebruiker:${req.user.id}`)) return res.status(429).send(renderPage(req, { result: { ok: false, message: 'Te vaak aangevraagd. Probeer het over een uur opnieuw.' } }));
-      await auth.audit(req, { userId: req.user.id, action: 'hersteltest.aangevraagd', entity: 'backup', entityId: 'server' });
-      restoreTests.requestHostTest();
+      // Al aangevraagd of bezig (dubbelklik, tweede beheerder, oude pagina): niets opnieuw aanvragen.
+      if (!hostTestBusy()) {
+        if (!hostLimiter.hit(`gebruiker:${req.user.id}`)) return res.status(429).send(renderPage(req, { result: { ok: false, message: 'Te vaak aangevraagd. Probeer het over een uur opnieuw.' } }));
+        await auth.audit(req, { userId: req.user.id, action: 'hersteltest.aangevraagd', entity: 'backup', entityId: 'server' });
+        restoreTests.requestHostTest();
+      }
       return res.redirect(303, '/app/beheer/hersteltest/');
     } catch (error) {
       return next(error);

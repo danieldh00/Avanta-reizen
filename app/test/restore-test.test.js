@@ -238,7 +238,21 @@ test('hersteltest in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
   assert.match((await request('/app/beheer/hersteltest/', { cookie })).text, /aangevraagd of bezig/);
   const [audit] = await db.query("SELECT u.email, a.entity_id FROM audit_log a JOIN users u ON u.id = a.user_id WHERE a.action = 'hersteltest.aangevraagd'");
   assert.deepEqual(audit, { email: 'beheer@example.nl', entity_id: 'server' });
+  // Nog een aanvraag terwijl de eerste er nog staat: niets opnieuw, geen auditregel, telt niet voor de limiet.
+  for (let i = 0; i < 3; i += 1) assert.equal((await request('/app/beheer/hersteltest/server/', { cookie, form: { _csrf: csrf } })).status, 303);
+  const [requests] = await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'hersteltest.aangevraagd'");
+  assert.equal(requests.count, 1);
+  // Ook niet terwijl een test loopt.
+  fs.rmSync(path.join(dir, REQUEST_FILE));
+  const runningSince = new Date().toISOString();
+  recordHostRun(dir, { trigger: 'handmatig', startedAt: runningSince, state: 'bezig' });
   assert.equal((await request('/app/beheer/hersteltest/server/', { cookie, form: { _csrf: csrf } })).status, 303);
-  assert.equal((await request('/app/beheer/hersteltest/server/', { cookie, form: { _csrf: csrf } })).status, 303);
+  assert.equal(fs.existsSync(path.join(dir, REQUEST_FILE)), false, 'geen nieuw verzoek tijdens een lopende test');
+  recordHostRun(dir, { trigger: 'handmatig', startedAt: runningSince, state: 'mislukt', message: 'test' });
+  // Daarna telt de limiet: hoogstens 3 per uur.
+  for (let i = 0; i < 2; i += 1) {
+    assert.equal((await request('/app/beheer/hersteltest/server/', { cookie, form: { _csrf: csrf } })).status, 303);
+    fs.rmSync(path.join(dir, REQUEST_FILE));
+  }
   assert.equal((await request('/app/beheer/hersteltest/server/', { cookie, form: { _csrf: csrf } })).status, 429, 'hoogstens 3 per uur');
 });

@@ -51,7 +51,7 @@ record() {
 }
 fail() { log "MISLUKT: $1"; record "\"state\":\"mislukt\",\"message\":\"$1\""; exit 1; }
 
-# Het verzoek van de knop meteen weghalen (ook als de test daarna mislukt).
+# Het verzoek van de knop weghalen (de service doet dat al vóór de start; dit is voor een handmatige run).
 app_exec rm -f /data/backups/restore-test-now >/dev/null 2>&1 || true
 record '"state":"bezig"'
 

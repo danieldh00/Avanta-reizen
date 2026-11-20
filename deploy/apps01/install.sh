@@ -93,6 +93,11 @@ UNIT
   data_volume="$(docker volume inspect -f '{{.Mountpoint}}' avanta_app-data 2>/dev/null || true)"
   for kind in schema handmatig; do
     unit=avanta-restore-test; [ "$kind" = handmatig ] && unit=avanta-restore-test-now
+    # Het verzoek van de knop weghalen vóór het script start: de path-unit (PathExists) start de service anders
+    # steeds opnieuw zolang het bestand er staat, ook als het script direct stopt (er loopt al een test).
+    pre_start=""
+    if [ "$kind" = handmatig ] && [ -n "$data_volume" ]; then pre_start="ExecStartPre=/bin/rm -f $data_volume/backups/restore-test-now
+"; fi
     cat > "/etc/systemd/system/$unit.service" <<UNIT
 [Unit]
 Description=Avanta hersteltest van de back-ups ($kind)
@@ -101,7 +106,7 @@ After=docker.service
 [Service]
 Type=oneshot
 Environment=BASE_DIR=$BASE_DIR
-ExecStart=/usr/local/sbin/avanta-restore-test $kind
+${pre_start}ExecStart=/usr/local/sbin/avanta-restore-test $kind
 TimeoutStartSec=45min
 Nice=10
 UNIT
