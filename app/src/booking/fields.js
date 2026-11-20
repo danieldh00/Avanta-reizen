@@ -89,6 +89,8 @@ function validateBooking(body, context) {
     const raw = body[field.name];
     let value = typeof raw === 'string' ? raw.replace(CONTROL_CHARACTERS, '').replace(/\r\n/g, '\n').trim() : '';
     if (field.type !== 'textarea') value = value.replace(/\s+/g, ' ');
+    // Een selectievakje telt alleen als akkoord met precies de waarde die het formulier verstuurt (bewijs voor consent_at).
+    if (field.type === 'checkbox' && value !== 'ja') value = '';
     values[field.name] = value;
     if (field.required && !value) {
       errors[field.name] = field.type === 'checkbox' ? 'Ga akkoord om je aan te melden.' : 'Dit veld is verplicht.';

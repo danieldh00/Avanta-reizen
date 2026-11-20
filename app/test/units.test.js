@@ -156,6 +156,7 @@ test('validateBooking geeft fouten voor ontbrekende en ongeldige velden', () => 
   assert.ok(errors.last_name && errors.email_confirm && errors.birth_date && errors.gender && errors.mobile && errors.consent);
   assert.ok(validateBooking({ ...validBooking(), birth_date: '2001-02-30' }, { today: '2026-11-19' }).errors.birth_date);
   assert.ok(validateBooking({ ...validBooking(), first_names: 'x'.repeat(121) }, { today: '2026-11-19' }).errors.first_names);
+  assert.ok(validateBooking({ ...validBooking(), consent: 'nee' }, { today: '2026-11-19' }).errors.consent, 'alleen consent=ja telt');
   assert.equal(validateBooking({ ...validBooking(), particulars: 'Noten\u0000allergie' }, { today: '2026-11-19' }).values.particulars, 'Notenallergie');
 });
 
@@ -187,6 +188,7 @@ test('contactformulier: validatie en normalisatie', () => {
   assert.equal(ok.values.message, 'Regel 1\nRegel 2');
   const bad = validateContact({ email: 'geen', phone: 'x', name: ['array'] });
   assert.deepEqual(Object.keys(bad.errors).sort(), ['consent', 'email', 'message', 'name', 'phone']);
+  assert.ok(validateContact({ name: 'A', email: 'a@b.nl', message: 'x', consent: 'nee' }).errors.consent, 'alleen consent=ja telt');
   const control = validateContact({ name: 'Te\u0000st', email: 'a@b.nl', message: 'a\u0000b\u0007\tc\nd', consent: 'ja' });
   assert.equal(control.values.name, 'Test', 'NUL verwijderd');
   assert.equal(control.values.message, 'ab\tc\nd', 'stuurtekens weg, tab en regeleinde blijven');

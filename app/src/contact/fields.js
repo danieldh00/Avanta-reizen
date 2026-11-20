@@ -29,6 +29,8 @@ function validateContact(body) {
     const rawValue = body[field.name];
     let value = typeof rawValue === 'string' ? rawValue.replace(CONTROL_CHARACTERS, '').replace(/\r\n/g, '\n').trim() : '';
     if (field.type !== 'textarea') value = value.replace(/\s+/g, ' ');
+    // Een selectievakje telt alleen als akkoord met precies de waarde die het formulier verstuurt (bewijs voor consent_at).
+    if (field.type === 'checkbox' && value !== 'ja') value = '';
     values[field.name] = value;
     if (field.required && !value) {
       errors[field.name] = field.type === 'checkbox' ? 'Ga akkoord met de privacyverklaring om je bericht te versturen.' : 'Dit veld is verplicht.';
