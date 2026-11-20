@@ -241,8 +241,8 @@ async function createBackup(options) {
     child.on('close', (code) => resolve({ code }));
   });
   const timer = setTimeout(() => child.kill('SIGKILL'), options.timeoutMs || DUMP_TIMEOUT_MS);
+  const output = fs.createWriteStream(partFile, { mode: 0o600 });
   try {
-    const output = fs.createWriteStream(partFile, { mode: 0o600 });
     output.write(header);
     const [written, result] = await Promise.allSettled([pipeline(child.stdout, cipher, output, { end: false }), exited]);
     const exit = result.value || { code: -1 };
@@ -254,6 +254,8 @@ async function createBackup(options) {
     fs.renameSync(partFile, path.join(dir, name));
   } finally {
     clearTimeout(timer);
+    // Eerst de schrijfstroom echt sluiten: anders kan het bestand (bij een snelle fout) pas ná het opruimen ontstaan.
+    if (!output.closed) await new Promise((resolve) => { output.once('close', resolve); output.destroy(); });
     fs.rmSync(partFile, { force: true });
   }
   const { size } = fs.statSync(path.join(dir, name));
