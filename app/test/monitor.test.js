@@ -40,9 +40,10 @@ function fakeHttps(status) {
     outgoing.destroy = (error) => outgoing.emit('error', error);
     outgoing.end = () => setImmediate(() => {
       if (status === 'timeout') return outgoing.emit('timeout');
+      if (status === 'druppel') return undefined; // de server houdt de verbinding open zonder ooit klaar te zijn
       const response = new EventEmitter();
       response.statusCode = status;
-      response.resume = () => {};
+      response.destroy = () => {};
       return onResponse(response);
     });
     return outgoing;
@@ -80,6 +81,11 @@ test('veilig uitgaand verzoek: alleen https, openbaar adres en vast adres', asyn
 
   const slow = fakeHttps('timeout');
   await assert.rejects(safeRequest('https://hc.example.com/ping', { resolveHost: publicHost, request: slow.request }), (error) => error instanceof SafeRequestError && error.code === 'timeout');
+  // Een server die blijft druppelen: de totale tijdslimiet grijpt in, ook zonder stille verbinding.
+  const trickle = fakeHttps('druppel');
+  const started = Date.now();
+  await assert.rejects(safeRequest('https://hc.example.com/ping', { timeoutMs: 50, resolveHost: publicHost, request: trickle.request }), { code: 'timeout' });
+  assert.ok(Date.now() - started < 2000);
   await assert.rejects(safeRequest('https://hooks.example.com/', { json: { text: 'x'.repeat(20000) }, resolveHost: publicHost, request: ok.request }), { code: 'too_large' });
 });
 
@@ -295,6 +301,11 @@ test('bewaking, meldingen en Beheer > Bewaking', { skip: !DATABASE_URL && 'TEST_
   await db.query('DELETE FROM app_logs');
   await monitor.run();
   assert.deepEqual(await openIncidents(), []);
+  // De eigen regels van de bewaking tellen niet mee als fouten in de app.
+  await db.query("INSERT INTO app_logs (level, source, message, repeat_count, created_at) VALUES ('error', 'bewaking', 'Incident geopend', 25, $1)", [new Date(clock - 60000)]);
+  await monitor.run();
+  assert.deepEqual(await openIncidents(), []);
+  await db.query('DELETE FROM app_logs');
 
   // Mislukte webhook: in het overzicht en het logboek, zonder het adres.
   requestStatus = 500;

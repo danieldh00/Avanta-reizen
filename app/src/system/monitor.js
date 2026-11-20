@@ -153,14 +153,14 @@ function checkDisk({ dataDir, statfs, settings }) {
 }
 
 /**
- * Controle van het aantal fouten in het logboek in het afgelopen uur.
+ * Controle van het aantal fouten in het logboek in het afgelopen uur (zonder de eigen regels van de bewaking).
  * @param {object} sources Bronnen.
  * @returns {Promise<{state: string, message: string}>} De uitkomst.
  */
 async function checkErrors({ db, settings, now }) {
   const limit = settings.get('monitorErrorsPerHour');
   if (!limit) return outcome('uit', 'Deze controle staat uit (drempel 0).');
-  const [row] = await db.query("SELECT COALESCE(SUM(repeat_count), 0)::int AS count FROM app_logs WHERE level = 'error' AND created_at > $1", [new Date(now - HOUR_MS)]);
+  const [row] = await db.query("SELECT COALESCE(SUM(repeat_count), 0)::int AS count FROM app_logs WHERE level = 'error' AND source <> 'bewaking' AND created_at > $1", [new Date(now - HOUR_MS)]);
   const count = row ? row.count : 0;
   if (count >= limit) return outcome('warn', `${count} fouten in het afgelopen uur (drempel ${limit}). Zie Systeem > Logboek.`);
   return outcome('ok', count === 1 ? '1 fout in het afgelopen uur.' : `${count} fouten in het afgelopen uur.`);

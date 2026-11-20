@@ -1,8 +1,8 @@
 /**
  * Een kort https-verzoek naar een adres dat een beheerder zelf invult (webhook, heartbeat), alleen naar een openbaar
  * adres (`security/netguard.js`): de naam wordt eerst opgezocht en de verbinding gaat naar precies dat adres, zodat een
- * DNS-wissel tussendoor niet alsnog bij het eigen netwerk uitkomt. Geen omleidingen volgen, tijdslimiet, het antwoord
- * zelf wordt niet gelezen (alleen de statuscode).
+ * DNS-wissel tussendoor niet alsnog bij het eigen netwerk uitkomt. Geen omleidingen volgen, een tijdslimiet voor het
+ * hele verzoek, het antwoord zelf wordt niet gelezen (alleen de statuscode).
  */
 const https = require('node:https');
 const net = require('node:net');
@@ -68,7 +68,13 @@ async function safeRequest(address, options = {}) {
   if (body && body.length > MAX_BODY_BYTES) throw new SafeRequestError('too_large', 'Het bericht is te groot.');
   const method = options.method || (body ? 'POST' : 'GET');
   const hostname = url.hostname.replace(/^\[|\]$/g, '');
+  const timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS;
   return new Promise((resolve, reject) => {
+    let deadline = null;
+    const finish = (callback, value) => {
+      clearTimeout(deadline);
+      callback(value);
+    };
     const outgoing = request({
       protocol: 'https:',
       hostname,
@@ -82,18 +88,22 @@ async function safeRequest(address, options = {}) {
         return callback(null, ip, family);
       },
       servername: net.isIP(hostname) ? undefined : hostname,
-      timeout: options.timeoutMs || DEFAULT_TIMEOUT_MS,
+      timeout: timeoutMs,
       headers: {
         'User-Agent': 'avanta-reizen',
         ...(body ? { 'Content-Type': 'application/json', 'Content-Length': body.length } : {}),
       },
     }, (response) => {
-      response.resume();
+      // Alleen de statuscode telt: de rest van het antwoord wordt niet gelezen en de verbinding meteen gesloten.
       response.on('error', () => {});
-      resolve({ status: response.statusCode });
+      response.destroy();
+      finish(resolve, { status: response.statusCode });
     });
+    // `timeout` hierboven geldt alleen voor een stille verbinding; dit is de grens voor het hele verzoek, ook als de
+    // server met kleine stukjes de verbinding open houdt.
+    deadline = setTimeout(() => outgoing.destroy(new SafeRequestError('timeout', 'Geen antwoord binnen de tijd.')), timeoutMs);
     outgoing.on('timeout', () => outgoing.destroy(new SafeRequestError('timeout', 'Geen antwoord binnen de tijd.')));
-    outgoing.on('error', (error) => reject(error instanceof SafeRequestError ? error : new SafeRequestError('network', 'De server is niet bereikbaar.')));
+    outgoing.on('error', (error) => finish(reject, error instanceof SafeRequestError ? error : new SafeRequestError('network', 'De server is niet bereikbaar.')));
     if (body) outgoing.write(body);
     outgoing.end();
   });
