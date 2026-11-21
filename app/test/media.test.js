@@ -16,7 +16,7 @@ const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
 const { roleHasRight } = require('../src/crm/rights');
 const { processImage, detectImageType, variantWidthsFor } = require('../src/media/images');
-const { mediaUrl, titleFromFilename } = require('../src/media/library');
+const { createMediaLibrary, mediaUrl, titleFromFilename } = require('../src/media/library');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'media_test';
@@ -490,6 +490,13 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     await fs.rm(path.join(mediaDir, item.local_name));
     assert.equal((await library.restoreMissingFiles()).restored, 1, 'herstel werkt ook na een backfill zonder breedte');
     assert.deepEqual(await fs.readFile(path.join(mediaDir, item.local_name)), largest);
+    // Het onderhoud meldt herstel en problemen in het logboek van de app.
+    await fs.rm(path.join(mediaDir, item.local_name));
+    const logged = [];
+    const logLibrary = createMediaLibrary({ db, mediaDir, appLog: { info: (source, message) => logged.push(['info', source, message]), error: (source, message) => logged.push(['error', source, message]) } });
+    await logLibrary.startCleanupTimer();
+    assert.ok(logged.some(([level, source, message]) => level === 'info' && source === 'fotobibliotheek' && message === "1 foto('s) hersteld uit de database"), JSON.stringify(logged));
+    assert.ok(logged.some(([level, source, message]) => level === 'error' && source === 'fotobibliotheek' && /^2 geüploade foto/.test(message)), JSON.stringify(logged));
     await db.query("DELETE FROM media WHERE local_name IN ('bib-ffffffffffffffff-400.webp', 'bib-eeeeeeeeeeeeeeee-400.webp')");
     // Verwijderen van de foto haalt ook de kopie in de database weg.
     await db.query('DELETE FROM media WHERE id = $1', [item.id]);

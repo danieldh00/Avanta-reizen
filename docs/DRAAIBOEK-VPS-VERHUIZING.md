@@ -71,8 +71,8 @@ migraties uit.
 4. **Controleren** (via `curl -s http://127.0.0.1:3400/api/health` en straks in de browser): inloggen met je bestaande
    account, Beheer > Systeemoverzicht (versie, laatste migratie), Beheer > Back-ups (**sleutel-id gelijk aan de oude
    server**), een aanmelding openen in het CRM (versleutelde velden leesbaar), **Nu een back-up maken**.
-5. **Afbeeldingen**: geüploade foto's zet de app bij het starten zelf terug uit de database (logboek: *foto's hersteld
-   uit de database*). Afbeeldingen uit de import haalt de import uit stap 2 opnieuw op. Of kopieer het volume van de oude server:
+5. **Afbeeldingen**: geüploade foto's zet de app bij het starten zelf terug uit de database (Beheer > Logboek, bron
+   *fotobibliotheek*: *foto('s) hersteld uit de database*). Afbeeldingen uit de import haalt de import uit stap 2 opnieuw op. Of kopieer het volume van de oude server:
    ```sh
    # oude server
    docker run --rm -v avanta_app-data:/data -v /root:/uit alpine tar czf /uit/media.tgz -C /data media

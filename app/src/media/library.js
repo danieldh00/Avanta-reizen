@@ -133,13 +133,18 @@ function fileNamesOf(media) {
 
 /**
  * Maakt de fotobibliotheek.
- * @param {{db: object, mediaDir: string, dataDir?: string}} options Database, map met de bestanden en de datamap met
- *   de vaste-inhoudbestanden (standaard de map boven `mediaDir`).
+ * @param {{db: object, mediaDir: string, dataDir?: string, appLog?: object}} options Database, map met de bestanden,
+ *   de datamap met de vaste-inhoudbestanden (standaard de map boven `mediaDir`) en het logboek van de app
+ *   (`system/app-log.js`, voor de meldingen van het onderhoud; zonder logboek naar de console).
  * @returns {object} Functies van de bibliotheek.
  */
 function createMediaLibrary(options) {
   const { db, mediaDir } = options;
   const dataDir = options.dataDir || path.dirname(mediaDir);
+  const appLog = options.appLog || {
+    info: (source, message) => console.log(`${source}: ${message}`),
+    error: (source, message) => console.error(`${source}: ${message}`),
+  };
 
   /**
    * Alle landen (reiscategorieën van het soort bestemming), op naam.
@@ -450,26 +455,26 @@ function createMediaLibrary(options) {
 
   /**
    * Start het onderhoud van de bibliotheek: bij het starten en daarna dagelijks foto's van vóór migratie 13 in de
-   * database zetten, ontbrekende bestanden herstellen en losse bestanden opruimen.
-   * @returns {void}
+   * database zetten, ontbrekende bestanden herstellen en losse bestanden opruimen. Meldingen gaan naar het logboek.
+   * @returns {Promise<void>} De eerste ronde (faalt nooit; fouten staan in het logboek).
    */
   const startCleanupTimer = () => {
     const run = async () => {
       try {
         const backfill = await backfillFiles();
-        if (backfill.stored) console.log(`fotobibliotheek: ${backfill.stored} foto('s) in de database gezet voor de back-up`);
-        if (backfill.missing) console.error(`fotobibliotheek: ${backfill.missing} geüploade foto('s) zonder bestand en zonder kopie in de database`);
+        if (backfill.stored) appLog.info('fotobibliotheek', `${backfill.stored} foto('s) in de database gezet voor de back-up`);
+        if (backfill.missing) appLog.error('fotobibliotheek', `${backfill.missing} geüploade foto('s) zonder bruikbaar bestand en zonder kopie in de database`);
         const restore = await restoreMissingFiles();
-        if (restore.restored) console.log(`fotobibliotheek: ${restore.restored} foto('s) hersteld uit de database`);
-        if (restore.failed) console.error(`fotobibliotheek: ${restore.failed} foto('s) niet te herstellen uit de database`);
+        if (restore.restored) appLog.info('fotobibliotheek', `${restore.restored} foto('s) hersteld uit de database`);
+        if (restore.failed) appLog.error('fotobibliotheek', `${restore.failed} foto('s) niet te herstellen uit de database`);
         const count = await cleanupOrphans();
-        if (count) console.log(`fotobibliotheek: ${count} los(se) bestand(en) opgeruimd`);
+        if (count) appLog.info('fotobibliotheek', `${count} los(se) bestand(en) opgeruimd`);
       } catch (error) {
-        console.error(`fotobibliotheek: onderhoud mislukt (${error.code || error.name})`);
+        appLog.error('fotobibliotheek', `onderhoud mislukt (${error.code || error.name})`);
       }
     };
-    run();
     setInterval(run, 24 * 60 * 60 * 1000).unref();
+    return run();
   };
 
   return { countries, storeUpload, list, get, update, usage, remove, folders, cleanupOrphans, backfillFiles, restoreMissingFiles, startCleanupTimer };
