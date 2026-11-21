@@ -99,6 +99,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     commando voor de Proxmox-host dat alle openstaande taken uitvoert (`deploy/apps01/servertaken.sh`, op een vaste
     commit van `main`); de server vinkt gelukte taken zelf af, met de hand afvinken kan ook (auditlog).
   - *Organisatie > Contact en organisatie*: telefoon en e-mail (voettekst), adres en social media (JSON-LD).
+  - *Organisatie > Balk "in ontwikkeling"*: een balk bovenaan elke pagina van de publieke site (niet in het CRM) met
+    een eigen tekst; standaard aan, uitzetten bij go-live.
   - *E-mail > Mailserver*: SMTP met gebruikersnaam en wachtwoord (587 met STARTTLS of 465 met SSL/TLS) of een
     Exchange Online-connector op IP-basis (poort 25, zonder inlog), afzender en antwoordadres. De app verbindt alleen
     met een openbaar adres, eist STARTTLS (of SSL/TLS) en een geldig certificaat op de servernaam; zonder server en

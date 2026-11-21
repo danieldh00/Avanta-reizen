@@ -1,7 +1,7 @@
 /**
  * De instellingen die de publieke site per verzoek nodig heeft (uit Beheer, `beheer/settings.js`), in één object:
  * indexeren, basisadres, naam en titels, standaardomschrijving en -afbeelding, contact- en organisatiegegevens,
- * verificatiecodes, robots.txt-regels, sitemap-uitsluitingen, llms.txt en het actieve GA4-meet-ID. De middleware in `server.js` zet het op
+ * verificatiecodes, robots.txt-regels, sitemap-uitsluitingen, llms.txt, het actieve GA4-meet-ID en de balk "in ontwikkeling". De middleware in `server.js` zet het op
  * `res.locals.site`; routes en `renderPage` lezen het daar.
  */
 const seo = require('./seo');
@@ -45,6 +45,7 @@ function siteSettingsOf(settings) {
     robotsExtra: linesOf(settings.get('robotsExtra')),
     sitemapExclude: linesOf(settings.get('sitemapExclude')),
     llms: { enabled: settings.get('llmsEnabled') === true, intro: settings.get('llmsIntro') },
+    devBanner: settings.get('devBannerEnabled') === true ? settings.get('devBannerText') : '',
     analytics: { measurementId: activeMeasurementId(settings.get('analyticsEnabled'), settings.get('analyticsMeasurementId')) },
   };
 }

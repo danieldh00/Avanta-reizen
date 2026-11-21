@@ -82,6 +82,20 @@ const SETTING_FIELDS = {
     type: 'text', label: 'Bing Webmaster Tools: verificatiecode', default: '', max: 100,
     pattern: /^[A-Za-z0-9_-]{8,100}$/, patternMessage: 'Alleen letters, cijfers, - en _ (de waarde van content="…").',
   },
+  devBannerEnabled: {
+    type: 'bool',
+    label: 'Balk "Deze website is in ontwikkeling" tonen',
+    help: 'Een balk bovenaan elke pagina van de publieke site (niet in het CRM). Zet hem uit bij go-live.',
+    default: true,
+  },
+  devBannerText: {
+    type: 'text',
+    label: 'Tekst van de balk',
+    help: 'Eén regel, zonder opmaak.',
+    default: 'Deze website is nog in ontwikkeling. Aan de inhoud kunnen nog geen rechten worden ontleend.',
+    max: 200,
+    required: true,
+  },
   siteName: { type: 'text', label: 'Naam van de site', help: 'Achter elke paginatitel en in Open Graph.', default: 'Avanta reizen', max: 60, required: true },
   homeTitle: {
     type: 'text', label: 'Titel van de homepage', help: 'Zichtbaar in zoekresultaten; ideaal 50 tot 60 tekens.', default: 'Avontuurlijke groepsreizen over heel de wereld - Avanta reizen', max: 90, required: true,
