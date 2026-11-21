@@ -9,6 +9,8 @@ const assert = require('node:assert/strict');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { createVault } = require('../src/security/vault');
+const { createPersons } = require('../src/crm/persons');
+const { CONSENT_TEXT_VERSION } = require('../src/booking/fields');
 const { today } = require('../src/site/content');
 const { MAX_FILL_MS } = require('../src/security/form-guard');
 
@@ -30,7 +32,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   const db = createDatabase(DATABASE_URL);
   await db.query('DROP SCHEMA public CASCADE');
   await db.query('CREATE SCHEMA public');
-  assert.deepEqual(await db.migrate(), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(await db.migrate(), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   assert.deepEqual(await db.migrate(), [], 'tweede keer migreren doet niets');
 
   const [guide] = await db.query("INSERT INTO guides (legacy_id, slug, name, body_html) VALUES (500, 'harmen', 'Harmen', '<p>Ervaren</p>') RETURNING id");
@@ -52,15 +54,22 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   let clock = Date.now();
   // Database met een schakelaar om een botsing op de unieke referentie (23505) na te bootsen.
   const collisions = { count: 0, constraint: 'bookings_reference_key' };
+  /**
+   * Geeft een query-functie die een botsing nabootst zolang de schakelaar aan staat.
+   * @param {Function} query De echte query-functie.
+   * @returns {Function} Query-functie.
+   */
+  const colliding = (query) => (sql, params) => {
+    if (collisions.count > 0 && sql.trimStart().startsWith('INSERT INTO bookings')) {
+      collisions.count--;
+      return Promise.reject(Object.assign(new Error('duplicate key'), { code: '23505', constraint: collisions.constraint }));
+    }
+    return query(sql, params);
+  };
   const collidingDb = {
     ...db,
-    query: (sql, params) => {
-      if (collisions.count > 0 && sql.trimStart().startsWith('INSERT INTO bookings')) {
-        collisions.count--;
-        return Promise.reject(Object.assign(new Error('duplicate key'), { code: '23505', constraint: collisions.constraint }));
-      }
-      return db.query(sql, params);
-    },
+    query: colliding(db.query),
+    transaction: (work) => db.transaction((client) => work({ ...client, query: colliding(client.query) })),
   };
   const app = createApp({ db: collidingDb, masterKey: MASTER_KEY, now: () => clock });
   const server = app.listen(0);
@@ -144,6 +153,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
       postal_code: '4331 ab', city: 'Middelburg', occupation: 'Verpleegkundige', church: 'PKN', nationality: 'Nederlandse',
       document_type: 'paspoort', document_number: 'NX1234567', particulars: 'Notenallergie', earlier_trip: 'nee',
       credit_card: 'ja', driver_interest: 'ja', driver_before: 'nee', payment_choice: 'aanbetaling', consent: 'ja',
+      consent_religion: 'ja', consent_health: 'ja',
     });
   };
 
@@ -165,17 +175,51 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     const response = await post(form);
     assert.equal(response.status, 303);
     assert.equal(response.headers.get('location'), '/bedankt-voor-je-aanmelding/');
-    const [booking] = await db.query('SELECT reference, trip_code, email, postal_code, driver_interest, payment_choice, sensitive_data FROM bookings');
+    const [booking] = await db.query('SELECT id, reference, trip_code, email, postal_code, driver_interest, payment_choice, sensitive_data, person_id FROM bookings');
     assert.match(booking.reference, /^AV-\d{4}-[0-9A-F]{8}$/);
     assert.equal(booking.trip_code, '27-AKO-56');
     assert.equal(booking.email, 'anna@example.nl');
     assert.equal(booking.postal_code, '4331 AB');
     assert.equal(booking.driver_interest, true);
-    assert.doesNotMatch(booking.sensitive_data, /PKN|NX1234567|Notenallergie|1999/);
-    const sensitive = createVault(MASTER_KEY).open(booking.sensitive_data);
-    assert.equal(sensitive.church, 'PKN');
-    assert.equal(sensitive.document_number, 'NX1234567');
-    assert.equal(sensitive.particulars, 'Notenallergie');
+    assert.equal(booking.sensitive_data, null, 'bijzondere gegevens staan alleen nog bij de persoon');
+    const [person] = await db.query('SELECT id, first_names, email, postal_code, match_key, identity_data, special_data, health_data, emergency_data FROM persons WHERE id = $1', [booking.person_id]);
+    assert.equal(person.first_names, 'Anna Maria');
+    assert.equal(person.postal_code, '4331 AB');
+    for (const column of ['identity_data', 'special_data', 'health_data']) assert.doesNotMatch(person[column], /PKN|NX1234567|Notenallergie|1999/);
+    assert.equal(person.emergency_data, null, 'leeg blok wordt niet opgeslagen');
+    assert.doesNotMatch(person.match_key, /1999|anna/);
+    const persons = createPersons({ vault: createVault(MASTER_KEY) });
+    assert.equal(persons.openBlock('special_data', person).church, 'PKN');
+    assert.equal(persons.openBlock('identity_data', person).document_number, 'NX1234567');
+    assert.equal(persons.openBlock('identity_data', person).birth_date, '1999-05-04');
+    assert.equal(persons.openBlock('health_data', person).particulars, 'Notenallergie');
+    assert.throws(() => persons.openBlock('special_data', { ...person, id: person.id + 1 }), 'blok hoort bij dit ene record');
+    const consents = await db.query('SELECT kind, text_version FROM consents WHERE booking_id = $1 ORDER BY kind', [booking.id]);
+    assert.deepEqual(consents.map((row) => row.kind), ['art9_gezondheid', 'art9_religie', 'voorwaarden']);
+    assert.equal(consents[0].text_version, CONSENT_TEXT_VERSION);
+  });
+
+  await t.test('art. 9: kerkgenootschap of bijzonderheden zonder eigen toestemming geeft 422; leeg laten mag', async () => {
+    const withoutConsent = await formFor(1001);
+    withoutConsent.delete('consent_religion');
+    withoutConsent.delete('consent_health');
+    clock += 5000;
+    const refused = await post(withoutConsent, { 'x-forwarded-for': '203.0.113.40' });
+    assert.equal(refused.status, 422);
+    assert.equal((refused.text.match(/Geef toestemming, of laat het veld hierboven leeg/g) || []).length, 2);
+    const empty = await formFor(1001);
+    for (const name of ['church', 'particulars', 'consent_religion', 'consent_health']) empty.delete(name);
+    clock += 5000;
+    assert.equal((await post(empty, { 'x-forwarded-for': '203.0.113.40' })).status, 303);
+    const [booking] = await db.query('SELECT id, person_id FROM bookings ORDER BY id DESC LIMIT 1');
+    const kinds = await db.query('SELECT kind FROM consents WHERE booking_id = $1', [booking.id]);
+    assert.deepEqual(kinds.map((row) => row.kind), ['voorwaarden']);
+    // Zelfde e-mailadres en geboortedatum: dezelfde persoon, en een leeg veld wist niets wat er al stond.
+    const [first] = await db.query('SELECT person_id FROM bookings ORDER BY id LIMIT 1');
+    assert.equal(booking.person_id, first.person_id);
+    const [person] = await db.query('SELECT id, special_data FROM persons WHERE id = $1', [booking.person_id]);
+    assert.equal(createPersons({ vault: createVault(MASTER_KEY) }).openBlock('special_data', person).church, 'PKN');
+    await db.query('DELETE FROM bookings WHERE id = $1', [booking.id]);
   });
 
   await t.test('fouten in het formulier geven 422 met meldingen en bewaren niets', async () => {

@@ -39,13 +39,23 @@ function loadMasterKey(options = {}) {
 /**
  * Maakt een kluis met een vaste sleutel.
  * @param {Buffer} key Sleutel van 32 bytes.
- * @returns {{seal: (value: *, context?: string) => string, open: (sealed: string, context?: string) => *}} Versleutelen en
+ * @returns {{seal: (value: *, context?: string) => string, open: (sealed: string, context?: string) => *, deriveKey: (purpose: string) => Buffer}} Versleutelen en
  *   ontsleutelen (JSON-waarden). Met `context` (AAD, bijv. `users:totp:<id>`) hoort de versleutelde tekst bij dat ene
  *   record: naar een ander record gekopieerd, lukt het ontsleutelen niet.
  */
 function createVault(key) {
   if (!Buffer.isBuffer(key) || key.length !== 32) throw new Error('sleutel moet 32 bytes zijn');
   return {
+    /**
+     * Leidt een aparte sleutel af voor één doel (HKDF-SHA256), bijv. de HMAC-sleutel van `persons.match_key`. Zo wordt
+     * de hoofdsleutel zelf nooit voor twee dingen gebruikt.
+     * @param {string} purpose Doel, bijv. `persons:match`.
+     * @returns {Buffer} Sleutel van 32 bytes.
+     */
+    deriveKey(purpose) {
+      if (!purpose) throw new Error('doel ontbreekt');
+      return Buffer.from(crypto.hkdfSync('sha256', key, Buffer.alloc(0), `avanta:${purpose}`, 32));
+    },
     /**
      * Versleutelt een JSON-waarde.
      * @param {*} value De waarde.

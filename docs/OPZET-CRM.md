@@ -169,8 +169,9 @@ met eigen migraties na de CRM-kern.
 |---|---|---|
 | 1 | Gebruikers, sessies, inloggen, rollen/rechten-module, `requireRight`, auditlog, eerste beheerder | **M3** |
 | 2 | 2FA (TOTP + herstelcodes) | **M4** (kolommen op `users`); gebouwd als **M9** |
-| 3 | `persons` + `consents` + versleuteling per blok + `match_key`; formulier schrijft naar persoon; migratiescript bestaande aanmeldingen | **M5** |
-| 4 | Aanmeldingen: lijst, detail, statusovergangen, `booking_events`, wachtlijst | **M6** |
+| 3 | `persons` + `consents` + versleuteling per blok + `match_key`; formulier schrijft naar persoon; bestaande aanmeldingen omzetten (bij het starten) | **M5**; gebouwd als **M10** |
+| 3b | Deelnemers in het CRM: lijst, zoeken, detail met *Toon* per blok, wijzigen; mogelijke dubbelen samenvoegen | – |
+| 4 | Aanmeldingen: lijst, detail, statusovergangen, `booking_events` (wachtlijst nu niet, zie §8) | **M6**; wordt **M11** |
 | 5 | ~~Reizen beheren: CRUD, `capacity`, berekende plaatsen-teller op de site, `trip_guides`, `managed_in_crm` in de import~~ vervalt: CMS-pakket G | ~~M7~~ |
 | 6 | Deelnemerslijst per vertrek als .xlsx (kantoor + reisleider-variant) | – |
 | 7 | Betalingen handmatig: `booking_charges`, `payments`, saldo | **M8** |
@@ -186,13 +187,22 @@ met eigen migraties na de CRM-kern.
 - Automatisch opschonen, inzage en wissen vóór de eerste echte aanmelding in productie (PR 8).
 
 ## 8. Open vragen voor Daniël
-Al open (zie `docs/OPZET-WEBSITE.md`): betaalprovider, hosting, kerkgenootschap houden, regel voor de aanbetaling,
-mailverzending. Nieuw:
+Al open (zie `docs/OPZET-WEBSITE.md`): betaalprovider, hosting, regel voor de aanbetaling, mailverzending.
+
+**Beantwoord (Daniël, 21-11-2026)**
+- **Kerkgenootschap**: blijft erin. Vrijwillig veld met een eigen toestemmingsvinkje (art. 9.2a), versleuteld in
+  `special_data`, alleen zichtbaar met `gegevens.religie` (beheerder).
+- **Bestaand klantenbestand / WordPress-import (vraag 8)**: niet importeren; het CRM begint blanco. Aanmeldingen die
+  het nieuwe formulier al in `bookings` heeft gezet, zet de app bij het starten om naar personen. Kerkgenootschap en
+  bijzonderheden uit die oude aanmeldingen gaan daarbij **niet** mee (het oude formulier had geen losse art. 9-toestemming);
+  alleen de voorwaarden worden vastgelegd, met tekstversie `oud-formulier`.
+- **Wachtlijst (vraag 6)**: nu niet bouwen. Komt hij later, dan schuift hij automatisch door bij een vrijgekomen plaats.
+- **2FA**: optioneel, aanzetten altijd met een activatiecode van de beheerder (gebouwd, M9).
+
+**Nog open**
 1. Welk boekhoudpakket (Exact, Moneybird, e-Boekhouden, …) en is een export genoeg of moet het een koppeling zijn?
 2. Wie werken er in het CRM en in welke rol (aantal kantoormedewerkers, krijgen reisleiders een eigen account)?
 3. Mogen reisleiders medische gegevens en paspoortgegevens van hun groep zien, en vanaf hoeveel dagen vóór vertrek?
 4. Akkoord met de voorgestelde bewaartermijnen (§5), in het bijzonder 2 jaar voor klantgegevens na de laatste reis?
 5. Annuleringsregels: welke annuleringskosten per periode vóór vertrek, en moet het CRM die berekenen?
-6. Wachtlijst: automatisch doorschuiven bij een vrijgekomen plaats, of beslist kantoor?
-7. Reizen beheren: stopt de WordPress-import per reis (`managed_in_crm`) of in één keer bij go-live van het CRM?
-8. Is er een bestaand klantenbestand (oude aanmeldingen) dat in het CRM moet, en uit welk systeem?
+6. Reizen beheren: valt onder CMS-pakket G (zie `/mnt/project-files/cms/voorstel-cms-reizen-boekingen.md`).

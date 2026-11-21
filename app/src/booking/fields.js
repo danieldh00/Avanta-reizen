@@ -1,7 +1,12 @@
 /**
  * Velden van het aanmeldformulier (gelijk aan het huidige formulier) en de controle van de invoer.
  * Velden met `sensitive: true` worden versleuteld opgeslagen (bijzondere persoonsgegevens en paspoortgegevens).
+ * Een veld met `consentFor` is het losse toestemmingsvinkje (AVG art. 9.2a) voor dat bijzondere veld: niet verplicht,
+ * maar wie het bijzondere veld invult, moet het aanvinken.
  */
+
+/** Versie van de toestemmingsteksten; komt bij elke toestemming in `consents.text_version`. Verhogen bij een nieuwe tekst. */
+const CONSENT_TEXT_VERSION = '2026-11-21';
 
 const YES_NO = [{ value: 'ja', label: 'ja' }, { value: 'nee', label: 'nee' }];
 
@@ -23,7 +28,8 @@ const FIELD_GROUPS = [
       { name: 'postal_code', label: 'Postcode', required: true, max: 12 },
       { name: 'city', label: 'Woonplaats', required: true, max: 100 },
       { name: 'occupation', label: 'Beroep', required: true, max: 120 },
-      { name: 'church', label: 'Kerkgenootschap', required: true, max: 120, sensitive: true },
+      { name: 'church', label: 'Kerkgenootschap', max: 120, sensitive: true, help: 'Niet verplicht. Vul je het in, geef dan hieronder ook toestemming.' },
+      { name: 'consent_religion', label: 'Ik geef uitdrukkelijk toestemming om mijn kerkgenootschap vast te leggen voor deze reis. Intrekken kan altijd.', type: 'checkbox', consentFor: 'church', store: false },
       { name: 'emergency_phone', label: 'Noodnummer tijdens de reis', type: 'tel', max: 30, sensitive: true, help: 'Telefoonnummer van familielid/vriend/kennis dat we in een acuut noodgeval tijdens je reis kunnen bellen.' },
     ],
   },
@@ -41,7 +47,8 @@ const FIELD_GROUPS = [
     title: 'Overige zaken',
     fields: [
       { name: 'travel_with', label: 'Ik reis samen met', max: 200, full: true },
-      { name: 'particulars', label: 'Bijzonderheden (die van invloed kunnen zijn op de reis)', type: 'textarea', max: 2000, sensitive: true, full: true, help: 'Denk bijvoorbeeld aan medicijngebruik, fysieke/psychische klachten e.d.' },
+      { name: 'particulars', label: 'Bijzonderheden (die van invloed kunnen zijn op de reis)', type: 'textarea', max: 2000, sensitive: true, full: true, help: 'Denk bijvoorbeeld aan medicijngebruik, fysieke/psychische klachten e.d. Niet verplicht; vul je het in, geef dan hieronder ook toestemming.' },
+      { name: 'consent_health', label: 'Ik geef uitdrukkelijk toestemming om deze bijzonderheden over mijn gezondheid vast te leggen en te delen met de reisleiding van deze reis. Intrekken kan altijd.', type: 'checkbox', consentFor: 'particulars', store: false, full: true },
       { name: 'earlier_trip', label: 'Ben eerder op reis geweest met Avanta', type: 'radio', required: true, options: YES_NO },
       { name: 'credit_card', label: 'In het bezit van creditcard (niet zijnde debetcard) op eigen naam', type: 'radio', required: true, options: YES_NO },
       { name: 'driver_interest', label: 'Heb evt. interesse om te chauffeuren tijdens de reis (en min. 1 jaar rijbewijs)', type: 'radio', required: true, options: YES_NO },
@@ -96,6 +103,10 @@ function validateBooking(body, context) {
       errors[field.name] = field.type === 'checkbox' ? 'Ga akkoord om je aan te melden.' : 'Dit veld is verplicht.';
       continue;
     }
+    if (field.consentFor && !value && values[field.consentFor]) {
+      errors[field.name] = 'Geef toestemming, of laat het veld hierboven leeg.';
+      continue;
+    }
     if (!value) continue;
     if (field.max && value.length > field.max) errors[field.name] = `Maximaal ${field.max} tekens.`;
     else if (field.options && !field.options.some((option) => option.value === value)) errors[field.name] = 'Kies een van de opties.';
@@ -115,4 +126,4 @@ function validateBooking(body, context) {
   return { values, errors };
 }
 
-module.exports = { FIELD_GROUPS, FIELDS, validateBooking, isValidDate };
+module.exports = { FIELD_GROUPS, FIELDS, validateBooking, isValidDate, CONSENT_TEXT_VERSION };

@@ -139,7 +139,7 @@ function validBooking() {
   return {
     gender: 'vrouw', first_names: 'Anna Maria', call_name: 'Anna', last_name: 'Jansen', birth_date: '1999-05-04',
     mobile: '06 12345678', email: 'anna@example.nl', email_confirm: 'Anna@example.nl', street: 'Dorpsstraat 1',
-    postal_code: '4331 AB', city: 'Middelburg', occupation: 'Verpleegkundige', church: 'PKN', nationality: 'Nederlandse',
+    postal_code: '4331 AB', city: 'Middelburg', occupation: 'Verpleegkundige', church: 'PKN', consent_religion: 'ja', consent_health: 'ja', nationality: 'Nederlandse',
     document_type: 'paspoort', earlier_trip: 'nee', credit_card: 'ja', driver_interest: 'nee', driver_before: 'nee',
     payment_choice: 'aanbetaling', consent: 'ja',
   };
@@ -160,6 +160,15 @@ test('validateBooking geeft fouten voor ontbrekende en ongeldige velden', () => 
   assert.ok(validateBooking({ ...validBooking(), first_names: 'x'.repeat(121) }, { today: '2026-11-19' }).errors.first_names);
   assert.ok(validateBooking({ ...validBooking(), consent: 'nee' }, { today: '2026-11-19' }).errors.consent, 'alleen consent=ja telt');
   assert.equal(validateBooking({ ...validBooking(), particulars: 'Noten\u0000allergie' }, { today: '2026-11-19' }).values.particulars, 'Notenallergie');
+});
+
+test('validateBooking: art. 9-velden zijn vrijwillig, maar ingevuld alleen met eigen toestemming', () => {
+  const day = { today: '2026-11-19' };
+  assert.deepEqual(validateBooking({ ...validBooking(), church: '', consent_religion: '' }, day).errors, {}, 'leeg mag zonder vinkje');
+  assert.ok(validateBooking({ ...validBooking(), consent_religion: '' }, day).errors.consent_religion);
+  assert.ok(validateBooking({ ...validBooking(), consent_religion: 'nee' }, day).errors.consent_religion, 'alleen ja telt');
+  assert.ok(validateBooking({ ...validBooking(), particulars: 'Astma', consent_health: '' }, day).errors.consent_health);
+  assert.deepEqual(validateBooking({ ...validBooking(), particulars: 'Astma' }, day).errors, {});
 });
 
 test('form-guard: token per formulier, minimale en maximale invultijd, honeypot', () => {
