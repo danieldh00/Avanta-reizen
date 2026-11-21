@@ -69,6 +69,13 @@ const GROUPS = [
         words: 'melding meldingen kantoor notificatie contactformulier bericht aanmelding boeking inbox',
       },
       {
+        id: 'bevestiging',
+        label: 'Bevestiging aan de reiziger',
+        intro: 'Na een aanmelding krijgt de reiziger een bevestiging met de referentie, de reisgegevens, de bedragen en de betaalinstructie. Werkt alleen met een ingestelde mailserver; een mislukte mail verandert niets aan de aanmelding.',
+        fields: ['bookingConfirmEnabled', 'bookingPaymentText'],
+        words: 'bevestiging reiziger klant aanmelding boeking betaalinstructie rekeningnummer iban aanbetaling referentie',
+      },
+      {
         id: 'mail-opmaak',
         label: 'Mail-opmaak',
         intro: 'De opmaak van de mails van de app: het logo van de site bovenaan, een titelbalk in de huisstijlkleur en een voettekst.',

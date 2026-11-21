@@ -2,7 +2,8 @@
  * Aanmelden voor een reis (`/aanmelden/?id=<oud reis-id>`, zoals op de huidige site). De aanmelding komt in de tabel
  * bookings, de persoon in persons (`crm/persons.js`, ontdubbeld). Bijzondere en paspoortgegevens worden per categorie
  * versleuteld bij de persoon opgeslagen; art. 9-gegevens alleen met een eigen toestemmingsvinkje (tabel consents). Daarna gaat er een
- * melding naar kantoor (`mail/notifications.js`, als die aan staat), zonder de bijzondere gegevens.
+ * melding naar kantoor en een bevestiging naar de reiziger (`mail/notifications.js`, als die aan staan), beide zonder de
+ * bijzondere gegevens.
  * Bescherming via `security/form-guard.js`: limiet per bezoeker, herkomst, honeypot en ondertekend tijdstempel; met
  * een actieve captcha (`security/captcha.js`) ook een onzichtbare controle door Google.
  */
@@ -12,7 +13,7 @@ const { html, raw } = require('../site/html');
 const { renderPage, renderPageHeader } = require('../site/layout');
 const { createContent, today } = require('../site/content');
 const { formatPrice, formatDate, isoDate, tripPath } = require('../site/format');
-const { FIELD_GROUPS, validateBooking } = require('./fields');
+const { FIELD_GROUPS, validateBooking, SGR_CENTS, BOOKING_FEE_CENTS } = require('./fields');
 const { createPersons } = require('../crm/persons');
 const { createFormGuard } = require('../security/form-guard');
 const { captchaField } = require('../security/captcha');
@@ -20,9 +21,6 @@ const seo = require('../site/seo');
 const { createSiteContentStore } = require('../site/site-content');
 const { DATA_DIR } = require('../paths');
 const { fullyBookedSql } = require('../trips/seats');
-
-const SGR_CENTS = 500;
-const BOOKING_FEE_CENTS = 1500;
 
 /**
  * Bouwt de router voor aanmeldingen.
@@ -229,8 +227,11 @@ function createBookingRouter(options) {
         try {
           const saved = await saveBooking(reference, trip, values);
           if (!saved) return send(res, { title: 'Aanmelden', header: header(), body: notice('Deze reis is volgeboekt.'), trip }, 409);
-          // De melding wacht niet op de mailserver en gooit nooit.
-          if (options.notifications) void options.notifications.booking({ reference, trip, values });
+          // De melding aan kantoor en de bevestiging aan de reiziger wachten niet op de mailserver en gooien nooit.
+          if (options.notifications) {
+            void options.notifications.booking({ reference, trip, values });
+            void options.notifications.bookingConfirmation({ reference, trip, values, depositCents: saved.depositCents });
+          }
           break;
         } catch (error) {
           if (error.code !== '23505' || error.constraint !== 'bookings_reference_key' || attempt >= 3) throw error;
@@ -249,16 +250,17 @@ function createBookingRouter(options) {
    * @param {string} reference Referentie (AV-jjjj-XXXXXXXX).
    * @param {object} trip De reis.
    * @param {object} values Gecontroleerde velden.
-   * @returns {Promise<boolean>} Of de aanmelding is opgeslagen (false: de reis is intussen volgeboekt).
+   * @returns {Promise<({depositCents: (number|null)}|null)>} De aanbetaling van de reis als de aanmelding is opgeslagen;
+   *   null als de reis intussen volgeboekt of weg is.
    */
   const saveBooking = (reference, trip, values) => options.db.transaction(async (client) => {
     const yes = (name) => values[name] === 'ja';
     // Eerst de reis vergrendelen, dan in een nieuw statement (met een nieuwe snapshot) tellen: twee gelijktijdige
     // aanmeldingen voor de laatste plaats gaan zo na elkaar en de tweede ziet de eerste.
-    const [locked] = await client.query('SELECT id FROM trips WHERE id = $1 FOR UPDATE', [trip.id]);
-    if (!locked) return false;
+    const [locked] = await client.query('SELECT id, deposit_cents FROM trips WHERE id = $1 FOR UPDATE', [trip.id]);
+    if (!locked) return null;
     const [current] = await client.query(`SELECT ${fullyBookedSql('t')} AS full FROM trips t WHERE t.id = $1`, [trip.id]);
-    if (current.full) return false;
+    if (current.full) return null;
     const { personId } = await persons.savePerson(client, values);
     const [booking] = await client.query(
       `INSERT INTO bookings (reference, trip_id, trip_code, trip_title, departure_date, gender, first_names, call_name, last_name,
@@ -272,7 +274,7 @@ function createBookingRouter(options) {
         yes('driver_before'), values.driver_when, 'handmatig', values.payment_choice, trip.price_cents, personId],
     );
     await persons.recordConsents(client, { personId, bookingId: booking.id, values });
-    return true;
+    return { depositCents: locked.deposit_cents };
   });
 
   return router;

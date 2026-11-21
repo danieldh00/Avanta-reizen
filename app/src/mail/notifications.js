@@ -1,12 +1,14 @@
 /**
  * Meldingen aan kantoor (Beheer > E-mail > Meldingen): een mail bij een nieuw bericht via het contactformulier en bij
- * een nieuwe aanmelding. De melding gaat naar het ingestelde kantooradres en wordt na het opslaan verstuurd, zonder dat
+ * een nieuwe aanmelding. Daarnaast de bevestiging aan de reiziger na een aanmelding (Beheer > E-mail > Bevestiging aan
+ * de reiziger), met de referentie, de bedragen en de betaalinstructie. De melding gaat naar het ingestelde kantooradres en wordt na het opslaan verstuurd, zonder dat
  * de bezoeker erop wacht: een mislukte melding verandert niets aan de inzending (de oorzaak staat in het overzicht van
  * Beheer > E-mail > Mailserver, zonder adressen). Bijzondere persoonsgegevens (de versleutelde velden van een
  * aanmelding) komen nooit in een mail.
  */
 const { renderMail } = require('./layout');
-const { formatDate } = require('../site/format');
+const { formatDate, formatPrice } = require('../site/format');
+const { SGR_CENTS, BOOKING_FEE_CENTS } = require('../booking/fields');
 
 /** Leesbare betaalkeuze in de melding. */
 const PAYMENT_LABELS = { aanbetaling: 'Aanbetaling', totaal: 'Totaalbedrag' };
@@ -14,7 +16,7 @@ const PAYMENT_LABELS = { aanbetaling: 'Aanbetaling', totaal: 'Totaalbedrag' };
 /**
  * Maakt de meldingen.
  * @param {{mailer: object, settings: object}} options De mailer (`mail/mailer.js`) en de instellingen.
- * @returns {{contactMessage: Function, booking: Function, layoutOptions: Function}} Functies die een melding versturen
+ * @returns {{contactMessage: Function, booking: Function, bookingConfirmation: Function, layoutOptions: Function}} Functies die een melding versturen
  *   (en nooit een fout gooien) en de opmaakinstellingen voor `renderMail`.
  */
 function createNotifications(options) {
@@ -94,7 +96,61 @@ function createNotifications(options) {
     });
   };
 
-  return { contactMessage, booking, layoutOptions };
+  /**
+   * De bedragen van een aanmelding: reissom, SGR-garantie, boekingskosten (alleen bij de aanbetaling), totaal en de
+   * aanbetaling van de reis (als die is ingevuld en voor een aanbetaling is gekozen).
+   * @param {object} trip De reis (`price_cents`).
+   * @param {string} paymentChoice 'aanbetaling' of 'totaal'.
+   * @param {(number|null)} depositCents Aanbetaling van de reis, of null.
+   * @returns {Array<[string, string]>} Rijen voor de mail; zonder reissom alleen de vaste bedragen.
+   */
+  const amountRows = (trip, paymentChoice, depositCents) => {
+    const fee = paymentChoice === 'aanbetaling' ? BOOKING_FEE_CENTS : 0;
+    const rows = [];
+    if (trip.price_cents) rows.push(['Reissom', formatPrice(trip.price_cents)]);
+    rows.push(['SGR-garantie', formatPrice(SGR_CENTS)]);
+    if (fee) rows.push(['Boekingskosten', formatPrice(fee)]);
+    if (trip.price_cents) rows.push(['Totaal', formatPrice(trip.price_cents + SGR_CENTS + fee)]);
+    // Zonder ingevulde aanbetaling bij de reis geen bedrag gokken: kantoor geeft het door.
+    if (paymentChoice === 'aanbetaling') rows.push(['Nu te betalen (aanbetaling)', depositCents ? formatPrice(depositCents) : 'het bedrag ontvang je van kantoor']);
+    if (trip.extra_costs_cents) rows.push(['Bijkomende kosten (ter plaatse)', formatPrice(trip.extra_costs_cents)]);
+    return rows;
+  };
+
+  /**
+   * Bevestiging aan de reiziger na een aanmelding, naar het opgegeven e-mailadres. Alleen de gewone gegevens: nooit
+   * geboortedatum, kerk, paspoort, noodnummer of bijzonderheden. Gaat alleen als de bevestiging aan staat en er een
+   * mailserver is; gooit nooit (een fout staat in het overzicht van Beheer > E-mail > Mailserver, zonder adressen).
+   * @param {{reference: string, trip: object, values: object, depositCents?: (number|null)}} booking Referentie, reis,
+   *   de gecontroleerde velden en de aanbetaling van de reis.
+   * @returns {Promise<boolean>} Waar als de bevestiging is verstuurd.
+   */
+  const bookingConfirmation = async (booking) => {
+    const { values, trip } = booking;
+    if (!settings.get('bookingConfirmEnabled') || !values.email || !mailer.configured()) return false;
+    try {
+      const rendered = renderMail({
+        ...layoutOptions(),
+        title: 'Bevestiging van je aanmelding',
+        intro: `Beste ${values.call_name || values.first_names},\n\nBedankt voor je aanmelding! We hebben hem goed ontvangen. Hieronder staan je reisgegevens en de bedragen. Klopt er iets niet, antwoord dan op deze mail.`,
+        rows: [
+          ['Referentie', booking.reference],
+          ['Reis', trip.title],
+          ['Reiscode', trip.trip_code],
+          ['Vertrek', formatDate(trip.departure_date)],
+          ['Betaling', PAYMENT_LABELS[values.payment_choice] || values.payment_choice],
+          ...amountRows(trip, values.payment_choice, booking.depositCents ?? null),
+        ],
+        body: `${settings.get('bookingPaymentText')}\n\nReferentie voor de omschrijving: ${booking.reference}`,
+      });
+      await mailer.send({ kind: 'bevestiging-aanmelding', to: values.email, subject: `Bevestiging van je aanmelding ${booking.reference}: ${trip.title}`, text: rendered.text, html: rendered.html, attachments: rendered.attachments });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+
+  return { contactMessage, booking, bookingConfirmation, layoutOptions };
 }
 
 module.exports = { createNotifications };
