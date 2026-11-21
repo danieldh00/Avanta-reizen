@@ -16,7 +16,7 @@ bump: minor
 - Migratie 9: `users.totp_secret` (versleuteld, AAD `users:totp:<id>`), `totp_enabled_at`, `totp_last_step`,
   `totp_recovery` (SHA-256), `totp_activation_hash`/`totp_activation_expires_at`; `sessions.mfa_setup_ok`; bestaande
   sessies vervallen. Verkeerde codes per account in `users.totp_failures` (5 per kwartier, overleeft een herstart).
-- Activatiecode (eenmalig, 7 dagen, SHA-256) nodig voor elk aanzetten van 2FA, gebonden aan de sessie die hem gaf
+- Activatiecode (eenmalig, 7 dagen, SHA-256) nodig voor elk aanzetten van 2FA; bij gebruik meteen gewist, daarna mag alleen die sessie instellen
   (`POST /app/tweestaps/activeren/`, `POST /app/gebruikers/:id/activatiecode/`).
 - `crm/totp.js` (TOTP volgens RFC 6238, herstelcodes) en `crm/qr-code.js` overgenomen uit AquaTech; `crm/two-factor.js`
   met de opslag, de codestap `/app/inloggen/code/` en het scherm `/app/tweestaps/` (instellen, nieuwe herstelcodes,

@@ -13,7 +13,8 @@
  *   als het voor de rol niet verplicht is, met wachtwoord én code). Ook bereikbaar met een halve sessie als 2FA
  *   verplicht is maar nog niet is ingesteld. 2FA is standaard optioneel (instelling `mfaRequiredFor`). Wie het aanzet,
  *   geeft eerst de **activatiecode** die de beheerder heeft gemaakt (eenmalig, 7 dagen geldig, alleen als SHA-256
- *   bewaard, gebonden aan de sessie die hem gaf). Zo is een gelekt of tijdelijk wachtwoord nooit genoeg om een eigen
+ *   bewaard). Bij gebruik wordt de code meteen gewist en mag alleen die sessie instellen; verloopt de sessie vóór het
+ *   bevestigen, dan is een nieuwe code nodig. Zo is een gelekt of tijdelijk wachtwoord nooit genoeg om een eigen
  *   authenticator te koppelen. De eerste beheerder gebruikt de installatiecode als activatiecode.
  * Een beheerder zet de 2FA van een collega uit en maakt activatiecodes via `crm/users.js`.
  */
@@ -255,21 +256,30 @@ function createTwoFactor(options) {
   };
 
   /**
-   * Controleert een activatiecode: bestaat, niet verlopen en gelijk (tijdconstante vergelijking).
+   * Verbruikt een activatiecode: bestaat, niet verlopen en gelijk (tijdconstante vergelijking). Bij een goede code wordt
+   * hij in dezelfde transactie gewist en krijgt alleen de sessie die hem gaf het recht om in te stellen
+   * (`sessions.mfa_setup_ok`). Dezelfde code werkt dus nooit in een tweede sessie.
    * @param {number} userId Gebruiker.
    * @param {*} input Ingevoerde code.
-   * @returns {Promise<boolean>} Waar als de code klopt.
+   * @param {string} tokenHash Hash van het token van de sessie die de code geeft.
+   * @returns {Promise<boolean>} Waar als de code klopte en is verbruikt.
    */
-  const activationOk = async (userId, input) => {
+  const consumeActivation = async (userId, input, tokenHash) => {
     if (!normalizeActivation(input)) return false;
-    const [row] = await db.query(
-      'SELECT totp_activation_hash AS hash FROM users WHERE id = $1 AND totp_activation_expires_at > now()',
-      [userId],
-    );
-    if (!row || !row.hash) return false;
-    const stored = Buffer.from(row.hash, 'hex');
-    const given = Buffer.from(activationHash(input), 'hex');
-    return stored.length === given.length && crypto.timingSafeEqual(stored, given);
+    return db.transaction(async (client) => {
+      const [row] = await client.query(
+        'SELECT totp_activation_hash AS hash FROM users WHERE id = $1 AND totp_activation_expires_at > now() FOR UPDATE',
+        [userId],
+      );
+      if (!row || !row.hash) return false;
+      const stored = Buffer.from(row.hash, 'hex');
+      const given = Buffer.from(activationHash(input), 'hex');
+      if (stored.length !== given.length || !crypto.timingSafeEqual(stored, given)) return false;
+      await client.query('UPDATE users SET totp_activation_hash = NULL, totp_activation_expires_at = NULL WHERE id = $1', [userId]);
+      const updated = await client.query('UPDATE sessions SET mfa_setup_ok = true WHERE token_hash = $1 AND user_id = $2 RETURNING user_id', [tokenHash, userId]);
+      if (updated.length !== 1) throw new Error('Sessie voor de activatiecode niet gevonden');
+      return true;
+    });
   };
 
   /**
@@ -303,7 +313,7 @@ function createTwoFactor(options) {
     return Boolean(row) && row.totp_failures <= MAX_FAILED_CODES;
   };
 
-  return { countCodeAttempt, stateOf, startSetup, pendingSetup, confirm, verifyAppCode, check, renewRecovery, disable, issueActivation, activationOk, activationUntil };
+  return { countCodeAttempt, stateOf, startSetup, pendingSetup, confirm, verifyAppCode, check, renewRecovery, disable, issueActivation, consumeActivation, activationUntil };
 }
 
 /**
@@ -552,12 +562,11 @@ function createTwoFactorRoutes(options) {
       if (!manageFailures.hit(failureKey)) {
         return res.status(429).set('Retry-After', String(CODE_LOCK_MINUTES * 60)).send(await renderOverview(req, { errors: { activation: CODE_LOCKED } }));
       }
-      if (!(await twoFactor.activationOk(account.id, req.body.activation))) {
+      if (!(await twoFactor.consumeActivation(account.id, req.body.activation, account.tokenHash))) {
         await auth.audit(req, { userId: account.id, action: 'tweestaps.activatie-mislukt', entity: 'users', entityId: account.id });
         return res.status(422).send(await renderOverview(req, { errors: { activation: 'Deze activatiecode klopt niet of is verlopen. Vraag de beheerder om een nieuwe.' } }));
       }
       manageFailures.clear(failureKey);
-      await db.query('UPDATE sessions SET mfa_setup_ok = true WHERE token_hash = $1', [account.tokenHash]);
       await twoFactor.startSetup(account.id);
       return res.redirect(303, '/app/tweestaps/instellen/');
     } catch (error) {

@@ -237,6 +237,10 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.equal((await request('/app/tweestaps/instellen/', { cookie: other.cookie })).headers.get('location'), '/app/tweestaps/');
     const otherCsrf = csrfFrom((await request('/app/tweestaps/', { cookie: other.cookie })).text);
     assert.equal((await request('/app/tweestaps/bevestigen/', { cookie: other.cookie, form: { _csrf: otherCsrf, code: '123456' } })).headers.get('location'), '/app/tweestaps/');
+    // De code is bij het activeren verbruikt: dezelfde code werkt niet in een tweede sessie.
+    assert.equal((await request('/app/tweestaps/activeren/', { cookie: other.cookie, form: { _csrf: otherCsrf, activation: code } })).status, 422, 'eenmalig');
+    const [consumed] = await db.query('SELECT totp_activation_hash FROM users WHERE id = $1', [officeId]);
+    assert.equal(consumed.totp_activation_hash, null, 'gewist bij activeren');
   });
 
   await t.test('instellen: QR-code, verkeerde code geweigerd, daarna nieuwe sessie en herstelcodes', async () => {
