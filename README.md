@@ -12,6 +12,8 @@ docker compose exec app node tools/import-wordpress.js   # content + afbeeldinge
 Testomgeving op apps01 (`avanta.den-hollander.com`, losse binding op de bestaande Cloudflare-tunnel): zie `deploy/apps01/README.md`.
 Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-wordpress.js` en `DATABASE_URL=… node src/server.js`.
 
+- **Databasepool**: `DATABASE_POOL_SIZE` (standaard 10) en `DATABASE_CONNECT_TIMEOUT_MS` (standaard 5000). Is de
+  database weg of de pool vol, dan faalt een verzoek na die tijd met een foutpagina in plaats van eindeloos te wachten.
 - De site staat op **noindex** tot go-live (`SITE_INDEXABLE=true` pas bij de overstap).
 - `SITE_URL` is het openbare basisadres (standaard `https://www.avantareizen.nl`, zonder slash aan het eind) voor de
   canonical-URL's, Open Graph-tags, de sitemap en de `Sitemap:`-regel in `robots.txt`.
