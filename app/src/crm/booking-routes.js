@@ -297,10 +297,15 @@ function createBookingRoutes(options) {
       const booking = await findBooking(db, req.params.id);
       if (!booking) return notFound(req, res);
       if (!note) return res.status(422).send(await renderBooking(req, booking, { error: 'Vul een notitie in.' }));
-      await db.transaction(async (client) => {
-        await client.query('INSERT INTO booking_events (booking_id, from_status, to_status, user_id, note) VALUES ($1, $2, $2, $3, $4)', [booking.id, booking.status, req.user.id, note]);
-        await auth.audit(req, { userId: req.user.id, action: 'aanmelding.notitie', entity: 'bookings', entityId: booking.id }, client);
+      const saved = await db.transaction(async (client) => {
+        // Status in de transactie onder slot lezen, zodat de notitie nooit een verouderde status in de historie krijgt.
+        const current = await findBooking(client, booking.id, { lock: true });
+        if (!current) return false;
+        await client.query('INSERT INTO booking_events (booking_id, from_status, to_status, user_id, note) VALUES ($1, $2, $2, $3, $4)', [current.id, current.status, req.user.id, note]);
+        await auth.audit(req, { userId: req.user.id, action: 'aanmelding.notitie', entity: 'bookings', entityId: current.id }, client);
+        return true;
       });
+      if (!saved) return notFound(req, res);
       return res.redirect(303, `/app/aanmeldingen/${booking.id}/?opgeslagen=notitie`);
     } catch (error) {
       return next(error);

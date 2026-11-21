@@ -159,6 +159,18 @@ test('aanmeldingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     assert.equal((await request(`${path}notitie/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, notitie: 'Gebeld over restbetaling' } })).status, 303);
     const [event] = await db.query('SELECT from_status, to_status, note FROM booking_events WHERE booking_id = $1 ORDER BY id DESC LIMIT 1', [bookingId]);
     assert.deepEqual(event, { from_status: 'geannuleerd', to_status: 'geannuleerd', note: 'Gebeld over restbetaling' });
+    // Deterministisch: de status verandert terwijl de notitie wacht op de vergrendelde rij; de historie krijgt de nieuwe status.
+    let pending;
+    await db.transaction(async (client) => {
+      await client.query('SELECT id FROM bookings WHERE id = $1 FOR UPDATE', [bookingId]);
+      pending = request(`${path}notitie/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, notitie: 'Tijdens wijziging' } });
+      const settled = await Promise.race([pending.then(() => 'klaar'), new Promise((resolve) => { setTimeout(() => resolve('wacht'), 400); })]);
+      assert.equal(settled, 'wacht', 'notitie wacht op de vergrendelde aanmelding');
+      await client.query("UPDATE bookings SET status = 'betaald' WHERE id = $1", [bookingId]);
+    });
+    assert.equal((await pending).status, 303);
+    const [latest] = await db.query('SELECT from_status, to_status FROM booking_events WHERE booking_id = $1 ORDER BY id DESC LIMIT 1', [bookingId]);
+    assert.deepEqual(latest, { from_status: 'betaald', to_status: 'betaald' });
   });
 
   await t.test('database weigert een onbekende status', async () => {
