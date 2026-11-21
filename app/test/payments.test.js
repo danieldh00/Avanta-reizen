@@ -323,6 +323,17 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.deepEqual([events.to_status, events.note], ['betaald', 'Automatisch na een weggehaald bedrag.']);
   });
 
+  await t.test('bedrag toevoegen schuift een bevestigde aanmelding door als alles betaald is', async () => {
+    const id = await insertBooking('AV-2027-DDDD0004', 'bevestigd');
+    await db.query("INSERT INTO booking_charges (booking_id, kind, amount_cents) VALUES ($1, 'reissom', 10000)", [id]);
+    await db.query("INSERT INTO payments (booking_id, amount_cents, method, received_on) VALUES ($1, 8000, 'bank', '2027-02-25')", [id]);
+    const response = await request(`/app/betalingen/${id}/bedragen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, stand: await standOf(id), soort: 'korting', bedrag: '20' } });
+    assert.equal(response.status, 303);
+    assert.match(response.headers.get('location'), /status=betaald/);
+    const [event] = await db.query('SELECT to_status, note FROM booking_events WHERE booking_id = $1', [id]);
+    assert.deepEqual([event.to_status, event.note], ['betaald', 'Automatisch na een gewijzigd bedrag.']);
+  });
+
   await t.test('opschoning: toelichtingen weg bij anonimiseren, betaalde annulering blijft staan', async () => {
     await db.transaction((client) => anonymizeBookings(client, [bookingId]));
     const notes = await db.query("SELECT note FROM payments WHERE booking_id = $1 AND note <> ''", [bookingId]);
