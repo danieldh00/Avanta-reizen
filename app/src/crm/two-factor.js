@@ -377,6 +377,7 @@ function createTwoFactorRoutes(options) {
     title,
     user: account.pending ? null : account,
     csrf: account.csrf,
+    path: '/app/tweestaps/',
     body: html`${body}${account.pending ? renderLogoutForm(account.csrf) : ''}`,
   });
 

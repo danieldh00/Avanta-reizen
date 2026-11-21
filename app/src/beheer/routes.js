@@ -89,29 +89,8 @@ function createBeheerRoutes(options) {
   const confirmableKeys = (section) => (section.fields || []).filter((key) => settings.fields[key].confirmOn && settings.get(key) !== true);
 
   /**
-   * De zijbalk: zoekveld (werkt zonder JavaScript via een GET) en de groepen met hun secties.
-   * @param {string} currentId Id van de open sectie.
-   * @param {string} query Zoekterm.
-   * @returns {object} HTML.
-   */
-  const renderSidebar = (currentId, query) => {
-    const groups = filterGroups(query, settings.fields);
-    return html`<aside class="beheer-side" aria-label="Beheer">
-      <form class="beheer-search" method="get" action="/app/beheer/" role="search">
-        <label class="visually-hidden" for="beheer-zoek">Zoeken in Beheer</label>
-        <input id="beheer-zoek" type="search" name="zoek" value="${query}" maxlength="100" placeholder="Zoeken in Beheer">
-        <button class="btn btn--outline btn--small" type="submit">Zoek</button>
-      </form>
-      ${query && !groups.length ? html`<p class="beheer-side__empty">Niets gevonden voor “${query}”. <a href="/app/beheer/">Alles tonen</a></p>` : ''}
-      ${groups.map((group) => html`<details class="beheer-group" open>
-        <summary>${group.title}</summary>
-        <ul>${group.sections.map((section) => html`<li><a href="/app/beheer/${section.id}/"${section.id === currentId ? raw(' aria-current="page"') : ''}>${section.label}</a></li>`)}</ul>
-      </details>`)}
-    </aside>`;
-  };
-
-  /**
-   * Een volledige Beheer-pagina: zijbalk links, inhoud rechts.
+   * Een volledige Beheer-pagina. De groepen en secties staan in de zijbalk van het CRM (`crm/layout.js`); met een
+   * zoekterm (`?zoek=`, werkt zonder JavaScript via een GET) toont die alleen de secties die erbij passen.
    * @param {object} req Express-verzoek.
    * @param {{title: string, sectionId: string, body: object}} page Titel, open sectie en inhoud.
    * @returns {string} HTML-pagina.
@@ -122,11 +101,9 @@ function createBeheerRoutes(options) {
       title: page.title,
       user: req.user,
       csrf: req.session.csrf,
-      path: '/app/beheer/',
-      body: html`<div class="beheer">
-        ${renderSidebar(page.sectionId, query)}
-        <div class="beheer-content">${page.body}</div>
-      </div>`,
+      path: page.sectionId ? `/app/beheer/${page.sectionId}/` : '/app/beheer/',
+      beheer: { groups: filterGroups(query, settings.fields), query },
+      body: html`<div class="beheer-content">${page.body}</div>`,
     });
   };
 

@@ -93,7 +93,7 @@ function createDriveRoutes(options) {
         title: 'Koppelen met Google',
         user: req.user,
         csrf: req.session.csrf,
-        path: '/app/beheer/',
+        path: '/app/beheer/google-drive/',
         body: html`<meta http-equiv="refresh" content="0; url=${target}">
           <p>Je gaat naar Google om toestemming te geven voor de map met back-ups.</p>
           <p><a class="btn" href="${target}" rel="noreferrer">Doorgaan naar Google</a></p>`,

@@ -364,6 +364,7 @@ function createCrmRouter(options) {
       title: 'Wachtwoord wijzigen',
       user: req.user,
       csrf: req.session.csrf,
+      path: '/app/wachtwoord/',
       body: html`<div class="crm-narrow">
         ${state.done ? html`<p class="notice" role="status">Je wachtwoord is gewijzigd. Andere sessies zijn uitgelogd.</p>` : ''}
         ${renderAlert(errors._form)}
