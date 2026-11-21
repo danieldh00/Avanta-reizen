@@ -284,7 +284,25 @@ function createTwoFactor(options) {
     return row ? row.until : null;
   };
 
-  return { stateOf, startSetup, pendingSetup, confirm, verifyAppCode, check, renewRecovery, disable, issueActivation, activationOk, activationUntil };
+  /**
+   * Telt een poging op de codestap, vooraf en atomair in de database. Het venster begint bij de eerste poging en duurt
+   * een kwartier; daarna begint de telling opnieuw.
+   * @param {number} userId Gebruiker.
+   * @returns {Promise<boolean>} Waar als de poging mag (hoogstens 5 binnen het venster).
+   */
+  const countCodeAttempt = async (userId) => {
+    const [row] = await db.query(
+      `UPDATE users SET
+         totp_failures = CASE WHEN totp_failures_reset_at IS NULL OR totp_failures_reset_at <= now() THEN 1 ELSE totp_failures + 1 END,
+         totp_failures_reset_at = CASE WHEN totp_failures_reset_at IS NULL OR totp_failures_reset_at <= now()
+           THEN now() + make_interval(mins => $2) ELSE totp_failures_reset_at END
+       WHERE id = $1 RETURNING totp_failures`,
+      [userId, CODE_LOCK_MINUTES],
+    );
+    return Boolean(row) && row.totp_failures <= MAX_FAILED_CODES;
+  };
+
+  return { countCodeAttempt, stateOf, startSetup, pendingSetup, confirm, verifyAppCode, check, renewRecovery, disable, issueActivation, activationOk, activationUntil };
 }
 
 /**
@@ -296,8 +314,6 @@ function createTwoFactor(options) {
 function createTwoFactorRoutes(options) {
   const { db, auth, twoFactor } = options;
   const router = express.Router();
-  // Verkeerde codes per account (niet per IP): ook vanaf veel adressen tegelijk hoogstens 5 pogingen per kwartier.
-  const codeFailures = createRateLimiter({ limit: MAX_FAILED_CODES, windowMs: CODE_LOCK_MINUTES * 60 * 1000, now: options.now });
   // Verkeerde codes bij instellen, nieuwe herstelcodes en uitzetten, per gebruiker.
   const manageFailures = createRateLimiter({ limit: MAX_FAILED_CODES, windowMs: CODE_LOCK_MINUTES * 60 * 1000, now: options.now });
 
@@ -426,9 +442,9 @@ function createTwoFactorRoutes(options) {
   router.post('/inloggen/code/', sameSiteOnly, requireCodeStep, auth.checkCsrf, async (req, res, next) => {
     try {
       const userId = req.pending.id;
-      const failureKey = `code:${userId}`;
-      // Tel de poging vooraf (gelijktijdige verzoeken kunnen de limiet zo niet omzeilen); een goede code wist de teller.
-      if (!codeFailures.hit(failureKey)) {
+      // Tel de poging vooraf in de database (gelijktijdige verzoeken en een herstart omzeilen de limiet zo niet); een
+      // goede code wist de teller. Per account, dus ook vanaf veel IP-adressen tegelijk hoogstens 5 per kwartier.
+      if (!(await twoFactor.countCodeAttempt(userId))) {
         await auth.audit(req, { userId, action: 'inloggen.code-geblokkeerd', entity: 'users', entityId: userId });
         return res.status(429).set('Retry-After', String(CODE_LOCK_MINUTES * 60)).send(renderCodeStep(req, CODE_LOCKED));
       }
@@ -437,9 +453,8 @@ function createTwoFactorRoutes(options) {
         await auth.audit(req, { userId, action: 'inloggen.code-mislukt', entity: 'users', entityId: userId });
         return res.status(401).send(renderCodeStep(req, CODE_WRONG));
       }
-      codeFailures.clear(failureKey);
       await db.transaction(async (client) => {
-        await client.query('UPDATE users SET last_login_at = now() WHERE id = $1', [userId]);
+        await client.query('UPDATE users SET last_login_at = now(), totp_failures = 0, totp_failures_reset_at = NULL WHERE id = $1', [userId]);
         await auth.completeMfa(req, res, client);
         if (result.recoveryUsed) await auth.audit(req, { userId, action: 'tweestaps.herstelcode', entity: 'users', entityId: userId }, client);
         await auth.audit(req, { userId, action: 'inloggen', entity: 'users', entityId: userId }, client);
@@ -675,6 +690,8 @@ function createTwoFactorRoutes(options) {
       manageFailures.clear(failureKey);
       await db.transaction(async (client) => {
         await twoFactor.disable(req.user.id, client);
+        // Net als bij aanzetten en bij de beheerder: andere sessies vervallen, de huidige blijft.
+        await auth.endSessionsOf(req.user.id, req.session.tokenHash, client);
         await auth.audit(req, { userId: req.user.id, action: 'tweestaps.uit', entity: 'users', entityId: req.user.id }, client);
       });
       return res.redirect(303, '/app/tweestaps/?uit=1');

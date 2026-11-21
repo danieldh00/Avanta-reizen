@@ -303,6 +303,8 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
 
   await t.test('blokkade per account na vijf verkeerde codes, ook vanaf veel IP-adressen, en verloopt', async () => {
     clock += 60 * 60 * 1000;
+    // Eerdere verkeerde codes uit de tests hierboven tellen niet mee (het venster is om).
+    await db.query('UPDATE users SET totp_failures = 0, totp_failures_reset_at = NULL WHERE id = $1', [officeId]);
     // Wie het wachtwoord heeft geraden, probeert codes vanaf steeds een ander netwerk.
     for (let i = 0; i < 5; i++) {
       const headers = { 'x-forwarded-for': `10.${i}.0.1` };
@@ -316,7 +318,10 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     const locked = await request('/app/inloggen/code/', { cookie: first.cookie, form: { _csrf: csrf, code: freshCode(officeSecret) }, headers });
     assert.equal(locked.status, 429, 'ook met de juiste code dicht');
     assert.match(locked.text, /Te veel verkeerde codes/);
-    clock += 16 * 60 * 1000;
+    const [counter] = await db.query('SELECT totp_failures FROM users WHERE id = $1', [officeId]);
+    assert.equal(counter.totp_failures, 6, 'de teller staat in de database (een herstart wist hem niet)');
+    // Het kwartier is om.
+    await db.query("UPDATE users SET totp_failures_reset_at = now() - interval '1 second' WHERE id = $1", [officeId]);
     const later = await firstStep('kees@example.nl', OFFICE_PASSWORD, headers);
     const laterCsrf = csrfFrom((await request('/app/inloggen/code/', { cookie: later.cookie, headers })).text);
     assert.equal((await request('/app/inloggen/code/', { cookie: later.cookie, form: { _csrf: laterCsrf, code: freshCode(officeSecret) }, headers })).status, 303);
@@ -369,8 +374,11 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     const csrf = csrfFrom(home.text);
     assert.equal((await request('/app/tweestaps/uitzetten/', { cookie: direct.cookie, form: { _csrf: csrf, password: 'fout wachtwoord!!', code: freshCode(enabled.secret) } })).status, 422);
     assert.equal((await request('/app/tweestaps/uitzetten/', { cookie: direct.cookie, form: { _csrf: csrf, password: BOOKKEEPER_PASSWORD, code: '000000' } })).status, 422);
+    const second = await loginWithTwoFactor(request, 'bea@example.nl', BOOKKEEPER_PASSWORD, { secret: enabled.secret, now: clock += 30 * 1000 });
     const off = await request('/app/tweestaps/uitzetten/', { cookie: direct.cookie, form: { _csrf: csrf, password: BOOKKEEPER_PASSWORD, code: freshCode(enabled.secret) } });
     assert.equal(off.status, 303);
+    assert.equal((await request('/app/', { cookie: second.cookie })).status, 303, 'andere sessies vervallen bij uitzetten');
+    assert.equal((await request('/app/', { cookie: direct.cookie })).status, 200, 'de huidige sessie blijft');
     const [row] = await db.query("SELECT totp_secret, totp_enabled_at, totp_recovery FROM users WHERE email = 'bea@example.nl'");
     assert.deepEqual(row, { totp_secret: null, totp_enabled_at: null, totp_recovery: [] });
     assert.equal((await firstStep('bea@example.nl', BOOKKEEPER_PASSWORD)).headers.get('location'), '/app/');
@@ -395,6 +403,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
   });
 
   await t.test('eerste beheerder: installatiecode is de activatiecode', async () => {
+    clock += 60 * 60 * 1000; // nieuwe periode voor de inloglimiet per IP
     const first = await firstStep('beheer@example.nl', ADMIN_PASSWORD);
     assert.equal(first.headers.get('location'), '/app/tweestaps/');
     const session = await enableTwoFactor(request, first.cookie, { activation: SETUP_CODE.toLowerCase(), now: clock });

@@ -313,7 +313,10 @@ const MIGRATIONS = [
         -- Eenmalige activatiecode van de beheerder (alleen SHA-256): zonder die code kan niemand met alleen het
         -- wachtwoord een eigen authenticator koppelen.
         ADD COLUMN totp_activation_hash TEXT,
-        ADD COLUMN totp_activation_expires_at TIMESTAMPTZ;
+        ADD COLUMN totp_activation_expires_at TIMESTAMPTZ,
+        -- Verkeerde codes bij het inloggen, per account en in de database (een herstart wist de teller dus niet).
+        ADD COLUMN totp_failures INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN totp_failures_reset_at TIMESTAMPTZ;
       -- Of de halve sessie de activatiecode al heeft gegeven (dan mag zij 2FA instellen).
       ALTER TABLE sessions ADD COLUMN mfa_setup_ok BOOLEAN NOT NULL DEFAULT false;
       -- Bestaande sessies zijn zonder tweede stap gemaakt: iedereen logt opnieuw in.
