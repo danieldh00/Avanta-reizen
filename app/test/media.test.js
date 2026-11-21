@@ -439,5 +439,8 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.match(notice.text, /3 foto(&#39;|')s hebben automatisch een land gekregen\./);
     const again = await request('/app/fotobibliotheek/koppelen/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } });
     assert.equal(again.headers.get('location'), '/app/fotobibliotheek/?land=zonder&gekoppeld=0');
+    // Limiet: drie keer per minuut per gebruiker (twee keer gebruikt, plus één weigering zonder token telt niet mee).
+    assert.equal((await request('/app/fotobibliotheek/koppelen/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 303);
+    assert.equal((await request('/app/fotobibliotheek/koppelen/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 429);
   });
 });

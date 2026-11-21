@@ -117,6 +117,8 @@ function createMediaRoutes(options) {
   const uploadsPerHour = options.limits?.uploadsPerHour ?? UPLOADS_PER_HOUR;
   const maxParallelUploads = options.limits?.maxParallelUploads ?? MAX_PARALLEL_UPLOADS;
   const uploadLimiter = createRateLimiter({ limit: uploadsPerHour, windowMs: 60 * 60 * 1000, now: options.now });
+  // Automatisch koppelen vergelijkt alle open foto's met alle reizen: hoogstens een paar keer per minuut per gebruiker.
+  const linkLimiter = createRateLimiter({ limit: options.limits?.linksPerMinute ?? 3, windowMs: 60 * 1000, now: options.now });
   let runningUploads = 0;
 
   /**
@@ -351,6 +353,7 @@ function createMediaRoutes(options) {
   });
 
   router.post('/fotobibliotheek/koppelen/', guard, auth.checkCsrf, async (req, res, next) => {
+    if (!linkLimiter.hit(`user:${req.user.id}`)) return res.status(429).set('Retry-After', '60').type('text').send('Probeer het over een minuut opnieuw.');
     try {
       const result = await db.transaction(async (client) => {
         const outcome = await linkImportedMedia(client);
