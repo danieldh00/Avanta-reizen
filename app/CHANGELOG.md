@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.10.1 — 2026-11-21 — Balk "Deze website is in ontwikkeling"
+
+- Bovenaan de website staat nu een balk die bezoekers laat weten dat de site nog in ontwikkeling is. Zet hem aan of uit
+
+- Instellingen `devBannerEnabled` (standaard aan) en `devBannerText` (één regel, verplicht, max. 200 tekens) in
+  `SETTING_FIELDS`, met de sectie `ontwikkeling` in de groep Organisatie van Beheer. Geen migratie: de waarden staan in
+  de bestaande tabel `settings`, wijzigen met audit zoals elke instelling.
+- `site-settings.js` geeft `devBanner` (de tekst, of leeg als de balk uit staat); `renderPage` toont die ge-escaped
+  boven de kop van elke publieke pagina, ook op 404, 500 en de onderhoudspagina. Het CRM gebruikt zijn eigen layout en
+  toont de balk niet.
+- CSS `.dev-banner` in `--av-accent-dark` met witte tekst (contrast 4,9:1), compacter onder 640 px.
+- Tests: `test/dev-banner.test.js` (validatie, escaping, plek, standaard aan, wijzigen en uitzetten met audit, niet in
+  het CRM, 403 zonder recht `systeem`).
+
+## 0.10.0 — 2026-11-21 — Personen en toestemmingen in het CRM (migratie 10)
+
+- Een aanmelding komt nu ook bij een persoon in het CRM: één persoon, meerdere reizen. Dezelfde persoon wordt herkend
+- Kerkgenootschap en bijzonderheden (gezondheid) zijn vrijwillig en worden alleen bewaard met een eigen
+
+- Migratie 10: tabellen `persons` (NAW leesbaar; `identity_data`, `special_data`, `health_data`, `emergency_data`
+  apart versleuteld met AAD `persons:<blok>:<id>`; `match_key` = HMAC-SHA256 over e-mail + geboortedatum met een via
+  HKDF afgeleide sleutel; `duplicate_of`) en `consents` (`voorwaarden`, `art9_religie`, `art9_gezondheid`, met
+  `text_version`); `bookings.person_id`, `bookings.sensitive_data` mag leeg.
+- `crm/persons.js`: zoeken of aanmaken in de transactie van de aanmelding (advisory lock per e-mailadres), alleen lege
+  velden aanvullen, anders eerst een bestaand dubbel met dezelfde `match_key` hergebruiken en pas dan een nieuwe
+  persoon met `duplicate_of`; een niet te openen blok geeft geen 500 maar een mogelijk dubbel; toestemmingen
+  vastleggen; `backfillPersons` zet bij het starten oude aanmeldingen om (per aanmelding een transactie, een fout per
+  rij telt als mislukt en houdt de rest niet tegen; art. 9-gegevens zonder losse toestemming gaan niet mee).
+- `vault.deriveKey(doel)` (HKDF-SHA256) voor afgeleide sleutels.
+- Aanmeldformulier: kerkgenootschap niet meer verplicht; vinkjes `consent_religion` en `consent_health` (`consentFor`),
+  verplicht zodra het bijbehorende veld is ingevuld.
+
 ## 0.9.1 — 2026-11-21 — Time-out op de databaseverbinding
 
 - Als de database even niet bereikbaar is, blijft de site niet meer eindeloos laden: na enkele seconden verschijnt een
