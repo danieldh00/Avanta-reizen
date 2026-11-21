@@ -228,7 +228,7 @@ test('bewaking, meldingen en Beheer > Bewaking', { skip: !DATABASE_URL && 'TEST_
   const cookie = installed.cookie;
   const csrf = csrfFrom((await request('/app/', { cookie })).text);
   await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
-  const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
+  const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: { cookie, csrf } });
 
   await settings.update({ values: { monitorEmail: 'bewaking@example.nl', monitorWebhookUrl: 'https://hooks.example.com/geheim-token', monitorHeartbeatUrl: 'https://hc.example.com/ping/geheim-uuid', siteUrl: 'https://avanta.example.nl' } });
   // Een webhook die geen https is wordt geweigerd.

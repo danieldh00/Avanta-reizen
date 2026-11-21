@@ -1,6 +1,7 @@
 /**
  * Gebruikersbeheer en auditlog van het CRM (recht `gebruikers`): lijst, nieuwe gebruiker, rol/naam/e-mail wijzigen,
- * blokkeren, een nieuw wachtwoord instellen en de tweestapsverificatie uitzetten (telefoon kwijt). De laatste actieve beheerder kan niet worden gedegradeerd of
+ * blokkeren, een nieuw wachtwoord instellen, de tweestapsverificatie uitzetten (toestel kwijt) en een activatiecode
+ * maken waarmee de gebruiker 2FA kan instellen. De laatste actieve beheerder kan niet worden gedegradeerd of
  * geblokkeerd. Elke wijziging komt in het auditlog, zonder de waarden zelf.
  */
 const express = require('express');
@@ -26,6 +27,8 @@ const ACTION_LABELS = {
   'tweestaps.herstelcode': 'Ingelogd met een herstelcode',
   'tweestaps.herstelcodes': 'Nieuwe herstelcodes gemaakt',
   'gebruiker.tweestaps': 'Tweestapsverificatie uitgezet door beheerder',
+  'gebruiker.activatiecode': 'Activatiecode voor tweestapsverificatie gemaakt',
+  'tweestaps.activatie-mislukt': 'Tweestapsverificatie: onjuiste activatiecode',
   uitloggen: 'Uitgelogd',
   installatie: 'Eerste beheerder aangemaakt',
   'installatie.mislukt': 'Installatie: onjuiste code',
@@ -219,7 +222,8 @@ function createUserRoutes(options) {
    * De pagina van één gebruiker: gegevens wijzigen en een nieuw wachtwoord instellen.
    * @param {object} req Express-verzoek.
    * @param {object} target De gebruiker.
-   * @param {{values?: object, errors?: object, passwordErrors?: object, notice?: string}} state Waarden, fouten en melding.
+   * @param {{values?: object, errors?: object, passwordErrors?: object, notice?: string, activationCode?: string, activationUntil?: (Date|null)}} state
+ *   Waarden, fouten, melding, een zojuist gemaakte activatiecode (één keer tonen) en tot wanneer een bestaande code geldt.
    * @returns {string} HTML-pagina.
    */
   const renderEditUser = (req, target, state = {}) => {
@@ -258,7 +262,17 @@ function createUserRoutes(options) {
           <input type="hidden" name="_csrf" value="${req.session.csrf}">
           <button class="btn btn--outline" type="submit">Tweestapsverificatie uitzetten</button>
         </form>`
-    : html`<p>Staat uit${auth.mfaRequiredFor(target.role) ? '; de gebruiker stelt het in bij de volgende keer inloggen' : ''}.</p>`}
+    : html`<p>Staat uit${auth.mfaRequiredFor(target.role) ? '; de gebruiker stelt het in bij de volgende keer inloggen' : ''}.
+          Daarvoor is een activatiecode nodig: maak die hier en geef hem persoonlijk door (niet in dezelfde mail als het
+          wachtwoord). Zo is het wachtwoord alleen nooit genoeg om een eigen app te koppelen.</p>
+        ${state.activationCode
+    ? html`<p class="notice" role="status">Activatiecode: <code class="crm-secret">${state.activationCode}</code><br>Geldig tot
+          ${formatDateTime(state.activationUntil)}. Deze code wordt niet nog eens getoond.</p>`
+    : html`${state.activationUntil ? html`<p>Er staat een activatiecode klaar, geldig tot ${formatDateTime(state.activationUntil)}. Een nieuwe code vervangt die.</p>` : ''}`}
+        <form method="post" action="/app/gebruikers/${target.id}/activatiecode/">
+          <input type="hidden" name="_csrf" value="${req.session.csrf}">
+          <button class="btn btn--outline" type="submit">Activatiecode maken</button>
+        </form>`}
       </div>`,
     });
   };
@@ -270,7 +284,7 @@ function createUserRoutes(options) {
       let notice = '';
       if (req.query.wachtwoord === '1') notice = 'Het nieuwe wachtwoord is ingesteld.';
       else if (req.query.tweestaps === '1') notice = 'De tweestapsverificatie is uitgezet en de gebruiker is overal uitgelogd.';
-      return res.send(renderEditUser(req, target, { notice }));
+      return res.send(renderEditUser(req, target, { notice, activationUntil: target.mfa_enabled ? null : await twoFactor.activationUntil(target.id) }));
     } catch (error) {
       return next(error);
     }
@@ -346,6 +360,22 @@ function createUserRoutes(options) {
         await auth.audit(req, { userId: req.user.id, action: 'gebruiker.tweestaps', entity: 'users', entityId: target.id }, client);
       });
       return res.redirect(303, `/app/gebruikers/${target.id}/?tweestaps=1`);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/gebruikers/:id(\\d{1,9})/activatiecode/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const target = await findUser(req.params.id);
+      if (!target) return notFound(req, res);
+      if (target.mfa_enabled) return res.redirect(303, `/app/gebruikers/${target.id}/`);
+      const code = await db.transaction(async (client) => {
+        const created = await twoFactor.issueActivation(target.id, client);
+        await auth.audit(req, { userId: req.user.id, action: 'gebruiker.activatiecode', entity: 'users', entityId: target.id }, client);
+        return created;
+      });
+      return res.send(renderEditUser(req, target, { activationCode: code, activationUntil: await twoFactor.activationUntil(target.id) }));
     } catch (error) {
       return next(error);
     }

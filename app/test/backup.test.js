@@ -243,7 +243,7 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     const cookie = installed.cookie;
     const csrf = csrfFrom((await request('/app/', { cookie })).text);
     await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
-    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
+    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: { cookie, csrf } });
     const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
 
     const empty = await request('/app/beheer/back-ups/', { cookie });

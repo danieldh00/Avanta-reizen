@@ -144,7 +144,8 @@ database in de back-up.
   verloop na inactiviteit (bijv. 8 uur) en maximaal 7 dagen.
 - **2FA**: TOTP (authenticator-app), eigen implementatie op `crypto`; herstelcodes eenmalig getoond. Altijd verplicht voor
   rollen met `gegevens.*`; standaard voor iedereen (instelling `mfaRequiredFor`). Zonder `mfa_ok` alleen de codestap of
-  de 2FA-pagina bereikbaar (halve sessie, 15 minuten). Gebouwd in M9 (`crm/totp.js`, `crm/two-factor.js`).
+  de 2FA-pagina bereikbaar (halve sessie, 15 minuten); instellen vanuit een halve sessie vraagt een activatiecode van de
+  beheerder (eerste beheerder: de installatiecode). Gebouwd in M9 (`crm/totp.js`, `crm/two-factor.js`).
 - **Eerste beheerder**: eenmalige installatiecode in het serverlog, zoals AquaTech.
 - **Rechten op de server**: middleware `requireRight(recht)` per route; vertrek-scope voor reisleider in de query zelf
   (`JOIN trip_guides … WHERE guide_id = $1`). Onbekend of niet-eigen record → 404, ontbrekend recht → 403.

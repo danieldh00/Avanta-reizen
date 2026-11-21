@@ -249,7 +249,7 @@ test('Beheer > E-mail: instellingen, testmail, WAN-IP en rechten', { skip: !DATA
     assert.equal((await request('/app/beheer/mailserver/testmail/', { form: { _csrf: 'x', to: 'a@example.nl' } })).status, 401);
     const created = await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
     assert.equal(created.status, 303);
-    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
+    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: { cookie, csrf } });
     const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
     assert.equal((await request('/app/beheer/mailserver/', { cookie: office.cookie })).status, 403);
     assert.equal((await request('/app/beheer/mailserver/testmail/', { cookie: office.cookie, form: { _csrf: officeCsrf, to: 'kantoor@example.nl' } })).status, 403);

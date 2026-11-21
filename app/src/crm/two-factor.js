@@ -11,9 +11,12 @@
  *   nooit; raden met veel IP-adressen tegelijk levert dus hoogstens een halve sessie op.
  * - `/app/tweestaps/`: stand, aanzetten (QR-code + bevestigen met een code), nieuwe herstelcodes en uitzetten (alleen
  *   als het voor de rol niet verplicht is, met wachtwoord én code). Ook bereikbaar met een halve sessie als 2FA
- *   verplicht is maar nog niet is ingesteld.
- * Een beheerder zet de 2FA van een collega uit via `crm/users.js` (telefoon kwijt).
+ *   verplicht is maar nog niet is ingesteld; die moet eerst de **activatiecode** geven die de beheerder heeft gemaakt
+ *   (eenmalig, 7 dagen geldig, alleen als SHA-256 bewaard). Zo is een gelekt of tijdelijk wachtwoord alleen niet
+ *   genoeg om een eigen authenticator te koppelen. De eerste beheerder gebruikt de installatiecode als activatiecode.
+ * Een beheerder zet de 2FA van een collega uit en maakt activatiecodes via `crm/users.js`.
  */
+const crypto = require('node:crypto');
 const express = require('express');
 const { html } = require('../site/html');
 const { createRateLimiter } = require('../security/rate-limit');
@@ -29,6 +32,36 @@ const ISSUER = 'Avanta CRM';
 /** Zoveel verkeerde codes per account binnen het venster; daarna is de stap dicht tot het venster om is. */
 const MAX_FAILED_CODES = 5;
 const CODE_LOCK_MINUTES = 15;
+
+/** Zoveel dagen is een activatiecode van de beheerder geldig; de installatiecode als activatiecode 30 dagen. */
+const ACTIVATION_DAYS = 7;
+const SETUP_ACTIVATION_DAYS = 30;
+
+/** Tekens voor de activatiecode (zonder 0/O en 1/I, die lijken op elkaar). */
+const ACTIVATION_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+/**
+ * Normaliseert een activatiecode (of installatiecode): hoofdletters, zonder spaties en streepjes.
+ * @param {*} value Invoer.
+ * @returns {string} Genormaliseerde code (leeg als het geen tekst is).
+ */
+const normalizeActivation = (value) => (typeof value === 'string' ? value.toUpperCase().replace(/[\s-]/g, '').slice(0, 64) : '');
+
+/**
+ * SHA-256 van een activatiecode, zoals hij in de database staat.
+ * @param {*} value Code.
+ * @returns {string} Hash in hex.
+ */
+const activationHash = (value) => crypto.createHash('sha256').update(normalizeActivation(value)).digest('hex');
+
+/**
+ * Maakt een willekeurige activatiecode van 20 tekens in groepjes van 5 (ongeveer 100 bits).
+ * @returns {string} Code, bijv. `ABCDE-FGHJK-LMNPQ-RSTUV`.
+ */
+function generateActivationCode() {
+  const characters = Array.from(crypto.randomBytes(20), (byte) => ACTIVATION_ALPHABET[byte % ACTIVATION_ALPHABET.length]).join('');
+  return characters.match(/.{5}/g).join('-');
+}
 
 /** Melding bij een verkeerde code. */
 const CODE_WRONG = 'De code klopt niet. Gebruik de nieuwste code uit de app, of een herstelcode.';
@@ -116,7 +149,8 @@ function createTwoFactor(options) {
   };
 
   /**
-   * Bevestigt het aanzetten met een code uit de app; daarna staat 2FA aan en zijn er nieuwe herstelcodes.
+   * Bevestigt het aanzetten met een code uit de app; daarna staat 2FA aan, zijn er nieuwe herstelcodes en vervalt een
+   * activatiecode.
    * @param {number} userId Gebruiker.
    * @param {*} code Code uit de app.
    * @param {{query: Function}} client Transactie-client.
@@ -129,7 +163,7 @@ function createTwoFactor(options) {
     if (!checked.ok) return { error: 'code' };
     const recovery = totp.newRecoveryCodes();
     await client.query(
-      'UPDATE users SET totp_enabled_at = now(), totp_last_step = $2, totp_recovery = $3, updated_at = now() WHERE id = $1',
+      'UPDATE users SET totp_enabled_at = now(), totp_last_step = $2, totp_recovery = $3, totp_activation_hash = NULL, totp_activation_expires_at = NULL, updated_at = now() WHERE id = $1',
       [userId, checked.step, recovery.hashes],
     );
     return { recoveryCodes: recovery.codes };
@@ -203,7 +237,54 @@ function createTwoFactor(options) {
     return rows.length > 0;
   };
 
-  return { stateOf, startSetup, pendingSetup, confirm, verifyAppCode, check, renewRecovery, disable };
+  /**
+   * Maakt een nieuwe activatiecode voor een gebruiker (de vorige vervalt).
+   * @param {number} userId Gebruiker.
+   * @param {{query: Function}} [client] Database of transactie-client.
+   * @param {{code?: string, days?: number}} [mode] Een bestaande code (de installatiecode) en de geldigheid in dagen.
+   * @returns {Promise<string>} De code (één keer tonen).
+   */
+  const issueActivation = async (userId, client = db, mode = {}) => {
+    const code = mode.code || generateActivationCode();
+    await client.query(
+      'UPDATE users SET totp_activation_hash = $2, totp_activation_expires_at = now() + make_interval(days => $3) WHERE id = $1',
+      [userId, activationHash(code), mode.days || ACTIVATION_DAYS],
+    );
+    return code;
+  };
+
+  /**
+   * Controleert een activatiecode: bestaat, niet verlopen en gelijk (tijdconstante vergelijking).
+   * @param {number} userId Gebruiker.
+   * @param {*} input Ingevoerde code.
+   * @returns {Promise<boolean>} Waar als de code klopt.
+   */
+  const activationOk = async (userId, input) => {
+    if (!normalizeActivation(input)) return false;
+    const [row] = await db.query(
+      'SELECT totp_activation_hash AS hash FROM users WHERE id = $1 AND totp_activation_expires_at > now()',
+      [userId],
+    );
+    if (!row || !row.hash) return false;
+    const stored = Buffer.from(row.hash, 'hex');
+    const given = Buffer.from(activationHash(input), 'hex');
+    return stored.length === given.length && crypto.timingSafeEqual(stored, given);
+  };
+
+  /**
+   * Of er een geldige activatiecode klaarstaat (voor het scherm van de beheerder).
+   * @param {number} userId Gebruiker.
+   * @returns {Promise<(Date|null)>} Tot wanneer de code geldt, of null.
+   */
+  const activationUntil = async (userId) => {
+    const [row] = await db.query(
+      'SELECT totp_activation_expires_at AS until FROM users WHERE id = $1 AND totp_activation_hash IS NOT NULL AND totp_activation_expires_at > now()',
+      [userId],
+    );
+    return row ? row.until : null;
+  };
+
+  return { stateOf, startSetup, pendingSetup, confirm, verifyAppCode, check, renewRecovery, disable, issueActivation, activationOk, activationUntil };
 }
 
 /**
@@ -230,6 +311,13 @@ function createTwoFactorRoutes(options) {
     if (req.pending && req.pending.step === 'setup') return { ...req.pending, pending: true };
     return null;
   };
+
+  /**
+   * Of dit account 2FA mag instellen: een ingelogde gebruiker altijd, een halve sessie pas na de activatiecode.
+   * @param {object} account Account (`accountOf`).
+   * @returns {boolean} Waar als instellen mag.
+   */
+  const mayConfigure = (account) => !account.pending || account.setupOk === true;
 
   /**
    * Middleware: een ingelogde gebruiker of een halve sessie die 2FA moet instellen; anders als `requireLogin`.
@@ -383,10 +471,19 @@ function createTwoFactorRoutes(options) {
     : html`<p>Tweestapsverificatie staat uit. Zet het aan: een geraden of gelekt wachtwoord is dan niet genoeg om in te loggen.</p>`}
         <p>Je hebt een authenticator-app op je telefoon nodig, bijvoorbeeld Microsoft Authenticator, Google Authenticator of de
           app van je wachtwoordkluis. Bij het inloggen vraagt het CRM na je wachtwoord een code uit die app.</p>
-        <form method="post" action="/app/tweestaps/instellen/">
+        ${mayConfigure(account)
+    ? html`<form method="post" action="/app/tweestaps/instellen/">
           <input type="hidden" name="_csrf" value="${account.csrf}">
           <button class="btn" type="submit">Tweestapsverificatie instellen</button>
-        </form>
+        </form>`
+    : html`<p>Vul eerst de <strong>activatiecode</strong> in die je van de beheerder hebt gekregen (de eerste beheerder
+          gebruikt de installatiecode). Zo kan niemand met alleen je wachtwoord een eigen app koppelen.</p>
+        ${renderAlert(errors.activation)}
+        <form class="form" method="post" action="/app/tweestaps/activeren/">
+          <input type="hidden" name="_csrf" value="${account.csrf}">
+          ${renderInput({ name: 'activation', label: 'Activatiecode', autocomplete: 'off', max: 64 })}
+          <div><button class="btn" type="submit">Verder</button></div>
+        </form>`}
       </div>`);
     }
     return page(account, 'Tweestapsverificatie', html`<div class="crm-narrow">
@@ -428,8 +525,31 @@ function createTwoFactorRoutes(options) {
     }
   });
 
+  router.post('/tweestaps/activeren/', sameSiteOnly, requireAccount, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const account = accountOf(req);
+      if (mayConfigure(account)) return res.redirect(303, '/app/tweestaps/');
+      const failureKey = `activeren:${account.id}`;
+      // Tel vooraf, zodat gelijktijdige pogingen de limiet niet omzeilen; een goede code wist de teller.
+      if (!manageFailures.hit(failureKey)) {
+        return res.status(429).set('Retry-After', String(CODE_LOCK_MINUTES * 60)).send(await renderOverview(req, { errors: { activation: CODE_LOCKED } }));
+      }
+      if (!(await twoFactor.activationOk(account.id, req.body.activation))) {
+        await auth.audit(req, { userId: account.id, action: 'tweestaps.activatie-mislukt', entity: 'users', entityId: account.id });
+        return res.status(422).send(await renderOverview(req, { errors: { activation: 'Deze activatiecode klopt niet of is verlopen. Vraag de beheerder om een nieuwe.' } }));
+      }
+      manageFailures.clear(failureKey);
+      await db.query('UPDATE sessions SET mfa_setup_ok = true WHERE token_hash = $1', [account.tokenHash]);
+      await twoFactor.startSetup(account.id);
+      return res.redirect(303, '/app/tweestaps/instellen/');
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   router.post('/tweestaps/instellen/', sameSiteOnly, requireAccount, auth.checkCsrf, async (req, res, next) => {
     try {
+      if (!mayConfigure(accountOf(req))) return res.redirect(303, '/app/tweestaps/');
       await twoFactor.startSetup(accountOf(req).id);
       return res.redirect(303, '/app/tweestaps/instellen/');
     } catch (error) {
@@ -467,7 +587,8 @@ function createTwoFactorRoutes(options) {
 
   router.get('/tweestaps/instellen/', requireAccount, async (req, res, next) => {
     try {
-      const setup = await twoFactor.pendingSetup(accountOf(req));
+      const account = accountOf(req);
+      const setup = mayConfigure(account) ? await twoFactor.pendingSetup(account) : null;
       if (!setup) return res.redirect(303, '/app/tweestaps/');
       return res.send(renderSetup(req, setup));
     } catch (error) {
@@ -478,8 +599,10 @@ function createTwoFactorRoutes(options) {
   router.post('/tweestaps/bevestigen/', sameSiteOnly, requireAccount, auth.checkCsrf, async (req, res, next) => {
     try {
       const account = accountOf(req);
+      if (!mayConfigure(account)) return res.redirect(303, '/app/tweestaps/');
       const failureKey = `instellen:${account.id}`;
-      if (manageFailures.isBlocked(failureKey)) {
+      // Tel vooraf, zodat gelijktijdige pogingen de limiet niet omzeilen; een goede code wist de teller.
+      if (!manageFailures.hit(failureKey)) {
         const setup = await twoFactor.pendingSetup(account);
         if (!setup) return res.redirect(303, '/app/tweestaps/');
         return res.status(429).set('Retry-After', String(CODE_LOCK_MINUTES * 60)).send(renderSetup(req, setup, CODE_LOCKED));
@@ -495,7 +618,6 @@ function createTwoFactorRoutes(options) {
       });
       if (outcome.error === 'state') return res.redirect(303, '/app/tweestaps/');
       if (outcome.error) {
-        manageFailures.hit(failureKey);
         const setup = await twoFactor.pendingSetup(account);
         if (!setup) return res.redirect(303, '/app/tweestaps/');
         return res.status(422).send(renderSetup(req, setup, 'De code klopt niet. Controleer of de tijd op je telefoon goed staat en gebruik de nieuwste code.'));
@@ -518,9 +640,8 @@ function createTwoFactorRoutes(options) {
   router.post('/tweestaps/herstelcodes/', auth.requireLogin, auth.checkCsrf, async (req, res, next) => {
     try {
       const failureKey = `beheren:${req.user.id}`;
-      if (manageFailures.isBlocked(failureKey)) return res.status(429).send(await renderOverview(req, { errors: { recovery: CODE_LOCKED } }));
+      if (!manageFailures.hit(failureKey)) return res.status(429).send(await renderOverview(req, { errors: { recovery: CODE_LOCKED } }));
       if (!(await twoFactor.verifyAppCode(req.user.id, req.body.code))) {
-        manageFailures.hit(failureKey);
         return res.status(422).send(await renderOverview(req, { errors: { recovery: 'De code klopt niet. Gebruik de nieuwste code uit de app.' } }));
       }
       manageFailures.clear(failureKey);
@@ -544,12 +665,11 @@ function createTwoFactorRoutes(options) {
         return res.status(403).send(await renderOverview(req, { errors: { disable: 'Voor jouw account is tweestapsverificatie verplicht.' } }));
       }
       const failureKey = `beheren:${req.user.id}`;
-      if (manageFailures.isBlocked(failureKey)) return res.status(429).send(await renderOverview(req, { errors: { disable: CODE_LOCKED } }));
+      if (!manageFailures.hit(failureKey)) return res.status(429).send(await renderOverview(req, { errors: { disable: CODE_LOCKED } }));
       const [user] = await db.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
       const passwordOk = Boolean(user) && await verifyPassword(req.body.password, user.password_hash);
       const codeOk = passwordOk && (await twoFactor.check(req.user.id, req.body.code)).ok;
       if (!codeOk) {
-        manageFailures.hit(failureKey);
         return res.status(422).send(await renderOverview(req, { errors: { disable: 'Wachtwoord of code klopt niet.' } }));
       }
       manageFailures.clear(failureKey);
@@ -566,4 +686,4 @@ function createTwoFactorRoutes(options) {
   return router;
 }
 
-module.exports = { createTwoFactor, createTwoFactorRoutes, ISSUER, MAX_FAILED_CODES, CODE_LOCK_MINUTES };
+module.exports = { createTwoFactor, createTwoFactorRoutes, generateActivationCode, normalizeActivation, ISSUER, MAX_FAILED_CODES, CODE_LOCK_MINUTES, ACTIVATION_DAYS, SETUP_ACTIVATION_DAYS };

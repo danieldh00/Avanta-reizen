@@ -67,7 +67,7 @@ test('toegang: sessieduur en bewaartermijnen', { skip: !DATABASE_URL && 'TEST_DA
   const login = async () => {
     // Elke code werkt één keer; deze test logt vaker in binnen 30 seconden, dus de laatst gebruikte stap gaat terug.
     if (adminSecret) await db.query("UPDATE users SET totp_last_step = NULL WHERE email = 'beheer@example.nl'");
-    const session = await loginWithTwoFactor(request, 'beheer@example.nl', ADMIN_PASSWORD, { secret: adminSecret });
+    const session = await loginWithTwoFactor(request, 'beheer@example.nl', ADMIN_PASSWORD, { secret: adminSecret, activation: SETUP_CODE });
     adminSecret = session.secret;
     return session;
   };
@@ -79,7 +79,7 @@ test('toegang: sessieduur en bewaartermijnen', { skip: !DATABASE_URL && 'TEST_DA
   await t.test('rechten: zonder recht systeem 403, ongeldige waarden 422', async () => {
     const created = await request('/app/gebruikers/nieuw/', { cookie: session.cookie, form: { _csrf: session.csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
     assert.equal(created.status, 303);
-    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
+    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: session });
     const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
     assert.equal((await request('/app/beheer/sessies/', { cookie: office.cookie })).status, 403);
     assert.equal((await request('/app/beheer/sessies/', { cookie: office.cookie, form: { ...form, _csrf: officeCsrf, sessionIdleHours: '24' } })).status, 403);

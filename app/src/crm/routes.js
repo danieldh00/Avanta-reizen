@@ -14,7 +14,7 @@ const { RIGHTS, ROLES, roleHasRight, roleLabel } = require('./rights');
 const { hashPassword, verifyPassword, needsRehash, passwordProblem, getDummyHash, MAX_LENGTH } = require('./passwords');
 const { renderCrmPage, renderInput, renderAlert } = require('./layout');
 const { createUserRoutes } = require('./users');
-const { createTwoFactor, createTwoFactorRoutes } = require('./two-factor');
+const { createTwoFactor, createTwoFactorRoutes, SETUP_ACTIVATION_DAYS } = require('./two-factor');
 const { createVault } = require('../security/vault');
 const { createBeheerRoutes } = require('../beheer/routes');
 
@@ -301,6 +301,8 @@ function createCrmRouter(options) {
           [email, values.name, passwordHash],
         );
         await auth.audit(req, { userId: user.id, action: 'installatie', entity: 'users', entityId: user.id }, client);
+        // De installatiecode is ook de activatiecode voor de 2FA van de eerste beheerder (er is nog geen andere beheerder).
+        await twoFactor.issueActivation(user.id, client, { code: options.setupCode, days: SETUP_ACTIVATION_DAYS });
         await auth.startSession(res, user.id, client);
         return user;
       });

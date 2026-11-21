@@ -53,11 +53,15 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     alleen de codestap (`/app/inloggen/code/`) of het instellen (`/app/tweestaps/`) bereikbaar; pas na de code volgt
     een volledige sessie met een nieuw token. Verplicht voor iedereen (standaard) of alleen voor rollen met toegang tot
     bijzondere gegevens (Beheer > Toegang en beveiliging > Tweestapsverificatie); voor die rollen altijd. Instellen met
-    QR-code of sleutel, daarna tien herstelcodes (één keer getoond, alleen als SHA-256 bewaard). Elke code werkt één
+    QR-code of sleutel; wie dat bij het inloggen doet (halve sessie), geeft eerst een **activatiecode** die een beheerder
+    onder *Gebruikers* maakt (eenmalig, 7 dagen geldig, alleen als SHA-256 bewaard). Een gelekt of tijdelijk wachtwoord
+    is dus nooit genoeg om een eigen app te koppelen; de eerste beheerder gebruikt de installatiecode als activatiecode
+    (30 dagen). Daarna tien herstelcodes (één keer getoond, alleen als SHA-256 bewaard). Elke code werkt één
     keer; na 5 verkeerde codes binnen een kwartier is de codestap voor dat account dicht, ongeacht vanaf hoeveel
     IP-adressen. Zo levert wachtwoorden raden vanuit veel netwerken tegelijk hoogstens een halve sessie op. Het geheim
     staat versleuteld in `users.totp_secret` (AES-256-GCM, gebonden aan de gebruiker). Een beheerder zet de 2FA van een
-    collega uit onder *Gebruikers* (toestel kwijt); die stelt het bij de volgende keer inloggen opnieuw in. De sessie na
+    collega uit onder *Gebruikers* (toestel kwijt) en maakt een nieuwe activatiecode; die stelt het bij de volgende keer
+    inloggen opnieuw in. De sessie na
     de installatie (installatiecode) is volledig; de eerste beheerder stelt 2FA daarna in. Na de update naar deze
     versie logt iedereen opnieuw in.
 - **Beheer** op `/app/beheer/` (alleen de rol beheerder, recht `systeem`; opzet zoals in AquaTech): zijbalk met groepen

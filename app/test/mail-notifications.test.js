@@ -190,7 +190,7 @@ test('meldingen vanuit het contact- en aanmeldformulier, en Beheer', { skip: !DA
     assert.equal((await request('/app/beheer/mail-opmaak/voorbeeld/')).status, 303, 'zonder sessie naar inloggen');
     const created = await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
     assert.equal(created.status, 303);
-    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
+    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: { cookie, csrf } });
     assert.equal((await request('/app/beheer/mail-opmaak/voorbeeld/', { cookie: office.cookie })).status, 403, 'zonder recht systeem');
     assert.equal((await request('/app/beheer/meldingen/', { cookie: office.cookie })).status, 403);
   });

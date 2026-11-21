@@ -242,7 +242,8 @@ function createAuth(options) {
    * verlopen sessie of een geblokkeerde gebruiker telt als niet ingelogd. De ingestelde duur geldt ook voor bestaande
    * sessies: een sessie ouder dan de maximale duur telt als verlopen, ook als `expires_at` later ligt.
    * Een halve sessie (2FA nodig, code nog niet gegeven) zet alleen `req.pending` met `step` `code` (2FA staat aan) of
-   * `setup` (2FA verplicht maar nog niet ingesteld); `req.user` blijft dan leeg.
+   * `setup` (2FA verplicht maar nog niet ingesteld; `setupOk` = de activatiecode van de beheerder is gegeven);
+   * `req.user` blijft dan leeg.
    * @param {object} req Express-verzoek.
    * @param {object} res Express-antwoord.
    * @param {Function} next Volgende stap.
@@ -258,7 +259,7 @@ function createAuth(options) {
       const tokenHash = hashToken(token);
       const { idleHours, maxDays } = limits();
       const [row] = await db.query(
-        `SELECT s.user_id, s.mfa_ok, (s.last_seen_at < now() - make_interval(secs => $3)) AS stale, u.email, u.name, u.role,
+        `SELECT s.user_id, s.mfa_ok, s.mfa_setup_ok, (s.last_seen_at < now() - make_interval(secs => $3)) AS stale, u.email, u.name, u.role,
                 (u.totp_enabled_at IS NOT NULL) AS mfa_enabled
            FROM sessions s JOIN users u ON u.id = s.user_id
           WHERE s.token_hash = $1 AND u.active AND s.expires_at > now() AND s.last_seen_at > now() - make_interval(hours => $2)
@@ -269,7 +270,7 @@ function createAuth(options) {
       if (row.stale) await db.query('UPDATE sessions SET last_seen_at = now() WHERE token_hash = $1', [tokenHash]);
       const account = { id: row.user_id, email: row.email, name: row.name, role: row.role };
       if (!row.mfa_ok && (row.mfa_enabled || mfaRequiredFor(row.role))) {
-        req.pending = { ...account, step: row.mfa_enabled ? 'code' : 'setup', tokenHash, csrf: csrfToken(tokenHash) };
+        req.pending = { ...account, step: row.mfa_enabled ? 'code' : 'setup', setupOk: row.mfa_setup_ok, tokenHash, csrf: csrfToken(tokenHash) };
         return next();
       }
       req.user = account;

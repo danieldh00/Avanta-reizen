@@ -135,7 +135,7 @@ test('logboek, foutcodes, debugmodus en Beheer > Logboek', { skip: !DATABASE_URL
   const cookie = installed.cookie;
   const csrf = csrfFrom((await request('/app/', { cookie })).text);
   await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
-  const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
+  const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: { cookie, csrf } });
 
   // Request-id: eigen id, nooit die van buiten.
   const home = await request('/');

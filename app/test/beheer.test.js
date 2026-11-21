@@ -200,7 +200,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
 
     const created = await request('/app/gebruikers/nieuw/', { cookie: adminCookie, form: { _csrf: adminCsrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
     assert.equal(created.status, 303);
-    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
+    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: { cookie: adminCookie, csrf: adminCsrf } });
     const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
     assert.doesNotMatch((await request('/app/', { cookie: office.cookie })).text, /href="\/app\/beheer\/"/, 'geen menu-item zonder recht');
     assert.equal((await request('/app/beheer/', { cookie: office.cookie })).status, 403);

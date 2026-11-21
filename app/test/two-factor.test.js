@@ -2,7 +2,8 @@
  * Tests voor tweestapsverificatie (CRM-PR 2, migratie 9): de TOTP-rekenkern tegen de testvectoren van RFC 6238, de
  * herstelcodes, de QR-code en de kluis met context (AAD) zonder database; daarna tegen PostgreSQL de halve sessie na het
  * wachtwoord (alleen de tweede stap bereikbaar, verloopt na 15 minuten), verplicht instellen, inloggen met code en
- * herstelcode (elk één keer), de blokkade per account (ook vanaf veel IP-adressen), nieuwe herstelcodes, zelf uitzetten
+ * herstelcode (elk één keer), de activatiecode van de beheerder (zonder die code geen eigen app koppelen; de installatiecode
+ * voor de eerste beheerder), de blokkade per account (ook vanaf veel IP-adressen), nieuwe herstelcodes, zelf uitzetten
  * (alleen als het niet verplicht is), de beheerder die 2FA uitzet (zonder recht 403, onbekend 404) en het auditlog.
  */
 const test = require('node:test');
@@ -13,7 +14,7 @@ const { createVault } = require('../src/security/vault');
 const { hashToken, COOKIE_NAME } = require('../src/crm/auth');
 const totp = require('../src/crm/totp');
 const qrCode = require('../src/crm/qr-code');
-const { loginWithTwoFactor, codeFor, csrfFrom } = require('./helpers/two-factor');
+const { loginWithTwoFactor, enableTwoFactor, createActivation, codeFor, csrfFrom } = require('./helpers/two-factor');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'tweestaps_test';
@@ -150,6 +151,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
   const [{ id: officeId }] = await db.query("SELECT id FROM users WHERE email = 'kees@example.nl'");
   let officeSecret = '';
   let officeRecovery = [];
+  let adminAfterSetup = '';
 
   await t.test('installatiesessie is volledig, met een herinnering om 2FA in te stellen', async () => {
     assert.equal(adminHome.status, 200);
@@ -181,6 +183,11 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.equal((await request('/app/tweestaps/herstelcodes/', { cookie, form: { _csrf: csrf, code: '123456' } })).status, 401);
     assert.equal((await request('/app/tweestaps/instellen/', { cookie, form: { _csrf: 'fout' } })).status, 403, 'CSRF');
     assert.equal((await request('/app/tweestaps/instellen/', { cookie, form: { _csrf: csrf }, headers: { origin: 'https://evil.example' } })).status, 403, 'andere site');
+    assert.match(page.text, /action="\/app\/tweestaps\/activeren\/"/, 'eerst de activatiecode');
+    const withoutActivation = await request('/app/tweestaps/instellen/', { cookie, form: { _csrf: csrf } });
+    assert.equal(withoutActivation.headers.get('location'), '/app/tweestaps/', 'zonder activatiecode niet instellen');
+    assert.equal((await db.query('SELECT totp_secret FROM users WHERE id = $1', [officeId]))[0].totp_secret, null, 'geen geheim aangemaakt');
+    assert.equal((await request('/app/tweestaps/instellen/', { cookie })).headers.get('location'), '/app/tweestaps/');
     // Uitloggen kan ook met een halve sessie.
     const out = await request('/app/uitloggen/', { cookie, form: { _csrf: csrf } });
     assert.equal(out.status, 303);
@@ -193,12 +200,41 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.equal((await request('/app/tweestaps/', { cookie: first.cookie })).headers.get('location'), '/app/inloggen/');
   });
 
+  await t.test('activatiecode: alleen van de beheerder, verloopt, hoort bij de sessie die hem gaf', async () => {
+    const first = await firstStep('kees@example.nl', OFFICE_PASSWORD);
+    const csrf = csrfFrom((await request('/app/tweestaps/', { cookie: first.cookie })).text);
+    const wrong = await request('/app/tweestaps/activeren/', { cookie: first.cookie, form: { _csrf: csrf, activation: 'ABCDE-FGHJK-LMNPQ-RSTUV' } });
+    assert.equal(wrong.status, 422, 'zonder uitgegeven code (ook niet de installatiecode van een ander)');
+    assert.match(wrong.text, /klopt niet of is verlopen/);
+    // Zonder recht geen activatiecode maken.
+    const bookkeeperCookie = (await firstStep('bea@example.nl', BOOKKEEPER_PASSWORD)).cookie;
+    assert.equal((await request(`/app/gebruikers/${officeId}/activatiecode/`, { cookie: bookkeeperCookie, form: { _csrf: csrfFrom((await request('/app/tweestaps/', { cookie: bookkeeperCookie })).text) } })).status, 401, 'halve sessie');
+    assert.equal((await request('/app/gebruikers/999999/activatiecode/', { cookie: adminCookie, form: { _csrf: adminCsrf } })).status, 404);
+    const expired = await createActivation(request, { cookie: adminCookie, csrf: adminCsrf }, 'kees@example.nl');
+    assert.match(expired, /^[A-HJ-NP-Z2-9]{5}(-[A-HJ-NP-Z2-9]{5}){3}$/);
+    const [stored] = await db.query('SELECT totp_activation_hash FROM users WHERE id = $1', [officeId]);
+    assert.ok(stored.totp_activation_hash && !stored.totp_activation_hash.includes(expired.replace(/-/g, '')), 'alleen de hash');
+    await db.query("UPDATE users SET totp_activation_expires_at = now() - interval '1 second' WHERE id = $1", [officeId]);
+    assert.equal((await request('/app/tweestaps/activeren/', { cookie: first.cookie, form: { _csrf: csrf, activation: expired } })).status, 422, 'verlopen');
+    const code = await createActivation(request, { cookie: adminCookie, csrf: adminCsrf }, 'kees@example.nl');
+    assert.match((await request(`/app/gebruikers/${officeId}/`, { cookie: adminCookie })).text, /Er staat een activatiecode klaar/);
+    const activated = await request('/app/tweestaps/activeren/', { cookie: first.cookie, form: { _csrf: csrf, activation: code.toLowerCase() } });
+    assert.equal(activated.status, 303);
+    assert.equal(activated.headers.get('location'), '/app/tweestaps/instellen/');
+    assert.equal((await request('/app/tweestaps/instellen/', { cookie: first.cookie })).status, 200);
+    // Een tweede halve sessie (iemand anders met hetzelfde wachtwoord) ziet het geheim niet.
+    const other = await firstStep('kees@example.nl', OFFICE_PASSWORD);
+    assert.equal((await request('/app/tweestaps/instellen/', { cookie: other.cookie })).headers.get('location'), '/app/tweestaps/');
+    const otherCsrf = csrfFrom((await request('/app/tweestaps/', { cookie: other.cookie })).text);
+    assert.equal((await request('/app/tweestaps/bevestigen/', { cookie: other.cookie, form: { _csrf: otherCsrf, code: '123456' } })).headers.get('location'), '/app/tweestaps/');
+  });
+
   await t.test('instellen: QR-code, verkeerde code geweigerd, daarna nieuwe sessie en herstelcodes', async () => {
     const first = await firstStep('kees@example.nl', OFFICE_PASSWORD);
     const cookie = first.cookie;
     const csrf = csrfFrom((await request('/app/tweestaps/', { cookie })).text);
-    assert.equal((await request('/app/tweestaps/instellen/', { cookie })).headers.get('location'), '/app/tweestaps/', 'zonder start geen instelpagina');
-    assert.equal((await request('/app/tweestaps/instellen/', { cookie, form: { _csrf: csrf } })).status, 303);
+    const activation = await createActivation(request, { cookie: adminCookie, csrf: adminCsrf }, 'kees@example.nl');
+    assert.equal((await request('/app/tweestaps/activeren/', { cookie, form: { _csrf: csrf, activation } })).status, 303);
     const page = await request('/app/tweestaps/instellen/', { cookie });
     assert.match(page.text, /<img class="crm-qr" src="data:image\/svg\+xml;base64,[A-Za-z0-9+/=]+"/);
     const secret = page.text.match(/class="crm-secret">([A-Z2-7 ]+)</)[1].replace(/ /g, '');
@@ -216,8 +252,9 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.equal(officeRecovery.length, 10);
     assert.equal((await request('/app/', { cookie })).status, 303, 'de halve sessie bestaat niet meer');
     assert.equal((await request('/app/', { cookie: confirmed.cookie })).status, 200);
-    const [enabled] = await db.query('SELECT totp_enabled_at, totp_recovery FROM users WHERE id = $1', [officeId]);
+    const [enabled] = await db.query('SELECT totp_enabled_at, totp_recovery, totp_activation_hash FROM users WHERE id = $1', [officeId]);
     assert.ok(enabled.totp_enabled_at);
+    assert.equal(enabled.totp_activation_hash, null, 'activatiecode verbruikt');
     assert.equal(enabled.totp_recovery.length, 10);
     assert.ok(officeRecovery.every((code) => !enabled.totp_recovery.includes(code)), 'alleen hashes');
     assert.equal((await request('/app/tweestaps/instellen/', { cookie: confirmed.cookie, form: { _csrf: csrfFrom((await request('/app/', { cookie: confirmed.cookie })).text) } })).status, 303);
@@ -321,8 +358,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.equal(direct.headers.get('location'), '/app/');
     const home = await request('/app/', { cookie: direct.cookie });
     assert.match(home.text, /Tweestapsverificatie staat nog uit voor je account\./);
-    // Zelf aanzetten: andere sessies vervallen, de huidige blijft.
-    const { enableTwoFactor } = require('./helpers/two-factor');
+    // Zelf aanzetten (volledige sessie, dus zonder activatiecode): andere sessies vervallen, de huidige blijft.
     const enabled = await enableTwoFactor(request, direct.cookie, { now: clock });
     assert.equal(enabled.cookie, direct.cookie, 'een volledige sessie houdt haar token');
     assert.equal((await request('/app/', { cookie: direct.cookie })).status, 200);
@@ -358,17 +394,27 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.equal((await firstStep('kees@example.nl', OFFICE_PASSWORD)).headers.get('location'), '/app/tweestaps/', 'opnieuw instellen bij het inloggen');
   });
 
+  await t.test('eerste beheerder: installatiecode is de activatiecode', async () => {
+    const first = await firstStep('beheer@example.nl', ADMIN_PASSWORD);
+    assert.equal(first.headers.get('location'), '/app/tweestaps/');
+    const session = await enableTwoFactor(request, first.cookie, { activation: SETUP_CODE.toLowerCase(), now: clock });
+    assert.equal((await request('/app/beheer/', { cookie: session.cookie })).status, 200);
+    assert.equal((await request('/app/', { cookie: adminCookie })).status, 303, 'de installatiesessie vervalt bij het instellen');
+    adminAfterSetup = session.cookie;
+  });
+
   await t.test('auditlog: alle 2FA-acties, zonder codes of geheimen', async () => {
     const rows = await db.query('SELECT action, entity, entity_id, ip_prefix FROM audit_log ORDER BY id');
     const actions = new Set(rows.map((row) => row.action));
     for (const action of ['inloggen.wachtwoord', 'inloggen.code-mislukt', 'inloggen.code-geblokkeerd', 'inloggen', 'tweestaps.aan',
-      'tweestaps.uit', 'tweestaps.herstelcode', 'tweestaps.herstelcodes', 'gebruiker.tweestaps', 'uitloggen']) {
+      'tweestaps.uit', 'tweestaps.herstelcode', 'tweestaps.herstelcodes', 'gebruiker.tweestaps', 'gebruiker.activatiecode',
+      'tweestaps.activatie-mislukt', 'uitloggen']) {
       assert.ok(actions.has(action), action);
     }
     const dump = JSON.stringify(rows);
     assert.doesNotMatch(dump, /example\.nl/);
     assert.ok(!dump.includes(officeSecret) && officeRecovery.every((code) => !dump.includes(code)));
-    const page = await request('/app/auditlog/', { cookie: adminCookie });
+    const page = await request('/app/auditlog/', { cookie: adminAfterSetup });
     assert.match(page.text, /Tweestapsverificatie uitgezet door beheerder/);
     assert.match(page.text, /te veel verkeerde codes/);
   });

@@ -237,7 +237,7 @@ test('updates, onderhoudsmodus en servertaken in Beheer', { skip: !DATABASE_URL 
   const cookie = installed.cookie;
   const csrf = csrfFrom((await request('/app/', { cookie })).text);
   await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
-  const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1');
+  const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: { cookie, csrf } });
   const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
 
   writeJson(statusDir, 'status.json', { current: '0.5.0', currentCommit: CURRENT, available: '0.6.1', availableCommit: AVAILABLE, checkedAt: new Date().toISOString() });

@@ -132,7 +132,9 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     const key = email.toLowerCase();
     // Elke code werkt één keer; deze tests loggen vaker in binnen dezelfde 30 seconden van de testklok.
     if (secrets.has(key)) await db.query('UPDATE users SET totp_last_step = NULL WHERE email = $1', [key]);
-    const session = await loginWithTwoFactor(request, email, password, { secret: secrets.get(key), now: clock });
+    const session = await loginWithTwoFactor(request, email, password, {
+      secret: secrets.get(key), now: clock, activation: key === 'beheer@example.nl' ? SETUP_CODE : undefined, admin: adminSession,
+    });
     secrets.set(key, session.secret);
     return session;
   };
