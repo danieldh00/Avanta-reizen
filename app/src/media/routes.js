@@ -357,7 +357,7 @@ function createMediaRoutes(options) {
     try {
       const result = await db.transaction(async (client) => {
         const outcome = await linkImportedMedia(client);
-        if (outcome.links) await auth.audit(req, { userId: req.user.id, action: 'media.gekoppeld', entity: 'media', entityId: String(outcome.linked) }, client);
+        if (outcome.links) await auth.audit(req, { userId: req.user.id, action: 'media.gekoppeld', entity: 'media' }, client);
         return outcome;
       });
       return res.redirect(303, `${BASE}?land=zonder&gekoppeld=${result.linked}`);

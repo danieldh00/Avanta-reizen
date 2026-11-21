@@ -433,8 +433,8 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.deepEqual(await countriesOf(manual), [botswana.id], 'met de hand gekozen land blijft');
     assert.deepEqual(await countriesOf(unused), []);
     assert.deepEqual(await countriesOf(lookalike), [], '_ is geen jokerteken');
-    const [audit] = await db.query("SELECT entity_id FROM audit_log WHERE action = 'media.gekoppeld'");
-    assert.equal(audit.entity_id, '3');
+    const audits = await db.query("SELECT entity, entity_id FROM audit_log WHERE action = 'media.gekoppeld'");
+    assert.deepEqual(audits.map((row) => ({ ...row })), [{ entity: 'media', entity_id: null }], 'één regel, zonder misleidend id');
     const notice = await request('/app/fotobibliotheek/?land=zonder&gekoppeld=3', { cookie: redactie.cookie });
     assert.match(notice.text, /3 foto(&#39;|')s hebben automatisch een land gekregen\./);
     const again = await request('/app/fotobibliotheek/koppelen/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } });
