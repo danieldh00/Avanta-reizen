@@ -308,6 +308,19 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.match((await request(`/app/aanmeldingen/${bookingId}/`, { cookie: kantoor.cookie })).text, /staat op betaald, maar er staat nog een bedrag open/);
     assert.equal(payments.statusMismatch('aanbetaald', 'open'), 'De aanmelding staat op aanbetaald, maar de aanbetaling is niet (meer) voldaan.');
     assert.equal(payments.statusMismatch('bevestigd', 'open'), '');
+    assert.equal(payments.statusMismatch('betaald', 'geen'), '', 'niets open, dus geen waarschuwing');
+  });
+
+  await t.test('bedrag weghalen schuift een bevestigde aanmelding door als alles betaald is', async () => {
+    const id = await insertBooking('AV-2027-CCCC0003', 'bevestigd');
+    await db.query("INSERT INTO booking_charges (booking_id, kind, amount_cents) VALUES ($1, 'reissom', 10000), ($1, 'annulering', 5000)", [id]);
+    await db.query("INSERT INTO payments (booking_id, amount_cents, method, received_on) VALUES ($1, 10000, 'bank', '2027-02-25')", [id]);
+    const [extra] = await db.query("SELECT id FROM booking_charges WHERE booking_id = $1 AND kind = 'annulering'", [id]);
+    const response = await request(`/app/betalingen/${id}/bedragen/${extra.id}/weg/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, stand: await standOf(id) } });
+    assert.equal(response.status, 303);
+    assert.match(response.headers.get('location'), /status=betaald/);
+    const [events] = await db.query('SELECT to_status, note FROM booking_events WHERE booking_id = $1', [id]);
+    assert.deepEqual([events.to_status, events.note], ['betaald', 'Automatisch na een weggehaald bedrag.']);
   });
 
   await t.test('opschoning: toelichtingen weg bij anonimiseren, betaalde annulering blijft staan', async () => {

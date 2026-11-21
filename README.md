@@ -271,8 +271,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     betaalstatus worden berekend, nooit opgeslagen. Termijnen in Beheer > CRM > Betalingen (`paymentDepositDays`,
     standaard 7 dagen na aanmelden; `paymentBalanceDaysBefore`, standaard 42 dagen vóór vertrek). Een betaling is niet
     te wijzigen of te verwijderen: een vergissing of terugbetaling is een correctie met toelichting. Een bedrag weghalen markeert
-    het (`removed_at`); het blijft zichtbaar onder *Weggehaalde bedragen* en telt niet meer mee. Na een betaling
-    schuift een bevestigde aanmelding automatisch door naar aanbetaald of betaald (regel in de historie); een nieuwe
+    het (`removed_at`); het blijft zichtbaar onder *Weggehaalde bedragen* en telt niet meer mee. Na een betaling of een
+    gewijzigd bedrag schuift een bevestigde aanmelding automatisch door naar aanbetaald of betaald (regel in de historie); een nieuwe
     aanmelding bevestigt kantoor zelf; terug gaat de status nooit vanzelf, wel toont het CRM een waarschuwing
     als de status voorloopt op de betaalstand (bijv. betaald terwijl er na annuleringskosten weer iets openstaat). Een dubbel of verouderd formulier geeft 409. De aanmelding toont de betaalstand.
     Bij anonimiseren verdwijnen de toelichtingen; bedragen blijven voor de boekhouding. De inzage-export heeft een blad

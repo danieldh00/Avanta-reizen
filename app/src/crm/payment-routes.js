@@ -2,8 +2,8 @@
  * Betalingen van één aanmelding in het CRM (`/app/betalingen/<aanmelding>/`, recht `betalingen`): de verwachte
  * bedragen, de ontvangen betalingen, het saldo en de vervaldatums (berekend in `crm/payments.js`). Kantoor registreert
  * een betaling (bank, iDEAL, contant of een correctie), voegt een korting, annuleringskosten of een ander bedrag toe en
- * haalt een bedrag weg (gemarkeerd, blijft zichtbaar). Betalingen worden nooit gewijzigd of verwijderd. Na een betaling schuift de aanmelding
- * automatisch door naar aanbetaald of betaald (alleen vanaf bevestigd, met een regel in de historie).
+ * haalt een bedrag weg (gemarkeerd, blijft zichtbaar). Betalingen worden nooit gewijzigd of verwijderd. Na een betaling
+ * of een gewijzigd bedrag schuift de aanmelding automatisch door naar aanbetaald of betaald (alleen vanaf bevestigd, met een regel in de historie).
  * Elke wijziging komt in het auditlog, zonder bedragen of namen. De reisleider heeft geen recht `betalingen`.
  */
 const express = require('express');
@@ -230,6 +230,25 @@ function createPaymentRoutes(options) {
   };
 
   /**
+   * Schuift de aanmelding mee met de betaalstand na een wijziging (alleen vooruit, vanaf bevestigd), met een regel in
+   * de historie en het auditlog. Leest de regels opnieuw binnen de transactie.
+   * @param {object} req Express-verzoek.
+   * @param {{query: Function}} client Transactie-client (aanmelding vergrendeld).
+   * @param {object} booking Aanmelding zoals vergrendeld gelezen.
+   * @param {string} note Toelichting in de historie.
+   * @returns {Promise<(string|null)>} De nieuwe status, of null als hij blijft.
+   */
+  const advanceStatus = async (req, client, booking, note) => {
+    const summary = payments.summarize({ booking, ...(await payments.loadLines(client, booking.id)), terms: payments.termsFrom(settings), today: today() });
+    const to = payments.nextBookingStatus(booking.status, summary.state);
+    if (!to) return null;
+    await client.query('UPDATE bookings SET status = $2, status_changed_at = now() WHERE id = $1', [booking.id, to]);
+    await client.query('INSERT INTO booking_events (booking_id, from_status, to_status, user_id, note) VALUES ($1, $2, $3, $4, $5)', [booking.id, booking.status, to, req.user.id, note]);
+    await auth.audit(req, { userId: req.user.id, action: 'aanmelding.status', entity: 'bookings', entityId: booking.id }, client);
+    return to;
+  };
+
+  /**
    * Voert een wijziging uit onder slot van de aanmelding, met de controle op een verouderd formulier.
    * @param {object} req Express-verzoek.
    * @param {(client: object, booking: object, lines: object) => Promise<(object|undefined)>} change De wijziging;
@@ -270,7 +289,7 @@ function createPaymentRoutes(options) {
       if (!booking) return notFound(req, res);
       const notices = { betaling: 'De betaling is geregistreerd.', bedrag: 'Het bedrag is toegevoegd.', weg: 'Het bedrag is weggehaald.' };
       let notice = notices[req.query.opgeslagen] || '';
-      if (req.query.opgeslagen === 'betaling' && Object.hasOwn(STATUSES, req.query.status)) notice += ` De aanmelding staat nu op ${STATUSES[req.query.status].toLowerCase()}.`;
+      if (notice && Object.hasOwn(STATUSES, req.query.status)) notice += ` De aanmelding staat nu op ${STATUSES[req.query.status].toLowerCase()}.`;
       return res.send(await renderPage(req, booking, { notice }));
     } catch (error) {
       return next(error);
@@ -291,19 +310,7 @@ function createPaymentRoutes(options) {
           [booking.id, values.amountCents, values.method, values.receivedOn, values.note, req.user.id],
         );
         await auth.audit(req, { userId: req.user.id, action: 'betaling.geregistreerd', entity: 'bookings', entityId: booking.id }, client);
-        // De aanmelding schuift mee met de betaalstand (alleen vooruit, vanaf bevestigd).
-        const summary = payments.summarize({
-          booking, charges: lines.charges, payments: [...lines.payments, { id: saved.id, amount_cents: values.amountCents }], terms: payments.termsFrom(settings), today: today(),
-        });
-        const to = payments.nextBookingStatus(booking.status, summary.state);
-        if (!to) return {};
-        await client.query("UPDATE bookings SET status = $2, status_changed_at = now() WHERE id = $1", [booking.id, to]);
-        await client.query(
-          'INSERT INTO booking_events (booking_id, from_status, to_status, user_id, note) VALUES ($1, $2, $3, $4, $5)',
-          [booking.id, booking.status, to, req.user.id, `Automatisch na een betaling van ${payments.formatAmount(values.amountCents)}.`],
-        );
-        await auth.audit(req, { userId: req.user.id, action: 'aanmelding.status', entity: 'bookings', entityId: booking.id }, client);
-        return { newStatus: to };
+        return { newStatus: await advanceStatus(req, client, booking, `Automatisch na een betaling van ${payments.formatAmount(values.amountCents)}.`) };
       });
       const sent = await failure(req, res, outcome, { payment: values });
       if (sent) return sent;
@@ -327,10 +334,11 @@ function createPaymentRoutes(options) {
           [booking.id, values.kind, values.description, values.amountCents, req.user.id],
         );
         await auth.audit(req, { userId: req.user.id, action: 'betaling.bedrag', entity: 'bookings', entityId: booking.id }, client);
+        return { newStatus: await advanceStatus(req, client, booking, 'Automatisch na een gewijzigd bedrag.') };
       });
       const sent = await failure(req, res, outcome, { charge: values });
       if (sent) return sent;
-      return res.redirect(303, `/app/betalingen/${outcome.booking.id}/?opgeslagen=bedrag`);
+      return res.redirect(303, `/app/betalingen/${outcome.booking.id}/?opgeslagen=bedrag${outcome.newStatus ? `&status=${outcome.newStatus}` : ''}`);
     } catch (error) {
       return next(error);
     }
@@ -347,11 +355,11 @@ function createPaymentRoutes(options) {
         );
         if (!removed.length) return { status: 'regel-weg' };
         await auth.audit(req, { userId: req.user.id, action: 'betaling.bedrag-weg', entity: 'bookings', entityId: booking.id }, client);
-        return {};
+        return { newStatus: await advanceStatus(req, client, booking, 'Automatisch na een weggehaald bedrag.') };
       });
       const sent = await failure(req, res, outcome);
       if (sent) return sent;
-      return res.redirect(303, `/app/betalingen/${outcome.booking.id}/?opgeslagen=weg`);
+      return res.redirect(303, `/app/betalingen/${outcome.booking.id}/?opgeslagen=weg${outcome.newStatus ? `&status=${outcome.newStatus}` : ''}`);
     } catch (error) {
       return next(error);
     }

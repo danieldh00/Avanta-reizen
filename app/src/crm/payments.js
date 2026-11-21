@@ -208,7 +208,7 @@ function nextBookingStatus(status, state) {
  */
 function statusMismatch(status, state) {
   const paidInFull = state === 'betaald' || state === 'teveel';
-  if (status === 'betaald' && !paidInFull) return 'De aanmelding staat op betaald, maar er staat nog een bedrag open.';
+  if (status === 'betaald' && state !== 'geen' && !paidInFull) return 'De aanmelding staat op betaald, maar er staat nog een bedrag open.';
   if (status === 'aanbetaald' && state === 'open') return 'De aanmelding staat op aanbetaald, maar de aanbetaling is niet (meer) voldaan.';
   return '';
 }
