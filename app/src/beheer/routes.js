@@ -90,7 +90,7 @@ function createBeheerRoutes(options) {
   const confirmableKeys = (section) => (section.fields || []).filter((key) => settings.fields[key].confirmOn && settings.get(key) !== true);
 
   /**
-   * Een volledige Beheer-pagina. De groepen en secties staan in de zijbalk van het CRM (`crm/layout.js`); met een
+   * Een volledige Beheer-pagina. De groepen en secties staan in de tweede zijbalk van Beheer (`crm/layout.js`); met een
    * zoekterm (`?zoek=`, werkt zonder JavaScript via een GET) toont die alleen de secties die erbij passen.
    * @param {object} req Express-verzoek.
    * @param {{title: string, sectionId: string, body: object}} page Titel, open sectie en inhoud.

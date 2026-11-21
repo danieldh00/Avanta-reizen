@@ -347,14 +347,17 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     de installatie (installatiecode) is volledig; de eerste beheerder stelt 2FA daarna in. Na de update naar deze
     versie logt iedereen opnieuw in.
 - **Zijbalk van het CRM** (`app/src/crm/layout.js`, `app/public/js/crm.js`; opzet zoals in AquaTech): een vaste,
-  donkere zijbalk links met het logo, het zoekveld voor Beheer, de modules in inklapbare groepen (Reizigers, Website,
-  Gebruikers en, met recht `systeem`, de groepen van Beheer) en onderaan de gebruiker met wachtwoord,
-  tweestapsverificatie en uitloggen. Alleen modules waarvoor de gebruiker het recht heeft staan erin (de server
-  controleert opnieuw). De groep met de huidige pagina staat open, één groep tegelijk. Op een breed scherm in te
-  klappen tot een iconenbalk (per browser onthouden); tot 800 px een lade via de menuknop. Zonder JavaScript staat
-  alles open.
+  donkere zijbalk links met het logo, de modules in inklapbare groepen (Reizigers, Website), één ingang *Beheer* (met
+  recht `systeem` of `gebruikers`) en onderaan de gebruiker met wachtwoord, tweestapsverificatie en uitloggen. Alleen
+  modules waarvoor de gebruiker het recht heeft staan erin (de server controleert opnieuw). De groep met de huidige
+  pagina staat open, één groep tegelijk. Op een breed scherm in te klappen tot een iconenbalk (per browser onthouden);
+  tot 800 px een lade via de menuknop. Zonder JavaScript staat alles open.
+- **Beheer als eigen omgeving** (zoals in AquaTech): op `/app/beheer/…`, `/app/gebruikers/` en `/app/auditlog/` staat
+  naast de hoofdzijbalk een tweede, lichte zijbalk met *Terug naar het CRM*, het zoekveld en de onderdelen per
+  onderwerp (Gebruikers, Systeem, Organisatie, E-mail, CRM, Toegang en beveiliging, Back-ups en herstel,
+  Vindbaarheid). Tot 800 px klapt die samen tot een knop met het huidige onderdeel boven de inhoud.
 - **Beheer** op `/app/beheer/` (alleen de rol beheerder, recht `systeem`; opzet zoals in AquaTech): groepen en secties
-  in de zijbalk van het CRM, het zoekveld filtert die, een systeemoverzicht (versie, Node.js, PostgreSQL, laatste migratie, looptijd en de bron van elke
+  in de tweede zijbalk van Beheer, het zoekveld filtert die, een systeemoverzicht (versie, Node.js, PostgreSQL, laatste migratie, looptijd en de bron van elke
   instelling) en instellingenformulieren. Instellingen staan in de tabel `settings` (`app/src/beheer/settings.js`):
   wat in Beheer is opgeslagen gaat voor een omgevingsvariabele (startwaarde), die weer voor de standaard; per instelling
   kan het terug naar de startwaarde. Geheimen staan versleuteld (hoofdsleutel) en gaan nooit volledig naar de browser.

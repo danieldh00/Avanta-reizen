@@ -1,16 +1,20 @@
 /**
- * Paginaopbouw van het CRM onder `/app/`: een vaste zijbalk links (zoals in Aquatech) met het logo, een zoekveld voor
- * Beheer, de modules in inklapbare groepen op basis van de rechten van de gebruiker, en onderaan de gebruiker met
+ * Paginaopbouw van het CRM onder `/app/`: een vaste zijbalk links (zoals in Aquatech) met het logo, de modules in
+ * inklapbare groepen op basis van de rechten van de gebruiker, één ingang naar Beheer, en onderaan de gebruiker met
  * wachtwoord, tweestapsverificatie en uitloggen. Op een breed scherm is de zijbalk in te klappen tot een iconenbalk
  * (per browser onthouden, `public/js/crm.js`); op een smal scherm (≤ 800 px) is het een lade via de menuknop in de
- * kopbalk. Zonder JavaScript staan alle groepen open en staat de zijbalk op een smal scherm boven de inhoud. Zelfde
- * huisstijl als de site (`site.css`), nooit indexeerbaar.
+ * kopbalk. Zonder JavaScript staan alle groepen open en staat de zijbalk op een smal scherm boven de inhoud.
+ *
+ * Beheer (`/app/beheer/`, gebruikers en auditlog) is een eigen omgeving, zoals in Aquatech: naast de hoofdzijbalk staat
+ * een tweede, lichte zijbalk met een weg terug naar het CRM, het zoekveld en de onderdelen van Beheer per onderwerp.
+ * Op een smal scherm klapt die tweede zijbalk samen tot een knop boven de inhoud. Zelfde huisstijl als de site
+ * (`site.css`), nooit indexeerbaar.
  */
 const { html, toString } = require('../site/html');
 const { icon } = require('../site/icons');
 const { roleHasRight, roleHasGlobalRight, roleLabel } = require('./rights');
 const { renderMaintenanceBanner } = require('../site/layout');
-const { GROUPS: BEHEER_GROUPS } = require('../beheer/indeling');
+const { GROUPS: BEHEER_GROUPS, normalizeSearch } = require('../beheer/indeling');
 
 /** Versie van de statische bestanden, tegen verouderde caches. */
 const ASSET_VERSION = require('../../package.json').version;
@@ -18,7 +22,8 @@ const ASSET_VERSION = require('../../package.json').version;
 /**
  * Menu van het CRM in groepen; een item verschijnt alleen als de gebruiker het recht heeft (de server controleert
  * opnieuw), een groep zonder zichtbare items verdwijnt. `global`: niet voor rollen die tot eigen vertrekken beperkt
- * zijn. Groep `top` staat los bovenaan, zonder kop.
+ * zijn. Groep `top` staat los bovenaan, zonder kop. Beheer staat hier niet in: dat is één ingang onderaan
+ * (`renderBeheerEntry`) met een eigen zijbalk.
  */
 const CRM_MENU = [
   { key: 'top', items: [{ label: 'Overzicht', href: '/app/', icon: 'home' }] },
@@ -48,22 +53,31 @@ const CRM_MENU = [
       { label: 'Fotobibliotheek', href: '/app/fotobibliotheek/', icon: 'image', right: 'media' },
     ],
   },
-  {
-    key: 'gebruikers',
-    title: 'Gebruikers',
-    icon: 'user',
-    items: [
-      { label: 'Gebruikers', href: '/app/gebruikers/', icon: 'user', right: 'gebruikers' },
-      { label: 'Auditlog', href: '/app/auditlog/', icon: 'list', right: 'gebruikers' },
-    ],
-  },
 ];
+
+/**
+ * Onderdelen van Beheer die geen instellingensectie zijn (eigen routes in `crm/users.js`). Ze staan als eerste groep
+ * in de zijbalk van Beheer, alleen met recht `gebruikers`; `words` telt mee bij het zoeken.
+ */
+const BEHEER_EXTRA_GROUP = {
+  key: 'gebruikers',
+  title: 'Gebruikers',
+  icon: 'users',
+  items: [
+    { label: 'Gebruikers', href: '/app/gebruikers/', icon: 'user', right: 'gebruikers', words: 'gebruiker gebruikers account accounts rol rollen rechten toevoegen uitnodigen blokkeren wachtwoord tweestapsverificatie 2fa' },
+    { label: 'Auditlog', href: '/app/auditlog/', icon: 'list', right: 'gebruikers', words: 'audit auditlog historie geschiedenis wie wat wanneer wijziging wijzigingen' },
+  ],
+};
+
+/** Paden die bij Beheer horen: daar staat de tweede zijbalk en is de ingang "Beheer" gemarkeerd. */
+const BEHEER_PATHS = ['/app/beheer/', '/app/gebruikers/', '/app/auditlog/'];
 
 /** Icoon per groep van Beheer (`beheer/indeling.js`); een nieuwe groep zonder icoon krijgt het tandwiel. */
 const BEHEER_ICONS = {
   Systeem: 'settings',
   Organisatie: 'building',
   'E-mail': 'mail',
+  CRM: 'euro',
   'Toegang en beveiliging': 'shield',
   'Back-ups en herstel': 'archive',
   Vindbaarheid: 'search',
@@ -80,18 +94,12 @@ function formatDateTime(value) {
 }
 
 /**
- * Maakt van de groepen van Beheer zijbalkgroepen (sleutel `beheer-<n>`, links naar `/app/beheer/<id>/`).
- * @param {{title: string, sections: {id: string, label: string}[]}[]} groups Groepen uit `beheer/indeling.js`
- *   (eventueel gefilterd door het zoekveld).
- * @returns {object[]} Groepen in de vorm van `CRM_MENU`.
+ * Of een pad bij Beheer hoort.
+ * @param {string} currentPath Huidig pad.
+ * @returns {boolean} Waar voor `/app/beheer/…`, `/app/gebruikers/…` en `/app/auditlog/…`.
  */
-function beheerMenuGroups(groups) {
-  return groups.map((group) => ({
-    key: `beheer-${BEHEER_GROUPS.findIndex((original) => original.title === group.title)}`,
-    title: group.title,
-    icon: BEHEER_ICONS[group.title] || 'settings',
-    items: group.sections.map((section) => ({ label: section.label, href: `/app/beheer/${section.id}/`, icon: BEHEER_ICONS[group.title] || 'settings' })),
-  }));
+function isBeheerPath(currentPath) {
+  return BEHEER_PATHS.some((prefix) => currentPath.startsWith(prefix));
 }
 
 /**
@@ -113,21 +121,54 @@ function currentHref(groups, currentPath) {
 }
 
 /**
- * De zichtbare menugroepen voor een gebruiker: de CRM-groepen volgens de rechten, plus (met recht `systeem`) de groepen
- * van Beheer.
+ * De zichtbare groepen van het CRM-menu voor een gebruiker, volgens de rechten.
  * @param {object} user De ingelogde gebruiker.
- * @param {(object[]|null)} beheerGroups Gefilterde groepen van Beheer (zoekveld), of null voor alle.
- * @returns {{crm: object[], beheer: object[]}} De groepen.
+ * @returns {object[]} De groepen.
  */
-function visibleMenu(user, beheerGroups) {
+function visibleCrmMenu(user) {
   const allowed = (item) => !item.right || (item.global ? roleHasGlobalRight : roleHasRight)(user.role, item.right);
-  const crm = CRM_MENU.map((group) => ({ ...group, items: group.items.filter(allowed) })).filter((group) => group.items.length);
-  const beheer = roleHasRight(user.role, 'systeem') ? beheerMenuGroups(beheerGroups || BEHEER_GROUPS) : [];
-  return { crm, beheer };
+  return CRM_MENU.map((group) => ({ ...group, items: group.items.filter(allowed) })).filter((group) => group.items.length);
 }
 
 /**
- * Eén link in de zijbalk.
+ * Waar de ingang "Beheer" naartoe gaat, of null als de gebruiker niets in Beheer mag.
+ * @param {object} user De ingelogde gebruiker.
+ * @returns {(string|null)} `/app/beheer/` met recht `systeem`, anders `/app/gebruikers/` met recht `gebruikers`.
+ */
+function beheerEntryHref(user) {
+  if (roleHasRight(user.role, 'systeem')) return '/app/beheer/';
+  if (roleHasRight(user.role, 'gebruikers')) return '/app/gebruikers/';
+  return null;
+}
+
+/**
+ * De groepen van de zijbalk van Beheer voor een gebruiker: eerst Gebruikers (recht `gebruikers`), dan de groepen van
+ * de instellingen (recht `systeem`, sleutel `beheer-<n>`, links naar `/app/beheer/<id>/`). Met een zoekterm vallen
+ * gebruikers en auditlog weg als ze niet passen; de instellingengroepen zijn dan al gefilterd door `filterGroups`.
+ * @param {object} user De ingelogde gebruiker.
+ * @param {(object[]|null)} settingGroups Gefilterde groepen uit `beheer/indeling.js`, of null voor alle.
+ * @param {string} query De zoekterm (leeg = alles).
+ * @returns {object[]} Groepen in de vorm van `CRM_MENU`.
+ */
+function visibleBeheerMenu(user, settingGroups, query) {
+  const terms = normalizeSearch(query).split(/\s+/).filter(Boolean).slice(0, 8);
+  const matches = (item) => terms.every((term) => normalizeSearch(`${item.label} ${BEHEER_EXTRA_GROUP.title} ${item.words}`).includes(term));
+  const extraItems = BEHEER_EXTRA_GROUP.items.filter((item) => roleHasRight(user.role, item.right) && matches(item));
+  const groups = extraItems.length ? [{ ...BEHEER_EXTRA_GROUP, items: extraItems }] : [];
+  if (!roleHasRight(user.role, 'systeem')) return groups;
+  return groups.concat((settingGroups || BEHEER_GROUPS).map((group) => {
+    const groupIcon = BEHEER_ICONS[group.title] || 'settings';
+    return {
+      key: `beheer-${BEHEER_GROUPS.findIndex((original) => original.title === group.title)}`,
+      title: group.title,
+      icon: groupIcon,
+      items: group.sections.map((section) => ({ label: section.label, href: `/app/beheer/${section.id}/`, icon: groupIcon })),
+    };
+  }));
+}
+
+/**
+ * Eén link in een zijbalk.
  * @param {{label: string, href: string, icon: string}} item Het menu-item.
  * @param {string} activeHref De href van het huidige item.
  * @returns {object} HTML.
@@ -137,17 +178,18 @@ function renderNavItem(item, activeHref) {
 }
 
 /**
- * Eén inklapbare groep in de zijbalk. De groep met de huidige pagina (of alle groepen tijdens zoeken) staat open.
+ * Eén inklapbare groep in een zijbalk. De groep met de huidige pagina (of alle groepen tijdens zoeken) staat open.
  * @param {object} group De groep (key, title, icon, items).
  * @param {string} activeHref De href van het huidige item.
  * @param {boolean} forceOpen Open ongeacht de huidige pagina (zoeken).
+ * @param {string} [idPrefix] Voorvoegsel van het id van de groep (`crm-nav` of `crm-sub`).
  * @returns {object} HTML.
  */
-function renderNavGroup(group, activeHref, forceOpen) {
+function renderNavGroup(group, activeHref, forceOpen, idPrefix = 'crm-nav') {
   if (group.key === 'top') return html`<div class="crm-nav-list crm-nav-top">${group.items.map((item) => renderNavItem(item, activeHref))}</div>`;
   const hasActive = group.items.some((item) => item.href === activeHref);
   const open = forceOpen || hasActive;
-  const bodyId = `crm-nav-${group.key}`;
+  const bodyId = `${idPrefix}-${group.key}`;
   return html`<div class="crm-nav-sec${open ? ' is-open' : ''}${hasActive ? ' has-active' : ''}" data-group="${group.key}">
     <button class="crm-nav-sec-head" type="button" aria-expanded="${open ? 'true' : 'false'}" aria-controls="${bodyId}"><span class="crm-nav-ico">${icon(group.icon)}</span><span class="crm-nav-label">${group.title}</span>${icon('chevron-down', { className: 'crm-nav-chevron' })}</button>
     <div class="crm-nav-sec-body crm-nav-list" id="${bodyId}">${group.items.map((item) => renderNavItem(item, activeHref))}</div>
@@ -155,32 +197,34 @@ function renderNavGroup(group, activeHref, forceOpen) {
 }
 
 /**
- * De zijbalk van het CRM.
- * @param {{user: object, csrf: string, path: string, beheer?: {groups?: object[], query?: string}}} page De gebruiker, het
- *   CSRF-token, het huidige pad en (op Beheer-pagina's) de gefilterde groepen en zoekterm.
+ * De ingang naar Beheer in de hoofdzijbalk; op een Beheer-pagina gemarkeerd als huidig onderdeel (`aria-current="true"`,
+ * de pagina zelf staat gemarkeerd in de tweede zijbalk).
+ * @param {object} user De ingelogde gebruiker.
+ * @param {string} currentPath Huidig pad.
+ * @returns {(object|string)} HTML, of niets zonder rechten in Beheer.
+ */
+function renderBeheerEntry(user, currentPath) {
+  const href = beheerEntryHref(user);
+  if (!href) return '';
+  return html`<div class="crm-nav-list crm-nav-beheer"><a class="crm-nav-item" href="${href}"${isBeheerPath(currentPath) ? html` aria-current="true"` : ''} title="Beheer"><span class="crm-nav-ico">${icon('settings')}</span><span class="crm-nav-label">Beheer</span></a></div>`;
+}
+
+/**
+ * De hoofdzijbalk van het CRM.
+ * @param {{user: object, csrf: string, path: string}} page De gebruiker, het CSRF-token en het huidige pad.
  * @returns {object} HTML van de zijbalk en de achtergrond van de lade.
  */
 function renderSidebar(page) {
   const { user } = page;
-  const beheer = page.beheer || {};
-  const query = beheer.query || '';
-  const menu = visibleMenu(user, beheer.groups || null);
-  const activeHref = currentHref(menu.crm.concat(menu.beheer), page.path);
-  const canSearch = roleHasRight(user.role, 'systeem');
-  return html`<nav class="crm-nav" id="crm-nav" aria-label="CRM-menu"${query ? html` data-search="1"` : ''}>
+  const menu = visibleCrmMenu(user);
+  const activeHref = currentHref(menu, page.path);
+  return html`<nav class="crm-nav" id="crm-nav" aria-label="CRM-menu">
     <div class="crm-nav-head">
       <a class="crm-nav-brand" href="/app/"><img class="crm-nav-logo" src="/images/logo-light.png" alt="Avanta reizen" width="68" height="40"><span class="crm-nav-label crm-nav-app">CRM</span></a>
       <button class="crm-nav-close" type="button" data-nav-close aria-label="Menu sluiten">${icon('close')}</button>
     </div>
-    ${canSearch ? html`<form class="crm-nav-search" method="get" action="/app/beheer/" role="search">
-      ${icon('search')}
-      <label class="visually-hidden" for="beheer-zoek">Zoeken in Beheer</label>
-      <input id="beheer-zoek" class="crm-nav-search-input" type="search" name="zoek" value="${query}" maxlength="100" placeholder="Zoeken in Beheer">
-    </form>` : ''}
-    ${menu.crm.map((group) => renderNavGroup(group, activeHref, false))}
-    ${menu.beheer.length || query ? html`<p class="crm-nav-divider"><span class="crm-nav-label">Beheer</span></p>` : ''}
-    ${query && !menu.beheer.length ? html`<p class="crm-nav-empty">Niets gevonden voor “${query}”. <a href="/app/beheer/">Alles tonen</a></p>` : ''}
-    ${menu.beheer.map((group) => renderNavGroup(group, activeHref, Boolean(query)))}
+    ${menu.map((group) => renderNavGroup(group, activeHref, false))}
+    ${renderBeheerEntry(user, page.path)}
     <div class="crm-nav-foot crm-nav-list">
       <a class="crm-nav-item crm-nav-user" href="/app/wachtwoord/"${page.path.startsWith('/app/wachtwoord/') ? html` aria-current="page"` : ''} title="Wachtwoord wijzigen"><span class="crm-nav-ico">${icon('user')}</span><span class="crm-nav-label">${user.name} <span class="crm-nav-role">${roleLabel(user.role)}</span></span></a>
       <a class="crm-nav-item" href="/app/tweestaps/"${page.path.startsWith('/app/tweestaps/') ? html` aria-current="page"` : ''} title="Tweestapsverificatie"><span class="crm-nav-ico">${icon('lock')}</span><span class="crm-nav-label">Tweestapsverificatie</span></a>
@@ -192,16 +236,51 @@ function renderSidebar(page) {
 }
 
 /**
+ * De tweede zijbalk van Beheer: kop met de weg terug naar het CRM, zoekveld (recht `systeem`, werkt zonder JavaScript
+ * via een GET) en de onderdelen per onderwerp. Op een smal scherm opent een knop met de naam van het huidige onderdeel
+ * de lijst (`public/js/crm.js`); zonder JavaScript staat de lijst gewoon open.
+ * @param {{user: object, path: string, beheer?: {groups?: object[], query?: string}}} page De gebruiker, het huidige pad
+ *   en (op instellingenpagina's) de gefilterde groepen en zoekterm.
+ * @returns {object} HTML.
+ */
+function renderBeheerSidebar(page) {
+  const { user } = page;
+  const beheer = page.beheer || {};
+  const query = beheer.query || '';
+  const groups = visibleBeheerMenu(user, beheer.groups || null, query);
+  const activeHref = currentHref(groups, page.path);
+  const activeItem = groups.flatMap((group) => group.items).find((item) => item.href === activeHref);
+  const canSearch = roleHasRight(user.role, 'systeem');
+  return html`<aside class="crm-sub" id="crm-sub" aria-label="Beheer"${query ? html` data-search="1"` : ''}>
+    <div class="crm-sub-head">
+      <a class="crm-sub-back" href="/app/">${icon('chevron-left')}<span>Terug naar het CRM</span></a>
+      <p class="crm-sub-title">${icon('settings')}<span>Beheer</span></p>
+    </div>
+    <button class="crm-sub-toggle" type="button" data-sub-toggle aria-controls="crm-sub-body" aria-expanded="false"><span>${activeItem ? activeItem.label : 'Onderdelen van Beheer'}</span>${icon('chevron-down', { className: 'crm-nav-chevron' })}</button>
+    <div class="crm-sub-body" id="crm-sub-body">
+      ${canSearch ? html`<form class="crm-sub-search" method="get" action="/app/beheer/" role="search">
+        ${icon('search')}
+        <label class="visually-hidden" for="beheer-zoek">Zoeken in Beheer</label>
+        <input id="beheer-zoek" class="crm-sub-search-input" type="search" name="zoek" value="${query}" maxlength="100" placeholder="Zoeken in Beheer">
+      </form>` : ''}
+      ${query && !groups.length ? html`<p class="crm-sub-empty">Niets gevonden voor “${query}”. <a href="/app/beheer/">Alles tonen</a></p>` : ''}
+      ${groups.map((group) => renderNavGroup(group, activeHref, Boolean(query), 'crm-sub'))}
+    </div>
+  </aside>`;
+}
+
+/**
  * Maakt een volledige CRM-pagina.
  * @param {{title: string, body: object, user?: (object|null), csrf?: string, path?: string, beheer?: object}} page
  *   Titel, inhoud, de ingelogde gebruiker (zonder: geen zijbalk), het CSRF-token voor de uitlogknop, het huidige pad
- *   (een menu-item is actief op zijn eigen pad en alles eronder; het langste item wint) en op Beheer-pagina's de
- *   gefilterde groepen en zoekterm (`{groups, query}`).
+ *   (een menu-item is actief op zijn eigen pad en alles eronder; het langste item wint; een pad van Beheer krijgt de
+ *   tweede zijbalk) en op instellingenpagina's de gefilterde groepen en zoekterm (`{groups, query}`).
  * @returns {string} De HTML.
  */
 function renderCrmPage(page) {
   const user = page.user || null;
   const path = page.path || '';
+  const inBeheer = Boolean(user) && isBeheerPath(path) && Boolean(beheerEntryHref(user));
   return '<!doctype html>\n' + toString(html`<html lang="nl-NL">
 <head>
   <meta charset="utf-8">
@@ -211,7 +290,7 @@ function renderCrmPage(page) {
   <link rel="icon" type="image/png" href="/images/favicon.png">
   <link rel="stylesheet" href="/css/site.css?v=${ASSET_VERSION}">
 </head>
-<body class="crm${user ? ' crm--nav' : ''}">
+<body class="crm${user ? ' crm--nav' : ''}${inBeheer ? ' crm--beheer' : ''}">
   <a class="skip-link" href="#inhoud">Naar de inhoud</a>
   <div class="crm-page">
     ${renderMaintenanceBanner()}
@@ -221,11 +300,17 @@ function renderCrmPage(page) {
         <a class="crm-brand" href="/app/"><img src="/images/logo.png" alt="Avanta reizen" width="68" height="40"> <span>CRM</span></a>
       </div>
     </header>
-    ${user ? html`${renderSidebar({ user, csrf: page.csrf, path, beheer: page.beheer })}
+    ${user ? html`${renderSidebar({ user, csrf: page.csrf, path })}
     <script src="/js/crm.js?v=${ASSET_VERSION}"></script>` : ''}
-    <main id="inhoud" class="crm-main">
-      <h1 class="crm-title">${page.title}</h1>
-      ${page.body}
+    <main id="inhoud" class="crm-main${inBeheer ? ' crm-main--beheer' : ''}">
+      ${inBeheer ? html`<div class="crm-beheer">
+        ${renderBeheerSidebar({ user, path, beheer: page.beheer })}
+        <div class="crm-beheer-main">
+          <h1 class="crm-title">${page.title}</h1>
+          ${page.body}
+        </div>
+      </div>` : html`<h1 class="crm-title">${page.title}</h1>
+      ${page.body}`}
     </main>
   </div>
 </body>
@@ -255,4 +340,4 @@ function renderAlert(message) {
   return message ? html`<div class="form-alert" role="alert">${message}</div>` : '';
 }
 
-module.exports = { renderCrmPage, renderInput, renderAlert, formatDateTime, CRM_MENU };
+module.exports = { renderCrmPage, renderInput, renderAlert, formatDateTime, CRM_MENU, isBeheerPath };

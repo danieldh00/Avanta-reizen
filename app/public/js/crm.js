@@ -4,6 +4,7 @@
  * - Breed scherm: in te klappen tot een iconenbalk; de keuze wordt per browser onthouden (localStorage).
  * - Groepen: één groep tegelijk open (accordeon); de groep met de huidige pagina staat bij het laden open. Tijdens
  *   zoeken in Beheer staan alle gevonden groepen open en klappen ze los van elkaar.
+ * - Beheer heeft een tweede zijbalk (`#crm-sub`) met dezelfde groepen; op een smal scherm opent een knop de lijst.
  * - Smal scherm (≤ 800 px): lade van links via de menuknop in de kopbalk; sluiten met de knop, de achtergrond of Esc.
  * Zonder JavaScript staan alle groepen open en staat de zijbalk op een smal scherm boven de inhoud.
  */
@@ -57,8 +58,6 @@
     });
   }
 
-  const searching = nav.hasAttribute('data-search');
-  const sections = Array.prototype.slice.call(nav.querySelectorAll('.crm-nav-sec'));
   /**
    * Opent of sluit één groep.
    * @param {Element} section De groep.
@@ -70,13 +69,39 @@
     const head = section.querySelector('.crm-nav-sec-head');
     if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
-  sections.forEach((section) => {
-    const head = section.querySelector('.crm-nav-sec-head');
-    if (!head) return;
-    head.addEventListener('click', () => {
-      const open = !section.classList.contains('is-open');
-      if (open && !searching) sections.forEach((other) => { if (other !== section) setSectionOpen(other, false); });
-      setSectionOpen(section, open);
+
+  /**
+   * Maakt de groepen van een zijbalk inklapbaar: één groep tegelijk open, behalve tijdens zoeken (`data-search`).
+   * @param {Element} container De zijbalk (`#crm-nav` of `#crm-sub`).
+   * @returns {void}
+   */
+  function setupGroups(container) {
+    const searching = container.hasAttribute('data-search');
+    const sections = Array.prototype.slice.call(container.querySelectorAll('.crm-nav-sec'));
+    sections.forEach((section) => {
+      const head = section.querySelector('.crm-nav-sec-head');
+      if (!head) return;
+      head.addEventListener('click', () => {
+        const open = !section.classList.contains('is-open');
+        if (open && !searching) sections.forEach((other) => { if (other !== section) setSectionOpen(other, false); });
+        setSectionOpen(section, open);
+      });
+    });
+  }
+  setupGroups(nav);
+
+  // Tweede zijbalk van Beheer: dezelfde groepen, en op een smal scherm een knop die de lijst opent of sluit. Die zijbalk
+  // staat in de inhoud, ná dit script, dus dit wacht tot de pagina geladen is.
+  document.addEventListener('DOMContentLoaded', () => {
+    const sub = document.getElementById('crm-sub');
+    if (!sub) return;
+    setupGroups(sub);
+    const subToggle = sub.querySelector('[data-sub-toggle]');
+    if (!subToggle) return;
+    subToggle.addEventListener('click', () => {
+      const open = !sub.classList.contains('is-open');
+      sub.classList.toggle('is-open', open);
+      subToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
   });
 
