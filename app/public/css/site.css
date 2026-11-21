@@ -826,6 +826,12 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
 .media-grid__item img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; background: var(--av-soft); }
 .media-grid__title { font-weight: 600; overflow-wrap: anywhere; }
 .media-grid__meta { color: var(--av-muted); font-size: .9rem; overflow-wrap: anywhere; }
+.media-folders { margin: 0 0 1rem; }
+.media-folders ul { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0; padding: 0; list-style: none; }
+.media-folders a { display: inline-block; padding: .2rem .6rem; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); color: var(--av-text); text-decoration: none; font-size: .9rem; }
+.media-folders a[aria-current="page"], .media-folders a:hover { border-color: var(--av-accent); color: var(--av-accent-dark); }
+.media-folders__count { color: var(--av-muted); }
+.media-usage { margin: 0 0 1rem; padding-left: 1.25rem; }
 .media-preview { display: block; width: 100%; height: auto; margin-bottom: 1rem; background: var(--av-white); border: 1px solid var(--av-line); }
 /* Tweestapsverificatie: QR-code, sleutel om over te typen en herstelcodes. */
 .crm-qr { display: block; width: 220px; max-width: 100%; height: auto; border: 1px solid var(--av-line); }

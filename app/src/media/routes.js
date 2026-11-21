@@ -1,7 +1,8 @@
 /**
  * Fotobibliotheek in het CRM (`/app/fotobibliotheek/`, recht `media`): foto's per land bekijken en zoeken, meerdere
  * foto's tegelijk uploaden (multipart via `busboy`, met vaste grenzen) en per foto titel, alt-tekst, bijschrift,
- * fotograaf en landen wijzigen. Uploads worden op inhoud gecontroleerd en zonder metadata als WebP opgeslagen
+ * fotograaf en landen wijzigen, zien waar een foto gebruikt wordt en een ongebruikte upload verwijderen. Bovenaan staan
+ * de landen als mappen met het aantal foto's. Uploads worden op inhoud gecontroleerd en zonder metadata als WebP opgeslagen
  * (`media/images.js`). Elke upload en wijziging komt in de auditlog.
  */
 const express = require('express');
@@ -32,6 +33,7 @@ const MAX_PARALLEL_UPLOADS = 2;
 const MEDIA_ACTION_LABELS = {
   'media.geupload': 'Foto geüpload naar de fotobibliotheek',
   'media.gewijzigd': 'Foto in de fotobibliotheek gewijzigd',
+  'media.verwijderd': 'Foto uit de fotobibliotheek verwijderd',
 };
 
 /**
@@ -108,7 +110,7 @@ function readMultipart(req, tokenValid) {
  */
 function createMediaRoutes(options) {
   const { db, auth } = options;
-  const library = createMediaLibrary({ db, mediaDir: options.mediaDir });
+  const library = options.library || createMediaLibrary({ db, mediaDir: options.mediaDir });
   const router = express.Router();
   const guard = auth.requireRight('media');
   const uploadsPerHour = options.limits?.uploadsPerHour ?? UPLOADS_PER_HOUR;
@@ -142,7 +144,7 @@ function createMediaRoutes(options) {
    * @returns {Promise<string>} HTML.
    */
   const renderList = async (req, state = {}) => {
-    const countries = await library.countries();
+    const { countries, without } = await library.folders();
     const landParam = String(req.query.land || '');
     const withoutCountry = landParam === 'zonder';
     const countryId = /^\d{1,9}$/.test(landParam) && countries.some((country) => country.id === Number(landParam)) ? Number(landParam) : null;
@@ -170,6 +172,13 @@ function createMediaRoutes(options) {
             <div><button class="btn" type="submit">Uploaden</button></div>
           </form>
         </details>
+        <nav class="media-folders" aria-label="Landen">
+          <ul>
+            <li><a href="${BASE}"${!countryId && !withoutCountry ? raw(' aria-current="page"') : ''}>Alle foto's</a></li>
+            <li><a href="${BASE}?land=zonder"${withoutCountry ? raw(' aria-current="page"') : ''}>Zonder land <span class="media-folders__count">${without}</span></a></li>
+            ${countries.filter((country) => country.count || country.id === countryId).map((country) => html`<li><a href="${BASE}?land=${country.id}"${country.id === countryId ? raw(' aria-current="page"') : ''}>${country.name} <span class="media-folders__count">${country.count}</span></a></li>`)}
+          </ul>
+        </nav>
         <form class="crm-search" method="get" action="${BASE}" role="search">
           <label for="veld-q">Zoek op titel, alt-tekst, bijschrift of fotograaf</label>
           <input id="veld-q" name="q" type="search" value="${text}" maxlength="100">
@@ -189,7 +198,8 @@ function createMediaRoutes(options) {
   router.get('/fotobibliotheek/', guard, async (req, res, next) => {
     try {
       const count = Number.parseInt(req.query.geupload, 10);
-      const notice = Number.isInteger(count) && count > 0 && count <= MAX_FILES ? `${count} ${count === 1 ? 'foto' : 'foto\'s'} geüpload.` : '';
+      let notice = Number.isInteger(count) && count > 0 && count <= MAX_FILES ? `${count} ${count === 1 ? 'foto' : 'foto\'s'} geüpload.` : '';
+      if (req.query.verwijderd === '1') notice = 'De foto is verwijderd.';
       return res.send(await renderList(req, { notice }));
     } catch (error) {
       return next(error);
@@ -262,7 +272,7 @@ function createMediaRoutes(options) {
    * @returns {Promise<string>} HTML.
    */
   const renderItem = async (req, item, state = {}) => {
-    const countries = await library.countries();
+    const [countries, places] = await Promise.all([library.countries(), library.usage(db, item)]);
     const variantWidths = Object.keys(item.variants || {}).map(Number).sort((a, b) => a - b);
     const facts = [
       ['Afmetingen', item.width && item.height ? `${item.width} × ${item.height} px` : 'onbekend'],
@@ -297,6 +307,14 @@ function createMediaRoutes(options) {
                 ${countrySelect(countries, item.country_ids, 'veld-land')}</div>
               <div><button class="btn" type="submit">Opslaan</button></div>
             </form>
+            <h2>Gebruikt in</h2>
+            ${places.length ? html`<ul class="media-usage">${places.map((place) => html`<li>${place.kind}: ${place.href ? html`<a href="${place.href}">${place.title}</a>` : place.title}</li>`)}</ul>` : html`<p>Deze foto wordt nergens gebruikt.</p>`}
+            ${item.source !== 'upload' ? html`<p class="field__help">Deze foto komt uit de import van de huidige site en kan hier niet verwijderd worden.</p>`
+              : places.length ? html`<p class="field__help">Verwijderen kan pas als de foto nergens meer gebruikt wordt.</p>`
+              : html`<form method="post" action="${BASE}${item.id}/verwijderen/">
+                <input type="hidden" name="_csrf" value="${req.session.csrf}">
+                <button class="btn btn--outline" type="submit">Foto verwijderen</button>
+              </form>`}
           </section>
         </div>`,
     });
@@ -319,6 +337,22 @@ function createMediaRoutes(options) {
       }, client));
       if (!saved) return notFound(req, res);
       return res.redirect(303, `${BASE}${Number(req.params.id)}/?opgeslagen=1`);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/fotobibliotheek/:id(\\d{1,9})/verwijderen/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const outcome = await library.remove(req.params.id, (client) => auth.audit(req, {
+        userId: req.user.id, action: 'media.verwijderd', entity: 'media', entityId: req.params.id,
+      }, client));
+      if (outcome.status === 'weg') return notFound(req, res);
+      if (outcome.status === 'ok') return res.redirect(303, `${BASE}?verwijderd=1`);
+      const item = await library.get(req.params.id);
+      if (!item) return notFound(req, res);
+      const message = outcome.status === 'import' ? 'Een foto uit de import kan niet verwijderd worden.' : 'Deze foto wordt nog gebruikt en kan niet verwijderd worden.';
+      return res.status(409).send(await renderItem(req, item, { error: message }));
     } catch (error) {
       return next(error);
     }
