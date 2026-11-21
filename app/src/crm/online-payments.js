@@ -175,10 +175,16 @@ function createOnlinePayments(options) {
         log(`Betaling starten mislukt (${error instanceof MollieError ? error.code : 'onbekend'})`, { bookingId: booking.id });
         return { status: 'mislukt' };
       }
-      await client.query(
-        'INSERT INTO online_payments (booking_id, provider_ref, kind, amount_cents, checkout_url, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $6)',
-        [booking.id, created.id, kind, amountCents, created.checkoutUrl, new Date(now()).toISOString()],
-      );
+      try {
+        await client.query(
+          'INSERT INTO online_payments (booking_id, provider_ref, kind, amount_cents, checkout_url, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $6)',
+          [booking.id, created.id, kind, amountCents, created.checkoutUrl, clock],
+        );
+      } catch (error) {
+        // Bij Mollie bestaat de betaling al: met het id is hij met de hand terug te vinden als hij toch wordt betaald.
+        log(`Betaling ${created.id} aangemaakt maar niet opgeslagen; controleer in Mollie`, { bookingId: booking.id });
+        throw error;
+      }
       return { status: 'ok', checkoutUrl: created.checkoutUrl };
     });
   };
