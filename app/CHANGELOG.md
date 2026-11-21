@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.11.0 — 2026-11-21 — Aanmeldingen in het CRM (migratie 11)
+
+- In het CRM staat nu het scherm *Aanmeldingen*: alle aanmeldingen met filter op status en reis. Per aanmelding zet
+
+- Migratie 11: `bookings.confirmed_at`, `cancelled_at`, `cancel_reason`, `status_changed_at`, CHECK op de status en
+  index `(status, created_at)`; tabel `booking_events` (van/naar-status, gebruiker, notitie).
+- `crm/booking-routes.js`: `GET /app/aanmeldingen/` (filters status, reis, zoeken; 50 per pagina), `GET …/:id/`,
+  `POST …/:id/status/` (vaste overgangen, rij `FOR UPDATE`, verouderd formulier → 409, annuleren alleen met reden),
+  `POST …/:id/notitie/`; recht `aanmeldingen`, reisleider tot de eigen-vertrekbeperking 403. Audit
+  `aanmelding.status` en `aanmelding.notitie`, zonder de notitie zelf.
+- Menu en overzicht: *Aanmeldingen*; op de deelnemerspagina linkt de referentie naar de aanmelding.
+- CSS: statuslabel, historie; `.crm-facts` met vaste kolomverhouding (lange labels lopen niet meer buiten beeld op 375 px).
+
 ## 0.10.3 — 2026-11-21 — Mogelijke dubbelen samenvoegen
 
 - Een deelnemer die als *mogelijk dubbel* is gemarkeerd, kan kantoor nu samenvoegen met de oorspronkelijke persoon:
