@@ -24,6 +24,9 @@ const VIEWS = {
 /** Hoogstens zoveel aanmeldingen in het overzicht en de export. */
 const MAX_ROWS = 5000;
 
+/** Weergave *te laat*: hoeveel keer het maximum de voorselectie (alle openstaande) mag zijn. */
+const LATE_PRESELECT_FACTOR = 4;
+
 /** Hoogstens zoveel exports per gebruiker per venster. */
 const EXPORT_LIMIT = 30;
 
@@ -61,10 +64,12 @@ const OVERVIEW_SQL = `SELECT b.id, b.reference, b.trip_id, b.trip_title, b.trip_
 async function loadOverview(db, filter) {
   const withCancelled = filter.view === 'teveel' || filter.view === 'alles';
   const maxRows = filter.maxRows || MAX_ROWS;
-  // De saldo-voorwaarde per weergave staat al in de SQL, zodat het maximum alleen de juiste kant telt.
-  const rows = await db.query(OVERVIEW_SQL, [filter.tripId, withCancelled, filter.view, maxRows + 1]);
-  const truncated = rows.length > maxRows;
-  const list = rows.slice(0, maxRows).map((row) => ({
+  // De saldo-voorwaarde per weergave staat al in de SQL, zodat het maximum alleen de juiste kant telt. Of een termijn te
+  // laat is wordt pas hieronder berekend; daarom haalt *te laat* een ruimere voorselectie op en telt het maximum pas na
+  // het filter.
+  const sqlLimit = filter.view === 'te-laat' ? maxRows * LATE_PRESELECT_FACTOR : maxRows;
+  const rows = await db.query(OVERVIEW_SQL, [filter.tripId, withCancelled, filter.view, sqlLimit + 1]);
+  const list = rows.slice(0, sqlLimit).map((row) => ({
     ...row,
     // Zelfde berekening als op de pagina van de aanmelding: de totalen als twee regels en één betaling.
     summary: payments.summarize({
@@ -81,7 +86,8 @@ async function loadOverview(db, filter) {
     teveel: (row) => row.summary.balanceCents < 0,
     alles: () => true,
   }[filter.view];
-  return { rows: list.filter(keep), truncated };
+  const kept = list.filter(keep);
+  return { rows: kept.slice(0, maxRows), truncated: rows.length > sqlLimit || kept.length > maxRows };
 }
 
 /**
@@ -170,7 +176,7 @@ function createPaymentOverviewRoutes(options) {
           </form>
           <p>${rows.length} aanmelding${rows.length === 1 ? '' : 'en'} · openstaand ${payments.formatAmount(open)}${late ? ` · ${late} te laat` : ''}</p>
           ${truncated ? renderAlert(filter.tripId
-            ? `Alleen de eerste ${maxRows} aanmeldingen van deze reis zijn meegenomen; kies een smallere weergave.`
+            ? `Alleen de eerste ${maxRows} aanmeldingen van deze reis zijn meegenomen${filter.view === 'te-laat' ? '.' : '; kies een smallere weergave.'}`
             : `Alleen de eerste ${maxRows} aanmeldingen zijn meegenomen; kies een reis.`) : ''}
           ${rows.length ? html`<div class="crm-table-wrap"><table class="crm-table">
             <thead><tr><th scope="col">Referentie</th><th scope="col">Naam</th><th scope="col">Reis</th><th scope="col">Vertrek</th><th scope="col">Status</th>
@@ -210,7 +216,7 @@ function createPaymentOverviewRoutes(options) {
         return res.status(422).send(renderCrmPage({
           title: 'Te veel aanmeldingen', user: req.user, csrf: req.session.csrf, path: '/app/betalingen/',
           body: html`${renderAlert(filter.tripId
-            ? `Deze reis heeft in deze weergave meer dan ${maxRows} aanmeldingen; kies een smallere weergave (bijvoorbeeld Te laat).`
+            ? `Deze reis heeft in deze weergave meer dan ${maxRows} aanmeldingen; ${filter.view === 'te-laat' ? 'dat is meer dan de export aankan.' : 'kies een smallere weergave (bijvoorbeeld Te laat).'}`
             : `Er zijn meer dan ${maxRows} aanmeldingen; kies een reis en exporteer per reis.`)}<p><a href="/app/betalingen/">Naar de betalingen</a></p>`,
         }));
       }

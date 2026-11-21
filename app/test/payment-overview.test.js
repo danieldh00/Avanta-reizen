@@ -201,10 +201,13 @@ test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
       assert.match(tooMuch.text, /AV-2027-TEVEEL04/);
       assert.doesNotMatch(tooMuch.text, /zijn meegenomen/);
       assert.equal((await get('/app/betalingen/overzicht.xlsx?weergave=teveel')).status, 200);
-      // Te laat: de te veel betaalde komt niet uit de database en duwt de te late er dus niet uit.
+      // Te laat: twee openstaande aanmeldingen, waarvan één te laat; het maximum telt pas na het filter.
       const late = await get(`/app/betalingen/?weergave=te-laat&reis=${albania.id}`);
       assert.match(late.text, /AV-2027-LAAT0002/);
-      assert.match(late.text, /van deze reis zijn meegenomen; kies een smallere weergave/);
+      assert.doesNotMatch(late.text, /AV-2027-OPEN0001/);
+      assert.doesNotMatch(late.text, /zijn meegenomen/);
+      assert.equal((await get(`/app/betalingen/overzicht.xlsx?weergave=te-laat&reis=${albania.id}`)).status, 200);
+      assert.equal((await get('/app/betalingen/overzicht.xlsx?weergave=te-laat')).status, 200);
     } finally {
       smallServer.close();
     }
