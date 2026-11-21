@@ -197,7 +197,7 @@ test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
 
   await t.test('de WordPress-import laat vragen uit het CRM staan en vult categorieën', async () => {
     const before = await db.query('SELECT slug FROM faqs WHERE managed_in_crm ORDER BY slug');
-    await store(db, {
+    const counts = await store(db, {
       guides: [], categories: [], trips: [], posts: [], pages: [],
       faqs: [
         { slug: 'oud-2', question: 'Overschreven?', answerHtml: '<p>Nee</p>', category: 'Betalen', sortOrder: 1 },
@@ -209,5 +209,12 @@ test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     const [fresh] = await db.query("SELECT f.category, c.name FROM faqs f JOIN faq_categories c ON c.id = f.category_id WHERE f.slug = 'nieuw-uit-wp'");
     assert.deepEqual([fresh.category, fresh.name], ['Groepen b', 'Groepen b']);
     assert.equal((await db.query("SELECT count(*)::int AS count FROM faqs WHERE slug = 'oud-1'"))[0].count, 0, 'niet-beheerde import-vraag vervangen');
+    assert.deepEqual([counts.faq, counts.faqUitCrm], [1, 1]);
+    assert.equal((await db.query("SELECT count(*)::int AS count FROM faq_categories WHERE name = 'Betalen'"))[0].count, 0, 'hernoemde categorie komt niet terug');
+
+    // Een vraag zonder categorie staat op de site achter alle categorieën.
+    await db.query("INSERT INTO faqs (slug, question, answer_html, category) VALUES ('los', 'Losse vraag?', '<p>Ja</p>', 'Aaa los')");
+    const site = (await request('/faq/')).text;
+    assert.ok(site.indexOf('Aaa los') > site.indexOf('Groepen b'), 'losse vragen achteraan');
   });
 });

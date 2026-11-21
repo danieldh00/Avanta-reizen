@@ -294,7 +294,7 @@ function createContent(db) {
     async faqs() {
       return db.query(
         `SELECT f.slug, f.question, f.answer_html, f.category FROM faqs f LEFT JOIN faq_categories c ON c.id = f.category_id
-          ORDER BY COALESCE(c.sort_order, 0), f.category, f.sort_order, f.question`,
+          ORDER BY (c.id IS NULL), c.sort_order, f.category, f.sort_order, f.question`,
       );
     },
 
