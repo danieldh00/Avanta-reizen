@@ -150,7 +150,7 @@ function createPersonRoutes(options) {
       const onlyDuplicates = req.query.dubbel === '1';
       const page = Math.min(Math.max(Number.parseInt(req.query.pagina, 10) || 1, 1), 10000);
       const rows = await db.query(
-        `SELECT p.id, p.first_names, p.call_name, p.last_name, p.email, p.mobile, p.city, p.duplicate_of, p.last_activity_at,
+        `SELECT p.id, p.first_names, p.call_name, p.last_name, p.email, p.mobile, p.city, p.duplicate_of, p.last_activity_at, p.anonymized_at,
                 (SELECT count(*)::int FROM bookings b WHERE b.person_id = p.id) AS booking_count
            FROM persons p
           WHERE NOT EXISTS (
@@ -178,7 +178,7 @@ function createPersonRoutes(options) {
           ${list.length ? html`<div class="crm-table-wrap"><table class="crm-table">
             <thead><tr><th scope="col">Naam</th><th scope="col">E-mailadres</th><th scope="col">Mobiel</th><th scope="col">Woonplaats</th><th scope="col">Aanmeldingen</th><th scope="col">Laatste activiteit</th></tr></thead>
             <tbody>${list.map((person) => html`<tr>
-              <td><a href="/app/deelnemers/${person.id}/">${person.last_name}, ${person.call_name || person.first_names}</a>${person.duplicate_of ? html` <span class="crm-badge">mogelijk dubbel</span>` : ''}</td>
+              <td><a href="/app/deelnemers/${person.id}/">${person.anonymized_at ? person.last_name : html`${person.last_name}, ${person.call_name || person.first_names}`}</a>${person.anonymized_at ? html` <span class="crm-badge">geanonimiseerd</span>` : ''}${person.duplicate_of ? html` <span class="crm-badge">mogelijk dubbel</span>` : ''}</td>
               <td>${person.email}</td>
               <td>${person.mobile}</td>
               <td>${person.city}</td>
@@ -204,7 +204,7 @@ function createPersonRoutes(options) {
   const renderPerson = async (req, person, state = {}) => {
     const values = state.values || person;
     const errors = state.errors || {};
-    const canChange = roleHasRight(req.user.role, 'deelnemers.wijzigen');
+    const canChange = roleHasRight(req.user.role, 'deelnemers.wijzigen') && !person.anonymized_at;
     const canSeeBookings = roleHasRight(req.user.role, 'aanmeldingen');
     const [bookings, consents, duplicates] = await Promise.all([
       db.query(
@@ -250,6 +250,7 @@ function createPersonRoutes(options) {
       path: '/app/deelnemers/',
       body: html`<p><a href="/app/deelnemers/">Naar de deelnemers</a> · Aangemaakt ${formatDateTime(person.created_at)} · Laatste activiteit ${formatDateTime(person.last_activity_at)}</p>
         ${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
+        ${person.anonymized_at ? html`<p class="notice" role="status">Deze persoon is geanonimiseerd op ${formatDateTime(person.anonymized_at)}: naam, adres, contact en bijzondere gegevens zijn gewist. De aanmeldingen blijven voor de boekhouding.</p>` : ''}
         ${original ? html`<div class="notice"><p>Mogelijk dezelfde persoon als <a href="/app/deelnemers/${original.id}/">${original.first_names} ${original.last_name}</a> (#${original.id}).</p>
           ${canChange ? html`<p><a class="btn btn--small" href="/app/deelnemers/${person.id}/samenvoegen/">Samenvoegen</a></p>
           <form method="post" action="/app/deelnemers/${person.id}/niet-dubbel/">${hidden}<button class="btn btn--outline btn--small" type="submit">Geen dubbel, markering weghalen</button></form>` : ''}</div>` : ''}
@@ -311,12 +312,13 @@ function createPersonRoutes(options) {
     try {
       const person = await findPerson(req.params.id);
       if (!person) return notFound(req, res);
+      if (person.anonymized_at) return res.status(409).send(await renderPerson(req, person, { notice: 'Een geanonimiseerde persoon kan niet meer worden gewijzigd.' }));
       const { values, errors } = validateFields(PLAIN_FIELDS.map((name) => FIELD_BY_NAME[name]), req.body, { today: today() });
       if (Object.keys(errors).length) return res.status(422).send(await renderPerson(req, person, { values, errors }));
       await db.transaction(async (client) => {
         await client.query(
           `UPDATE persons SET gender = $2, first_names = $3, call_name = $4, last_name = $5, email = $6, mobile = $7, phone = $8,
-             street = $9, postal_code = $10, city = $11, occupation = $12, updated_at = now() WHERE id = $1`,
+             street = $9, postal_code = $10, city = $11, occupation = $12, updated_at = now() WHERE id = $1 AND anonymized_at IS NULL`,
           [person.id, values.gender, values.first_names, values.call_name, values.last_name, values.email.toLowerCase(), values.mobile,
             values.phone, values.street, values.postal_code.toUpperCase(), values.city, values.occupation],
         );
@@ -336,12 +338,14 @@ function createPersonRoutes(options) {
       if (refuseBlock(req, res, block)) return undefined;
       const person = await findPerson(req.params.id);
       if (!person) return notFound(req, res);
+      if (person.anonymized_at) return res.status(409).send(await renderPerson(req, person, { notice: 'Een geanonimiseerde persoon kan niet meer worden gewijzigd.' }));
       const { values, errors } = validateFields(BLOCKS[block].map((name) => FIELD_BY_NAME[name]), req.body, { today: today() });
       if (Object.keys(errors).length) return res.status(422).send(await renderPerson(req, person, { shown: block, blockValues: values, blockErrors: errors }));
       const filled = Object.values(values).some(Boolean);
       const saved = await db.transaction(async (client) => {
         // Persoon vergrendelen: intrekken (dat dezelfde rij vergrendelt) kan niet tussen de controle en het opslaan vallen.
-        await client.query('SELECT id FROM persons WHERE id = $1 FOR UPDATE', [person.id]);
+        const [open] = await client.query('SELECT id FROM persons WHERE id = $1 AND anonymized_at IS NULL FOR UPDATE', [person.id]);
+        if (!open) return false;
         if (filled && !(await hasConsentFor(client, person.id, block))) return false;
         await persons.writeBlock(client, person.id, block, values);
         if (block === 'identity_data') await persons.refreshMatchKey(client, person.id);

@@ -23,6 +23,7 @@ const { FAQ_ACTION_LABELS } = require('../cms/faq-routes');
 const { GUIDE_ACTION_LABELS } = require('../trips/guide-routes');
 const { MENU_ACTION_LABELS } = require('../cms/menu-routes');
 const { ACCOUNT_ACTION_LABELS } = require('../account/routes');
+const { RETENTION_ACTION_LABELS } = require('../beheer/retention-routes');
 
 /** Aantal regels per pagina van het auditlog. */
 const AUDIT_PAGE_SIZE = 100;
@@ -75,6 +76,7 @@ const ACTION_LABELS = {
   ...GUIDE_ACTION_LABELS,
   ...MENU_ACTION_LABELS,
   ...ACCOUNT_ACTION_LABELS,
+  ...RETENTION_ACTION_LABELS,
 };
 
 /**

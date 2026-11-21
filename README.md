@@ -361,6 +361,18 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     sessieduur (1–30 dagen, standaard 7; korter geldt meteen, ook voor wie al is ingelogd, een langere maximale duur alleen voor nieuwe sessies), bewaartermijn van het
     auditlog (standaard 24 maanden), van de IP-voorvoegsels daarin (standaard 90 dagen, daarna gewist) en van de
     404-lijst (standaard 90 dagen). Opruimen gebeurt bij het starten en daarna dagelijks.
+  - *Toegang en beveiliging > AVG en bewaartermijnen* (migratie 25, `app/src/crm/retention.js`): de dagelijkse
+    AVG-opschoning (eerste ronde vijf minuten na het starten). Bijzondere en paspoortgegevens (kerkgenootschap,
+    bijzonderheden, noodnummer, paspoort; de geboortedatum blijft) worden gewist na de laatste reisdag + termijn
+    (standaard 1 maand; een nieuwe aanmelding schuift de termijn op). Personen worden na de laatste reis of activiteit +
+    termijn (standaard 24 maanden) geanonimiseerd, samen met de persoonsvelden en notities van hun aanmeldingen; de
+    aanmeldingen zelf blijven voor de boekhouding en verdwijnen na de fiscale termijn (standaard 7 jaar). Geannuleerde
+    aanmeldingen waarop nooit (aan)betaald is verdwijnen na 6 maanden, reizigersaccounts die 24 maanden niet zijn
+    gebruikt en contactberichten na 12 maanden. Toestemmingen blijven als bewijs zolang er aanmeldingen zijn. Elke
+    persoon in een eigen transactie met de rij vergrendeld en de termijn opnieuw gecontroleerd. Onder het formulier:
+    *Voorbeeld berekenen* (aantallen, wijzigt niets), *Nu opschonen* (auditlog `avg.opschonen`) en de laatste rondes
+    met alleen aantallen (`retention_runs`, twee jaar bewaard). Een geanonimiseerde persoon heeft in Deelnemers een
+    badge en is niet meer te wijzigen.
   - *Toegang en beveiliging > Captcha op formulieren*: onzichtbare captcha (Google reCAPTCHA v3) op het contact- en
     aanmeldformulier, naast honeypot, tijdstempel en limiet; standaard uit. Sitesleutel en geheime sleutel (versleuteld)
     uit de reCAPTCHA-console (type v3, met de domeinen van de site), minimale score (0,3/0,5/0,7) en wat er gebeurt als

@@ -34,6 +34,7 @@ const { createBackupService } = require('./backup/backups');
 const { createDrive } = require('./backup/drive');
 const { roleHasRight } = require('./crm/rights');
 const { createPersons } = require('./crm/persons');
+const { createRetention } = require('./crm/retention');
 const { createRestoreTests } = require('./backup/restore-test');
 const { renderPage, renderPageHeader } = require('./site/layout');
 const { createSystemUpdate } = require('./system/system-update');
@@ -84,7 +85,7 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, settings?: object, appLog?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, statfs?: Function, monitorRequest?: Function, monitorDataDir?: string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number, homepage?: {load: Function}, siteContent?: {load: Function}}} options Database,
+ * @param {{db: object, masterKey: Buffer, settings?: object, appLog?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, statfs?: Function, monitorRequest?: Function, monitorDataDir?: string, retentionToday?: () => string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number, homepage?: {load: Function}, siteContent?: {load: Function}}} options Database,
  *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), het logboek (standaard
  *   `system/app-log.js`; wegschrijven start pas met `appLog.start()` in `start()`), de koppeling met het updatescript
  *   (standaard `system/system-update.js` met de mappen uit `updateStatusDir`/`updateRequestDir` of UPDATE_STATUS_DIR/UPDATE_REQUEST_DIR), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), de back-updienst (standaard `backup/backups.js` met `databaseUrl`, `backupDir` en `pgDumpPath`; zonder `databaseUrl` geen back-ups), een eigen fetch voor Google Drive (`googleFetch`, tests), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
@@ -236,11 +237,14 @@ function createApp(options) {
     dataDir: options.monitorDataDir || DATA_DIR, now: options.now, statfs: options.statfs, request: options.monitorRequest,
   });
   app.locals.monitor = monitor;
+  // AVG-opschoning (Beheer > AVG en bewaartermijnen): de dagelijkse ronde start pas in `start()`.
+  const retention = createRetention({ db: options.db, persons: createPersons({ vault }), settings, today: options.retentionToday });
+  app.locals.retention = retention;
 
   // Vaste inhoud van de homepage en lijstkoppen (DATA_DIR); ook het CRM gebruikt ze (homepage als blokpagina opzetten).
   const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
   const homepage = options.homepage || createHomepageStore(DATA_DIR);
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).
@@ -344,6 +348,7 @@ async function start() {
   app.locals.drive.startTimer();
   app.locals.restoreTests.startTimer(() => app.locals.settings.get('driveEnabled'));
   app.locals.monitor.start();
+  app.locals.retention.start();
   app.locals.mediaLibrary.startCleanupTimer();
   // Updates: de stand van "automatisch bijwerken" naar het hostscript en een afgeronde uitrol in het auditlog (elke minuut).
   startUpdateSync({ db, settings: app.locals.settings, systemUpdate: app.locals.systemUpdate });
