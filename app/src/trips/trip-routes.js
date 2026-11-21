@@ -218,7 +218,8 @@ function createTripRoutes(options) {
    * @returns {Promise<object>} HTML.
    */
   const renderPhotos = async (req, trip) => {
-    const [links, countries] = await Promise.all([tripMedia.list(trip.id), library.countries()]);
+    const [links, countries, imported] = await Promise.all([tripMedia.list(trip.id), library.countries(), tripMedia.imported(trip.id)]);
+    const importedCount = imported.gallery.length + (imported.hero ? 1 : 0) + (imported.card ? 1 : 0);
     const tripCountries = countries.filter((country) => (trip.category_ids || []).includes(country.id));
     const filter = pickerFilter(req.query, countries, tripCountries.length ? tripCountries[0].id : null);
     const { photos, hasMore } = await pickerPhotos(library, filter);
@@ -248,6 +249,11 @@ function createTripRoutes(options) {
           <input id="veld-gallery_subtitle" name="gallery_subtitle" type="text" value="${trip.gallery_subtitle || ''}" maxlength="${GALLERY_TEXT_LIMIT}"></div>
         <div><button class="btn btn--small" type="submit">Tekst opslaan</button></div>
       </form>
+      ${importedCount ? html`<form class="crm-actions" method="post" action="${pageUrl}fotos/import-weghalen/">
+        <input type="hidden" name="_csrf" value="${csrf}">
+        <span class="field__help">${importedCount === 1 ? 'Eén foto' : `${importedCount} foto's`} uit de import (${[imported.hero ? 'kopfoto' : '', imported.card ? 'kaartfoto' : '', imported.gallery.length ? `${imported.gallery.length} in de galerij` : ''].filter(Boolean).join(', ')}) staan niet in de bibliotheek. Ze blijven op de site staan tot je ze vervangt of hier weghaalt.</span>
+        <button class="btn btn--small btn--outline" type="submit">Foto's uit de import weghalen</button>
+      </form>` : ''}
       ${gallery.length ? html`<ol class="media-grid">${gallery.map((link, index) => tile(link, html`${index > 0 ? button(link, 'omhoog', 'Naar voren') : ''}${index < gallery.length - 1 ? button(link, 'omlaag', 'Naar achteren') : ''}${button(link, 'verwijderen', 'Weghalen')}`))}</ol>` : html`<p>Nog geen foto's in de galerij.</p>`}
       <h3>Foto's toevoegen uit de bibliotheek</h3>
       <p class="field__help">Standaard de foto's van ${tripCountries.length ? tripCountries[0].name : 'alle landen'}; zoek of kies een ander land. Kies een of meer foto's en waar ze komen.</p>
@@ -388,6 +394,14 @@ function createTripRoutes(options) {
         : await tripMedia.move(req.params.id, req.params.link, req.params.action, context);
       if (outcome === 'rand') return res.redirect(303, `${BASE}${Number(req.params.id)}/#fotos`);
       return await afterPhotoChange(req, res, outcome);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/reizen/:id(\\d{1,9})/fotos/import-weghalen/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      return await afterPhotoChange(req, res, await tripMedia.dropImported(req.params.id, photoContext(req)));
     } catch (error) {
       return next(error);
     }

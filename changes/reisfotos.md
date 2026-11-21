@@ -13,4 +13,9 @@ titel: Foto's bij een reis uit de fotobibliotheek
   `reis.fotos`); de afgeleide fotokolommen van de reis worden bij elke wijziging opnieuw geschreven.
 - Fotobibliotheek: *gebruikt in* kijkt ook naar `trip_media`; uploaden met `terug` stuurt terug naar de reis (alleen
   `/app/reizen/<id>/`).
-- Reizen: een gewijzigde slug van een concept (niet gepubliceerd, ook niet na opslaan) maakt geen 301 meer.
+- Foto's uit de import die niet in de bibliotheek staan blijven bij een fotowijziging staan (kop/kaart tot je ze
+  vervangt, galerij-items achteraan) tot je ze weghaalt met *Foto's uit de import weghalen*
+  (`/app/reizen/<id>/fotos/import-weghalen/`).
+- Alleen de galerijtekst wijzigen herschrijft de galerij niet, maar zet wel `managed_in_crm` (de import slaat de reis
+  daarna over, net als bij elke andere wijziging in het CRM).
+- Reizen: een gewijzigde slug geeft altijd een 301 van het oude naar het nieuwe adres, ook bij een concept.

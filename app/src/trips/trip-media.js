@@ -19,13 +19,45 @@ const MAX_GALLERY = 60;
 const GALLERY_TEXT_LIMIT = 120;
 
 /**
- * Schrijft de afgeleide fotokolommen van een reis opnieuw uit `trip_media`.
+ * SQL: hoort een adres (`/media/<bestand>`) bij een foto in de bibliotheek (bestand of een van zijn varianten)?
+ * @param {string} expression SQL-expressie met het adres (vaste tekst uit de code).
+ * @returns {string} SQL-expressie (boolean).
+ */
+function inLibrarySql(expression) {
+  return `EXISTS (SELECT 1 FROM media m WHERE ${expression} = '/media/' || m.local_name
+            OR EXISTS (SELECT 1 FROM jsonb_each_text(m.variants) AS variant WHERE ${expression} = '/media/' || variant.value))`;
+}
+
+/**
+ * De foto's van een reis die niet in de bibliotheek staan (uit de import): kop, kaart en galerij-items.
+ * @param {{query: Function}} client Database of transactie-client.
+ * @param {number} tripId Id van de reis.
+ * @returns {Promise<{hero: (string|null), card: (string|null), gallery: object[]}>} Adressen en galerij-items.
+ */
+async function importedImages(client, tripId) {
+  const [row] = await client.query(
+    `SELECT CASE WHEN t.hero_image_url IS NOT NULL AND NOT ${inLibrarySql('t.hero_image_url')} THEN t.hero_image_url END AS hero,
+            CASE WHEN t.card_image_url IS NOT NULL AND NOT ${inLibrarySql('t.card_image_url')} THEN t.card_image_url END AS card,
+            coalesce((SELECT jsonb_agg(item.value ORDER BY item.position) FROM jsonb_array_elements(t.gallery) WITH ORDINALITY AS item(value, position)
+                       WHERE NOT ${inLibrarySql("(item.value->>'url')")}), '[]'::jsonb) AS gallery
+       FROM trips t WHERE t.id = $1`,
+    [tripId],
+  );
+  return row ? { hero: row.hero, card: row.card, gallery: row.gallery } : { hero: null, card: null, gallery: [] };
+}
+
+/**
+ * Schrijft de afgeleide fotokolommen van een reis opnieuw uit `trip_media`. Foto's die niet in de bibliotheek staan
+ * (uit de import) blijven staan: een kop- of kaartfoto zolang er geen gekozen foto voor die rol is, galerij-items
+ * achter de gekozen galerijfoto's. Met `keepImported: false` gaan die weg (knop *Foto's uit de import weghalen*).
  * @param {{query: Function}} client Transactie-client.
  * @param {number} tripId Id van de reis.
  * @param {(number|null)} userId Gebruiker die de wijziging deed.
+ * @param {{keepImported?: boolean}} [options] Opties.
  * @returns {Promise<void>}
  */
-async function syncTripImages(client, tripId, userId) {
+async function syncTripImages(client, tripId, userId, options = {}) {
+  const imported = options.keepImported === false ? { hero: null, card: null, gallery: [] } : await importedImages(client, tripId);
   const rows = await client.query(
     `SELECT tm.role, m.local_name, m.variants, m.alt_text FROM trip_media tm JOIN media m ON m.id = tm.media_id
       WHERE tm.trip_id = $1 ORDER BY tm.role, tm.sort_order, tm.id`,
@@ -34,11 +66,12 @@ async function syncTripImages(client, tripId, userId) {
   const first = (role) => rows.find((row) => row.role === role);
   const hero = first('kop');
   const card = first('kaart');
-  const gallery = rows.filter((row) => row.role === 'galerij').map((row) => ({ url: mediaUrl(row, ROLE_WIDTHS.galerij), alt: row.alt_text }));
+  const gallery = rows.filter((row) => row.role === 'galerij').map((row) => ({ url: mediaUrl(row, ROLE_WIDTHS.galerij), alt: row.alt_text }))
+    .concat(imported.gallery);
   await client.query(
     `UPDATE trips SET hero_image_url = $2, card_image_url = $3, gallery = $4::jsonb, managed_in_crm = true, updated_at = now(), updated_by = $5
       WHERE id = $1`,
-    [tripId, hero ? mediaUrl(hero, ROLE_WIDTHS.kop) : null, card ? mediaUrl(card, ROLE_WIDTHS.kaart) : null, JSON.stringify(gallery), userId],
+    [tripId, hero ? mediaUrl(hero, ROLE_WIDTHS.kop) : imported.hero, card ? mediaUrl(card, ROLE_WIDTHS.kaart) : imported.card, JSON.stringify(gallery), userId],
   );
 }
 
@@ -68,7 +101,8 @@ function createTripMedia(options) {
    * @param {(number|string)} tripId Id van de reis.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client) => Promise`).
    * @param {Function} change `(client, tripId) => Promise<string>`: geeft 'ok' of een andere uitkomst.
-   * @param {{sync?: boolean}} [options] `sync: false` laat de afgeleide fotokolommen staan (alleen tekst gewijzigd).
+   * @param {{sync?: boolean, keepImported?: boolean}} [options] `sync: false` laat de afgeleide fotokolommen staan
+   *   (alleen tekst gewijzigd); `keepImported: false` haalt foto's die niet in de bibliotheek staan weg.
    * @returns {Promise<string>} 'ok', 'weg' (geen reis) of de uitkomst van de wijziging.
    */
   const withTrip = (tripId, context, change, options = {}) => db.transaction(async (client) => {
@@ -76,7 +110,7 @@ function createTripMedia(options) {
     if (!trip) return 'weg';
     const outcome = await change(client, trip.id);
     if (outcome !== 'ok') return outcome;
-    if (options.sync !== false) await syncTripImages(client, trip.id, context.userId);
+    if (options.sync !== false) await syncTripImages(client, trip.id, context.userId, { keepImported: options.keepImported });
     await context.audit(client);
     return 'ok';
   });
@@ -172,7 +206,22 @@ function createTripMedia(options) {
     return 'ok';
   }, { sync: false });
 
-  return { list, add, move, remove, setGalleryText };
+  /**
+   * Foto's van een reis die niet in de bibliotheek staan (uit de import), om op het bewerkscherm te tonen.
+   * @param {(number|string)} tripId Id van de reis.
+   * @returns {Promise<{hero: (string|null), card: (string|null), gallery: object[]}>} Adressen en galerij-items.
+   */
+  const imported = (tripId) => importedImages(db, Number(tripId));
+
+  /**
+   * Haalt de foto's die niet in de bibliotheek staan (uit de import) weg uit kop, kaart en galerij.
+   * @param {(number|string)} tripId Id van de reis.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
+   * @returns {Promise<('ok'|'weg')>} Uitkomst.
+   */
+  const dropImported = (tripId, context) => withTrip(tripId, context, async () => 'ok', { keepImported: false });
+
+  return { list, add, move, remove, setGalleryText, imported, dropImported };
 }
 
 module.exports = { createTripMedia, syncTripImages, ROLES, MAX_GALLERY, GALLERY_TEXT_LIMIT };

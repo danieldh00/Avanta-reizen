@@ -129,8 +129,9 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     reis, daarna terug naar de reis). Een gekozen foto wordt bij het opslaan vergrendeld en kan niet uit de bibliotheek
     verwijderd worden zolang hij bij een reis hoort (ook een database-RESTRICT). De kolommen `hero_image_url`,
     `card_image_url` en `gallery` van de reis zijn een afgeleide kopie die bij elke wijziging opnieuw wordt geschreven;
-    bij de migratie zijn de bestaande foto's uit de import overgenomen. Een galerijfoto uit de import zonder rij in de
-    bibliotheek valt weg zodra je de foto's van die reis in het CRM wijzigt.
+    bij de migratie zijn de bestaande foto's uit de import overgenomen. Foto's uit de import zonder rij in de
+    bibliotheek blijven staan (kop/kaart tot je er een kiest, galerij-items achteraan); het bewerkscherm meldt ze en
+    *Foto's uit de import weghalen* haalt ze weg. Alleen de galerijtekst wijzigen herschrijft de galerij niet.
   - **Reistypes en landen** op `/app/reistypes-en-landen/` (recht `reizen`: beheerder en kantoor; `app/src/trips/`,
     migratie 14): lijst per soort (reistypes, landen, overig) met het aantal reizen (komend) en foto's; nieuw aanmaken
     en wijzigen: naam, slug (leeg = uit de naam), soort, icoon uit de eigen SVG-set (leeg = op de slug), inleiding,

@@ -156,7 +156,8 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
       { url: '/media/import-b.jpg', alt: '' },
       { url: '/media/bib-00000000000000cc-800.webp', alt: 'Olifant' },
       { url: '/media/bib-00000000000000bb-1600.webp', alt: 'Duinen' },
-    ]);
+      { url: '/media/elders.jpg' },
+    ], 'een galerijfoto uit de import zonder rij in de bibliotheek blijft achteraan staan');
     assert.equal(row.gallery_title, 'Afrikaans Avantuur');
     assert.equal(row.managed_in_crm, true);
     const site = await request('/reis/namibie-reis/');
@@ -203,5 +204,32 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     const row = await tripRow();
     assert.deepEqual(row.gallery, gallery);
     assert.equal(row.gallery_title, 'Nieuwe titel');
+  });
+
+  await t.test('foto\'s uit de import zonder bibliotheekrij blijven bij een fotowijziging staan tot je ze weghaalt', async () => {
+    await db.query("DELETE FROM trip_media WHERE trip_id = $1 AND role = 'kaart'", [trip.id]);
+    await db.query("UPDATE trips SET card_image_url = '/media/oude-kaart.jpg' WHERE id = $1", [trip.id]);
+    // Een galerijfoto toevoegen: de importfoto blijft achteraan staan, de kaartfoto uit de import ook.
+    assert.equal((await request(`${tripsBase}fotos/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, rol: 'galerij', media_id: String(upload.id) } })).status, 303);
+    let row = await tripRow();
+    assert.equal(row.gallery.at(-1).url, '/media/niet-in-de-bibliotheek.jpg');
+    assert.equal(row.card_image_url, '/media/oude-kaart.jpg');
+    const libraryCount = (await links()).filter((link) => link.role === 'galerij').length;
+    const edit = await request(tripsBase, { cookie: kantoor.cookie });
+    assert.match(edit.text, /2 foto(&#39;|')s uit de import \(kaartfoto, 1 in de galerij\) staan niet in de bibliotheek/);
+    // Een kaartfoto uit de bibliotheek kiezen vervangt de importkaart.
+    assert.equal((await request(`${tripsBase}fotos/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, rol: 'kaart', media_id: String(upload.id) } })).status, 303);
+    row = await tripRow();
+    assert.match(row.card_image_url, /^\/media\/bib-00000000000000bb-/);
+    assert.equal(row.gallery.at(-1).url, '/media/niet-in-de-bibliotheek.jpg');
+    // Weghalen: rechten, CSRF en dan alleen nog bibliotheekfoto's.
+    assert.equal((await request(`${tripsBase}fotos/import-weghalen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 403);
+    assert.equal((await request(`${tripsBase}fotos/import-weghalen/`, { cookie: kantoor.cookie, form: { _csrf: 'fout' } })).status, 403);
+    assert.equal((await request('/app/reizen/999999/fotos/import-weghalen/', { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })).status, 404);
+    assert.equal((await request(`${tripsBase}fotos/import-weghalen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })).status, 303);
+    row = await tripRow();
+    assert.equal(row.gallery.some((item) => item.url === '/media/niet-in-de-bibliotheek.jpg'), false);
+    assert.equal(row.gallery.length, libraryCount);
+    assert.doesNotMatch((await request(tripsBase, { cookie: kantoor.cookie })).text, /uit de import weghalen/);
   });
 });
