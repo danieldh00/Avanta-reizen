@@ -413,7 +413,7 @@ function createCrmRouter(options) {
   router.use(createPersonMergeRoutes({ db, auth, persons }));
   router.use(createBookingRoutes({ db, auth }));
   router.use(createMediaRoutes({ db, auth, library: options.mediaLibrary, limits: options.mediaLimits, now: options.now }));
-  router.use(createTripRoutes({ db, auth, redirects: options.redirects }));
+  router.use(createTripRoutes({ db, auth, redirects: options.redirects, library: options.mediaLibrary }));
   router.use(createCategoryRoutes({ db, auth, redirects: options.redirects, library: options.mediaLibrary }));
   router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, now: options.now }));
 

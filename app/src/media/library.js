@@ -299,6 +299,17 @@ function createMediaLibrary(options) {
        WHERE concat_ws(' ', ${source.columns.join(', ')}) LIKE ANY($1::text[])`).join(' UNION ALL ');
     const rows = await client.query(`SELECT source, title, key FROM (${union}) AS found ORDER BY source, title LIMIT ${USAGE_LIMIT}`, [patterns]);
     const places = rows.map((row) => ({ kind: USAGE_SOURCES[row.source].kind, title: row.title, href: USAGE_SOURCES[row.source].href(row.key) }));
+    // Foto's bij een reis (trip_media, pakket G3): ook als de afgeleide adressen in trips (nog) niet kloppen.
+    if (media.id) {
+      const linked = await client.query(
+        `SELECT DISTINCT t.title, t.slug FROM trip_media tm JOIN trips t ON t.id = tm.trip_id WHERE tm.media_id = $1 ORDER BY t.title LIMIT ${USAGE_LIMIT}`,
+        [media.id],
+      );
+      for (const trip of linked) {
+        const href = USAGE_SOURCES[0].href(trip.slug);
+        if (!places.some((place) => place.href === href)) places.push({ kind: 'Reis', title: trip.title, href });
+      }
+    }
     for (const entry of USAGE_FILES) {
       let text = '';
       try {
