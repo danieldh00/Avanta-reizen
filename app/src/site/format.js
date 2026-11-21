@@ -1,6 +1,10 @@
 /**
- * Opmaak van bedragen, datums en adressen voor de website (Nederlands, Europe/Amsterdam).
+ * Opmaak van bedragen, datums, adressen en samenvattingen voor de website (Nederlands, Europe/Amsterdam).
  */
+const { parse } = require('node-html-parser');
+
+/** Lengte van de samenvatting van een blogbericht in bytes (UTF-8), zoals het thema van de huidige site. */
+const SUMMARY_BYTES = 197;
 
 /**
  * Bedrag in centen als "€1.849,-" (hele euro's) of "€1.849,50".
@@ -87,4 +91,18 @@ const guidePath = (slug) => `/reisleider/${encodeURIComponent(slug)}/`;
  */
 const postPath = (slug) => `/${encodeURIComponent(slug)}/`;
 
-module.exports = { formatPrice, formatDate, formatLongDate, isoDate, toDate, tripPath, categoryPath, guidePath, postPath };
+/**
+ * Samenvatting van een blogbericht zoals de huidige site: de tekst van het bericht (zonder opmaak), afgekapt op 197
+ * bytes met " ..." erachter. Een bericht met alleen foto's heeft geen samenvatting.
+ * @param {string} bodyText Tekst of HTML van het bericht (entiteiten zoals `&amp;` worden tekens).
+ * @returns {string} Samenvatting, of leeg.
+ */
+function postSummary(bodyText) {
+  const text = parse(String(bodyText || ''), { comment: false }).text.replace(/\[[^\]]{0,40}\]/g, '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  const bytes = Buffer.from(text, 'utf8');
+  if (bytes.length <= SUMMARY_BYTES) return `${text} ...`;
+  return `${bytes.subarray(0, SUMMARY_BYTES).toString('utf8').replace(/\uFFFD+$/, '')} ...`;
+}
+
+module.exports = { postSummary, formatPrice, formatDate, formatLongDate, isoDate, toDate, tripPath, categoryPath, guidePath, postPath };

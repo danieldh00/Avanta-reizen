@@ -6,6 +6,7 @@ const { html, toString } = require('./html');
 const { renderSeoHead } = require('./seo');
 const { currentContext } = require('../system/request-context');
 const { icon } = require('./icons');
+const { formatDate } = require('./format');
 
 /** Hoofdmenu, gelijk aan de huidige site. */
 const MENU = [
@@ -200,7 +201,8 @@ function cssImageUrl(url) {
 /**
  * Maakt de paginakop zoals op de huidige site: foto over de volle breedte met verloop, cursieve pretitel en titel in
  * Playfair 900. Met `destinations` (reis) staat de titel links met de landen erboven en een knop "Naar overzicht".
- * @param {{title?: string, pretitle?: string, subtitle?: string, imageUrl?: string, backLink?: string, destinations?: string[], bare?: boolean}} header Gegevens van de kop (`bare`: alleen de knop "Naar overzicht", zoals bij een reisleider).
+ * @param {{title?: string, pretitle?: string, date?: (Date|null), subtitle?: string, imageUrl?: string, backLink?: string, destinations?: string[], bare?: boolean, single?: boolean}} header Gegevens van de kop (`bare`: alleen de knop "Naar overzicht", zoals bij een reisleider; `date`: datum
+ *   van een blogbericht als pretitel, dd/mm/jjjj; `single`: blogbericht, op mobiel staat "Naar overzicht" als balk boven de kop).
  * @returns {object} HTML van de kop.
  */
 function renderPageHeader(header) {
@@ -214,10 +216,11 @@ function renderPageHeader(header) {
         ${header.destinations.length ? html`<p class="page-header__destination">${header.destinations.join(', ')}</p>` : ''}
         <h1 class="page-header__title">${header.title}</h1>
       </div>`
-    : html`${header.pretitle ? html`<p class="page-header__pretitle">${header.pretitle}</p>` : ''}
+    : html`${header.date ? html`<p class="page-header__pretitle"><time datetime="${header.date.toISOString()}">${formatDate(header.date).replace(/-/g, '/')}</time></p>` : ''}
+      ${header.pretitle ? html`<p class="page-header__pretitle">${header.pretitle}</p>` : ''}
       <h1 class="page-header__title">${header.title}</h1>
       ${header.subtitle ? html`<p class="page-header__subtitle">${header.subtitle}</p>` : ''}`;
-  return html`<section class="page-header${imageUrl ? ' page-header--image' : ''}${isTrip ? ' page-header--trip' : ''}">
+  return html`<section class="page-header${imageUrl ? ' page-header--image' : ''}${isTrip ? ' page-header--trip' : ''}${header.single ? ' page-header--single' : ''}">
     ${imageUrl ? html`<div class="page-header__image" style="background-image: url('${imageUrl}')"></div>` : ''}
     <div class="layout-container">
       ${back}

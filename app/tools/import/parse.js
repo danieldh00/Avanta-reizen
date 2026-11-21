@@ -76,6 +76,20 @@ function pathFromUrl(url) {
 }
 
 /**
+ * De fotogalerij onder de inhoud (sectie `page-gallery`): titel, ondertitel en de foto's in volgorde.
+ * @param {object} root Geparste pagina.
+ * @returns {{title: string, subtitle: string, images: string[]}} De galerij (zonder foto's: lege lijst).
+ */
+function parsePageGallery(root) {
+  const section = root.querySelector('.page-gallery');
+  return {
+    title: cleanText(section?.querySelector('.section__title')?.text),
+    subtitle: cleanText(section?.querySelector('.section__subtitle')?.text),
+    images: (section?.querySelectorAll('img') || []).map((image) => image.getAttribute('src')).filter(Boolean),
+  };
+}
+
+/**
  * Leest de delen die elke pagina heeft: kop (afbeelding, pretitel, titel), intro, inhoud en metagegevens.
  * @param {string} markup De volledige HTML van de pagina.
  * @returns {object} De gemeenschappelijke gegevens, plus `root` voor verdere uitlezing.
@@ -95,6 +109,7 @@ function parseCommon(markup) {
     intro: cleanText(root.querySelector('.page-introduction')?.text),
     headerImage: backgroundUrl(root.querySelector('.page-header__image')?.getAttribute('style')),
     bodyHtml: content ? content.innerHTML.trim() : '',
+    gallery: parsePageGallery(root),
     ogImage: meta('og:image'),
     description: root.querySelector('meta[name="description"]')?.getAttribute('content') || meta('og:description'),
     publishedAt: meta('article:published_time'),
@@ -233,6 +248,43 @@ function parseGuideOrder(markup) {
 }
 
 /**
+ * De tags boven het weblog: naam en slug per tag, de link naar het oude blogarchief (http wordt https) en het
+ * uitgelichte bericht.
+ * @param {string} markup HTML van `/blog/`.
+ * @returns {{tags: {slug: string, name: string}[], archiveLink: ({label: string, href: string}|null), featured: string}} Tags,
+ *   link en de slug van het uitgelichte bericht (groot rechts).
+ */
+function parseBlogTags(markup) {
+  const root = parse(markup, { comment: false });
+  const featuredLink = root.querySelector('.featured-post a.post-teaser');
+  const tags = [];
+  let archiveLink = null;
+  for (const link of root.querySelectorAll('.tags a.tags__item')) {
+    const href = link.getAttribute('href') || '';
+    const label = cleanText(link.text);
+    if (/tags__item--extern/.test(link.getAttribute('class') || '')) {
+      if (label && /^https?:\/\//i.test(href)) archiveLink = { label, href: href.replace(/^http:/i, 'https:') };
+    } else if (/\/tag\/[^/]+\/?$/.test(href) && label) {
+      tags.push({ slug: slugFromUrl(href), name: label });
+    }
+  }
+  return { tags, archiveLink, featured: featuredLink ? slugFromUrl(featuredLink.getAttribute('href') || '') : '' };
+}
+
+/**
+ * Een tagpagina van het weblog: de kopfoto en de berichten (slugs) in volgorde.
+ * @param {string} markup HTML van `/tag/<slug>/`.
+ * @returns {{image: string, posts: string[]}} Foto en berichten.
+ */
+function parseTagPage(markup) {
+  const root = parse(markup, { comment: false });
+  return {
+    image: backgroundUrl(root.querySelector('.page-header__image')?.getAttribute('style')),
+    posts: root.querySelectorAll('.archive--post a.post-teaser').map((link) => slugFromUrl(link.getAttribute('href') || '')).filter(Boolean),
+  };
+}
+
+/**
  * Leest een reiscategorie (bestemming of reistype) inclusief de reizen in de lijst.
  * @param {string} markup HTML van de pagina.
  * @param {string} url Adres van de pagina.
@@ -295,6 +347,7 @@ function parsePost(markup, url) {
     headerImage: common.headerImage,
     publishedAt: common.publishedAt,
     categories: [...new Set(categories)],
+    gallery: common.gallery,
   };
 }
 
@@ -314,6 +367,7 @@ function parsePage(markup, url) {
     intro: common.intro,
     bodyHtml: common.bodyHtml,
     headerImage: common.headerImage,
+    gallery: common.gallery,
   };
 }
 
@@ -379,5 +433,5 @@ function parseHome(markup) {
 module.exports = {
   cleanText, parseEuros, parseDutchDate, backgroundUrl, slugFromUrl, pathFromUrl,
   parseCommon, parseTrip, parseGuide, parseGuideExtra, parseCategory, parseFaqCategory, parsePost, parsePage, parseHome,
-  parseArchiveHeader, parseGuideOrder,
+  parseArchiveHeader, parseGuideOrder, parseBlogTags, parseTagPage, parsePageGallery,
 };

@@ -1,23 +1,38 @@
 /**
  * Vaste inhoud van de site die (nog) geen eigen plek in de database heeft: de koppen van de lijstpagina's (reizen,
- * reisleiders, blog, FAQ: pretitel, titel, foto en inleiding) en de extra gegevens van reisleiders die de huidige site
- * toont (achternaam, woonplaats, bij Avanta sinds, citaat, portret, tweede foto, galerij en volgorde in de lijst).
+ * reisleiders, blog, FAQ en aanmelden: pretitel, titel, foto en inleiding), de extra gegevens van reisleiders die de
+ * huidige site toont (achternaam, woonplaats, bij Avanta sinds, citaat, portret, tweede foto, galerij en volgorde in
+ * de lijst), de tags van het weblog (naam, foto en berichten per tag, plus de link naar het oude blogarchief), het
+ * uitgelichte bericht (groot op de homepage en het blog) en de
+ * fotogalerijen onder blogberichten en pagina's (titel, ondertitel en foto's per pad).
  *
- * Tot het CMS (pakket G voor reisleiders, H voor pagina's) dit overneemt, staat het in `DATA_DIR/site-content.json`.
+ * Tot het CMS (pakket G voor reisleiders, H voor pagina's, I voor het blog) dit overneemt, staat het in `DATA_DIR/site-content.json`.
  * De import van de huidige site schrijft dat bestand (ook los met `--alleen-vaste-inhoud`). Alles uit het bestand
  * wordt gecontroleerd zoals in `homepage.js`: alleen tekst met een maximumlengte, links naar een eigen pad of https en
  * afbeeldingen onder `/media/`. Ontbreekt het bestand, dan gelden de teksten van de huidige site zonder foto's.
  */
 const path = require('node:path');
 const { createJsonFileStore } = require('./json-store');
-const { cleanString, cleanImage } = require('./homepage');
+const { cleanString, cleanHref, cleanImage } = require('./homepage');
 
 /** Naam van het bestand in DATA_DIR. */
 const SITE_CONTENT_FILE = 'site-content.json';
+/**
+ * Versie van de inhoud die de import schrijft. `deploy/apps01/install.sh` haalt de vaste inhoud opnieuw op als het
+ * bestand een oudere versie heeft (zoek daar op `"version": 2,`); verhoog beide samen.
+ */
+const SITE_CONTENT_VERSION = 2;
 /** Maximum aantal foto's in de galerij van een reisleider. */
 const MAX_GALLERY = 40;
 /** Maximum aantal reisleiders met extra gegevens. */
 const MAX_GUIDES = 500;
+/** Maximum aantal tags van het weblog, en berichten per tag. */
+const MAX_TAGS = 50;
+const MAX_TAG_POSTS = 500;
+/** Maximum aantal fotogalerijen onder berichten en pagina's. */
+const MAX_PAGE_GALLERIES = 1000;
+/** Pad van een bericht of pagina: begint en eindigt met `/`, zonder `//`, spaties, aanhalingstekens of `<>\\`. */
+const PAGE_PATH = /^\/(?:[^\s/"'<>\\]+\/)+$/;
 
 /** Koppen van de lijstpagina's op de huidige site (21-11-2026), voor als het bestand ontbreekt. */
 const DEFAULT_ARCHIVES = Object.freeze({
@@ -25,7 +40,11 @@ const DEFAULT_ARCHIVES = Object.freeze({
   reisleider: { pretitle: 'Ervaren avanturiers', title: 'Reisleiders', image: '', introduction: 'Ontmoet alvast onze reisleiders!' },
   blog: { pretitle: 'campfire stories', title: 'Weblog', image: '', introduction: 'Lees ervaringen van onze reisleiders en deelnemers!' },
   faq: { pretitle: 'Handig om te weten!', title: 'Veelgestelde vragen', image: '', introduction: '' },
+  aanmelden: { pretitle: 'Ja! Ik ga graag mee op reis', title: 'Aanmelden', image: '', introduction: 'Doorloop onderstaande stappen om je aan te melden voor de reis.' },
 });
+
+/** Link naar het oude blogarchief naast de tags, zoals op de huidige site. */
+const DEFAULT_BLOG_ARCHIVE_LINK = Object.freeze({ label: 'Bekijk blog archief', href: 'https://avantareizen.blogspot.com/' });
 
 /** Slug van een reisleider: kleine letters, cijfers en streepjes. */
 const SLUG = /^[a-z0-9][a-z0-9-]{0,119}$/;
@@ -68,9 +87,47 @@ function normalizeGuide(value) {
 }
 
 /**
+ * Eén tag van het weblog.
+ * @param {*} value Waarde uit het bestand.
+ * @returns {(object|null)} Gecontroleerde tag, of null zonder geldige slug of naam.
+ */
+function normalizeTag(value) {
+  const own = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const slug = cleanString(own.slug, 120);
+  const name = cleanString(own.name, 120);
+  if (!SLUG.test(slug) || !name) return null;
+  const posts = [...new Set((Array.isArray(own.posts) ? own.posts : []).map((post) => cleanString(post, 120)).filter((post) => SLUG.test(post)))];
+  return { slug, name, image: cleanImage(own.image), posts: posts.slice(0, MAX_TAG_POSTS) };
+}
+
+/**
+ * De link naar het oude blogarchief: alleen met tekst en een veilig adres, anders de standaard.
+ * @param {*} value Waarde uit het bestand.
+ * @returns {{label: string, href: string}} De link.
+ */
+function normalizeArchiveLink(value) {
+  const own = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const label = cleanString(own.label, 60);
+  const href = cleanHref(own.href);
+  return label && href ? { label, href } : { ...DEFAULT_BLOG_ARCHIVE_LINK };
+}
+
+/**
+ * Eén fotogalerij onder een bericht of pagina.
+ * @param {*} value Waarde uit het bestand.
+ * @returns {({title: string, subtitle: string, images: string[]}|null)} De galerij, of null zonder foto's.
+ */
+function normalizePageGallery(value) {
+  const own = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const images = (Array.isArray(own.images) ? own.images : []).map(cleanImage).filter(Boolean).slice(0, MAX_GALLERY);
+  if (!images.length) return null;
+  return { title: cleanString(own.title, 120), subtitle: cleanString(own.subtitle, 160), images };
+}
+
+/**
  * Controleert de inhoud van het bestand en vult ontbrekende delen aan met de standaard.
  * @param {*} data Ingelezen JSON.
- * @returns {{archives: object, guides: Map<string, object>, guideOrder: string[]}} Inhoud.
+ * @returns {{archives: object, guides: Map<string, object>, guideOrder: string[], blogTags: object[], blogArchiveLink: object, featuredPost: string, galleries: Map<string, object>}} Inhoud.
  */
 function normalizeSiteContent(data) {
   const source = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
@@ -82,10 +139,25 @@ function normalizeSiteContent(data) {
   }
   const guideOrder = [...new Set((Array.isArray(source.guideOrder) ? source.guideOrder : [])
     .map((slug) => cleanString(slug, 120)).filter((slug) => SLUG.test(slug)))].slice(0, MAX_GUIDES);
+  const blogTags = [];
+  for (const value of (Array.isArray(source.blogTags) ? source.blogTags : []).slice(0, MAX_TAGS)) {
+    const tag = normalizeTag(value);
+    if (tag && !blogTags.some((other) => other.slug === tag.slug)) blogTags.push(tag);
+  }
+  const galleries = new Map();
+  const gallerySource = source.galleries && typeof source.galleries === 'object' && !Array.isArray(source.galleries) ? source.galleries : {};
+  for (const pagePath of Object.keys(gallerySource).slice(0, MAX_PAGE_GALLERIES)) {
+    const gallery = pagePath.length <= 300 && PAGE_PATH.test(pagePath) ? normalizePageGallery(gallerySource[pagePath]) : null;
+    if (gallery) galleries.set(pagePath, gallery);
+  }
   return {
     archives: Object.fromEntries(Object.entries(DEFAULT_ARCHIVES).map(([key, fallback]) => [key, normalizeArchive(archives[key], fallback)])),
     guides,
     guideOrder,
+    blogTags,
+    blogArchiveLink: normalizeArchiveLink(source.blogArchiveLink),
+    featuredPost: SLUG.test(cleanString(source.featuredPost, 120)) ? cleanString(source.featuredPost, 120) : '',
+    galleries,
   };
 }
 
@@ -117,4 +189,4 @@ function sortGuides(guides, order) {
   });
 }
 
-module.exports = { SITE_CONTENT_FILE, DEFAULT_ARCHIVES, EMPTY_GUIDE, normalizeSiteContent, createSiteContentStore, sortGuides };
+module.exports = { SITE_CONTENT_FILE, SITE_CONTENT_VERSION, DEFAULT_ARCHIVES, DEFAULT_BLOG_ARCHIVE_LINK, EMPTY_GUIDE, normalizeSiteContent, createSiteContentStore, sortGuides };

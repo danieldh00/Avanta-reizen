@@ -225,18 +225,23 @@ function renderDestinations(section, destinations) {
 
 /**
  * Eén blogbericht als teaser.
- * @param {object} post Bericht (slug, titel, samenvatting, foto, datum).
+ * @param {object} post Bericht (slug, titel, `summary` uit `content.posts` of anders `excerpt`, foto, datum).
  * @param {number} summaryLength Lengte van de samenvatting.
+ * @param {{heading?: ('h2'|'h3'), landscape?: boolean}} [options] Kopniveau van de titel (standaard h3, op de
+ *   blogpagina h2 zoals de huidige site) en of de teaser liggend is (tagpagina).
  * @returns {object} HTML.
  */
-function postTeaser(post, summaryLength) {
+function postTeaser(post, summaryLength, options = {}) {
   const published = post.published_at ? new Date(post.published_at) : null;
-  return html`<a class="post-teaser" href="${postPath(post.slug)}">
+  // De samenvatting uit de tekst (zoals de huidige site); zonder (oude aanroep) de ingekorte inleiding.
+  const summary = typeof post.summary === 'string' ? post.summary : truncate(post.excerpt, summaryLength);
+  const title = options.heading === 'h2' ? html`<h2 class="post-teaser__title">${post.title}</h2>` : html`<h3 class="post-teaser__title">${post.title}</h3>`;
+  return html`<a class="post-teaser${options.landscape ? ' post-teaser--landscape' : ''}" href="${postPath(post.slug)}">
     <figure class="post-teaser__thumb">${post.image_url ? html`<img src="${post.image_url}" alt="" loading="lazy" width="800" height="700">` : ''}</figure>
     <div class="post-teaser__inner">
       ${published ? html`<div class="post-teaser__meta"><time datetime="${published.toISOString()}">${slashDate(published)}</time></div>` : ''}
-      <h3 class="post-teaser__title">${post.title}</h3>
-      ${post.excerpt ? html`<span class="post-teaser__summary">${truncate(post.excerpt, summaryLength)}</span>` : ''}
+      ${title}
+      ${summary ? html`<span class="post-teaser__summary">${summary}</span>` : ''}
     </div>
   </a>`;
 }

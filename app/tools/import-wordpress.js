@@ -17,7 +17,7 @@ const { DATA_DIR, MEDIA_DIR } = require('../src/paths');
 const { sanitizeHtml, plainText } = require('./import/sanitize');
 const parsers = require('./import/parse');
 const { HOMEPAGE_FILE } = require('../src/site/homepage');
-const { SITE_CONTENT_FILE } = require('../src/site/site-content');
+const { SITE_CONTENT_FILE, SITE_CONTENT_VERSION } = require('../src/site/site-content');
 
 const SITE = 'https://www.avantareizen.nl';
 const USER_AGENT = 'Mozilla/5.0 (compatible; AvantaSiteImport/1.0)';
@@ -27,7 +27,7 @@ const GENERATED_PATHS = new Set(['/', '/reis/', '/blog/', '/faq/', '/reisleider/
 const IMAGE_TYPES = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif' };
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 /** Lijstpagina's waarvan de kop (pretitel, titel, foto, inleiding) in site-content.json komt. */
-const ARCHIVE_PAGES = [['reis', '/reis/'], ['reisleider', '/reisleider/'], ['blog', '/blog/'], ['faq', '/faq/']];
+const ARCHIVE_PAGES = [['reis', '/reis/'], ['reisleider', '/reisleider/'], ['blog', '/blog/'], ['faq', '/faq/'], ['aanmelden', '/aanmelden/']];
 
 /**
  * Leest de opdrachtregel.
@@ -286,38 +286,55 @@ function writeHomepage(data) {
 }
 
 /**
- * Leest de koppen van de lijstpagina's en de volgorde van de reisleiders; een fout bij één pagina stopt de rest niet.
+ * Leest de koppen van de lijstpagina's, de volgorde van de reisleiders en de tags van het weblog (met per tag de
+ * kopfoto en de berichten); een fout bij één pagina stopt de rest niet.
  * @param {(url: string) => Promise<string>} fetchText Ophaler.
  * @param {string[]} warnings Lijst waar fouten in komen.
- * @returns {Promise<{archives: object, guideOrder: string[]}>} Koppen per lijst en de volgorde (slugs of oude id's).
+ * @returns {Promise<{archives: object, guideOrder: string[], blogTags: object[], blogArchiveLink: (object|null), featuredPost: string}>}
+ *   Koppen per lijst, de volgorde (slugs of oude id's), de tags, de link naar het oude blogarchief en het uitgelichte bericht.
  */
 async function collectArchives(fetchText, warnings) {
   const archives = {};
   let guideOrder = [];
+  let blogTags = [];
+  let blogArchiveLink = null;
+  let featuredPost = '';
   for (const [key, urlPath] of ARCHIVE_PAGES) {
     try {
       const markup = await fetchText(`${SITE}${urlPath}`);
       archives[key] = parsers.parseArchiveHeader(markup);
       if (key === 'reisleider') guideOrder = parsers.parseGuideOrder(markup);
+      // Zonder gekozen reis staat er een melding in de inleiding; de echte inleiding is de vaste tekst.
+      if (key === 'aanmelden') archives[key].introduction = '';
+      if (key === 'blog') ({ tags: blogTags, archiveLink: blogArchiveLink, featured: featuredPost } = parsers.parseBlogTags(markup));
     } catch (error) {
       warnings.push(`${urlPath}: ${error.message}`);
     }
   }
-  return { archives, guideOrder };
+  for (const tag of blogTags) {
+    try {
+      Object.assign(tag, parsers.parseTagPage(await fetchText(`${SITE}/tag/${encodeURIComponent(tag.slug)}/`)));
+    } catch (error) {
+      warnings.push(`/tag/${tag.slug}/: ${error.message}`);
+    }
+  }
+  return { archives, guideOrder, blogTags: blogTags.filter((tag) => Array.isArray(tag.posts)), blogArchiveLink, featuredPost };
 }
 
 /**
- * Maakt de inhoud voor `DATA_DIR/site-content.json`: lijstkoppen, extra gegevens per reisleider en hun volgorde,
- * met foto's lokaal. Oude id's in de volgorde (adressen als /reisleider/23250/) worden slugs.
- * @param {{archives: object, guideOrder: string[]}} fixed Uitkomst van `collectArchives`.
+ * Maakt de inhoud voor `DATA_DIR/site-content.json`: lijstkoppen, extra gegevens per reisleider en hun volgorde, de
+ * tags van het weblog en de link naar het oude blogarchief, met foto's lokaal. Oude id's in de volgorde (adressen als /reisleider/23250/) worden slugs.
+ * @param {{archives: object, guideOrder: string[], blogTags?: object[], blogArchiveLink?: (object|null), featuredPost?: string}} fixed Uitkomst van `collectArchives`.
  * @param {Array<{slug: string, legacyId: (number|null), extra: object}>} guides Geparste reisleiders.
  * @param {{local: Function}} media Mediaopslag van de import.
+ * @param {Array<{path: string, gallery: object}>} [galleries] Fotogalerijen onder berichten en pagina's (`galleriesOf`).
  * @returns {object} De inhoud.
  */
-function siteContentData(fixed, guides, media) {
+function siteContentData(fixed, guides, media, galleries = []) {
   const slugByLegacyId = new Map(guides.filter((guide) => guide.legacyId).map((guide) => [String(guide.legacyId), guide.slug]));
   const local = (url) => (url && media.local(url)) || '';
   return {
+    version: SITE_CONTENT_VERSION,
     importedAt: new Date().toISOString(),
     archives: Object.fromEntries(Object.entries(fixed.archives).map(([key, header]) => [key, { ...header, image: local(header.image) }])),
     guides: Object.fromEntries(guides.filter((guide) => guide.extra).map((guide) => [guide.slug, {
@@ -327,7 +344,24 @@ function siteContentData(fixed, guides, media) {
       gallery: guide.extra.gallery.map(local).filter(Boolean),
     }])),
     guideOrder: fixed.guideOrder.map((reference) => slugByLegacyId.get(reference) || reference),
+    blogTags: (fixed.blogTags || []).map((tag) => ({ ...tag, image: local(tag.image) })),
+    galleries: Object.fromEntries(galleries.map((item) => [item.path, { ...item.gallery, images: item.gallery.images.map(local).filter(Boolean) }])),
+    ...(fixed.blogArchiveLink ? { blogArchiveLink: fixed.blogArchiveLink } : {}),
+    featuredPost: fixed.featuredPost || '',
   };
+}
+
+/**
+ * De fotogalerijen onder blogberichten en pagina's, op pad (alleen met foto's).
+ * @param {Array<{slug: string, gallery?: object}>} posts Geparste berichten.
+ * @param {Array<{path: string, gallery?: object}>} pages Geparste pagina's.
+ * @returns {Array<{path: string, gallery: object}>} Pad en galerij.
+ */
+function galleriesOf(posts, pages) {
+  return [
+    ...posts.map((post) => ({ path: `/${post.slug}/`, gallery: post.gallery })),
+    ...pages.map((page) => ({ path: page.path, gallery: page.gallery })),
+  ].filter((item) => item.gallery && item.gallery.images.length);
 }
 
 /**
@@ -357,6 +391,8 @@ function withExistingSiteImages(data) {
     guides: Object.fromEntries(Object.entries(data.guides).map(([slug, guide]) => [slug, {
       ...guide, portrait: keep(guide.portrait), image: keep(guide.image), gallery: guide.gallery.map(keep).filter(Boolean),
     }])),
+    blogTags: (data.blogTags || []).map((tag) => ({ ...tag, image: keep(tag.image) })),
+    galleries: Object.fromEntries(Object.entries(data.galleries || {}).map(([itemPath, gallery]) => [itemPath, { ...gallery, images: gallery.images.map(keep).filter(Boolean) }])),
   };
 }
 
@@ -411,7 +447,7 @@ async function collect(fetchText, media) {
   return {
     warnings,
     homepage: home ? homepageData(home, media, slugByLegacyId) : null,
-    siteContent: siteContentData(fixed, guides, media),
+    siteContent: siteContentData(fixed, guides, media, galleriesOf(posts, pages)),
     guides: guides.map((guide) => ({
       legacyId: guide.legacyId, slug: guide.slug, name: guide.name, intro: guide.intro,
       bodyHtml: clean(guide.bodyHtml), photoUrl: media.local(guide.photo),
@@ -569,9 +605,23 @@ async function main() {
           warnings.push(`${url}: ${error.message}`);
         }
       }
-      const siteContent = siteContentData(await collectArchives(fetchText, warnings), guides, media);
+      // Berichten en pagina's alleen voor hun fotogalerij (de tekst staat al in de database).
+      const readGalleries = async (urls, parser) => {
+        const items = [];
+        for (const url of urls || []) {
+          try {
+            items.push(parser(await fetchText(url), url));
+          } catch (error) {
+            warnings.push(`${url}: ${error.message}`);
+          }
+        }
+        return items;
+      };
+      const posts = await readGalleries(groups.post, parsers.parsePost);
+      const pages = await readGalleries(groups.page, parsers.parsePage);
+      const siteContent = siteContentData(await collectArchives(fetchText, warnings), guides, media, galleriesOf(posts, pages));
       const result = await media.download(db);
-      console.log(`Vaste inhoud: ${homepage.slides.length} dia's, ${Object.keys(siteContent.guides).length} reisleiders, afbeeldingen lokaal: ${result.ok}, mislukt: ${result.failed.length}`);
+      console.log(`Vaste inhoud: ${homepage.slides.length} dia's, ${Object.keys(siteContent.guides).length} reisleiders, ${Object.keys(siteContent.galleries).length} fotogalerijen, afbeeldingen lokaal: ${result.ok}, mislukt: ${result.failed.length}`);
       console.log(`Opgeslagen in ${writeHomepage(withExistingImages(homepage))} en ${writeSiteContent(withExistingSiteImages(siteContent))}`);
       for (const line of [...warnings, ...result.failed].slice(0, 20)) console.warn(`  let op: ${line}`);
       return;
@@ -615,5 +665,5 @@ if (require.main === module) {
 
 module.exports = {
   cacheName, rewriteLink, summarize, readSitemaps, collect, store, createMediaStore, homepageLink, homepageData, withExistingImages,
-  collectArchives, siteContentData, withExistingSiteImages,
+  collectArchives, siteContentData, withExistingSiteImages, galleriesOf,
 };

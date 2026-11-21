@@ -45,6 +45,7 @@ function siteSettingsOf(settings) {
       street: settings.get('orgStreet'),
       postalCode,
       city: settings.get('orgCity'),
+      kvk: settings.get('orgKvk'),
       sameAs: SOCIAL_KEYS.map((key) => settings.get(key)).filter(Boolean),
     },
     verification: { google: settings.get('googleVerification'), bing: settings.get('bingVerification') },
