@@ -315,7 +315,35 @@ function createPersons(options) {
     return { converted, failed };
   };
 
-  return { matchKey, openBlock, savePerson, recordConsents, backfillPersons, splitValues };
+  /**
+   * Slaat één blok van een persoon opnieuw op (wijzigen in het CRM of wissen na het intrekken van een toestemming).
+   * @param {{query: Function}} client Database of transactie-client.
+   * @param {number} personId Id van de persoon.
+   * @param {string} block Naam van het blok (uit BLOCKS).
+   * @param {Record<string, string>} data Velden; leeg = blok wissen.
+   * @returns {Promise<void>}
+   */
+  const writeBlock = async (client, personId, block, data) => {
+    if (!Object.hasOwn(BLOCKS, block)) throw new Error('onbekend blok');
+    const known = Object.fromEntries(BLOCKS[block].map((name) => [name, String(data[name] || '')]));
+    // De kolomnaam komt uit de vaste lijst BLOCKS, nooit uit invoer.
+    await client.query(`UPDATE persons SET ${block} = $2, updated_at = now() WHERE id = $1`, [personId, sealBlock(block, personId, known)]);
+  };
+
+  /**
+   * Berekent de match_key van een persoon opnieuw uit het (gewijzigde) e-mailadres en de geboortedatum.
+   * @param {{query: Function}} client Database of transactie-client.
+   * @param {number} personId Id van de persoon.
+   * @returns {Promise<void>}
+   */
+  const refreshMatchKey = async (client, personId) => {
+    const [person] = await client.query('SELECT id, email, identity_data FROM persons WHERE id = $1', [personId]);
+    if (!person) return;
+    const key = matchKey(person.email, openBlock('identity_data', person).birth_date);
+    await client.query('UPDATE persons SET match_key = $2 WHERE id = $1', [personId, key]);
+  };
+
+  return { matchKey, openBlock, savePerson, recordConsents, backfillPersons, splitValues, writeBlock, refreshMatchKey };
 }
 
 module.exports = { createPersons, PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, LEGACY_TEXT_VERSION };

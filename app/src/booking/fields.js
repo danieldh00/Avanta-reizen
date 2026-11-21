@@ -84,15 +84,16 @@ function isValidDate(value) {
 }
 
 /**
- * Controleert en normaliseert de invoer van het formulier.
+ * Controleert en normaliseert een deel van de velden (ook gebruikt door het CRM bij het wijzigen van een persoon).
+ * @param {object[]} fields Velden uit FIELDS.
  * @param {object} body Ingezonden velden.
  * @param {{today: string}} context Datum van vandaag (jjjj-mm-dd).
  * @returns {{values: Record<string, string>, errors: Record<string, string>}} Opgeschoonde waarden en fouten per veld.
  */
-function validateBooking(body, context) {
+function validateFields(fields, body, context) {
   const values = {};
   const errors = {};
-  for (const field of FIELDS) {
+  for (const field of fields) {
     const raw = body[field.name];
     let value = typeof raw === 'string' ? raw.replace(CONTROL_CHARACTERS, '').replace(/\r\n/g, '\n').trim() : '';
     if (field.type !== 'textarea') value = value.replace(/\s+/g, ' ');
@@ -114,9 +115,6 @@ function validateBooking(body, context) {
     else if (field.type === 'tel' && !/^[+()\d\s-]{6,30}$/.test(value)) errors[field.name] = 'Vul een geldig telefoonnummer in.';
     else if (field.type === 'date' && !isValidDate(value)) errors[field.name] = 'Vul een geldige datum in.';
   }
-  if (!errors.email && !errors.email_confirm && values.email.toLowerCase() !== values.email_confirm.toLowerCase()) {
-    errors.email_confirm = 'De e-mailadressen zijn niet gelijk.';
-  }
   if (!errors.birth_date && values.birth_date && (values.birth_date >= context.today || values.birth_date < '1900-01-01')) {
     errors.birth_date = 'Vul een geldige geboortedatum in.';
   }
@@ -126,4 +124,18 @@ function validateBooking(body, context) {
   return { values, errors };
 }
 
-module.exports = { FIELD_GROUPS, FIELDS, validateBooking, isValidDate, CONSENT_TEXT_VERSION };
+/**
+ * Controleert en normaliseert de invoer van het hele aanmeldformulier.
+ * @param {object} body Ingezonden velden.
+ * @param {{today: string}} context Datum van vandaag (jjjj-mm-dd).
+ * @returns {{values: Record<string, string>, errors: Record<string, string>}} Opgeschoonde waarden en fouten per veld.
+ */
+function validateBooking(body, context) {
+  const { values, errors } = validateFields(FIELDS, body, context);
+  if (!errors.email && !errors.email_confirm && values.email.toLowerCase() !== values.email_confirm.toLowerCase()) {
+    errors.email_confirm = 'De e-mailadressen zijn niet gelijk.';
+  }
+  return { values, errors };
+}
+
+module.exports = { FIELD_GROUPS, FIELDS, validateBooking, validateFields, isValidDate, CONSENT_TEXT_VERSION };

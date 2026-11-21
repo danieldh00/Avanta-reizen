@@ -10,7 +10,8 @@ const RIGHTS = {
   systeem: 'Technisch beheer: instellingen, vindbaarheid en systeem',
   reizen: 'Reizen aanmaken, wijzigen en publiceren',
   aanmeldingen: 'Aanmeldingen inzien en status wijzigen',
-  deelnemers: 'Deelnemers (NAW en contact) inzien en samenvoegen',
+  deelnemers: 'Deelnemers (NAW en contact) inzien',
+  'deelnemers.wijzigen': 'Deelnemers wijzigen, samenvoegen en toestemmingen intrekken',
   'gegevens.identiteit': 'Paspoort- en identiteitsgegevens inzien',
   'gegevens.gezondheid': 'Medische gegevens en noodnummer inzien',
   'gegevens.religie': 'Kerkgenootschap inzien',
@@ -25,7 +26,7 @@ const ROLES = {
   beheerder: { label: 'Beheerder', rights: Object.keys(RIGHTS) },
   kantoor: {
     label: 'Kantoor',
-    rights: ['reizen', 'aanmeldingen', 'deelnemers', 'gegevens.identiteit', 'gegevens.gezondheid', 'betalingen', 'export.deelnemers', 'kpis'],
+    rights: ['reizen', 'aanmeldingen', 'deelnemers', 'deelnemers.wijzigen', 'gegevens.identiteit', 'gegevens.gezondheid', 'betalingen', 'export.deelnemers', 'kpis'],
   },
   reisleider: {
     label: 'Reisleider',
@@ -35,6 +36,12 @@ const ROLES = {
 };
 
 /**
+ * Rollen waarvan de rechten alleen gelden voor de eigen vertrekken (via `trip_guides`, komt later). Een scherm zonder
+ * die beperking in de query (bijv. alle deelnemers) is voor hen dicht: `roleHasGlobalRight` geeft dan false.
+ */
+const TRIP_SCOPED_ROLES = ['reisleider'];
+
+/**
  * Of een rol een recht heeft. Een onbekende rol of onbekend recht geeft altijd false.
  * @param {string} role Rol van de gebruiker.
  * @param {string} right Gevraagd recht.
@@ -42,6 +49,16 @@ const ROLES = {
  */
 function roleHasRight(role, right) {
   return Object.hasOwn(ROLES, role) && Object.hasOwn(RIGHTS, right) && ROLES[role].rights.includes(right);
+}
+
+/**
+ * Of een rol een recht heeft voor álle records, niet alleen voor de eigen vertrekken.
+ * @param {string} role Rol van de gebruiker.
+ * @param {string} right Gevraagd recht.
+ * @returns {boolean} Waar als de rol het recht heeft en niet tot eigen vertrekken beperkt is.
+ */
+function roleHasGlobalRight(role, right) {
+  return roleHasRight(role, right) && !TRIP_SCOPED_ROLES.includes(role);
 }
 
 /**
@@ -62,4 +79,4 @@ function roleLabel(role) {
   return Object.hasOwn(ROLES, role) ? ROLES[role].label : role;
 }
 
-module.exports = { RIGHTS, ROLES, roleHasRight, roleNeedsMfa, roleLabel };
+module.exports = { RIGHTS, ROLES, TRIP_SCOPED_ROLES, roleHasRight, roleHasGlobalRight, roleNeedsMfa, roleLabel };

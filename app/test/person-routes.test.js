@@ -1,0 +1,202 @@
+/**
+ * Tests voor de deelnemers in het CRM (`/app/deelnemers/`): rechten per rol (zonder recht 403, reisleider dicht tot
+ * zijn eigen vertrekken er zijn), onbekend id → 404, zoeken, *Toon* per blok met audit, NAW en blokken wijzigen,
+ * art. 9 alleen met toestemming en intrekken (wist het blok). De databasetests draaien in een eigen schema.
+ */
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { createDatabase } = require('../src/database/db');
+const { createApp } = require('../src/server');
+const { createVault } = require('../src/security/vault');
+const { createPersons } = require('../src/crm/persons');
+const { searchPatterns } = require('../src/crm/person-routes');
+const { hashPassword } = require('../src/crm/passwords');
+const { COOKIE_NAME } = require('../src/crm/auth');
+
+const DATABASE_URL = process.env.TEST_DATABASE_URL;
+const SCHEMA = 'person_routes_test';
+const MASTER_KEY = Buffer.alloc(32, 13);
+const PASSWORD = 'een heel goed wachtwoord';
+
+/**
+ * Voegt een verbindingsoptie toe die het zoekpad op het testschema zet.
+ * @param {string} url Verbindings-URL.
+ * @returns {string} URL met `options=-c search_path=…`.
+ */
+function withSchema(url) {
+  const parsed = new URL(url);
+  parsed.searchParams.set('options', `-c search_path=${SCHEMA}`);
+  return parsed.toString();
+}
+
+test('zoekpatronen: per woord, met escaping van LIKE-tekens, begrensd', () => {
+  assert.deepEqual(searchPatterns('  Jan  de Vries '), { text: 'Jan  de Vries', patterns: ['%jan%', '%de%', '%vries%'] });
+  assert.deepEqual(searchPatterns('100%_a\\b').patterns, ['%100\\%\\_a\\\\b%']);
+  assert.equal(searchPatterns('a b c d e f g').patterns.length, 5);
+  assert.deepEqual(searchPatterns(['x']), { text: '', patterns: [] });
+});
+
+test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+  const admin = createDatabase(DATABASE_URL);
+  await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
+  await admin.query(`CREATE SCHEMA ${SCHEMA}`);
+  await admin.close();
+  const db = createDatabase(withSchema(DATABASE_URL));
+  await db.migrate();
+  const app = createApp({ db, masterKey: MASTER_KEY });
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  t.after(async () => { server.close(); await db.close(); });
+  const persons = createPersons({ vault: createVault(MASTER_KEY) });
+
+  const hash = await hashPassword(PASSWORD);
+  for (const [email, role] of [['beheer@example.nl', 'beheerder'], ['kantoor@example.nl', 'kantoor'], ['leider@example.nl', 'reisleider'], ['boek@example.nl', 'boekhouding']]) {
+    await db.query('INSERT INTO users (email, name, role, password_hash) VALUES ($1, $2, $3, $4)', [email, role, role, hash]);
+  }
+
+  /**
+   * Doet een verzoek zonder redirects te volgen.
+   * @param {string} path Pad.
+   * @param {{form?: object, cookie?: string}} [init] Formulier en sessiecookie.
+   * @returns {Promise<{status: number, text: string, headers: Headers, cookie: string}>} Antwoord.
+   */
+  const request = async (path, init = {}) => {
+    const headers = {};
+    if (init.cookie) headers.cookie = `${COOKIE_NAME}=${init.cookie}`;
+    let body;
+    if (init.form) {
+      headers['content-type'] = 'application/x-www-form-urlencoded';
+      body = new URLSearchParams(init.form).toString();
+    }
+    const response = await fetch(base + path, { method: init.form ? 'POST' : 'GET', headers, body, redirect: 'manual' });
+    const setCookie = response.headers.getSetCookie().find((value) => value.startsWith(`${COOKIE_NAME}=`)) || '';
+    return { status: response.status, text: await response.text(), headers: response.headers, cookie: setCookie.split(';')[0].split('=')[1] || '' };
+  };
+
+  /**
+   * Logt in (2FA staat standaard uit) en haalt het CSRF-token op.
+   * @param {string} email E-mailadres.
+   * @returns {Promise<{cookie: string, csrf: string}>} Sessie.
+   */
+  const login = async (email) => {
+    const response = await request('/app/inloggen/', { form: { email, password: PASSWORD } });
+    assert.equal(response.status, 303, `inloggen ${email}`);
+    const home = await request('/app/', { cookie: response.cookie });
+    return { cookie: response.cookie, csrf: (home.text.match(/name="_csrf" value="([^"]+)"/) || [])[1] };
+  };
+  const sessions = {};
+  for (const role of ['beheer', 'kantoor', 'leider', 'boek']) sessions[role] = await login(`${role}@example.nl`);
+
+  // Twee personen via de opslag van het aanmeldformulier, met art. 9-toestemming voor de eerste.
+  const values = {
+    gender: 'vrouw', first_names: 'Grietje', call_name: 'Griet', last_name: 'Bakker', email: 'griet@example.nl', mobile: '0612121212',
+    phone: '', street: 'Markt 1', postal_code: '4331 AA', city: 'Middelburg', occupation: 'Juf', birth_date: '1990-03-04',
+    nationality: 'Nederlandse', document_type: 'paspoort', document_number: 'NX99', church: 'PKN', consent_religion: 'ja',
+    particulars: 'Astma', consent_health: 'ja', emergency_phone: '0687654321',
+  };
+  const personId = await db.transaction(async (client) => {
+    const { personId: id } = await persons.savePerson(client, values);
+    await persons.recordConsents(client, { personId: id, bookingId: null, values });
+    return id;
+  });
+  const otherId = await db.transaction(async (client) => (await persons.savePerson(client, { ...values, email: 'kees@example.nl', first_names: 'Kees', last_name: 'Zwart', church: '', particulars: '' })).personId);
+  const path = `/app/deelnemers/${personId}/`;
+  /** Alleen de NAW-velden, zoals het wijzigformulier ze verstuurt. */
+  const plain = Object.fromEntries(['gender', 'first_names', 'call_name', 'last_name', 'email', 'mobile', 'phone', 'street', 'postal_code', 'city', 'occupation'].map((name) => [name, values[name]]));
+
+  await t.test('rechten: zonder sessie naar inloggen, reisleider 403, boekhouding alleen lezen, kantoor wel', async () => {
+    assert.equal((await request('/app/deelnemers/')).status, 303);
+    assert.equal((await request('/app/deelnemers/', { cookie: sessions.leider.cookie })).status, 403, 'reisleider: nog geen eigen-vertrekbeperking');
+    assert.equal((await request(path, { cookie: sessions.leider.cookie })).status, 403);
+    assert.doesNotMatch((await request('/app/', { cookie: sessions.leider.cookie })).text, /href="\/app\/deelnemers\/"/, 'geen menu-item');
+    const readOnly = await request(path, { cookie: sessions.boek.cookie });
+    assert.equal(readOnly.status, 200);
+    assert.doesNotMatch(readOnly.text, /<form class="form crm-narrow"/, 'boekhouding ziet geen wijzigformulier');
+    assert.match(readOnly.text, /Geen toegang met jouw rol/);
+    const edit = await request(path, { cookie: sessions.boek.cookie, form: { _csrf: sessions.boek.csrf, ...plain } });
+    assert.equal(edit.status, 403);
+    assert.equal((await request(path, { cookie: sessions.kantoor.cookie })).status, 200);
+  });
+
+  await t.test('onbekende deelnemer of toestemming van een ander: 404', async () => {
+    assert.equal((await request('/app/deelnemers/999999/', { cookie: sessions.kantoor.cookie })).status, 404);
+    const [consent] = await db.query("SELECT id FROM consents WHERE person_id = $1 AND kind = 'art9_gezondheid'", [personId]);
+    const other = await request(`/app/deelnemers/${otherId}/toestemming/${consent.id}/intrekken/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } });
+    assert.equal(other.status, 404);
+    assert.equal((await db.query('SELECT withdrawn_at FROM consents WHERE id = $1', [consent.id]))[0].withdrawn_at, null);
+  });
+
+  await t.test('lijst en zoeken: geen bijzondere gegevens, woorden in elke volgorde', async () => {
+    const list = await request('/app/deelnemers/?q=middelburg+bakker', { cookie: sessions.kantoor.cookie });
+    assert.equal(list.status, 200);
+    assert.match(list.text, /Bakker, Griet/);
+    assert.doesNotMatch(list.text, /Zwart/);
+    assert.doesNotMatch(list.text, /PKN|Astma|NX99|1990/);
+    assert.match((await request('/app/deelnemers/?q=%25', { cookie: sessions.kantoor.cookie })).text, /Geen deelnemers gevonden/, '% is geen jokerteken');
+    assert.match((await request('/app/deelnemers/', { cookie: sessions.kantoor.cookie })).text, /Zwart/);
+  });
+
+  await t.test('detail toont bijzondere gegevens pas na Toon (POST met CSRF), met audit', async () => {
+    const page = await request(path, { cookie: sessions.kantoor.cookie });
+    assert.doesNotMatch(page.text, /PKN|Astma|NX99|0687654321/);
+    assert.equal((await request(`${path}toon/`, { cookie: sessions.kantoor.cookie, form: { block: 'health_data' } })).status, 403, 'zonder CSRF');
+    const shown = await request(`${path}toon/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, block: 'health_data' } });
+    assert.equal(shown.status, 200);
+    assert.match(shown.text, /Astma/);
+    assert.doesNotMatch(shown.text, /PKN|NX99/, 'alleen het gevraagde blok');
+    const [entry] = await db.query("SELECT action, entity, entity_id FROM audit_log WHERE action LIKE 'deelnemer.toon.%' ORDER BY id DESC LIMIT 1");
+    assert.deepEqual(entry, { action: 'deelnemer.toon.gezondheid', entity: 'persons', entity_id: String(personId) });
+    const religion = await request(`${path}toon/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, block: 'special_data' } });
+    assert.equal(religion.status, 403, 'kantoor heeft geen gegevens.religie');
+    assert.equal((await request(`${path}toon/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, block: 'password_hash' } })).status, 400);
+    assert.match((await request(`${path}toon/`, { cookie: sessions.beheer.cookie, form: { _csrf: sessions.beheer.csrf, block: 'special_data' } })).text, /PKN/);
+    const log = await request('/app/auditlog/', { cookie: sessions.beheer.cookie });
+    assert.match(log.text, /Deelnemer: bijzonderheden \(gezondheid\) ingezien/);
+    assert.doesNotMatch(log.text, /Astma|PKN/);
+  });
+
+  await t.test('NAW wijzigen: gecontroleerd, match_key mee, audit', async () => {
+    const bad = await request(path, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, ...plain, email: 'geen-adres' } });
+    assert.equal(bad.status, 422);
+    assert.match(bad.text, /geldig e-mailadres/);
+    const before = (await db.query('SELECT match_key FROM persons WHERE id = $1', [personId]))[0].match_key;
+    const saved = await request(path, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, ...plain, email: 'Griet.Nieuw@example.nl', city: 'Vlissingen' } });
+    assert.equal(saved.status, 303);
+    const [row] = await db.query('SELECT email, city, match_key FROM persons WHERE id = $1', [personId]);
+    assert.equal(row.email, 'griet.nieuw@example.nl');
+    assert.equal(row.city, 'Vlissingen');
+    assert.notEqual(row.match_key, before);
+    assert.equal(row.match_key, persons.matchKey('griet.nieuw@example.nl', '1990-03-04'));
+    assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action = 'deelnemer.gewijzigd'"))[0].total, 1);
+  });
+
+  await t.test('blok wijzigen: eigen recht nodig, art. 9 alleen met toestemming', async () => {
+    const health = await request(`${path}blok/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, block: 'health_data', particulars: 'Astma, puffer mee' } });
+    assert.equal(health.status, 303);
+    const [person] = await db.query('SELECT id, health_data FROM persons WHERE id = $1', [personId]);
+    assert.equal(persons.openBlock('health_data', person).particulars, 'Astma, puffer mee');
+    assert.equal((await request(`${path}blok/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, block: 'special_data', church: 'GKV' } })).status, 403);
+    const noConsent = await request(`/app/deelnemers/${otherId}/blok/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, block: 'health_data', particulars: 'Diabetes' } });
+    assert.equal(noConsent.status, 422);
+    assert.match(noConsent.text, /geen \(geldige\) toestemming/);
+    assert.equal((await db.query('SELECT health_data FROM persons WHERE id = $1', [otherId]))[0].health_data, null);
+    const identity = await request(`${path}blok/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, block: 'identity_data', birth_date: '1990-03-05', nationality: 'Nederlandse', document_type: 'paspoort' } });
+    assert.equal(identity.status, 303);
+    assert.equal((await db.query('SELECT match_key FROM persons WHERE id = $1', [personId]))[0].match_key, persons.matchKey('griet.nieuw@example.nl', '1990-03-05'));
+  });
+
+  await t.test('toestemming intrekken wist het blok en geldt voor de persoon', async () => {
+    const [consent] = await db.query("SELECT id FROM consents WHERE person_id = $1 AND kind = 'art9_gezondheid'", [personId]);
+    const response = await request(`${path}toestemming/${consent.id}/intrekken/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } });
+    assert.equal(response.status, 303);
+    const [person] = await db.query('SELECT health_data, special_data FROM persons WHERE id = $1', [personId]);
+    assert.equal(person.health_data, null);
+    assert.notEqual(person.special_data, null, 'ander blok blijft');
+    assert.ok((await db.query('SELECT withdrawn_at FROM consents WHERE id = $1', [consent.id]))[0].withdrawn_at);
+    assert.equal((await request(`${path}toestemming/${consent.id}/intrekken/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } })).status, 404, 'tweede keer');
+    const [terms] = await db.query("SELECT id FROM consents WHERE person_id = $1 AND kind = 'voorwaarden'", [personId]);
+    assert.equal((await request(`${path}toestemming/${terms.id}/intrekken/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } })).status, 404, 'voorwaarden niet via dit scherm');
+    const again = await request(`${path}blok/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, block: 'health_data', particulars: 'Astma' } });
+    assert.equal(again.status, 422, 'na intrekken geen nieuwe gezondheidsgegevens');
+  });
+});

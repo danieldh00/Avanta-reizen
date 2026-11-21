@@ -3,15 +3,16 @@
  * uitlogknop. Zelfde huisstijl als de site (`site.css`), nooit indexeerbaar.
  */
 const { html, toString } = require('../site/html');
-const { roleHasRight, roleLabel } = require('./rights');
+const { roleHasRight, roleHasGlobalRight, roleLabel } = require('./rights');
 const { renderMaintenanceBanner } = require('../site/layout');
 
 /** Versie van de statische bestanden, tegen verouderde caches. */
 const ASSET_VERSION = require('../../package.json').version;
 
-/** Menu van het CRM; een item verschijnt alleen als de gebruiker het recht heeft (de server controleert opnieuw). */
+/** Menu van het CRM; een item verschijnt alleen als de gebruiker het recht heeft (de server controleert opnieuw). `global`: niet voor rollen die tot eigen vertrekken beperkt zijn. */
 const CRM_MENU = [
   { label: 'Overzicht', href: '/app/' },
+  { label: 'Deelnemers', href: '/app/deelnemers/', right: 'deelnemers', global: true },
   { label: 'Gebruikers', href: '/app/gebruikers/', right: 'gebruikers' },
   { label: 'Auditlog', href: '/app/auditlog/', right: 'gebruikers' },
   { label: 'Beheer', href: '/app/beheer/', right: 'systeem' },
@@ -38,7 +39,7 @@ function renderCrmPage(page) {
   const user = page.user || null;
   const currentPath = page.path || '';
   const isCurrent = (href) => (href === '/app/' ? currentPath === href : currentPath.startsWith(href));
-  const menu = user ? CRM_MENU.filter((item) => !item.right || roleHasRight(user.role, item.right)) : [];
+  const menu = user ? CRM_MENU.filter((item) => !item.right || (item.global ? roleHasGlobalRight : roleHasRight)(user.role, item.right)) : [];
   return '<!doctype html>\n' + toString(html`<html lang="nl-NL">
 <head>
   <meta charset="utf-8">

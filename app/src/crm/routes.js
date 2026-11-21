@@ -1,6 +1,6 @@
 /**
  * Router van het CRM onder `/app/`: inloggen, uitloggen, eerste beheerder (installatiecode), overzicht en het eigen
- * wachtwoord wijzigen. Gebruikersbeheer en auditlog staan in `crm/users.js`, de tweestapsverificatie (codestap na het
+ * wachtwoord wijzigen. Gebruikersbeheer en auditlog staan in `crm/users.js`, de deelnemers in `crm/person-routes.js`, de tweestapsverificatie (codestap na het
  * wachtwoord en het eigen 2FA-scherm) in `crm/two-factor.js`.
  * Alles onder `/app/` krijgt `Cache-Control: no-store` en `noindex`.
  */
@@ -10,10 +10,12 @@ const { html } = require('../site/html');
 const { clientKey, createRateLimiter } = require('../security/rate-limit');
 const { isCrossSite } = require('../security/form-guard');
 const { createAuth, ipPrefix } = require('./auth');
-const { RIGHTS, ROLES, roleHasRight, roleLabel } = require('./rights');
+const { RIGHTS, ROLES, roleHasRight, roleHasGlobalRight, roleLabel } = require('./rights');
 const { hashPassword, verifyPassword, needsRehash, passwordProblem, getDummyHash, MAX_LENGTH } = require('./passwords');
 const { renderCrmPage, renderInput, renderAlert } = require('./layout');
 const { createUserRoutes } = require('./users');
+const { createPersonRoutes } = require('./person-routes');
+const { createPersons } = require('./persons');
 const { createTwoFactor, createTwoFactorRoutes, SETUP_ACTIVATION_DAYS } = require('./two-factor');
 const { createVault } = require('../security/vault');
 const { createBeheerRoutes } = require('../beheer/routes');
@@ -89,7 +91,9 @@ function textField(value, max) {
 function createCrmRouter(options) {
   const { db } = options;
   const auth = createAuth(options);
-  const twoFactor = createTwoFactor({ db, vault: createVault(options.masterKey), now: options.now });
+  const vault = createVault(options.masterKey);
+  const twoFactor = createTwoFactor({ db, vault, now: options.now });
+  const persons = createPersons({ vault });
   const router = express.Router();
   const setupCodeHash = options.setupCode ? crypto.createHash('sha256').update(normalizeSetupCode(options.setupCode)).digest() : null;
   const loginLimiter = createRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000, now: options.now });
@@ -323,7 +327,8 @@ function createCrmRouter(options) {
         csrf: req.session.csrf,
         path: '/app/',
         body: html`<p>Welkom, ${req.user.name}. Je bent ingelogd als <strong>${roleLabel(req.user.role)}</strong>.</p>
-          <p>Het CRM wordt in stappen gebouwd. De modules voor aanmeldingen, deelnemers en reizen volgen.</p>
+          <p>Het CRM wordt in stappen gebouwd. De modules voor aanmeldingen en reizen volgen.</p>
+          ${roleHasGlobalRight(req.user.role, 'deelnemers') ? html`<p><a class="btn" href="/app/deelnemers/">Deelnemers</a></p>` : ''}
           ${mfa.enabled ? '' : html`<p class="notice">Tweestapsverificatie staat nog uit voor je account${auth.mfaRequiredFor(req.user.role) ? ' en is verplicht vanaf de volgende keer dat je inlogt' : ''}. <a href="/app/tweestaps/">Nu instellen</a></p>`}
           ${roleHasRight(req.user.role, 'gebruikers') ? html`<p><a class="btn" href="/app/gebruikers/">Gebruikers beheren</a></p>` : ''}
           ${roleHasRight(req.user.role, 'systeem') ? html`<p><a class="btn btn--outline" href="/app/beheer/">Naar Beheer</a></p>` : ''}
@@ -391,6 +396,7 @@ function createCrmRouter(options) {
 
   router.use(createTwoFactorRoutes({ db, auth, twoFactor, now: options.now }));
   router.use(createUserRoutes({ db, auth, twoFactor, normalizeEmail, textField }));
+  router.use(createPersonRoutes({ db, auth, persons }));
   router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, now: options.now }));
 
   router.use((req, res) => {
