@@ -302,8 +302,10 @@ function createPersons(options) {
             await client.query('UPDATE bookings SET person_id = $2, sensitive_data = NULL WHERE id = $1', [row.id, personId]);
             await recordConsents(client, { personId, bookingId: row.id, values, textVersion: LEGACY_TEXT_VERSION, givenAt: row.consent_at });
           });
-        } catch {
+        } catch (error) {
           // Eén onbruikbare aanmelding houdt de rest niet tegen; hij blijft staan en wordt bij de volgende start opnieuw geprobeerd.
+          // Alleen het id en de foutcode in het log, nooit de melding zelf (die kan waarden bevatten).
+          console.error(`personen: aanmelding ${row.id} niet omgezet (${error.code || error.name})`);
           failed++;
           continue;
         }
