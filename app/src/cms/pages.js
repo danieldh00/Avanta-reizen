@@ -6,7 +6,7 @@
  * in dezelfde transactie. Alle vragen met gebonden parameters.
  */
 const { cleanText, lockMediaForUse, mediaUrl } = require('../media/library');
-const { normalizeBlocks, normalizeImage, publishedBlocks, mediaIdsOf, MAX_BLOCKS } = require('./blocks');
+const { normalizeBlocks, normalizeImage, publishedBlocks, mediaIdsOf, MAX_BLOCKS, MAX_TRIP_BLOCKS } = require('./blocks');
 
 /** Maximale lengtes van de gegevens van een pagina. */
 const PAGE_LIMITS = { title: 200, pretitle: 200, intro: 2000 };
@@ -131,6 +131,9 @@ function createPages(options) {
     const outcome = await change(state, client);
     if (outcome && (outcome.errors || outcome.status)) return { status: 'fout', ...outcome };
     if (state.blocks.length > MAX_BLOCKS) return { status: 'fout', message: `Een pagina heeft hoogstens ${MAX_BLOCKS} blokken.` };
+    if (state.blocks.filter((block) => block.type === 'reizen').length > MAX_TRIP_BLOCKS) {
+      return { status: 'fout', message: `Een pagina heeft hoogstens ${MAX_TRIP_BLOCKS} blokken met reizen.` };
+    }
     const [saved] = await client.query(
       `UPDATE pages SET draft = $2, draft_version = draft_version + 1, updated_at = now(), updated_by = $3
         WHERE id = $1 RETURNING draft_version`,
@@ -233,7 +236,23 @@ function createPages(options) {
     return undefined;
   }, context);
 
-  return { list, get, revisions, changeDraft, publish, discardDraft, restoreRevision };
+  /**
+   * De keuzes voor velden met een bron in het bewerkscherm: reistypes, landen en FAQ-categorieën.
+   * @returns {Promise<{types: string[][], countries: string[][], faq: string[][]}>} Paren `[waarde, naam]`.
+   */
+  const sourceOptions = async () => {
+    const [categories, faqs] = await Promise.all([
+      db.query("SELECT slug, name, kind FROM trip_categories WHERE kind IN ('type', 'bestemming') ORDER BY kind, sort_order, name"),
+      db.query('SELECT DISTINCT category FROM faqs WHERE category <> $1 ORDER BY category', ['']),
+    ]);
+    return {
+      types: categories.filter((row) => row.kind === 'type').map((row) => [row.slug, row.name]),
+      countries: categories.filter((row) => row.kind === 'bestemming').map((row) => [row.slug, row.name]),
+      faq: faqs.map((row) => [row.category, row.category]),
+    };
+  };
+
+  return { list, get, revisions, changeDraft, publish, discardDraft, restoreRevision, sourceOptions };
 }
 
 module.exports = { createPages, validatePageFields, editableState, imageFromMedia, PAGE_LIMITS, IMAGE_WIDTH };

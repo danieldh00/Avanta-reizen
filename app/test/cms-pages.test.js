@@ -18,7 +18,7 @@ const { COOKIE_NAME } = require('../src/crm/auth');
 const { sanitizeHtml } = require('../tools/import/sanitize');
 const { toString } = require('../src/site/html');
 const {
-  newBlock, validateBlockForm, normalizeBlocks, renderBlocks, publishedBlocks, blockSummary, mediaIdsOf,
+  newBlock, validateBlockForm, normalizeBlocks, renderBlocks, publishedBlocks, blockSummary, mediaIdsOf, youtubeId, loadBlockData, MAX_TRIP_BLOCKS,
 } = require('../src/cms/blocks');
 const { validatePageFields } = require('../src/cms/pages');
 
@@ -118,6 +118,90 @@ test('blokken: tekst uit de import blijft gelijk, ook na opnieuw opschonen', () 
   }
   assert.deepEqual(publishedBlocks({ blocks: [], body_html: '<p>Oud</p>', managed_in_crm: false }).map((block) => block.data.html), ['<p>Oud</p>']);
   assert.deepEqual(publishedBlocks({ blocks: [], body_html: '<p>Oud</p>', managed_in_crm: true }), [], 'in het CRM leeggemaakt blijft leeg');
+});
+
+test('bloktypes H2: YouTube, video met cookiekeuze, galerij, kolommen, banner', () => {
+  assert.equal(youtubeId('https://www.youtube.com/watch?v=abcdefghijk&t=3'), 'abcdefghijk');
+  assert.equal(youtubeId('https://youtu.be/abcdefghijk'), 'abcdefghijk');
+  assert.equal(youtubeId('https://www.youtube-nocookie.com/embed/abcdefghijk'), 'abcdefghijk');
+  assert.equal(youtubeId('https://www.youtube.com/shorts/abcdefghijk'), 'abcdefghijk');
+  assert.equal(youtubeId('abcdefghijk'), 'abcdefghijk');
+  assert.equal(youtubeId('https://evil.example/watch?v=abcdefghijk'), '');
+  assert.equal(youtubeId('javascript:alert(1)'), '');
+
+  const video = validateBlockForm(newBlock('video'), { f_youtube: 'https://youtu.be/abcdefghijk', f_titel: 'Kamp <2026>' });
+  assert.deepEqual(video.errors, {});
+  assert.equal(video.block.data.youtube, 'abcdefghijk');
+  assert.ok(validateBlockForm(newBlock('video'), { f_youtube: 'https://vimeo.com/1' }).errors.f_youtube);
+  const videoHtml = toString(renderBlocks([video.block], { title: 'Test' }).body);
+  assert.equal(renderBlocks([video.block], { title: 'Test' }).hasVideo, true);
+  assert.doesNotMatch(videoHtml, /<iframe/, 'geen iframe vóór de keuze van de bezoeker');
+  assert.match(videoHtml, /data-video-consent data-video-id="abcdefghijk"/);
+  assert.match(videoHtml, /Kamp &lt;2026&gt;/);
+  assert.match(videoHtml, /href="https:\/\/www.youtube.com\/watch\?v=abcdefghijk"/);
+
+  const gallery = newBlock('galerij');
+  gallery.data.fotos = [
+    { mediaId: 1, url: '/media/a.webp', alt: 'A' }, { mediaId: 2, url: '/media/b.webp', alt: 'B' }, { mediaId: 3, url: '/media/c.webp', alt: 'C' },
+  ];
+  const reordered = validateBlockForm(gallery, { f_titel: 'Kamp', f_fotos_weg: '1', f_fotos_0_volgorde: '3', f_fotos_2_volgorde: '1' });
+  assert.deepEqual(reordered.block.data.fotos.map((image) => image.mediaId), [3, 1], 'weghalen en volgorde');
+  assert.deepEqual(mediaIdsOf([reordered.block]), [3, 1]);
+  assert.match(toString(renderBlocks([reordered.block], { title: 'Test' }).body), /page-content__gallery[\s\S]*Kamp[\s\S]*\/media\/c.webp/);
+
+  const columns = validateBlockForm(newBlock('kolommen'), { f_kolommen_0_titel: 'Samen', f_kolommen_0_tekst: 'Regel 1', f_kolommen_1_titel: 'Avontuur', f_kolommen_1_linktekst: 'Meer' });
+  assert.ok(columns.errors.f_kolommen_1_link, 'linktekst zonder adres');
+  const twoColumns = validateBlockForm(newBlock('kolommen'), { f_kolommen_0_titel: 'Samen', f_kolommen_2_titel: 'Geloof' });
+  assert.deepEqual(twoColumns.errors, {});
+  assert.match(toString(renderBlocks([twoColumns.block], { title: 'Test' }).body), /cms-columns cms-columns--2/);
+  assert.equal(newBlock('kolommen').style.breedte, 'normaal', 'eigen standaardbreedte per type');
+
+  const banner = validateBlockForm(newBlock('banner'), { f_titel: 'Ga mee', f_knoptekst: 'Reizen' });
+  assert.ok(banner.errors.f_link, 'knop zonder adres');
+  const plain = validateBlockForm(newBlock('banner'), { f_titel: 'Ga mee', f_tekst: 'Nu boeken', f_knoptekst: 'Reizen', f_link: '/reis/' }).block;
+  assert.match(toString(renderBlocks([plain], { title: 'Test' }).body), /cms-banner cms-banner--plain[\s\S]*href="\/reis\/"/);
+  plain.data.foto = { mediaId: 4, url: '/media/bib-0000000000000004-1600.webp', alt: '' };
+  assert.match(toString(renderBlocks([plain], { title: 'Test' }).body), /class="page-content__block cms-banner" style="background-image: url\('\/media\/bib-0000000000000004-1600.webp'\)"/);
+  plain.data.foto = { mediaId: 4, url: "/media/x'onerror.webp", alt: '' };
+  assert.match(toString(renderBlocks([plain], { title: 'Test' }).body), /cms-banner--plain/, 'een adres buiten /media/ wordt geen achtergrond');
+});
+
+test('bloktypes H2 met gegevens: reizen, reistypes, bestemmingen en FAQ', async () => {
+  const trips = validateBlockForm(newBlock('reizen'), { f_type: 'jeugd', f_land: 'onzin!', f_aantal: '3', f_weergave: 'lijst' });
+  assert.ok(trips.errors.f_land, 'alleen een slug');
+  const tripBlock = validateBlockForm(newBlock('reizen'), { f_type: 'jeugd', f_aantal: '3', f_beschikbaar: 'verbergen' }).block;
+  const calls = [];
+  const content = {
+    faqs: async () => [{ question: 'Hoe boek ik?', answer_html: '<p>Zo</p>', category: 'Boeken' }, { question: 'Wat kost het?', answer_html: '', category: 'Prijzen' }],
+    categories: async (kind) => (kind === 'type'
+      ? [{ slug: 'jeugd', name: 'Jeugdreizen', icon: '', show_on_home: false, trip_count: 2 }, { slug: 'plus', name: 'Plusreizen', icon: '', show_on_home: false, trip_count: 0 }]
+      : [{ slug: 'namibie', name: 'Namibië', image_url: '/media/n.webp', show_on_home: true, trip_count: 1 }, { slug: 'peru', name: 'Peru', image_url: null, show_on_home: false, trip_count: 3 }]),
+    upcomingTrips: async (filter) => { calls.push(filter); return [{ slug: 'reis-a', title: 'Reis A', departure_date: '2099-06-01', trip_code: '99-A', card_image_url: null, fully_booked: false, is_new: false }]; },
+  };
+  const faqBlock = validateBlockForm(newBlock('faq'), { f_categorie: 'boeken' }).block;
+  const blocks = normalizeBlocks([tripBlock, newBlock('reistypes'), newBlock('bestemmingen'), faqBlock]);
+  const data = await loadBlockData(blocks, content);
+  assert.deepEqual(calls, [{ type: 'jeugd', destination: undefined, onlyAvailable: true, limit: 3 }]);
+  const output = toString(renderBlocks(blocks, { title: 'Test', data }).body);
+  assert.match(output, /href="\/reis\/reis-a\/"/);
+  assert.match(output, /trip-type__title">Jeugdreizen</);
+  assert.doesNotMatch(output, /Plusreizen/, 'zonder homepage-keuze: alleen types met reizen');
+  assert.match(output, /banner__title">Namibië</);
+  assert.doesNotMatch(output, /banner__title">Peru</, 'homepage-keuze gaat voor');
+  assert.match(output, /Hoe boek ik\?/);
+  assert.doesNotMatch(output, /Wat kost het\?/, 'alleen de gekozen categorie');
+  const none = await loadBlockData(normalizeBlocks([newBlock('kop')]), { faqs: () => assert.fail('niet nodig'), categories: () => assert.fail('niet nodig'), upcomingTrips: () => assert.fail('niet nodig') });
+  assert.equal(none.trips.size, 0, 'geen queries zonder datablokken');
+  // Gelijke filters delen één query; meer dan MAX_TRIP_BLOCKS verschillende filters geven lege blokken, geen extra queries.
+  calls.length = 0;
+  const copies = [tripBlock, { ...tripBlock, id: 'b111111111111' }];
+  for (let i = 1; i <= MAX_TRIP_BLOCKS + 1; i += 1) {
+    copies.push(validateBlockForm({ ...newBlock('reizen'), id: `b${String(i).padStart(12, '0')}` }, { f_type: `soort-${i}` }).block);
+  }
+  const many = await loadBlockData(normalizeBlocks(copies), content);
+  assert.equal(calls.length, MAX_TRIP_BLOCKS, 'hoogstens MAX_TRIP_BLOCKS queries');
+  assert.equal(many.trips.get('b111111111111').length, 1, 'kopie met hetzelfde filter deelt de uitkomst');
+  assert.deepEqual(many.trips.get(`b${String(MAX_TRIP_BLOCKS + 1).padStart(12, '0')}`), []);
 });
 
 test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
@@ -335,5 +419,43 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal(await audits('pagina.concept-weg'), 2);
     const log = await request('/app/auditlog/', { cookie: (await login('kantoor@example.nl')).cookie });
     assert.equal(log.status, 403, 'auditlog alleen met recht gebruikers');
+  });
+
+  await t.test('H2: galerij met meer foto\'s, video en reizen in het voorbeeld', async () => {
+    const [second] = await db.query(
+      `INSERT INTO media (original_url, local_name, content_type, bytes, source, title, alt_text, variants)
+       VALUES (NULL, 'bib-00000000000000dd-1600.webp', 'image/webp', 10, 'upload', 'Meer', 'Meer', '{"1600": "bib-00000000000000dd-1600.webp"}') RETURNING id`,
+    );
+    await db.query("INSERT INTO trips (slug, title, departure_date, published) VALUES ('kamp-zweden', 'Kamp Zweden', '2099-07-01', true)");
+    await post(`${pageUrl}blokken/nieuw/`, { type: 'galerij' });
+    const galleryBlock = (await blocksOf()).find((block) => block.type === 'galerij');
+    const picker = await request(`${pageUrl}blokken/${galleryBlock.id}/foto/`, { cookie: redactie.cookie });
+    assert.match(picker.text, /type="checkbox" name="media_id"/, 'meer foto\'s tegelijk kiezen');
+    const added = await request(`${pageUrl}blokken/${galleryBlock.id}/foto/`, {
+      cookie: redactie.cookie, form: [['_csrf', redactie.csrf], ['versie', String(await version())], ['media_id', String(photo.id)], ['media_id', String(second.id)]],
+    });
+    assert.equal(added.status, 303);
+    assert.deepEqual((await blocksOf()).find((block) => block.id === galleryBlock.id).data.fotos.map((image) => image.mediaId), [photo.id, second.id]);
+    assert.equal((await post(`${pageUrl}blokken/${galleryBlock.id}/foto/`, { media_id: '999999' })).status, 409);
+    assert.equal((await post(`${pageUrl}blokken/${galleryBlock.id}/`, { f_titel: 'Zomer', f_fotos_weg: '0' })).status, 303);
+    assert.deepEqual((await blocksOf()).find((block) => block.id === galleryBlock.id).data.fotos.map((image) => image.mediaId), [second.id]);
+
+    await post(`${pageUrl}blokken/nieuw/`, { type: 'video' });
+    const videoBlock = (await blocksOf()).find((block) => block.type === 'video');
+    assert.equal((await post(`${pageUrl}blokken/${videoBlock.id}/`, { f_youtube: 'https://example.com/x' })).status, 422);
+    assert.equal((await post(`${pageUrl}blokken/${videoBlock.id}/`, { f_youtube: 'https://www.youtube.com/watch?v=abcdefghijk', f_titel: 'Zomerkamp' })).status, 303);
+    await post(`${pageUrl}blokken/nieuw/`, { type: 'reizen' });
+    const preview = await request(`${pageUrl}voorbeeld/`, { cookie: redactie.cookie });
+    assert.match(preview.text, /data-video-id="abcdefghijk"/);
+    assert.doesNotMatch(preview.text, /<iframe/);
+    assert.match(preview.headers.get('content-security-policy'), /frame-src[^;]*youtube-nocookie/);
+    assert.match(preview.text, /Kamp Zweden/);
+    assert.match(preview.text, /Zomer/);
+    const editor = await request(pageUrl, { cookie: redactie.cookie });
+    assert.match(editor.text, /<option value="">Alle reistypes<\/option>/);
+    for (let i = 1; i < 5; i += 1) assert.equal((await post(`${pageUrl}blokken/nieuw/`, { type: 'reizen' })).status, 303);
+    const tooMany = await post(`${pageUrl}blokken/nieuw/`, { type: 'reizen' });
+    assert.equal(tooMany.status, 422);
+    assert.match(tooMany.text, /hoogstens 5 blokken met reizen/);
   });
 });

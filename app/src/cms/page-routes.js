@@ -15,10 +15,11 @@ const { searchPatterns } = require('../crm/person-routes');
 const { createMediaLibrary, lockMediaForUse } = require('../media/library');
 const { pickerFilter, pickerPhotos, renderPhotoPicker } = require('../media/picker');
 const {
-  BLOCK_TYPES, STYLE_OPTIONS, BLOCK_ID_PATTERN, MAX_BLOCKS, newBlock, newBlockId, validateBlockForm, blockSummary, isDefaultStyle,
+  BLOCK_TYPES, STYLE_OPTIONS, BLOCK_ID_PATTERN, MAX_BLOCKS, MAX_GALLERY_IMAGES, newBlock, newBlockId, validateBlockForm, blockSummary, isDefaultStyle,
 } = require('./blocks');
 const { createPages, validatePageFields, editableState, imageFromMedia, PAGE_LIMITS } = require('./pages');
 const { renderPageArticle } = require('./page-render');
+const { createContent } = require('../site/content');
 
 /** Basispad van het scherm. */
 const BASE = '/app/paginas/';
@@ -72,10 +73,16 @@ function invalidAttributes(id, error) {
  * @param {string} id Id.
  * @param {*} value Huidige waarde.
  * @param {string} [error] Fout.
+ * @param {object} [options] Keuzes voor velden met een bron (`source`): `{types, countries, faq}` als `[waarde, naam][]`.
  * @returns {object} HTML.
  */
-function fieldControl(field, name, id, value, error) {
+function fieldControl(field, name, id, value, error, options = {}) {
   const invalid = invalidAttributes(id, error);
+  if (field.kind === 'source') {
+    const choices = options[field.source] || [];
+    const known = !value || choices.some(([key]) => key === value);
+    return html`<select id="${id}" name="${name}"${invalid}><option value="">${field.empty}</option>${choices.map(([key, label]) => html`<option value="${key}"${value === key ? raw(' selected') : ''}>${label}</option>`)}${known ? '' : html`<option value="${value}" selected>${value} (bestaat niet meer)</option>`}</select>`;
+  }
   if (field.kind === 'select') {
     return html`<select id="${id}" name="${name}"${invalid}>${Object.entries(field.choices).map(([key, label]) => html`<option value="${key}"${value === key ? raw(' selected') : ''}>${label}</option>`)}</select>`;
   }
@@ -89,16 +96,25 @@ function fieldControl(field, name, id, value, error) {
 }
 
 /** Uitleg bij opgemaakte tekst. */
-const RICHTEXT_HELP = 'Opmaak met HTML: <p>, <h2>, <h3>, <strong>, <em>, <a href="…">, <ul>/<ol> met <li>, <blockquote>, tabellen en <img>. Andere opmaak, scripts en stijlen verdwijnen bij het opslaan.';
+const RICHTEXT_HELP = 'Gebruik de knoppen boven het vak of HTML: <p>, <h2>, <h3>, <strong>, <em>, <a href="…">, <ul>/<ol> met <li>, <blockquote>, tabellen en <img>. Andere opmaak, scripts en stijlen verdwijnen bij het opslaan.';
+
+/** Uitleg per soort veld. */
+const FIELD_HELP = {
+  richtext: RICHTEXT_HELP,
+  link: 'Een adres op deze site (bijv. /contact/), https://…, mailto: of tel:.',
+  youtube: 'Plak het adres van de video, bijv. https://www.youtube.com/watch?v=… of https://youtu.be/…',
+};
+
 
 /**
  * De velden en stijlopties van een blok in het formulier.
  * @param {object} block Blok.
  * @param {object} errors Fouten per veldnaam.
  * @param {string} photoUrl Adres van het fotoscherm van dit blok.
+ * @param {object} options Keuzes voor velden met een bron (zie `fieldControl`).
  * @returns {object} HTML.
  */
-function blockFields(block, errors, photoUrl) {
+function blockFields(block, errors, photoUrl, options) {
   const definition = BLOCK_TYPES[block.type];
   const prefix = `blok-${block.id}`;
   const rows = definition.fields.map((field) => {
@@ -107,6 +123,18 @@ function blockFields(block, errors, photoUrl) {
       return html`<div class="field"><span class="field__label">${field.label}</span>
         ${photo ? html`<img class="media-preview media-preview--small" src="${photo.url}" alt="${photo.alt}" width="400" height="300">` : html`<p>Nog geen foto gekozen.</p>`}
         <a class="btn btn--small btn--outline" href="${photoUrl}">${photo ? 'Andere foto kiezen' : 'Foto kiezen'}</a></div>`;
+    }
+    if (field.kind === 'images') {
+      const photos = block.data[field.name] || [];
+      return html`<fieldset class="cms-repeat"><legend>${field.label} (${String(photos.length)} van ${String(field.max)})</legend>
+        ${photos.length ? html`<ul class="cms-photo-list">${photos.map((photo, index) => html`<li class="cms-photo-list__item">
+          <img src="${photo.url}" alt="${photo.alt}" width="120" height="90" loading="lazy">
+          <label>Volgorde <input type="number" name="f_${field.name}_${index}_volgorde" value="${index + 1}" min="1" max="${field.max}" step="1"></label>
+          <label><input type="checkbox" name="f_${field.name}_weg" value="${index}"> Weghalen</label>
+        </li>`)}</ul>` : html`<p>Nog geen foto's.</p>`}
+        ${photos.length < field.max ? html`<p><a class="btn btn--small btn--outline" href="${photoUrl}">Foto's toevoegen</a></p>` : ''}
+        <span class="field__help">Wijzig de volgorde met de nummers en sla het blok op.</span>
+      </fieldset>`;
     }
     if (field.kind === 'repeat') {
       const values = block.data[field.name] || [];
@@ -123,8 +151,8 @@ function blockFields(block, errors, photoUrl) {
       id: `${prefix}-${name}`,
       label: field.label,
       error: errors[name],
-      help: field.kind === 'richtext' ? RICHTEXT_HELP : (field.kind === 'link' ? 'Een adres op deze site (bijv. /contact/), https://…, mailto: of tel:.' : ''),
-      control: fieldControl(field, name, `${prefix}-${name}`, block.data[field.name], errors[name]),
+      help: FIELD_HELP[field.kind] || '',
+      control: fieldControl(field, name, `${prefix}-${name}`, block.data[field.name], errors[name], options),
     });
   });
   const styleRows = Object.entries(STYLE_OPTIONS).map(([name, option]) => fieldRow({
@@ -145,6 +173,7 @@ function blockFields(block, errors, photoUrl) {
 function createPageRoutes(options) {
   const { db, auth } = options;
   const pages = createPages({ db });
+  const content = createContent(db);
   const library = options.library || createMediaLibrary({ db, mediaDir: options.mediaDir || '' });
   const router = express.Router();
   const guard = auth.requireRight('content');
@@ -225,7 +254,7 @@ function createPageRoutes(options) {
    */
   const renderEditor = async (req, page, state = {}) => {
     const current = editableState(page);
-    const revisionRows = await pages.revisions(page.id);
+    const [revisionRows, options] = await Promise.all([pages.revisions(page.id), pages.sourceOptions()]);
     const pageUrl = `${BASE}${page.id}/`;
     const values = state.values || current;
     const errors = state.errors || {};
@@ -282,7 +311,7 @@ function createPageRoutes(options) {
               <summary><strong>${String(index + 1)}. ${BLOCK_TYPES[block.type].label}</strong> <span class="cms-block-edit__summary">${blockSummary(stored)}</span></summary>
               <form class="form" method="post" action="${blockUrl}">
                 ${hidden(req, page)}
-                ${blockFields(block, failed ? state.blockErrors.errors : {}, `${blockUrl}foto/`)}
+                ${blockFields(block, failed ? state.blockErrors.errors : {}, `${blockUrl}foto/`, options)}
                 <div><button class="btn btn--small" type="submit">Blok opslaan in concept</button></div>
               </form>
               <form class="crm-actions cms-block-edit__actions" method="post" action="${blockUrl}actie/">
@@ -468,8 +497,8 @@ function createPageRoutes(options) {
    * Het scherm om een foto te kiezen (voor een afbeeldingsblok of de kopfoto).
    * @param {object} req Express-verzoek.
    * @param {object} page Pagina.
-   * @param {{title: string, pageUrl: string, current: (object|null), allowNone: boolean, error?: string}} screen Titel,
-   *   adres van het scherm, huidige foto en of "geen foto" mag.
+   * @param {{title: string, pageUrl: string, current: (object|null), allowNone: boolean, multiple?: boolean, error?: string}} screen
+   *   Titel, adres van het scherm, huidige foto, of "geen foto" mag en of je er meer tegelijk kiest (galerij).
    * @returns {Promise<string>} HTML.
    */
   const renderPhotoScreen = async (req, page, screen) => {
@@ -486,7 +515,7 @@ function createPageRoutes(options) {
         ${screen.current ? html`<p>Nu gekozen:</p><img class="media-preview media-preview--small" src="${screen.current.url}" alt="${screen.current.alt || ''}" width="400" height="300">` : ''}
         <section class="crm-block" id="foto">
           ${renderPhotoPicker({
-            pageUrl: screen.pageUrl, action: screen.pageUrl, csrf: req.session.csrf, countries, filter, photos, hasMore, allowNone: screen.allowNone, button: 'Deze foto gebruiken',
+            pageUrl: screen.pageUrl, action: screen.pageUrl, csrf: req.session.csrf, countries, filter, photos, hasMore, allowNone: screen.allowNone, multiple: Boolean(screen.multiple), button: screen.multiple ? 'Deze foto\'s toevoegen' : 'Deze foto gebruiken',
             extraFields: html`<input type="hidden" name="versie" value="${page.draft_version}">`,
           })}
         </section>`,
@@ -540,24 +569,26 @@ function createPageRoutes(options) {
   });
 
   /**
-   * Zoekt het afbeeldingsblok uit de URL in de stand die je bewerkt.
-   * @param {object} page Pagina.
-   * @param {string} blockId Id van het blok.
-   * @returns {(object|null)} Blok, of null als het geen afbeeldingsveld heeft.
+   * Het fotoveld van een blok: het eerste veld van de soort `image` (één foto) of `images` (galerij).
+   * @param {(object|undefined)} block Blok.
+   * @returns {(object|null)} Velddefinitie, of null als het blok geen foto's heeft.
    */
-  const imageBlockOf = (page, blockId) => {
-    const block = editableState(page).blocks.find((item) => item.id === blockId);
-    return block && BLOCK_TYPES[block.type].fields.some((field) => field.kind === 'image') ? block : null;
-  };
+  const photoFieldOf = (block) => (block ? BLOCK_TYPES[block.type].fields.find((field) => field.kind === 'image' || field.kind === 'images') || null : null);
 
   router.get('/paginas/:id(\\d{1,9})/blokken/:blockId(b[0-9a-f]{12})/foto/', guard, async (req, res, next) => {
     try {
       const page = await loadOr404(req, res);
       if (!page) return undefined;
-      const block = imageBlockOf(page, req.params.blockId);
-      if (!block) return notFound(req, res);
+      const block = editableState(page).blocks.find((item) => item.id === req.params.blockId);
+      const field = photoFieldOf(block);
+      if (!field) return notFound(req, res);
+      const multiple = field.kind === 'images';
       return res.send(await renderPhotoScreen(req, page, {
-        title: 'Foto voor het blok kiezen', pageUrl: `${BASE}${page.id}/blokken/${block.id}/foto/`, current: block.data.foto, allowNone: Boolean(block.data.foto),
+        title: multiple ? 'Foto\'s toevoegen aan de galerij' : 'Foto voor het blok kiezen',
+        pageUrl: `${BASE}${page.id}/blokken/${block.id}/foto/`,
+        current: multiple ? null : block.data[field.name],
+        allowNone: !multiple && Boolean(block.data[field.name]),
+        multiple,
       }));
     } catch (error) {
       return next(error);
@@ -566,18 +597,32 @@ function createPageRoutes(options) {
 
   router.post('/paginas/:id(\\d{1,9})/blokken/:blockId(b[0-9a-f]{12})/foto/', guard, auth.checkCsrf, async (req, res, next) => {
     try {
-      const choice = chosenPhoto(req.body);
-      const outcome = choice.valid ? await pages.changeDraft(req.params.id, req.body.versie, async (state, client) => {
+      const none = req.body.geen === '1';
+      const ids = none ? [] : [].concat(req.body.media_id || []);
+      const valid = none || (ids.length > 0 && ids.length <= MAX_GALLERY_IMAGES && ids.every((id) => typeof id === 'string' && /^\d{1,9}$/.test(id)));
+      const outcome = valid ? await pages.changeDraft(req.params.id, req.body.versie, async (state, client) => {
         const block = state.blocks.find((item) => item.id === req.params.blockId);
-        const imageField = block && BLOCK_TYPES[block.type].fields.find((field) => field.kind === 'image');
-        if (!imageField) return { status: 'blok-weg' };
-        if (choice.none) {
-          block.data[imageField.name] = null;
+        const field = photoFieldOf(block);
+        if (!field) return { status: 'blok-weg' };
+        if (field.kind === 'image') {
+          if (none) {
+            block.data[field.name] = null;
+            return undefined;
+          }
+          if (ids.length !== 1) return { status: 'fout', message: 'Kies één foto.' };
+          const media = await lockMediaForUse(client, ids[0]);
+          if (!media) return { status: 'foto-weg' };
+          block.data[field.name] = imageFromMedia(media);
           return undefined;
         }
-        const media = await lockMediaForUse(client, choice.mediaId);
-        if (!media) return { status: 'foto-weg' };
-        block.data[imageField.name] = imageFromMedia(media);
+        if (none) return { status: 'fout', message: 'Kies een of meer foto\'s.' };
+        const images = block.data[field.name];
+        for (const id of [...new Set(ids)]) {
+          const media = await lockMediaForUse(client, id);
+          if (!media) return { status: 'foto-weg' };
+          if (!images.some((image) => image.mediaId === media.id)) images.push(imageFromMedia(media));
+        }
+        if (images.length > field.max) return { status: 'fout', message: `Een galerij heeft hoogstens ${field.max} foto's.` };
         return undefined;
       }, contextFor(req)) : { status: 'fout', message: 'Kies een foto.' };
       return await finish(req, res, outcome, { notice: 1, block: req.params.blockId, anchor: `blok-${req.params.blockId}` });
@@ -591,7 +636,7 @@ function createPageRoutes(options) {
       const page = await loadOr404(req, res);
       if (!page) return undefined;
       const current = editableState(page);
-      const article = renderPageArticle({ title: current.title, intro: current.intro, blocks: current.blocks });
+      const article = await renderPageArticle({ title: current.title, intro: current.intro, blocks: current.blocks }, content);
       if (article.hasVideo) res.set('Content-Security-Policy', addCspSources(res.get('Content-Security-Policy'), { 'frame-src': [YOUTUBE_ORIGIN] }));
       return res.send(renderPage({
         title: `Voorbeeld: ${current.title}`,
