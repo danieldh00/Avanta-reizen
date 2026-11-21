@@ -288,7 +288,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     exporteur recht heeft (anders staat er "niet opgenomen"), alle aanmeldingen, de historie, de toestemmingen en of er
     een reizigersaccount is; audit `deelnemer.inzage` plus één regel per opgenomen blok, limiet 20 per tien minuten.
     *Persoon wissen* (typ WISSEN) anonimiseert de persoon en de bijbehorende aanmeldingen met dezelfde functie als de
-    dagelijkse opschoning en verwijdert het reizigersaccount met hetzelfde e-mailadres; audit `deelnemer.gewist`.
+    dagelijkse opschoning en verwijdert het reizigersaccount met hetzelfde e-mailadres; audit `deelnemer.gewist`. Bij een
+    lopende of toekomstige reis weigert het (422) tenzij *ook wissen bij een lopende reis* is aangevinkt.
   - **Tweestapsverificatie (2FA)** met een authenticator-app (TOTP, RFC 6238; eigen code op `crypto`, zoals AquaTech).
     Na het juiste wachtwoord krijgt wie 2FA heeft of moet hebben eerst een *halve sessie* (15 minuten): daarmee is
     alleen de codestap (`/app/inloggen/code/`) of het instellen (`/app/tweestaps/`) bereikbaar; pas na de code volgt

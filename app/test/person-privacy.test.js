@@ -167,8 +167,15 @@ test('AVG-verzoeken bij een deelnemer', { skip: !DATABASE_URL && 'TEST_DATABASE_
     assert.match(refused.text, /Typ WISSEN/);
     assert.equal((await db.query('SELECT anonymized_at FROM persons WHERE id = $1', [personId]))[0].anonymized_at, null);
 
-    const done = await request(wissen, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, bevestiging: 'WISSEN' } });
+    await db.query("UPDATE bookings SET departure_date = '2099-07-01' WHERE id = $1", [booking.id]);
+    const upcoming = await request(wissen, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, bevestiging: 'WISSEN' } });
+    assert.equal(upcoming.status, 422);
+    assert.match(upcoming.text, /lopende of toekomstige aanmelding/);
+    assert.equal((await db.query('SELECT anonymized_at FROM persons WHERE id = $1', [personId]))[0].anonymized_at, null);
+
+    const done = await request(wissen, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, bevestiging: 'WISSEN', lopend: 'ja' } });
     assert.equal(done.status, 303);
+    assert.match(done.headers.get('location'), /opgeslagen=gewist/);
     const [person] = await db.query('SELECT last_name, email, special_data, anonymized_at FROM persons WHERE id = $1', [personId]);
     assert.equal(person.last_name, ANONYMIZED_NAME);
     assert.equal(person.email, '');
@@ -183,7 +190,10 @@ test('AVG-verzoeken bij een deelnemer', { skip: !DATABASE_URL && 'TEST_DATABASE_
     const page = await request(`/app/deelnemers/${personId}/?opgeslagen=gewist`, { cookie: kantoor.cookie });
     assert.match(page.text, /De persoon is gewist/);
     assert.match(page.text, /Al geanonimiseerd/);
-    assert.equal((await request(wissen, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, bevestiging: 'WISSEN' } })).status, 303);
+    const again = await request(wissen, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, bevestiging: 'WISSEN' } });
+    assert.equal(again.status, 303);
+    assert.doesNotMatch(again.headers.get('location'), /gewist/);
+    assert.equal((await db.query("SELECT count(*)::int AS n FROM audit_log WHERE action = 'deelnemer.gewist'"))[0].n, 1);
   });
 
   await t.test('limiet op de inzage-export', async () => {

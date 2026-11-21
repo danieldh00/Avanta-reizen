@@ -143,6 +143,7 @@ function renderPrivacyPanel(req, person, error) {
         <form class="form" method="post" action="/app/deelnemers/${person.id}/wissen/">${hidden}
           <div class="field"><span class="field__label"><label for="veld-bevestiging">Typ ${ERASE_WORD} ter bevestiging</label></span>
             <input id="veld-bevestiging" name="bevestiging" type="text" autocomplete="off" maxlength="20" required></div>
+          <label class="choice"><input type="checkbox" name="lopend" value="ja"> <span>Ook wissen als er nog een lopende of toekomstige reis is (kantoor kan de reiziger dan niet meer bereiken)</span></label>
           <div><button class="btn btn--small" type="submit">Persoon wissen</button></div>
         </form>`}
       </section>
@@ -192,10 +193,11 @@ function createPersonPrivacyRoutes(options) {
         }
         try {
           blocks[block] = persons.openBlock(block, person);
+          // Alleen een blok dat echt in de export staat, komt in het auditlog.
+          if (person[block]) included.push(block);
         } catch {
           blocks[block] = { _unreadable: true };
         }
-        if (person[block]) included.push(block);
       }
       const [bookings, events, consents, accounts] = await Promise.all([
         db.query(`SELECT ${BOOKING_COLUMNS.map(([column]) => column).join(', ')} FROM bookings WHERE person_id = $1 ORDER BY created_at, id`, [person.id]),
@@ -231,13 +233,27 @@ function createPersonPrivacyRoutes(options) {
       if (String(req.body.bevestiging || '').trim() !== ERASE_WORD) {
         return res.status(422).send(await options.renderPerson(req, person, { eraseError: `Typ ${ERASE_WORD} om te bevestigen.` }));
       }
-      await db.transaction(async (client) => {
+      const outcome = await db.transaction(async (client) => {
         const [locked] = await client.query('SELECT id, email FROM persons WHERE id = $1 AND anonymized_at IS NULL FOR UPDATE', [person.id]);
-        if (!locked) return;
+        if (!locked) return 'al-gewist';
+        // Een reis die nog moet komen of loopt: kantoor kan de reiziger daarna niet meer bereiken, dus alleen bewust.
+        const [active] = await client.query(
+          `SELECT count(*)::int AS n FROM bookings b LEFT JOIN trips t ON t.id = b.trip_id
+            WHERE b.person_id = $1 AND b.status <> 'geannuleerd'
+              AND coalesce(t.departure_date, b.departure_date) + (GREATEST(coalesce(t.duration_days, 1), 1) - 1) >= (now() AT TIME ZONE 'Europe/Amsterdam')::date`,
+          [person.id],
+        );
+        if (active.n && req.body.lopend !== 'ja') return 'lopend';
         if (locked.email) await client.query('DELETE FROM customer_accounts WHERE email = $1', [locked.email.toLowerCase()]);
         await anonymizePerson(client, person.id);
         await auth.audit(req, { userId: req.user.id, action: 'deelnemer.gewist', entity: 'persons', entityId: person.id }, client);
+        return 'gewist';
       });
+      if (outcome === 'lopend') {
+        return res.status(422).send(await options.renderPerson(req, person, { eraseError: 'Deze persoon heeft nog een lopende of toekomstige aanmelding. Annuleer die eerst, of vink aan dat je toch wilt wissen.' }));
+      }
+      // Tegelijk door iemand anders (of de opschoning) gewist: geen melding alsof deze actie het deed.
+      if (outcome === 'al-gewist') return res.redirect(303, `/app/deelnemers/${person.id}/`);
       return res.redirect(303, `/app/deelnemers/${person.id}/?opgeslagen=gewist`);
     } catch (error) {
       return next(error);
