@@ -98,7 +98,7 @@ function buildInspectionWorkbook(input) {
   const paymentRows = [['Referentie', 'Regel', 'Soort', 'Omschrijving of toelichting', 'Bedrag (€)', 'Ontvangen op', 'Vastgelegd'],
     ...(input.payments || []).map((line) => [
       line.reference,
-      line.line === 'betaling' ? 'Betaling' : 'Verwacht bedrag',
+      line.line === 'betaling' ? 'Betaling' : `Verwacht bedrag${line.removed_at ? ` (weggehaald ${cellValue('removed_at', line.removed_at)}, telt niet mee)` : ''}`,
       (line.line === 'betaling' ? PAYMENT_METHODS : CHARGE_KINDS)[line.kind] || line.kind,
       line.text || '',
       line.amount_cents / 100,
@@ -221,10 +221,10 @@ function createPersonPrivacyRoutes(options) {
         db.query('SELECT kind, text_version, given_at, withdrawn_at FROM consents WHERE person_id = $1 ORDER BY given_at, id', [person.id]),
         person.email ? db.query('SELECT created_at FROM customer_accounts WHERE email = $1', [person.email.toLowerCase()]) : [],
         db.query(
-          `SELECT b.reference, 'bedrag' AS line, c.kind AS kind, c.description AS text, c.amount_cents, NULL::date AS received_on, c.created_at
-             FROM booking_charges c JOIN bookings b ON b.id = c.booking_id WHERE b.person_id = $1 AND c.removed_at IS NULL
+          `SELECT b.reference, 'bedrag' AS line, c.kind AS kind, c.description AS text, c.amount_cents, NULL::date AS received_on, c.created_at, c.removed_at
+             FROM booking_charges c JOIN bookings b ON b.id = c.booking_id WHERE b.person_id = $1
            UNION ALL
-           SELECT b.reference, 'betaling', p.method, p.note, p.amount_cents, p.received_on, p.created_at
+           SELECT b.reference, 'betaling', p.method, p.note, p.amount_cents, p.received_on, p.created_at, NULL
              FROM payments p JOIN bookings b ON b.id = p.booking_id WHERE b.person_id = $1
            ORDER BY reference, created_at`,
           [person.id],
