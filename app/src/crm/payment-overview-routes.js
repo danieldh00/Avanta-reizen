@@ -88,7 +88,7 @@ async function loadOverview(db, filter) {
 function buildOverviewWorkbook(input) {
   const euro = (cents) => cents / 100;
   const header = ['Referentie', 'Achternaam', 'Roepnaam', 'Reis', 'Reiscode', 'Vertrek', 'Status aanmelding', 'Betaalstatus',
-    'Totaal (€)', 'Betaald (€)', 'Openstaand (€)', 'Aanbetaling (€)', 'Aanbetaling uiterlijk', 'Restant uiterlijk', 'Te laat'];
+    'Totaal (€)', 'Betaald (€)', 'Openstaand (€)', 'Aanbetaling (€)', 'Aanbetaling uiterlijk', 'Restant uiterlijk', 'Te late termijn'];
   const rows = input.rows.map((row) => [
     row.reference, row.last_name, row.call_name || row.first_names, row.trip_title, row.trip_code || '', isoDate(row.departure_date),
     STATUSES[row.status] || row.status, payments.PAYMENT_STATES[row.summary.state], euro(row.summary.totalCents), euro(row.summary.paidCents),
@@ -197,7 +197,14 @@ function createPaymentOverviewRoutes(options) {
       }
       const filter = readFilter(req.query);
       const clock = new Date(now());
-      const { rows } = await loadOverview(db, { ...filter, terms: payments.termsFrom(settings), today: payments.localDay(clock) });
+      const { rows, truncated } = await loadOverview(db, { ...filter, terms: payments.termsFrom(settings), today: payments.localDay(clock) });
+      // Nooit stilletjes een onvolledig bestand: boven het maximum eerst op reis filteren.
+      if (truncated) {
+        return res.status(422).send(renderCrmPage({
+          title: 'Te veel aanmeldingen', user: req.user, csrf: req.session.csrf, path: '/app/betalingen/',
+          body: html`${renderAlert(`Er zijn meer dan ${MAX_ROWS} aanmeldingen; kies een reis en exporteer per reis.`)}<p><a href="/app/betalingen/">Naar de betalingen</a></p>`,
+        }));
+      }
       let tripLabel = 'Alle reizen';
       if (filter.tripId) {
         const [trip] = await db.query('SELECT title, trip_code FROM trips WHERE id = $1', [filter.tripId]);

@@ -163,6 +163,8 @@ test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.match(text, /Laatkomer/);
     assert.doesNotMatch(text, /AV-2027-KLAAR003/);
     assert.match(text, /Albanië \(27-ALB-1\)/);
+    assert.match(text, /Te late termijn/);
+    assert.match(text, />aanbetaling</, 'de te late termijn staat als tekst in de kolom');
     const audit = await db.query("SELECT action, entity_id FROM audit_log WHERE action = 'export.betalingen'");
     assert.deepEqual(audit.map((row) => row.entity_id), [String(albania.id)]);
   });
