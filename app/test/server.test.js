@@ -33,7 +33,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   const db = createDatabase(DATABASE_URL);
   await db.query('DROP SCHEMA public CASCADE');
   await db.query('CREATE SCHEMA public');
-  assert.deepEqual(await db.migrate(), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]);
+  assert.deepEqual(await db.migrate(), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26]);
   assert.deepEqual(await db.migrate(), [], 'tweede keer migreren doet niets');
 
   const [guide] = await db.query("INSERT INTO guides (legacy_id, slug, name, body_html) VALUES (500, 'harmen', 'Harmen', '<p>Ervaren</p>') RETURNING id");
@@ -296,6 +296,9 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     const consents = await db.query('SELECT kind, text_version FROM consents WHERE booking_id = $1 ORDER BY kind', [booking.id]);
     assert.deepEqual(consents.map((row) => row.kind), ['art9_gezondheid', 'art9_religie', 'voorwaarden']);
     assert.equal(consents[0].text_version, CONSENT_TEXT_VERSION);
+    // Verwachte bedragen voor de betalingen in het CRM: reissom, SGR en boekingskosten (gekozen: aanbetaling).
+    const charges = await db.query('SELECT kind, amount_cents FROM booking_charges WHERE booking_id = $1 ORDER BY kind', [booking.id]);
+    assert.deepEqual(charges.map((row) => [row.kind, row.amount_cents]), [['boekingskosten', 1500], ['reissom', 79900], ['sgr', 500]]);
   });
 
   await t.test('art. 9: kerkgenootschap of bijzonderheden zonder eigen toestemming geeft 422; leeg laten mag', async () => {

@@ -15,6 +15,7 @@ const { PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS } = require('./persons');
 const { BLOCK_INFO } = require('./person-routes');
 const { anonymizePerson, BOOKING_END_SQL } = require('./retention');
 const { renderCrmPage, renderAlert } = require('./layout');
+const { CHARGE_KINDS, PAYMENT_METHODS } = require('./payments');
 
 /** Hoogstens zoveel inzage-exports per gebruiker per tien minuten. */
 const EXPORT_LIMIT = 20;
@@ -70,9 +71,9 @@ function cellValue(column, value) {
 
 /**
  * Maakt de werkmap voor een inzageverzoek.
- * @param {{person: object, blocks: Record<string, (object|null)>, bookings: object[], events: object[], consents: object[],
+ * @param {{person: object, blocks: Record<string, (object|null)>, bookings: object[], events: object[], payments?: object[], consents: object[],
  *   account: (object|null), userName: string, now: Date}} input De persoon, per blok de geopende velden (null = weggelaten,
- *   `{_unreadable: true}` = niet te ontsleutelen), aanmeldingen, historie, toestemmingen, reizigersaccount, wie exporteert en wanneer.
+ *   `{_unreadable: true}` = niet te ontsleutelen), aanmeldingen, historie, bedragen en betalingen, toestemmingen, reizigersaccount, wie exporteert en wanneer.
  * @returns {Buffer} Het .xlsx-bestand.
  */
 function buildInspectionWorkbook(input) {
@@ -94,6 +95,16 @@ function buildInspectionWorkbook(input) {
   personRows.push(['Reizigersaccount', input.account ? `ja, aangemaakt ${cellValue('created_at', input.account.created_at)}` : 'nee']);
   const bookingRows = [BOOKING_COLUMNS.map(([, label]) => label), ...input.bookings.map((booking) => BOOKING_COLUMNS.map(([column]) => cellValue(column, booking[column])))];
   const eventRows = [['Referentie', 'Tijdstip', 'Van', 'Naar', 'Notitie'], ...input.events.map((event) => [event.reference, cellValue('created_at', event.created_at), event.from_status || '', event.to_status || '', event.note || ''])];
+  const paymentRows = [['Referentie', 'Regel', 'Soort', 'Omschrijving of toelichting', 'Bedrag (€)', 'Ontvangen op', 'Vastgelegd'],
+    ...(input.payments || []).map((line) => [
+      line.reference,
+      line.line === 'betaling' ? 'Betaling' : `Verwacht bedrag${line.removed_at ? ` (weggehaald ${cellValue('removed_at', line.removed_at)}, telt niet mee)` : ''}`,
+      (line.line === 'betaling' ? PAYMENT_METHODS : CHARGE_KINDS)[line.kind] || line.kind,
+      line.text || '',
+      line.amount_cents / 100,
+      cellValue('departure_date', line.received_on),
+      cellValue('created_at', line.created_at),
+    ])];
   const consentRows = [['Toestemming', 'Tekstversie', 'Gegeven', 'Ingetrokken'], ...input.consents.map((consent) => [CONSENT_LABELS[consent.kind] || consent.kind, consent.text_version, cellValue('given_at', consent.given_at), cellValue('withdrawn_at', consent.withdrawn_at)])];
   const aboutRows = [
     ['Over deze export', ''],
@@ -106,6 +117,7 @@ function buildInspectionWorkbook(input) {
     { name: 'Persoon', rows: personRows },
     { name: 'Aanmeldingen', rows: bookingRows },
     { name: 'Historie', rows: eventRows },
+    { name: 'Betalingen', rows: paymentRows },
     { name: 'Toestemmingen', rows: consentRows },
     { name: 'Over deze export', rows: aboutRows },
   ]);
@@ -199,7 +211,7 @@ function createPersonPrivacyRoutes(options) {
           blocks[block] = { _unreadable: true };
         }
       }
-      const [bookings, events, consents, accounts] = await Promise.all([
+      const [bookings, events, consents, accounts, paymentLines] = await Promise.all([
         db.query(`SELECT ${BOOKING_COLUMNS.map(([column]) => column).join(', ')} FROM bookings WHERE person_id = $1 ORDER BY created_at, id`, [person.id]),
         db.query(
           `SELECT b.reference, e.created_at, e.from_status, e.to_status, e.note FROM booking_events e JOIN bookings b ON b.id = e.booking_id
@@ -208,9 +220,18 @@ function createPersonPrivacyRoutes(options) {
         ),
         db.query('SELECT kind, text_version, given_at, withdrawn_at FROM consents WHERE person_id = $1 ORDER BY given_at, id', [person.id]),
         person.email ? db.query('SELECT created_at FROM customer_accounts WHERE email = $1', [person.email.toLowerCase()]) : [],
+        db.query(
+          `SELECT b.reference, 'bedrag' AS line, c.kind AS kind, c.description AS text, c.amount_cents, NULL::date AS received_on, c.created_at, c.removed_at
+             FROM booking_charges c JOIN bookings b ON b.id = c.booking_id WHERE b.person_id = $1
+           UNION ALL
+           SELECT b.reference, 'betaling', p.method, p.note, p.amount_cents, p.received_on, p.created_at, NULL
+             FROM payments p JOIN bookings b ON b.id = p.booking_id WHERE b.person_id = $1
+           ORDER BY reference, created_at`,
+          [person.id],
+        ),
       ]);
       const now = clock();
-      const file = buildInspectionWorkbook({ person, blocks, bookings, events, consents, account: accounts[0] || null, userName: req.user.name, now });
+      const file = buildInspectionWorkbook({ person, blocks, bookings, events, consents, payments: paymentLines, account: accounts[0] || null, userName: req.user.name, now });
       await db.transaction(async (client) => {
         await auth.audit(req, { userId: req.user.id, action: 'deelnemer.inzage', entity: 'persons', entityId: person.id }, client);
         for (const block of included) await auth.audit(req, { userId: req.user.id, action: `deelnemer.inzage.${BLOCK_INFO[block].slug}`, entity: 'persons', entityId: person.id }, client);

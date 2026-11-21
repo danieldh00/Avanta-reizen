@@ -86,6 +86,18 @@ const GROUPS = [
     ],
   },
   {
+    title: 'CRM',
+    sections: [
+      {
+        id: 'betalingen',
+        label: 'Betalingen',
+        intro: 'Termijnen voor de betalingen bij een aanmelding. Het CRM rekent daarmee de vervaldatums van de aanbetaling en het restant uit, en toont welke aanmeldingen te laat zijn.',
+        fields: ['paymentDepositDays', 'paymentBalanceDaysBefore'],
+        words: 'betaling betalingen aanbetaling restant restbetaling termijn vervaldatum openstaand saldo herinnering',
+      },
+    ],
+  },
+  {
     title: 'Toegang en beveiliging',
     sections: [
       {

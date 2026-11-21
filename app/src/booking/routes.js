@@ -14,6 +14,7 @@ const { renderPage, renderPageHeader } = require('../site/layout');
 const { createContent, today } = require('../site/content');
 const { formatPrice, formatDate, isoDate, tripPath } = require('../site/format');
 const { FIELD_GROUPS, validateBooking, SGR_CENTS, BOOKING_FEE_CENTS } = require('./fields');
+const { addInitialCharges } = require('../crm/payments');
 const { createPersons } = require('../crm/persons');
 const { createFormGuard } = require('../security/form-guard');
 const { captchaField } = require('../security/captcha');
@@ -278,14 +279,17 @@ function createBookingRouter(options) {
     const [booking] = await client.query(
       `INSERT INTO bookings (reference, trip_id, trip_code, trip_title, departure_date, gender, first_names, call_name, last_name,
          email, mobile, phone, street, postal_code, city, occupation, travel_with, earlier_trip, credit_card, driver_interest,
-         driver_before, driver_when, payment_method, payment_choice, price_cents, person_id, customer_account_id, consent_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27, now())
+         driver_before, driver_when, payment_method, payment_choice, price_cents, person_id, customer_account_id, deposit_cents, consent_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28, now())
        RETURNING id`,
       [reference, trip.id, trip.trip_code, trip.title, isoDate(trip.departure_date), values.gender, values.first_names, values.call_name,
         values.last_name, values.email.toLowerCase(), values.mobile, values.phone, values.street, values.postal_code.toUpperCase(),
         values.city, values.occupation, values.travel_with, yes('earlier_trip'), yes('credit_card'), yes('driver_interest'),
-        yes('driver_before'), values.driver_when, 'handmatig', values.payment_choice, trip.price_cents, personId, accountId],
+        yes('driver_before'), values.driver_when, 'handmatig', values.payment_choice, trip.price_cents, personId, accountId,
+        locked.deposit_cents >= 0 ? locked.deposit_cents : null],
     );
+    // De verwachte bedragen (reissom, SGR, boekingskosten) voor de betalingen in het CRM.
+    await addInitialCharges(client, booking.id, { priceCents: trip.price_cents, paymentChoice: values.payment_choice });
     await persons.recordConsents(client, { personId, bookingId: booking.id, values });
     return { depositCents: locked.deposit_cents };
   });

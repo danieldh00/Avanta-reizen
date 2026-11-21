@@ -200,6 +200,16 @@ const SETTING_FIELDS = {
     required: true,
     validate: (value) => (value.split('\n').length > 10 ? 'Gebruik hoogstens 10 regels.' : ''),
   },
+  paymentDepositDays: {
+    type: 'int', label: 'Aanbetaling binnen (dagen na aanmelden)',
+    help: 'Vervaldatum van de aanbetaling (aanbetaling van de reis + boekingskosten + SGR-garantie), en van het hele bedrag bij wie het totaalbedrag kiest. Geldt ook voor bestaande aanmeldingen.',
+    default: 7, min: 0, max: 60,
+  },
+  paymentBalanceDaysBefore: {
+    type: 'int', label: 'Restant uiterlijk (dagen vóór vertrek)',
+    help: 'Vervaldatum van het restant. Wie zich later aanmeldt, betaalt het restant op de vervaldatum van de aanbetaling. Advies: 42 dagen (6 weken).',
+    default: 42, min: 0, max: 365,
+  },
   mailHeaderColor: {
     type: 'text',
     label: 'Kleur van de titelbalk',

@@ -17,6 +17,7 @@ const { createUserRoutes } = require('./users');
 const { createPersonRoutes } = require('./person-routes');
 const { createPersonMergeRoutes } = require('./person-merge-routes');
 const { createBookingRoutes } = require('./booking-routes');
+const { createPaymentRoutes } = require('./payment-routes');
 const { createParticipantListRoutes } = require('./participant-list-routes');
 const { createMediaRoutes } = require('../media/routes');
 const { createCategoryRoutes } = require('../trips/category-routes');
@@ -424,7 +425,8 @@ function createCrmRouter(options) {
   router.use(createUserRoutes({ db, auth, twoFactor, normalizeEmail, textField }));
   router.use(createPersonRoutes({ db, auth, persons, now: options.now }));
   router.use(createPersonMergeRoutes({ db, auth, persons }));
-  router.use(createBookingRoutes({ db, auth }));
+  router.use(createBookingRoutes({ db, auth, settings: options.settings, now: options.now }));
+  router.use(createPaymentRoutes({ db, auth, settings: options.settings, now: options.now }));
   router.use(createParticipantListRoutes({ db, auth, persons, now: options.now }));
   router.use(createMediaRoutes({ db, auth, library: options.mediaLibrary, limits: options.mediaLimits, now: options.now }));
   router.use(createTripRoutes({ db, auth, redirects: options.redirects, library: options.mediaLibrary }));
