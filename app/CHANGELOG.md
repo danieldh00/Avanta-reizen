@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.26.4 — 2026-11-21 — Beheer als eigen omgeving met een tweede zijbalk
+
+- Beheer staat nu in een eigen omgeving, zoals in AquaTech: in de hoofdzijbalk staat één knop *Beheer*, en daarin
+
+- `crm/layout.js`: de groepen van Beheer en het zoekveld zijn uit de hoofdzijbalk; daar staat één ingang *Beheer*
+  (`/app/beheer/` met recht `systeem`, anders `/app/gebruikers/` met recht `gebruikers`). Op paden onder
+  `/app/beheer/`, `/app/gebruikers/` en `/app/auditlog/` (`isBeheerPath`) tekent `renderCrmPage` een tweede zijbalk
+  (`aside.crm-sub`) met *Terug naar het CRM*, het zoekveld en de groepen; Gebruikers en Auditlog zijn daarheen
+  verhuisd en tellen mee bij het zoeken.
+- `public/js/crm.js`: inklapbare groepen gedeeld door beide zijbalken; knop `data-sub-toggle` voor de tweede zijbalk op
+  een smal scherm.
+- `site.css`: stijl `.crm-beheer`/`.crm-sub` (licht, terracotta markering, sticky); regels van de ingeklapte
+  hoofdzijbalk gelden alleen nog binnen `.crm-nav`.
+
 ## 0.26.3 — 2026-11-21 — Online betalen via Mollie (iDEAL)
 
 - Reizigers kunnen het openstaande bedrag online betalen met iDEAL via een persoonlijke betaallink in de
