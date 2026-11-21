@@ -106,7 +106,10 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     blog, pagina's, reisleiders, reiscategorieën, `homepage.json` en `site-content.json`); een geüploade foto die
     nergens gebruikt wordt kan verwijderd worden (rij, landen en bestanden, met audit), een foto uit de import niet.
     Losse `bib-*`-bestanden zonder rij (bijv. na een crash midden in een upload) worden bij het starten en daarna
-    dagelijks opgeruimd als ze ouder zijn dan een dag.
+    dagelijks opgeruimd als ze ouder zijn dan een dag. Foto's uit de import zonder land krijgen automatisch de landen
+    van de reizen (kop-, kaart-, galerijfoto of tekst) en landpagina's waarin ze staan: na elke import en met de knop
+    *Automatisch koppelen via de reizen* bij *Zonder land*; wat daarna nog zonder land is, is de lijst "nog te
+    koppelen". Foto's met al een land (ook met de hand gekozen) blijven ongemoeid.
   - **Aanmeldingen** op `/app/aanmeldingen/` (recht `aanmeldingen`; `app/src/crm/booking-routes.js`, migratie 11):
     lijst met filter op status en reis en zoeken op referentie, naam, e-mailadres of reiscode; per aanmelding de
     gegevens zoals ingevuld (zonder bijzondere gegevens, die staan bij de deelnemer), de status met vaste overgangen

@@ -11,7 +11,7 @@ const { html, raw } = require('../site/html');
 const { searchPatterns } = require('../crm/person-routes');
 const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
 const { createRateLimiter } = require('../security/rate-limit');
-const { createMediaLibrary, mediaUrl, TEXT_LIMITS } = require('./library');
+const { createMediaLibrary, linkImportedMedia, mediaUrl, TEXT_LIMITS } = require('./library');
 const { ImageError, MAX_UPLOAD_BYTES } = require('./images');
 
 /** Basispad van de bibliotheek. */
@@ -34,6 +34,7 @@ const MEDIA_ACTION_LABELS = {
   'media.geupload': 'Foto geüpload naar de fotobibliotheek',
   'media.gewijzigd': 'Foto in de fotobibliotheek gewijzigd',
   'media.verwijderd': 'Foto uit de fotobibliotheek verwijderd',
+  'media.gekoppeld': 'Foto\'s uit de import automatisch aan landen gekoppeld',
 };
 
 /**
@@ -116,6 +117,8 @@ function createMediaRoutes(options) {
   const uploadsPerHour = options.limits?.uploadsPerHour ?? UPLOADS_PER_HOUR;
   const maxParallelUploads = options.limits?.maxParallelUploads ?? MAX_PARALLEL_UPLOADS;
   const uploadLimiter = createRateLimiter({ limit: uploadsPerHour, windowMs: 60 * 60 * 1000, now: options.now });
+  // Automatisch koppelen vergelijkt alle open foto's met alle reizen: hoogstens een paar keer per minuut per gebruiker.
+  const linkLimiter = createRateLimiter({ limit: options.limits?.linksPerMinute ?? 3, windowMs: 60 * 1000, now: options.now });
   let runningUploads = 0;
 
   /**
@@ -179,6 +182,11 @@ function createMediaRoutes(options) {
             ${countries.filter((country) => country.count || country.id === countryId).map((country) => html`<li><a href="${BASE}?land=${country.id}"${country.id === countryId ? raw(' aria-current="page"') : ''}>${country.name} <span class="media-folders__count">${country.count}</span></a></li>`)}
           </ul>
         </nav>
+        ${withoutCountry ? html`<form class="media-autolink" method="post" action="${BASE}koppelen/">
+          <input type="hidden" name="_csrf" value="${req.session.csrf}">
+          <p>Foto's uit de import zonder land kunnen automatisch de landen krijgen van de reizen en landpagina's waarin ze staan. Foto's die al een land hebben blijven zoals ze zijn.</p>
+          <button class="btn btn--small" type="submit">Automatisch koppelen via de reizen</button>
+        </form>` : ''}
         <form class="crm-search" method="get" action="${BASE}" role="search">
           <label for="veld-q">Zoek op titel, alt-tekst, bijschrift of fotograaf</label>
           <input id="veld-q" name="q" type="search" value="${text}" maxlength="100">
@@ -200,6 +208,8 @@ function createMediaRoutes(options) {
       const count = Number.parseInt(req.query.geupload, 10);
       let notice = Number.isInteger(count) && count > 0 && count <= MAX_FILES ? `${count} ${count === 1 ? 'foto' : 'foto\'s'} geüpload.` : '';
       if (req.query.verwijderd === '1') notice = 'De foto is verwijderd.';
+      const linked = Number.parseInt(req.query.gekoppeld, 10);
+      if (Number.isInteger(linked) && linked >= 0 && linked <= 1_000_000) notice = linked ? `${linked} ${linked === 1 ? 'foto heeft' : 'foto\'s hebben'} automatisch een land gekregen.` : 'Er waren geen foto\'s om automatisch te koppelen.';
       return res.send(await renderList(req, { notice }));
     } catch (error) {
       return next(error);
@@ -337,6 +347,20 @@ function createMediaRoutes(options) {
       }, client));
       if (!saved) return notFound(req, res);
       return res.redirect(303, `${BASE}${Number(req.params.id)}/?opgeslagen=1`);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/fotobibliotheek/koppelen/', guard, auth.checkCsrf, async (req, res, next) => {
+    if (!linkLimiter.hit(`user:${req.user.id}`)) return res.status(429).set('Retry-After', '60').type('text').send('Probeer het over een minuut opnieuw.');
+    try {
+      const result = await db.transaction(async (client) => {
+        const outcome = await linkImportedMedia(client);
+        if (outcome.links) await auth.audit(req, { userId: req.user.id, action: 'media.gekoppeld', entity: 'media' }, client);
+        return outcome;
+      });
+      return res.redirect(303, `${BASE}?land=zonder&gekoppeld=${result.linked}`);
     } catch (error) {
       return next(error);
     }

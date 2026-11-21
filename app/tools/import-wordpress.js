@@ -18,6 +18,7 @@ const { sanitizeHtml, plainText } = require('./import/sanitize');
 const parsers = require('./import/parse');
 const { HOMEPAGE_FILE } = require('../src/site/homepage');
 const { SITE_CONTENT_FILE, SITE_CONTENT_VERSION } = require('../src/site/site-content');
+const { linkImportedMedia } = require('../src/media/library');
 
 const SITE = 'https://www.avantareizen.nl';
 const USER_AGENT = 'Mozilla/5.0 (compatible; AvantaSiteImport/1.0)';
@@ -632,6 +633,9 @@ async function main() {
     console.log(`Afbeeldingen: ${media.count()} gevonden`);
     const result = await media.download(db);
     console.log(`Afbeeldingen lokaal: ${result.ok}, mislukt: ${result.failed.length}`);
+    // Fotobibliotheek: foto's zonder land krijgen de landen van de reizen waarin ze staan.
+    const linked = await linkImportedMedia(db);
+    console.log(`Fotobibliotheek: ${linked.linked} foto('s) automatisch aan een land gekoppeld`);
     if (data.homepage) console.log(`Homepage opgeslagen in ${writeHomepage(withExistingImages(data.homepage))}`);
     console.log(`Lijstkoppen en reisleiders opgeslagen in ${writeSiteContent(withExistingSiteImages(data.siteContent))}`);
     for (const line of [...data.warnings, ...result.failed].slice(0, 50)) console.warn(`  let op: ${line}`);

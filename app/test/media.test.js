@@ -401,4 +401,46 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.ok(left.includes('import-c.jpg'), 'importbestanden blijven');
     assert.ok(left.includes(item.local_name), 'bestanden met een rij blijven');
   });
+
+  await t.test('foto\'s uit de import automatisch aan landen koppelen', async () => {
+    const insert = async (name) => (await db.query("INSERT INTO media (original_url, local_name, content_type, bytes) VALUES ($1, $2, 'image/jpeg', 1) RETURNING id", [`https://example.nl/${name}`, name]))[0].id;
+    const inTrip = await insert('reis_foto.jpg');
+    const inGallery = await insert('galerij-1.jpg');
+    const onCountryPage = await insert('land-kop.jpg');
+    const manual = await insert('handmatig.jpg');
+    const unused = await insert('los.jpg');
+    const lookalike = await insert('los_x.jpg');
+    const [trip] = await db.query(
+      "INSERT INTO trips (slug, title, hero_image_url, gallery, body_html) VALUES ('afrika', 'Afrika', '/media/reis_foto.jpg', $1, '<p>tekst</p>') RETURNING id",
+      [JSON.stringify([{ url: '/media/galerij-1.jpg' }])],
+    );
+    await db.query('INSERT INTO trip_category_links (trip_id, category_id) VALUES ($1, $2), ($1, $3), ($1, $4)', [trip.id, namibia.id, botswana.id, hostel.id]);
+    await db.query("UPDATE trip_categories SET image_url = '/media/land-kop.jpg' WHERE id = $1", [botswana.id]);
+    await db.query("UPDATE trips SET body_html = '<img src=\"/media/handmatig.jpg\"><img src=\"/media/losYx.jpg\">' WHERE id = $1", [trip.id]);
+    await db.query('INSERT INTO media_countries (media_id, category_id) VALUES ($1, $2)', [manual, botswana.id]);
+    assert.equal((await request('/app/fotobibliotheek/koppelen/', { cookie: boek.cookie, form: { _csrf: boek.csrf } })).status, 403);
+    assert.equal((await request('/app/fotobibliotheek/koppelen/', { cookie: redactie.cookie, form: {} })).status, 403);
+    const page = await request('/app/fotobibliotheek/?land=zonder', { cookie: redactie.cookie });
+    assert.match(page.text, /Automatisch koppelen via de reizen/);
+    const response = await request('/app/fotobibliotheek/koppelen/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } });
+    assert.equal(response.status, 303);
+    assert.equal(response.headers.get('location'), '/app/fotobibliotheek/?land=zonder&gekoppeld=3');
+    const countriesOf = async (id) => (await db.query('SELECT category_id FROM media_countries WHERE media_id = $1 ORDER BY category_id', [id])).map((row) => row.category_id);
+    const both = [namibia.id, botswana.id].sort((a, b) => a - b);
+    assert.deepEqual(await countriesOf(inTrip), both, 'landen van de reis, geen reistype');
+    assert.deepEqual(await countriesOf(inGallery), both);
+    assert.deepEqual(await countriesOf(onCountryPage), [botswana.id]);
+    assert.deepEqual(await countriesOf(manual), [botswana.id], 'met de hand gekozen land blijft');
+    assert.deepEqual(await countriesOf(unused), []);
+    assert.deepEqual(await countriesOf(lookalike), [], '_ is geen jokerteken');
+    const audits = await db.query("SELECT entity, entity_id FROM audit_log WHERE action = 'media.gekoppeld'");
+    assert.deepEqual(audits.map((row) => ({ ...row })), [{ entity: 'media', entity_id: null }], 'één regel, zonder misleidend id');
+    const notice = await request('/app/fotobibliotheek/?land=zonder&gekoppeld=3', { cookie: redactie.cookie });
+    assert.match(notice.text, /3 foto(&#39;|')s hebben automatisch een land gekregen\./);
+    const again = await request('/app/fotobibliotheek/koppelen/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } });
+    assert.equal(again.headers.get('location'), '/app/fotobibliotheek/?land=zonder&gekoppeld=0');
+    // Limiet: drie keer per minuut per gebruiker (twee keer gebruikt, plus één weigering zonder token telt niet mee).
+    assert.equal((await request('/app/fotobibliotheek/koppelen/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 303);
+    assert.equal((await request('/app/fotobibliotheek/koppelen/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 429);
+  });
 });
