@@ -1,8 +1,8 @@
 /**
  * Mijn reizen en Mijn gegevens van het reizigersaccount (CMS-pakket J3). Een account hoort bij zijn bevestigde
  * e-mailadres: de aanmeldingen met dat adres zijn de reizen van de reiziger (index `bookings_email_idx` op
- * `lower(email)`). Alleen gewone gegevens: geboortedatum, paspoort, kerkgenootschap, noodnummer en bijzonderheden staan
- * versleuteld bij de persoon en komen nooit in het account of de export; die vraagt de reiziger op bij kantoor.
+ * `lower(email)`). Het aanmeldformulier bevestigt het adres niet, dus toont het account alleen reisgegevens (reis, datum,
+ * referentie, status), nooit naam, adres of telefoon uit een aanmelding en nooit bijzondere gegevens; die beheert kantoor.
  */
 const { html } = require('../site/html');
 const { formatDate, isoDate, tripPath } = require('../site/format');
@@ -31,7 +31,7 @@ function paymentState(status) {
 /**
  * Maakt de functies voor Mijn reizen.
  * @param {{db: object}} options De database.
- * @returns {{bookingsOf: Function, detailsOf: Function, overview: Function, details: Function, exportXlsx: Function}} Functies.
+ * @returns {{bookingsOf: Function, overview: Function, details: Function, exportXlsx: Function}} Functies.
  */
 function createMyTrips(options) {
   const { db } = options;
@@ -50,20 +50,6 @@ function createMyTrips(options) {
       LIMIT ${MAX_BOOKINGS}`,
     [email],
   );
-
-  /**
-   * De gewone gegevens van de laatste aanmelding bij een e-mailadres (zoals de reiziger ze toen invulde).
-   * @param {string} email Bevestigd e-mailadres.
-   * @returns {Promise<(object|null)>} Naam, adres en telefoon, of null zonder aanmelding.
-   */
-  const detailsOf = async (email) => {
-    const [row] = await db.query(
-      `SELECT first_names, call_name, last_name, email, mobile, phone, street, postal_code, city, created_at
-         FROM bookings WHERE lower(email) = $1 ORDER BY created_at DESC LIMIT 1`,
-      [email],
-    );
-    return row || null;
-  };
 
   /**
    * Eén aanmelding als kaart: reis, datum, referentie, status en betaalstand.
@@ -104,40 +90,36 @@ function createMyTrips(options) {
   };
 
   /**
-   * Mijn gegevens: de gewone gegevens van de laatste aanmelding.
+   * Mijn gegevens: wat bij het account zelf hoort. Naam, adres en telefoon uit aanmeldingen tonen we hier bewust niet:
+   * het aanmeldformulier bevestigt het e-mailadres niet, dus een aanmelding met dit adres kan van iemand anders zijn.
    * @param {{email: string}} customer De ingelogde reiziger.
+   * @param {{created_at: Date, verified_at: Date}} account Accountgegevens.
    * @returns {Promise<object>} HTML.
    */
-  const details = async (customer) => {
-    const row = await detailsOf(customer.email);
-    if (!row) return html`<p>Er is nog geen aanmelding met dit e-mailadres, dus er staan nog geen gegevens van je bij ons.</p>`;
-    const phone = [row.mobile, row.phone].filter(Boolean).join(' / ');
+  const details = async (customer, account) => {
+    const bookings = await bookingsOf(customer.email);
     return html`<dl class="account-details">
-        <dt>Naam</dt><dd>${row.first_names} ${row.last_name}${row.call_name ? ` (${row.call_name})` : ''}</dd>
-        <dt>E-mailadres</dt><dd>${row.email}</dd>
-        ${phone ? html`<dt>Telefoon</dt><dd>${phone}</dd>` : ''}
-        <dt>Adres</dt><dd>${row.street}, ${row.postal_code} ${row.city}</dd>
+        <dt>E-mailadres</dt><dd>${customer.email}</dd>
+        <dt>Account sinds</dt><dd>${formatDate(account.created_at)}</dd>
+        <dt>Aanmeldingen</dt><dd>${bookings.length}</dd>
       </dl>
-      <p class="account__hint">Zoals je ze invulde bij je laatste aanmelding (${formatDate(row.created_at)}). Wijzigen? Geef het door aan kantoor. Bijzondere gegevens (geboortedatum, paspoort, kerkgenootschap, gezondheid) tonen we hier niet; die vraag je op bij kantoor.</p>`;
+      <p class="account__hint">Je naam, adres, telefoon en bijzondere gegevens (geboortedatum, paspoort, kerkgenootschap, gezondheid) beheert kantoor; die tonen we hier niet. Wil je ze inzien of wijzigen? Neem contact op met kantoor.</p>`;
   };
 
   /**
-   * De export van Mijn gegevens als Excel: account, gegevens en reizen.
+   * De export van Mijn gegevens als Excel: account en reizen.
    * @param {{email: string}} customer De ingelogde reiziger.
    * @param {{created_at: Date, verified_at: Date, last_login_at: (Date|null)}} account Accountgegevens.
    * @returns {Promise<Buffer>} Het .xlsx-bestand.
    */
   const exportXlsx = async (customer, account) => {
-    const [bookings, row] = await Promise.all([bookingsOf(customer.email), detailsOf(customer.email)]);
+    const bookings = await bookingsOf(customer.email);
     const stamp = (value) => (value ? new Date(value).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam' }) : '');
     const sheets = [
-      { name: 'Account', rows: [['Gegeven', 'Waarde'], ['E-mailadres', customer.email], ['Aangemaakt', stamp(account.created_at)], ['Bevestigd', stamp(account.verified_at)], ['Laatst ingelogd', stamp(account.last_login_at)]] },
       {
-        name: 'Gegevens',
-        rows: [['Gegeven', 'Waarde'], ...(row ? [
-          ['Voornamen', row.first_names], ['Roepnaam', row.call_name], ['Achternaam', row.last_name], ['E-mailadres', row.email],
-          ['Mobiel', row.mobile], ['Telefoon', row.phone], ['Straat + huisnummer', row.street], ['Postcode', row.postal_code], ['Woonplaats', row.city],
-        ] : []), ['Let op', 'Bijzondere gegevens (geboortedatum, paspoort, kerkgenootschap, noodnummer, gezondheid) staan versleuteld bij kantoor en zitten niet in deze export.']],
+        name: 'Account',
+        rows: [['Gegeven', 'Waarde'], ['E-mailadres', customer.email], ['Aangemaakt', stamp(account.created_at)], ['Bevestigd', stamp(account.verified_at)], ['Laatst ingelogd', stamp(account.last_login_at)],
+          ['Let op', 'Naam, adres, telefoon en bijzondere gegevens beheert kantoor en zitten niet in deze export; vraag ze op bij kantoor.']],
       },
       {
         name: 'Reizen',
@@ -150,7 +132,7 @@ function createMyTrips(options) {
     return createXlsx(sheets);
   };
 
-  return { bookingsOf, detailsOf, overview, details, exportXlsx };
+  return { bookingsOf, overview, details, exportXlsx };
 }
 
 module.exports = { createMyTrips, paymentState };

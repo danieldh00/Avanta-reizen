@@ -336,7 +336,8 @@ function createAccountRouter(options) {
 
   router.get('/account/gegevens/', customerPage, async (req, res, next) => {
     try {
-      const content = await myTrips.details(req.customer);
+      const [account] = await db.query('SELECT created_at, verified_at FROM customer_accounts WHERE id = $1', [req.customer.accountId]);
+      const content = await myTrips.details(req.customer, account);
       return send(res, { title: 'Mijn gegevens', body: views.detailsView({ content, stepUp: req.customer.stepUp }) });
     } catch (error) {
       return next(error);

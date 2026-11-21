@@ -151,12 +151,12 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.match(other.text, /Nog geen eerdere reizen/);
   });
 
-  await t.test('Mijn gegevens: gewone gegevens van de laatste aanmelding, geen bijzondere', async () => {
+  await t.test('Mijn gegevens: alleen accountgegevens, nooit naam of adres uit een aanmelding', async () => {
     assert.equal((await request('/account/gegevens/')).location, '/account/inloggen/');
     const page = await request('/account/gegevens/', { cookie: anna.cookie });
     assert.equal(page.status, 200);
-    assert.match(page.text, /Anna Maria Jansen \(Anna\)/);
-    assert.match(page.text, /Dorpsstraat 1, 4331 AB Middelburg/);
+    assert.match(page.text, /anna@example\.nl/);
+    assert.doesNotMatch(page.text, /Jansen|Dorpsstraat|Middelburg/, 'een aanmelding met dit adres kan van een ander zijn');
     assert.match(page.text, /href="\/account\/code\/\?verder=gegevens"/, 'zonder code eerst de codestap');
   });
 
@@ -197,7 +197,7 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.equal((await request('/account/code/', { cookie: anna.cookie, form: { _csrf: anna.csrf, next: 'gegevens', code } })).status, 422, 'code werkt één keer');
   });
 
-  await t.test('Excel-export: eigen gegevens en reizen, geen bijzondere gegevens, in het auditlog', async () => {
+  await t.test('Excel-export: account en reizen, geen bijzondere gegevens, in het auditlog', async () => {
     const response = await request('/account/gegevens/export.xlsx', { cookie: anna.cookie });
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -205,7 +205,8 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.equal(response.headers.get('cache-control'), 'no-store');
     const files = unzip(response.buffer);
     const all = Object.values(files).join('\n');
-    assert.match(files['xl/workbook.xml'], /name="Account".*name="Gegevens".*name="Reizen"/);
+    assert.match(files['xl/workbook.xml'], /name="Account".*name="Reizen"/);
+    assert.doesNotMatch(all, /Jansen|Dorpsstraat|Middelburg/, 'geen naam of adres uit een aanmelding');
     assert.match(all, /AV-2099-AAAA0001/);
     assert.match(all, /AV-2020-AAAA0002/);
     assert.match(all, /<v>1899<\/v>/);
