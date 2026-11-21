@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.22.1 — 2026-11-21 — Bevestiging aan de reiziger na een aanmelding
+
+- Wie zich aanmeldt voor een reis krijgt meteen een bevestiging per mail: referentie, reisgegevens, bedragen en de betaalinstructie. De tekst van de betaalinstructie pas je aan in Beheer > E-mail > Bevestiging aan de reiziger.
+
+- `mail/notifications.js`: `bookingConfirmation` stuurt na een aanmelding een mail aan de reiziger (soort `bevestiging-aanmelding`) met referentie, reis, vertrek, betaalkeuze, bedragen (reissom, SGR, boekingskosten alleen bij de aanbetaling, totaal, aanbetaling van de reis, bijkomende kosten) en de betaalinstructie; nooit bijzondere gegevens. Gooit nooit en wacht niet op de mailserver.
+- Instellingen `bookingConfirmEnabled` en `bookingPaymentText` in de nieuwe sectie *E-mail > Bevestiging aan de reiziger*.
+- `SGR_CENTS` en `BOOKING_FEE_CENTS` staan nu in `booking/fields.js` (ook nog geëxporteerd door `booking/routes.js`); bij het opslaan van een aanmelding komt de aanbetaling van de vergrendelde reis mee.
+
 ## 0.22.0 — 2026-11-21 — Reisleiders beheren
 
 - Onder *Website > Reisleiders* beheer je de reisleiders: naam, adres, woonplaats, sinds wanneer bij Avanta, citaat, tekst, portret en tweede foto uit de fotobibliotheek, en online of offline. Je kunt ook een nieuwe reisleider aanmaken.
