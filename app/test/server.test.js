@@ -125,6 +125,31 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.ok(normal.indexOf('8 dagen Albanië') < normal.indexOf('Nieuw IJsland'), 'standaard op vertrekdatum');
   });
 
+  await t.test('reispagina\'s in de opmaak van de huidige site; video alleen op de homepage in de CSP', async () => {
+    const detail = (await get('/reis/8-dagen-albanie/')).text;
+    assert.match(detail, /<div class="trip__single">/);
+    assert.match(detail, /<span class="block-ghost__label">Reisleider<\/span>[\s\S]*href="\/reisleider\/harmen\/">Harmen/);
+    assert.match(detail, /<a class="trip-type" href="\/reis-categorie\/kamperen\/"/);
+    assert.match(detail, /<span class="trip__price">€799,-<\/span>/);
+    const list = (await get('/reis/?bestemming=albanie&nieuw=1')).text;
+    assert.match(list, /<div class="filter">[\s\S]*<option value="albanie" selected>/);
+    assert.match(list, /name="nieuw" checked/);
+    assert.match(list, /class="list list--journey archive archive--journey"/);
+    assert.match((await get('/reis/?bestemming=bestaat-niet')).text, /<div class="alert">Geen reizen gevonden op basis van het filter\.<\/div>/);
+    assert.match((await get('/reis-categorie/kamperen/')).text, /post-teaser--landscape" href="\/reis\/8-dagen-albanie\/"/);
+    const guides = (await get('/reisleider/')).text;
+    assert.match(guides, /<a class="post-teaser post-teaser--guide" href="\/reisleider\/harmen\/">/);
+    assert.match(guides, /Ontmoet alvast onze reisleiders!/);
+    const guide = (await get('/reisleider/harmen/')).text;
+    assert.match(guide, /<section class="page-header page-header--bare">/);
+    assert.match(guide, /<h1 class="guide__name">Harmen<\/h1>/);
+    // Zonder homepage.json heeft de standaardslider de video van de huidige site: alleen / staat youtube-nocookie toe.
+    const home = await get('/');
+    assert.match(home.headers.get('content-security-policy'), /frame-src 'self' https:\/\/www\.youtube-nocookie\.com/);
+    assert.match(home.text, /<iframe src="https:\/\/www\.youtube-nocookie\.com\/embed\//);
+    assert.doesNotMatch((await get('/reis/')).headers.get('content-security-policy'), /youtube/);
+  });
+
   await t.test('lijsten tonen geen vertrokken reizen; volle en oude reizen tonen geen aanmeldknop', async () => {
     const list = await get('/reis/');
     assert.doesNotMatch(list.text, /Oude reis/);

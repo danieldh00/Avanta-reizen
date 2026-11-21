@@ -78,7 +78,7 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, settings?: object, appLog?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, statfs?: Function, monitorRequest?: Function, monitorDataDir?: string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number, homepage?: {load: Function}}} options Database,
+ * @param {{db: object, masterKey: Buffer, settings?: object, appLog?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, statfs?: Function, monitorRequest?: Function, monitorDataDir?: string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number, homepage?: {load: Function}, siteContent?: {load: Function}}} options Database,
  *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), het logboek (standaard
  *   `system/app-log.js`; wegschrijven start pas met `appLog.start()` in `start()`), de koppeling met het updatescript
  *   (standaard `system/system-update.js` met de mappen uit `updateStatusDir`/`updateRequestDir` of UPDATE_STATUS_DIR/UPDATE_REQUEST_DIR), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), de back-updienst (standaard `backup/backups.js` met `databaseUrl`, `backupDir` en `pgDumpPath`; zonder `databaseUrl` geen back-ups), een eigen fetch voor Google Drive (`googleFetch`, tests), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
@@ -219,7 +219,7 @@ function createApp(options) {
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now }));
   const contactForm = createContactForm({ db: options.db, formKey, notifications, captcha, now: options.now });
-  app.use(createSiteRouter({ db: options.db, contactForm, homepage: options.homepage }));
+  app.use(createSiteRouter({ db: options.db, contactForm, homepage: options.homepage, siteContent: options.siteContent }));
 
   // 404: telt mee in de 404-lijst van Beheer; altijd noindex (kop en renderPage zonder indexable), met een canonical
   // naar het gevraagde pad.

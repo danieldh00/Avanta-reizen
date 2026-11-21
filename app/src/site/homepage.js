@@ -8,22 +8,24 @@
  * foto's; de route vult dan foto's van reizen in). Alles uit het bestand wordt gecontroleerd voordat het op de pagina
  * komt: alleen tekst met een maximumlengte, links naar een eigen pad of https en afbeeldingen onder `/media/`.
  */
-const fs = require('node:fs');
 const path = require('node:path');
+const { createJsonFileStore } = require('./json-store');
 
 /** Naam van het bestand in DATA_DIR. */
 const HOMEPAGE_FILE = 'homepage.json';
+/** Adres waar de video van een videodia vandaan komt (de privacyvriendelijke variant van YouTube). */
+const YOUTUBE_ORIGIN = 'https://www.youtube-nocookie.com';
 /** Maximum aantal dia's per slider. */
 const MAX_SLIDES = 8;
 
 /** De teksten van de huidige site (21-11-2026), voor als het bestand ontbreekt. */
 const DEFAULT_HOMEPAGE = Object.freeze({
   slides: [
-    { pretitle: 'chase the snow!', title: 'winters avantuur', button: 'al onze winterreizen', href: '/reis/?bestemming=wintersport&nieuw=1', image: '' },
-    { pretitle: 'your adventure starts here', title: 'Ons reisaanbod', button: 'start exploring', href: '/reis/', image: '' },
-    { pretitle: 'minder spullen, meer ruimte voor avontuur', title: 'pack your bag!', button: 'inpaktips', href: '/vijf-reisessentials-en-extra-inpaktips-van-emma/', image: '' },
-    { pretitle: 'our way of life', title: 'Wildkamperen', button: 'pitch your tent here', href: '/reis/', image: '' },
-    { pretitle: 'geen uithoek te ver', title: 'All over the world', button: 'laat je inspireren', href: '/blog/', image: '' },
+    { pretitle: 'chase the snow!', title: 'winters avantuur', button: 'al onze winterreizen', href: '/reis/?bestemming=wintersport&nieuw=1', image: '', videoId: '' },
+    { pretitle: 'your adventure starts here', title: 'Ons reisaanbod', button: 'start exploring', href: '/reis/', image: '', videoId: '' },
+    { pretitle: 'minder spullen, meer ruimte voor avontuur', title: 'pack your bag!', button: 'inpaktips', href: '/vijf-reisessentials-en-extra-inpaktips-van-emma/', image: '', videoId: '' },
+    { pretitle: 'our way of life', title: 'Wildkamperen', button: 'pitch your tent here', href: '/reis/', image: '', videoId: '' },
+    { pretitle: 'geen uithoek te ver', title: 'All over the world', button: 'laat je inspireren', href: '/blog/', image: '', videoId: 'Cs45NTbOzqg' },
   ],
   sections: {
     lastMinutes: { title: 'Inpakken en wegwezen!', subtitle: 'voor plotselinge reiskriebels', button: 'Meer last-minutes' },
@@ -79,6 +81,15 @@ function cleanImage(value) {
 }
 
 /**
+ * YouTube-id van een videodia: precies 11 tekens uit letters, cijfers, `-` en `_`.
+ * @param {*} value Waarde.
+ * @returns {string} Het id, of leeg.
+ */
+function cleanVideoId(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{11}$/.test(value) ? value : '';
+}
+
+/**
  * Een tekstvak met een standaardwaarde.
  * @param {*} value Waarde uit het bestand.
  * @param {string} fallback Standaard.
@@ -105,6 +116,7 @@ function normalizeHomepage(data) {
       button: cleanString(slide && slide.button, 60),
       href: cleanHref(slide && slide.href),
       image: cleanImage(slide && slide.image),
+      videoId: cleanVideoId(slide && slide.videoId),
     }))
     .filter((slide) => slide.title);
   const inspiration = (Array.isArray(source.inspiration) ? source.inspiration : [])
@@ -148,34 +160,7 @@ function normalizeHomepage(data) {
  * @returns {{load: Function}} `load()` geeft de (gecontroleerde) inhoud.
  */
 function createHomepageStore(dataDir) {
-  const file = path.join(dataDir, HOMEPAGE_FILE);
-  let cache = null;
-  return {
-    /**
-     * De inhoud van de homepage; bij een ontbrekend of kapot bestand de standaard.
-     * @returns {object} Inhoud (zie `normalizeHomepage`).
-     */
-    load() {
-      let stamp = null;
-      try {
-        const stats = fs.statSync(file);
-        stamp = `${stats.mtimeMs}:${stats.size}`;
-      } catch (_) {
-        stamp = 'geen';
-      }
-      if (cache && cache.stamp === stamp) return cache.value;
-      let data = null;
-      if (stamp !== 'geen') {
-        try {
-          data = JSON.parse(fs.readFileSync(file, 'utf8'));
-        } catch (_) {
-          data = null; // Kapot bestand: de standaard geldt tot de volgende import.
-        }
-      }
-      cache = { stamp, value: normalizeHomepage(data) };
-      return cache.value;
-    },
-  };
+  return createJsonFileStore(path.join(dataDir, HOMEPAGE_FILE), normalizeHomepage);
 }
 
-module.exports = { HOMEPAGE_FILE, DEFAULT_HOMEPAGE, normalizeHomepage, createHomepageStore, cleanHref, cleanImage };
+module.exports = { HOMEPAGE_FILE, DEFAULT_HOMEPAGE, normalizeHomepage, createHomepageStore, cleanString, cleanHref, cleanImage, cleanVideoId, YOUTUBE_ORIGIN };

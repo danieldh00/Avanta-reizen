@@ -9,7 +9,10 @@ const { isExcluded } = require('./site-settings');
 const { createContent, today } = require('./content');
 const views = require('./views');
 const homeViews = require('./home-view');
-const { createHomepageStore } = require('./homepage');
+const { createHomepageStore, YOUTUBE_ORIGIN } = require('./homepage');
+const { addCspSources } = require('../security/csp');
+const tripViews = require('./trip-view');
+const { createSiteContentStore, sortGuides, EMPTY_GUIDE } = require('./site-content');
 const { DATA_DIR } = require('../paths');
 const { formatLongDate, isoDate, toDate, tripPath, categoryPath, guidePath, postPath } = require('./format');
 const seo = require('./seo');
@@ -45,8 +48,10 @@ function queryValue(value) {
 
 /**
  * Bouwt de router van de website.
- * @param {{db: object, contactForm?: object, homepage?: {load: Function}}} options Database, het contactformulier en
- *   (voor tests) de vaste inhoud van de homepage (standaard `DATA_DIR/homepage.json`, zie `site/homepage.js`). Indexeren, basisadres, naam en
+ * @param {{db: object, contactForm?: object, homepage?: {load: Function}, siteContent?: {load: Function}}} options Database,
+ *   het contactformulier en (voor tests) de vaste inhoud van de homepage (standaard `DATA_DIR/homepage.json`, zie
+ *   `site/homepage.js`) en van lijstkoppen en reisleiders (standaard `DATA_DIR/site-content.json`, zie
+ *   `site/site-content.js`). Indexeren, basisadres, naam en
  *   de overige site-instellingen komen per verzoek uit `res.locals.site` (Beheer, zie `site/site-settings.js`).
  *   Zonder contactformulier (`contact/routes.js`) is `/contact/` een gewone pagina.
  * @returns {express.Router} De router.
@@ -55,6 +60,7 @@ function createSiteRouter(options) {
   const router = express.Router({ strict: true });
   const content = createContent(options.db);
   const homepage = options.homepage || createHomepageStore(DATA_DIR);
+  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
   let sitemapCache = null;
 
   /**
@@ -119,12 +125,13 @@ function createSiteRouter(options) {
   router.get('/', asyncRoute(async (req, res) => {
     if (typeof req.query.s === 'string') return res.redirect(302, `/zoeken/?s=${encodeURIComponent(req.query.s)}`);
     const home = homepage.load();
-    const [finder, lastMinutes, upcoming, types, blog] = await Promise.all([
+    const [finder, lastMinutes, upcoming, types, blog, newCount] = await Promise.all([
       finderOptions(),
       content.upcomingTrips({ onlyAvailable: true, limit: 6 }),
       content.upcomingTrips({ limit: 60 }),
       content.categories('type'),
       content.posts({ perPage: 4 }),
+      content.newTripCount(),
     ]);
     const typeBySlug = new Map(types.map((type) => [type.slug, type]));
     const homeTypes = home.typeSlugs.map((slug) => typeBySlug.get(slug)).filter(Boolean);
@@ -132,6 +139,8 @@ function createSiteRouter(options) {
     const tripImages = upcoming.map((trip) => cssImageUrl(trip.card_image_url)).filter(Boolean);
     const filled = homeViews.withFallbackImages(home, tripImages);
     const heroImage = cssImageUrl(filled.slides[0].image || filled.slides[0].fallbackImage);
+    // Een videodia laadt de video van youtube-nocookie.com; alleen dan mag de homepage dat adres in een iframe tonen.
+    if (filled.slides.some((slide) => slide.videoId)) res.set('Content-Security-Policy', addCspSources(res.get('Content-Security-Policy'), { 'frame-src': [YOUTUBE_ORIGIN] }));
     send(res, {
       path: '/',
       seo: seoFor('/', { imageUrl: heroImage, structuredData: [(site) => seo.travelAgencyData(site.siteUrl, site.contact, { ...site.organisation, name: site.siteName, imageUrl: site.imageUrl })] }),
@@ -139,7 +148,7 @@ function createSiteRouter(options) {
       body: homeViews.renderHome({
         home: filled,
         finder,
-        newCount: upcoming.filter((trip) => trip.is_new).length,
+        newCount,
         lastMinutes,
         types: homeTypes.length ? homeTypes : types.filter((type) => type.trip_count > 0),
         destinations,
@@ -173,19 +182,23 @@ function createSiteRouter(options) {
     const selected = { bestemming: queryValue(req.query.bestemming), type: queryValue(req.query.type), vertrek: queryValue(req.query.vertrek) };
     const newFirst = req.query.nieuw === '1';
     const departure = /^\d{4}-\d{2}-\d{2}$/.test(selected.vertrek) ? selected.vertrek : '';
-    const [finder, trips] = await Promise.all([
+    const [finder, trips, newCount] = await Promise.all([
       finderOptions(),
       content.upcomingTrips({ destination: selected.bestemming, type: selected.type, departure, newFirst }),
+      content.newTripCount(),
     ]);
+    const archive = siteContent.load().archives.reis;
     send(res, {
       title: 'Reizen',
       path: '/reis/',
-      seo: seoFor('/reis/'),
-      header: renderPageHeader({ title: 'Ons reisaanbod', subtitle: 'start exploring' }),
-      body: html`<div class="container section">
-        ${views.tripFinder({ ...finder, selected, compact: true })}
-        <p class="result-count">${trips.length} ${trips.length === 1 ? 'reis' : 'reizen'} gevonden</p>
-        ${views.tripGrid(trips, 'Geen reizen gevonden op basis van het filter.')}
+      seo: seoFor('/reis/', { imageUrl: archive.image }),
+      header: html`${renderPageHeader({ title: archive.title, pretitle: archive.pretitle, imageUrl: archive.image })}
+        ${homeViews.renderFilterBar(finder, newCount, { ...selected, nieuw: newFirst })}`,
+      body: html`<div class="content-main">
+        <div class="layout-container">
+          <p class="visually-hidden" role="status">${trips.length} ${trips.length === 1 ? 'reis' : 'reizen'} gevonden</p>
+          ${tripViews.tripList(trips, 'Geen reizen gevonden op basis van het filter.')}
+        </div>
       </div>`,
     });
   }));
@@ -208,7 +221,7 @@ function createSiteRouter(options) {
         ],
       }),
       header: renderPageHeader({ title: trip.title, destinations, imageUrl: trip.hero_image_url, backLink: '/reis/' }),
-      body: views.tripDetail(trip, { isPast }),
+      body: tripViews.tripDetail(trip, { isPast }),
     });
   }));
 
@@ -225,22 +238,27 @@ function createSiteRouter(options) {
         imageUrl: category.image_url,
         structuredData: [breadcrumbs([{ name: 'Reizen', path: '/reis/' }, { name: category.name, path: categoryPath(category.slug) }])],
       }),
-      header: renderPageHeader({ title: category.name, subtitle: category.intro, imageUrl: category.image_url, backLink: '/reis/' }),
-      body: html`<div class="container section">
-        ${category.body_html ? html`<div class="prose prose--intro">${raw(category.body_html)}</div>` : ''}
-        ${views.tripGrid(trips, 'Op dit moment geen reizen in deze categorie.')}
+      header: renderPageHeader({ title: category.name, imageUrl: category.image_url }),
+      body: html`<div class="content-main">
+        <div class="layout-container">
+          ${tripViews.pageIntroduction(category.intro)}
+          ${category.body_html ? html`<div class="page-content"><div class="page-content__text">${raw(category.body_html)}</div></div>` : ''}
+          ${tripViews.tripList(trips, 'Op dit moment geen reizen in deze categorie.')}
+        </div>
       </div>`,
     });
   }));
 
   router.get('/reisleider/', asyncRoute(async (req, res) => {
-    const guides = await content.guides();
+    const extra = siteContent.load();
+    const archive = extra.archives.reisleider;
+    const guides = sortGuides(await content.guides(), extra.guideOrder).map((guide) => ({ ...guide, extra: extra.guides.get(guide.slug) || EMPTY_GUIDE }));
     send(res, {
       title: 'Reisleiders',
       path: '/reisleider/',
-      seo: seoFor('/reisleider/'),
-      header: renderPageHeader({ title: 'Onze reisleiders' }),
-      body: html`<div class="container section"><div class="card-grid card-grid--guides">${guides.map(views.guideCard)}</div></div>`,
+      seo: seoFor('/reisleider/', { imageUrl: archive.image }),
+      header: renderPageHeader({ title: archive.title, pretitle: archive.pretitle, imageUrl: archive.image }),
+      body: tripViews.guideList(guides, archive.introduction),
     });
   }));
 
@@ -254,13 +272,11 @@ function createSiteRouter(options) {
       description: guide.intro,
       path: '/reisleider/',
       seo: seoFor(guidePath(guide.slug), { imageUrl: guide.photo_url }),
-      header: renderPageHeader({ title: guide.name, subtitle: guide.intro, backLink: '/reisleider/' }),
-      body: html`<div class="container section guide">
-        ${guide.photo_url ? html`<img class="guide__photo" src="${guide.photo_url}" alt="${guide.name}">` : ''}
-        <div class="prose">${raw(guide.body_html)}</div>
-      </div>
-      ${guide.trips.length ? html`<section class="section section--soft"><div class="container">
-        <h2 class="section__title">Reizen met ${guide.name}</h2>${views.tripGrid(guide.trips)}
+      header: renderPageHeader({ bare: true, backLink: '/reisleider/' }),
+      body: html`${tripViews.guideDetail({ ...guide, extra: siteContent.load().guides.get(guide.slug) || EMPTY_GUIDE })}
+      ${guide.trips.length ? html`<section class="section guide-trips"><div class="layout-container">
+        <h2 class="section__title">Reizen met ${guide.name}</h2>
+        ${tripViews.tripList(guide.trips, '')}
       </div></section>` : ''}`,
     });
   }));
@@ -322,7 +338,7 @@ function createSiteRouter(options) {
           <button class="btn" type="submit">Zoeken</button>
         </form>
         ${term ? html`<p class="result-count">${count} resultaten</p>` : ''}
-        ${results.trips.length ? html`<h2>Reizen</h2>${views.tripGrid(results.trips)}` : ''}
+        ${results.trips.length ? html`<h2>Reizen</h2>${tripViews.tripList(results.trips, '')}` : ''}
         ${results.posts.length ? html`<h2>Weblog</h2><div class="card-grid">${results.posts.map(views.postCard)}</div>` : ''}
         ${results.pages.length ? html`<h2>Pagina's</h2><ul class="link-list">${results.pages.map((page) => html`<li><a href="${page.path}">${page.title}</a>${page.intro ? html` — ${page.intro}` : ''}</li>`)}</ul>` : ''}
       </div>`,

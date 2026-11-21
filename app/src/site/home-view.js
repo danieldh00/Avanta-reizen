@@ -9,6 +9,7 @@ const { html } = require('./html');
 const { icon, typeIconName } = require('./icons');
 const { cssImageUrl } = require('./layout');
 const { formatDate, tripPath, categoryPath, postPath } = require('./format');
+const { YOUTUBE_ORIGIN } = require('./homepage');
 
 /**
  * Een achtergrondfoto als style-attribuut (leeg zonder veilige URL).
@@ -41,7 +42,18 @@ function slashDate(value) {
 }
 
 /**
- * De slider bovenaan: foto over de volle breedte, pretitel, titel en een knop; ruitjes links om te wisselen en een
+ * Adres van een YouTube-video als stille achtergrond van een dia (zoals op de huidige site): zonder geluid, zonder
+ * knoppen, herhalend, via youtube-nocookie.com.
+ * @param {string} videoId YouTube-id (gecontroleerd in `homepage.js`).
+ * @returns {string} Het adres voor de iframe.
+ */
+function videoUrl(videoId) {
+  const query = new URLSearchParams({ autoplay: '1', mute: '1', loop: '1', playlist: videoId, controls: '0', disablekb: '1', modestbranding: '1', playsinline: '1', rel: '0', iv_load_policy: '3' });
+  return `${YOUTUBE_ORIGIN}/embed/${encodeURIComponent(videoId)}?${query}`;
+}
+
+/**
+ * De slider bovenaan: foto (of stille YouTube-video) over de volle breedte, pretitel, titel en een knop; ruitjes links om te wisselen en een
  * muis-icoon naar de last-minutes.
  * @param {object[]} slides Dia's (`homepage.js`), met eventueel `fallbackImage`.
  * @returns {object} HTML.
@@ -51,6 +63,7 @@ function renderSlides(slides) {
     <ul class="slides">${slides.map((slide, index) => html`
       <li class="slide${index === 0 ? ' is-active' : ''}" data-slide aria-roledescription="slide" aria-label="${index + 1} van ${slides.length}"${index === 0 ? '' : html` aria-hidden="true"`}>
         <div class="slide__image"${backgroundStyle(slide.image || slide.fallbackImage)}></div>
+        ${slide.videoId ? html`<div class="slide__video"><iframe src="${videoUrl(slide.videoId)}" title="Video: ${slide.title}" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" loading="lazy" tabindex="-1"></iframe></div>` : ''}
         <div class="slide__content">
           ${slide.pretitle ? html`<p class="slide__pretitle">${slide.pretitle}</p>` : ''}
           <p class="slide__title">${slide.title}</p>
@@ -67,9 +80,10 @@ function renderSlides(slides) {
  * De filterbalk onder de slider: bestemming, type, vertrek, "nieuwe reizen bovenaan" en de zoekknop.
  * @param {{destinations: object[], types: object[], dates: string[]}} finder Keuzes.
  * @param {number} newCount Aantal nieuwe reizen.
+ * @param {{bestemming?: string, type?: string, vertrek?: string, nieuw?: boolean}} [selected] Huidige keuze (op `/reis/`).
  * @returns {object} HTML.
  */
-function renderFilterBar(finder, newCount) {
+function renderFilterBar(finder, newCount, selected = {}) {
   /**
    * Eén keuzelijst met label en icoon.
    * @param {string} name Veldnaam.
@@ -82,7 +96,7 @@ function renderFilterBar(finder, newCount) {
     <label class="filter__label" for="filter-${name}">${label}</label>
     <span class="filter__control">${icon(iconName, { className: 'filter__icon' })}<select id="filter-${name}" name="${name}">
       <option value="">Maak jouw keuze</option>
-      ${options.map((option) => html`<option value="${option.value}">${option.label}</option>`)}
+      ${options.map((option) => html`<option value="${option.value}"${option.value === selected[name] ? html` selected` : ''}>${option.label}</option>`)}
     </select>${icon('chevron-down', { className: 'filter__arrow' })}</span>
   </div>`;
   return html`<div class="filter">
@@ -94,7 +108,7 @@ function renderFilterBar(finder, newCount) {
         <div class="filter__item filter__item--toggle">
           <span class="filter__label filter__label--relative" id="filter-nieuw-label">Nieuwe reizen (${newCount})</span>
           <span class="filter__select">
-            <input class="filter__switch" type="checkbox" value="1" id="filter-nieuw" name="nieuw" aria-labelledby="filter-nieuw-label filter-nieuw-info">
+            <input class="filter__switch" type="checkbox" value="1" id="filter-nieuw" name="nieuw"${selected.nieuw ? html` checked` : ''} aria-labelledby="filter-nieuw-label filter-nieuw-info">
             <label class="filter__select-label" for="filter-nieuw"></label>
             <span class="filter__select-info" id="filter-nieuw-info">Toon bovenaan</span>
           </span>

@@ -182,7 +182,54 @@ function parseGuide(markup, url) {
     intro: common.intro,
     bodyHtml: common.bodyHtml,
     photo: common.ogImage || photo?.getAttribute('src') || common.headerImage,
+    extra: parseGuideExtra(common.root),
   };
+}
+
+/**
+ * De extra gegevens van een reisleider die de huidige site naast de tekst toont (voor `site-content.json`).
+ * @param {object} root Geparste pagina.
+ * @returns {{surname: string, city: string, since: string, quote: string, portrait: (string|null), image: (string|null), galleryTitle: string, gallerySubtitle: string, gallery: string[]}} Gegevens.
+ */
+function parseGuideExtra(root) {
+  const text = (selector) => cleanText(root.querySelector(selector)?.text);
+  const gallery = root.querySelector('.page-gallery');
+  return {
+    surname: text('.guide__surname'),
+    city: text('.guide__city'),
+    since: text('.guide__year'),
+    quote: text('.guide__quote').replace(/^[`'"‘“]+|[`'"’”]+$/g, '').trim(),
+    portrait: root.querySelector('.guide__featured-image img')?.getAttribute('src') || null,
+    image: root.querySelector('.guide__image img')?.getAttribute('src') || null,
+    galleryTitle: cleanText(gallery?.querySelector('.section__title')?.text),
+    gallerySubtitle: cleanText(gallery?.querySelector('.section__subtitle')?.text),
+    gallery: (gallery?.querySelectorAll('img') || []).map((image) => image.getAttribute('src')).filter(Boolean),
+  };
+}
+
+/**
+ * De kop van een lijstpagina (reisaanbod, reisleiders, blog, FAQ): pretitel, titel, foto en inleiding.
+ * @param {string} markup HTML van de pagina.
+ * @returns {{pretitle: string, title: string, image: (string|null), introduction: string}} De kop.
+ */
+function parseArchiveHeader(markup) {
+  const root = parse(markup, { comment: false });
+  return {
+    pretitle: cleanText(root.querySelector('.page-header__pretitle')?.text),
+    title: cleanText(root.querySelector('.page-header__title')?.text),
+    image: backgroundUrl(root.querySelector('.page-header__image')?.getAttribute('style')),
+    introduction: cleanText(root.querySelector('.page-introduction')?.text),
+  };
+}
+
+/**
+ * De volgorde van de reisleiders op de lijstpagina (slugs; een oud id als adres blijft een getal).
+ * @param {string} markup HTML van `/reisleider/`.
+ * @returns {string[]} Slugs of oude id's in volgorde.
+ */
+function parseGuideOrder(markup) {
+  const root = parse(markup, { comment: false });
+  return root.querySelectorAll('.archive--guide a.post-teaser').map((link) => slugFromUrl(link.getAttribute('href') || '')).filter(Boolean);
 }
 
 /**
@@ -331,5 +378,6 @@ function parseHome(markup) {
 
 module.exports = {
   cleanText, parseEuros, parseDutchDate, backgroundUrl, slugFromUrl, pathFromUrl,
-  parseCommon, parseTrip, parseGuide, parseCategory, parseFaqCategory, parsePost, parsePage, parseHome,
+  parseCommon, parseTrip, parseGuide, parseGuideExtra, parseCategory, parseFaqCategory, parsePost, parsePage, parseHome,
+  parseArchiveHeader, parseGuideOrder,
 };

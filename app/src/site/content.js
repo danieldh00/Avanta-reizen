@@ -59,6 +59,15 @@ function createContent(db) {
     },
 
     /**
+     * Aantal nieuwe reizen die nog niet vertrokken zijn (voor "Nieuwe reizen (n)" in de filterbalk).
+     * @returns {Promise<number>} Aantal.
+     */
+    async newTripCount() {
+      const [row] = await db.query('SELECT count(*)::int AS count FROM trips t WHERE t.published AND t.is_new AND t.departure_date >= $1', [today()]);
+      return row ? row.count : 0;
+    },
+
+    /**
      * Eén reis met reisleider en categorieën.
      * @param {string} slug Slug van de reis.
      * @returns {Promise<(object|null)>} De reis of null.
