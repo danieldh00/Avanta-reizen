@@ -405,7 +405,12 @@ function createPages(options) {
           WHERE href = $1 OR left(href, length($1) + 1) IN ($1 || '#', $1 || '?')`,
         [row.path, target],
       );
-      await client.query('UPDATE menu_items SET href = $2, updated_at = now() WHERE href = rtrim($1, \'/\')', [row.path, target]);
+      // Zonder slash aan het eind, ook met een anker of query erachter (`/over-ons#x` wordt `/nieuw/#x`).
+      await client.query(
+        `UPDATE menu_items SET href = $2 || substr(href, length(rtrim($1, '/')) + 1), updated_at = now()
+          WHERE href = rtrim($1, '/') OR left(href, length(rtrim($1, '/')) + 1) IN (rtrim($1, '/') || '#', rtrim($1, '/') || '?')`,
+        [row.path, target],
+      );
     }
     await context.audit(client);
     return { status: 'ok', path: built.path };
@@ -450,7 +455,11 @@ function createPages(options) {
     const [child] = await client.query('SELECT id FROM pages WHERE left(path, length($1)) = $1 AND id <> $2 LIMIT 1', [page.path, page.id]);
     if (child) return { status: 'onderliggend' };
     const [menuItem] = await client.query(
-      `SELECT id FROM menu_items WHERE href = $1 OR href = rtrim($1, '/') OR left(href, length($1) + 1) IN ($1 || '#', $1 || '?') LIMIT 1`,
+      `SELECT id FROM menu_items
+        WHERE href = $1 OR href = rtrim($1, '/')
+           OR left(href, length($1) + 1) IN ($1 || '#', $1 || '?')
+           OR left(href, length(rtrim($1, '/')) + 1) IN (rtrim($1, '/') || '#', rtrim($1, '/') || '?')
+        LIMIT 1`,
       [page.path],
     );
     if (menuItem) return { status: 'in-menu' };

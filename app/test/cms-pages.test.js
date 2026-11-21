@@ -539,7 +539,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     const [parent] = await db.query("SELECT id FROM pages WHERE path = '/over-ons/'");
     const [child] = await db.query("SELECT id FROM pages WHERE path = '/over-ons/teamdagen-meer/'");
     await db.query(`INSERT INTO menu_items (menu, label, href, sort_order) VALUES ('voet', 'Over ons', '/over-ons/', 99),
-      ('voet', 'Team anker', '/over-ons/teamdagen-meer/#x', 98), ('voet', 'Team kaal', '/over-ons/teamdagen-meer', 97)`);
+      ('voet', 'Team anker', '/over-ons/teamdagen-meer/#x', 98), ('voet', 'Team kaal', '/over-ons/teamdagen-meer', 97), ('voet', 'Team kaal anker', '/over-ons/teamdagen-meer#y', 96)`);
     await app.locals.menus.reload();
     const moveTo = (id, form) => request(`/app/paginas/${id}/adres/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, versie: '0', ...form } });
     assert.equal((await request(`/app/paginas/${parent.id}/adres/`, { cookie: leider.cookie, form: { _csrf: leider.csrf, slug: 'x', parent: '/' } })).status, 403);
@@ -560,7 +560,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match((await request('/wie-wij-zijn/')).text, /<a href="\/wie-wij-zijn\/">Over ons<\/a>/, 'menu-item gaat mee');
     assert.equal(await audits('pagina.verplaatst'), 1);
     assert.deepEqual((await db.query("SELECT href FROM menu_items WHERE label LIKE 'Team %' ORDER BY label")).map((r) => r.href),
-      ['/wie-wij-zijn/teamdagen-meer/#x', '/wie-wij-zijn/teamdagen-meer/'], 'ook met anker of zonder slash');
+      ['/wie-wij-zijn/teamdagen-meer/#x', '/wie-wij-zijn/teamdagen-meer/', '/wie-wij-zijn/teamdagen-meer/#y'], 'ook met anker of zonder slash');
     // Terug naar het oude adres: de doorverwijzing vanaf het oude adres vervalt, er ontstaat geen lus.
     assert.equal((await moveTo(parent.id, { slug: 'over-ons', parent: '/' })).status, 303);
     assert.equal((await request('/over-ons/')).status, 200);
@@ -581,6 +581,9 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match((await act(`${childUrl}verwijderen/`, { zeker: 'ja' })).text, /alleen offline halen/);
     await db.query('UPDATE pages SET legacy_id = NULL WHERE id = $1', [child.id]);
     assert.match((await act(`${childUrl}verwijderen/`, { zeker: 'ja' })).text, /staat nog in een menu/);
+    await db.query("DELETE FROM menu_items WHERE label LIKE 'Team %' AND label <> 'Team kaal anker'");
+    await db.query("UPDATE menu_items SET href = '/over-ons/teamdagen-meer#y' WHERE label = 'Team kaal anker'");
+    assert.match((await act(`${childUrl}verwijderen/`, { zeker: 'ja' })).text, /staat nog in een menu/, 'ook anker zonder slash');
     await db.query("DELETE FROM menu_items WHERE label LIKE 'Team %'");
     assert.equal((await act(`${childUrl}verwijderen/`, {})).status, 422, 'zonder vinkje');
     const removed = await act(`${childUrl}verwijderen/`, { zeker: 'ja' });
