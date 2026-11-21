@@ -90,6 +90,8 @@ test('AVG-verzoeken bij een deelnemer', { skip: !DATABASE_URL && 'TEST_DATABASE_
     [personId],
   );
   await db.query("INSERT INTO booking_events (booking_id, from_status, to_status, note) VALUES ($1, 'nieuw', 'bevestigd', 'Belde over dieet')", [booking.id]);
+  await db.query("INSERT INTO booking_charges (booking_id, kind, amount_cents) VALUES ($1, 'sgr', 500)", [booking.id]);
+  await db.query("INSERT INTO payments (booking_id, amount_cents, method, received_on, note) VALUES ($1, 2000, 'bank', '2027-01-05', 'Via ouders')", [booking.id]);
   await db.query("INSERT INTO customer_accounts (email, password_hash, verified_at) VALUES ('griet@example.nl', 'x', now()), ('ander@example.nl', 'x', now())");
 
   /**
@@ -154,7 +156,9 @@ test('AVG-verzoeken bij een deelnemer', { skip: !DATABASE_URL && 'TEST_DATABASE_
     assert.match(files['xl/worksheets/sheet2.xml'], /AV-2027-GRIET/);
     assert.match(files['xl/worksheets/sheet2.xml'], /1299/);
     assert.match(files['xl/worksheets/sheet3.xml'], /Belde over dieet/);
-    assert.match(files['xl/worksheets/sheet4.xml'], /art\. 9/);
+    assert.match(files['xl/worksheets/sheet5.xml'], /art\. 9/);
+    assert.match(files['xl/worksheets/sheet4.xml'], /SGR-garantie/);
+    assert.match(files['xl/worksheets/sheet4.xml'], /Via ouders/);
     const actions = (await db.query("SELECT action FROM audit_log WHERE action LIKE 'deelnemer.inzage%' ORDER BY action")).map((row) => row.action);
     assert.deepEqual(actions, ['deelnemer.inzage', 'deelnemer.inzage.gezondheid', 'deelnemer.inzage.identiteit', 'deelnemer.inzage.noodnummer']);
     const full = unzip((await request(inzage, { cookie: beheer.cookie, form: { _csrf: beheer.csrf } })).buffer);

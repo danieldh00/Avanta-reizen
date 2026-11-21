@@ -12,6 +12,7 @@ const { renderCrmPage, renderInput, renderAlert, formatDateTime } = require('./l
 const { PERSON_ACTION_LABELS } = require('./person-routes');
 const { MERGE_ACTION_LABELS } = require('./person-merge-routes');
 const { BOOKING_ACTION_LABELS } = require('./booking-routes');
+const { PAYMENT_ACTION_LABELS } = require('./payment-routes');
 const { PARTICIPANT_LIST_ACTION_LABELS } = require('./participant-list-routes');
 const { MEDIA_ACTION_LABELS } = require('../media/routes');
 const { CATEGORY_ACTION_LABELS } = require('../trips/category-routes');
@@ -66,6 +67,7 @@ const ACTION_LABELS = {
   ...PERSON_ACTION_LABELS,
   ...MERGE_ACTION_LABELS,
   ...BOOKING_ACTION_LABELS,
+  ...PAYMENT_ACTION_LABELS,
   ...PARTICIPANT_LIST_ACTION_LABELS,
   ...MEDIA_ACTION_LABELS,
   ...CATEGORY_ACTION_LABELS,

@@ -81,7 +81,7 @@ test('indeling: secties, zoeken en rechten', () => {
   assert.deepEqual(filterGroups('TELEFOON', SETTING_FIELDS).flatMap((group) => group.sections.map((section) => section.id)), ['contact']);
   assert.deepEqual(filterGroups('migratie', SETTING_FIELDS).flatMap((group) => group.sections.map((section) => section.id)), ['overzicht']);
   assert.deepEqual(filterGroups('onvindbaar woord', SETTING_FIELDS), []);
-  assert.equal(filterGroups('', SETTING_FIELDS).length, 6);
+  assert.equal(filterGroups('', SETTING_FIELDS).length, 7);
   assert.equal(roleHasRight('beheerder', 'systeem'), true);
   for (const role of ['kantoor', 'reisleider', 'boekhouding']) assert.equal(roleHasRight(role, 'systeem'), false, role);
   assert.equal(formatUptime(59), '0 minuten');
@@ -213,7 +213,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
     assert.equal(overview.headers.get('cache-control'), 'no-store');
     assert.match(overview.text, /Systeemoverzicht/);
     assert.match(overview.text, new RegExp(require('../package.json').version.replace(/\./g, '\\.')));
-    assert.match(overview.text, /25: CRM: AVG-opschoning/);
+    assert.match(overview.text, /26: CRM: betalingen/);
     assert.match(overview.text, /Standaardwaarde/);
     assert.match(overview.text, /href="\/app\/beheer\/contact\/"/);
     assert.match((await request('/app/', { cookie: adminCookie })).text, /href="\/app\/beheer\/"/);

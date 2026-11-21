@@ -263,6 +263,18 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     (`nieuw → bevestigd → aanbetaald → betaald`, en `geannuleerd` met verplichte reden; daarna niet meer te wijzigen),
     notities en de historie (`booking_events`). Een formulier met een verouderde status geeft 409. Geen wachtlijst
     (komt later, met automatisch doorschuiven).
+  - **Betalingen** op `/app/betalingen/<aanmelding>/` (recht `betalingen`: beheerder, kantoor, boekhouding;
+    `app/src/crm/payments.js` en `payment-routes.js`, migratie 26): per aanmelding de verwachte bedragen
+    (`booking_charges`: reissom, SGR-garantie € 5 en boekingskosten € 15 bij aanmelden, plus korting,
+    annuleringskosten of overig door kantoor) en de ontvangen betalingen (`payments`: bank, iDEAL, contant of correctie).
+    Saldo, aanbetaling (aanbetaling van de reis + boekingskosten + SGR; bij het totaalbedrag alles), vervaldatums en
+    betaalstatus worden berekend, nooit opgeslagen. Termijnen in Beheer > CRM > Betalingen (`paymentDepositDays`,
+    standaard 7 dagen na aanmelden; `paymentBalanceDaysBefore`, standaard 42 dagen vóór vertrek). Een betaling is niet
+    te wijzigen of te verwijderen: een vergissing of terugbetaling is een correctie met toelichting. Na een betaling
+    schuift een bevestigde aanmelding automatisch door naar aanbetaald of betaald (regel in de historie); een nieuwe
+    aanmelding bevestigt kantoor zelf. Een dubbel of verouderd formulier geeft 409. De aanmelding toont de betaalstand.
+    Bij anonimiseren verdwijnen de toelichtingen; bedragen blijven voor de boekhouding. De inzage-export heeft een blad
+    *Betalingen*.
   - **Deelnemerslijsten** op `/app/deelnemerslijsten/` (recht `export.deelnemers`; `app/src/crm/participant-list-routes.js`
     en `participant-lists.js`): per vertrek een Excel-bestand (.xlsx, nooit CSV) met alle aanmeldingen die niet
     geannuleerd zijn, met de actuele NAW van de persoon (anders het formulier). Bijzondere gegevens alleen als je ze
@@ -374,7 +386,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     (standaard 1 maand; een nieuwe aanmelding schuift de termijn op). Personen worden na de laatste reis of activiteit +
     termijn (standaard 24 maanden) geanonimiseerd, samen met de persoonsvelden en notities van hun aanmeldingen; de
     aanmeldingen zelf blijven voor de boekhouding en verdwijnen na de fiscale termijn (standaard 7 jaar). Geannuleerde
-    aanmeldingen waarop nooit (aan)betaald is verdwijnen na 6 maanden, reizigersaccounts die 24 maanden niet zijn
+    aanmeldingen waarop nooit (aan)betaald is (geen betaling geregistreerd) verdwijnen na 6 maanden, reizigersaccounts die 24 maanden niet zijn
     gebruikt en contactberichten na 12 maanden. Toestemmingen blijven als bewijs zolang er aanmeldingen zijn. Elke
     persoon in een eigen transactie met de rij vergrendeld en de termijn opnieuw gecontroleerd. Onder het formulier:
     *Voorbeeld berekenen* (aantallen, wijzigt niets), *Nu opschonen* (auditlog `avg.opschonen`) en de laatste rondes

@@ -87,11 +87,13 @@ const CANDIDATES = {
      WHERE b.person_id IS NULL AND b.anonymized_at IS NULL AND ($4::int IS NULL OR b.id = $4) AND b.id > $5
        AND ${BOOKING_END_SQL} + make_interval(months => $2) < $1::date
      ORDER BY b.id LIMIT $3`,
-  // Geannuleerd en nooit (aan)betaald. Komt er een tabel met betalingen, dan hoort die hier ook bij.
+  // Geannuleerd en nooit (aan)betaald: geen status aanbetaald/betaald gehad en geen enkele betaling geregistreerd
+  // (ook niet een die met een correctie is teruggedraaid: die blijft voor de boekhouding).
   geannuleerd: `SELECT b.id FROM bookings b
      WHERE b.status = 'geannuleerd' AND ($4::int IS NULL OR b.id = $4) AND b.id > $5
        AND ${localDate('coalesce(b.cancelled_at, b.status_changed_at, b.created_at)')} + make_interval(months => $2) < $1::date
        AND NOT EXISTS (SELECT 1 FROM booking_events e WHERE e.booking_id = b.id AND e.to_status IN ('aanbetaald', 'betaald'))
+       AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.booking_id = b.id)
      ORDER BY b.id LIMIT $3`,
   // Alleen al geanonimiseerde aanmeldingen: van een persoon die nog actief is blijft de aanmelding tot de anonimisering.
   verlopen: `SELECT b.id FROM bookings b LEFT JOIN trips t ON t.id = b.trip_id
@@ -101,8 +103,8 @@ const CANDIDATES = {
 };
 
 /**
- * Wist de persoonsvelden van aanmeldingen en de notities in hun historie (die kunnen persoonsgegevens bevatten).
- * Reis, bedragen, status en tijdstippen blijven.
+ * Wist de persoonsvelden van aanmeldingen, de notities in hun historie en de toelichtingen bij betalingen en bedragen
+ * (die kunnen persoonsgegevens bevatten). Reis, bedragen, betalingen, status en tijdstippen blijven.
  * @param {{query: Function}} client Transactie-client.
  * @param {number[]} bookingIds Ids van de aanmeldingen.
  * @returns {Promise<number>} Aantal geanonimiseerde aanmeldingen.
@@ -117,6 +119,9 @@ async function anonymizeBookings(client, bookingIds) {
     [bookingIds, ANONYMIZED_NAME],
   );
   await client.query("UPDATE booking_events SET note = '' WHERE booking_id = ANY($1::int[]) AND note <> ''", [bookingIds]);
+  // Toelichtingen bij betalingen en omschrijvingen bij bedragen kunnen namen bevatten; bedragen en datums blijven.
+  await client.query("UPDATE payments SET note = '' WHERE booking_id = ANY($1::int[]) AND note <> ''", [bookingIds]);
+  await client.query("UPDATE booking_charges SET description = '' WHERE booking_id = ANY($1::int[]) AND description <> ''", [bookingIds]);
   return rows.length;
 }
 

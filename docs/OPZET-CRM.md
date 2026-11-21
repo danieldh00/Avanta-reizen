@@ -174,7 +174,7 @@ met eigen migraties na de CRM-kern.
 | 4 | Aanmeldingen: lijst, detail, statusovergangen, `booking_events` (wachtlijst nu niet, zie §8) | **M6**; gebouwd als **M11** |
 | 5 | ~~Reizen beheren: CRUD, `capacity`, berekende plaatsen-teller op de site, `trip_guides`, `managed_in_crm` in de import~~ vervalt: CMS-pakket G | ~~M7~~ |
 | 6 | Deelnemerslijst per vertrek als .xlsx (kantoor + reisleider-variant) | – |
-| 7 | Betalingen handmatig: `booking_charges`, `payments`, saldo | **M8** |
+| 7 | Betalingen handmatig: `booking_charges`, `payments`, saldo (gebouwd) | **M8**; gebouwd als **M26** |
 | 8 | AVG: dagelijkse opschoning (**M25**), inzage-export en persoon wissen (recht `avg`), gebouwd | **M25** |
 | 9 | Opruimen: persoonskolommen + `sensitive_data` uit `bookings` | **M9** |
 | 10+ | later: reisleider-toegang, e-mails, facturen + export, betaalprovider, KPI's-dashboard, content-beheer | per PR |

@@ -12,6 +12,7 @@ const { FIELDS } = require('../booking/fields');
 const { roleHasGlobalRight } = require('./rights');
 const { searchPatterns } = require('./person-routes');
 const { renderCrmPage, renderAlert, formatDateTime } = require('./layout');
+const payments = require('./payments');
 
 /** De statussen met hun naam op het scherm, in volgorde. */
 const STATUSES = {
@@ -49,7 +50,7 @@ const LABELS = Object.fromEntries(FIELDS.map((field) => [field.name, field.label
 /** Kolommen van een aanmelding voor de detailpagina (nooit `sensitive_data`). */
 const BOOKING_COLUMNS = `id, reference, trip_id, trip_title, trip_code, departure_date, status, created_at, gender, first_names, call_name,
   last_name, email, mobile, phone, street, postal_code, city, occupation, travel_with, earlier_trip, credit_card, driver_interest,
-  driver_before, driver_when, payment_choice, price_cents, person_id, consent_at, confirmed_at, cancelled_at, cancel_reason`;
+  driver_before, driver_when, payment_choice, price_cents, deposit_cents, person_id, consent_at, confirmed_at, cancelled_at, cancel_reason`;
 
 /**
  * Of een overgang van status mag.
@@ -72,12 +73,31 @@ function noteField(value) {
 }
 
 /**
+ * Het blok met de betaalstand op de pagina van een aanmelding (alleen voor wie het recht `betalingen` heeft).
+ * @param {object} summary Uitkomst van `payments.summarize`.
+ * @param {number} bookingId Id van de aanmelding.
+ * @returns {object} HTML.
+ */
+function renderPaymentSummary(summary, bookingId) {
+  return html`<h2>Betalingen</h2>
+    <dl class="crm-facts">
+      <dt>Betaalstatus</dt><dd><span class="crm-status crm-status--${summary.state}">${payments.PAYMENT_STATES[summary.state]}</span>${summary.overdue ? html` <span class="crm-badge">${summary.overdue} te laat</span>` : ''}</dd>
+      <dt>Totaal</dt><dd>${payments.formatAmount(summary.totalCents)}</dd>
+      <dt>Betaald</dt><dd>${payments.formatAmount(summary.paidCents)}</dd>
+      <dt>Openstaand</dt><dd>${payments.formatAmount(summary.balanceCents)}</dd>
+    </dl>
+    <p><a href="/app/betalingen/${bookingId}/">Betalingen bekijken en registreren</a></p>`;
+}
+
+/**
  * Maakt de routes voor aanmeldingen.
- * @param {{db: object, auth: object}} options Database en sessie- en rechtenlaag.
+ * @param {{db: object, auth: object, settings: object, now?: () => number}} options Database, sessie- en rechtenlaag,
+ *   instellingen (betaaltermijnen) en de klok (tests).
  * @returns {express.Router} Router.
  */
 function createBookingRoutes(options) {
-  const { db, auth } = options;
+  const { db, auth, settings } = options;
+  const now = options.now || Date.now;
   const router = express.Router();
   const guard = auth.requireGlobalRight('aanmeldingen');
 
@@ -173,6 +193,10 @@ function createBookingRoutes(options) {
    * @returns {Promise<string>} HTML-pagina.
    */
   const renderBooking = async (req, booking, state = {}) => {
+    const showPayments = roleHasGlobalRight(req.user.role, 'betalingen');
+    const paymentSummary = showPayments
+      ? payments.summarize({ booking, ...(await payments.loadLines(db, booking.id)), terms: payments.termsFrom(settings), today: payments.localDay(now()) })
+      : null;
     const events = await db.query(
       `SELECT e.from_status, e.to_status, e.note, e.created_at, u.name AS user_name
          FROM booking_events e LEFT JOIN users u ON u.id = e.user_id
@@ -186,7 +210,7 @@ function createBookingRoutes(options) {
       ['Reis', html`${booking.trip_title}${booking.trip_code ? ` (${booking.trip_code})` : ''}`],
       ['Vertrek', formatDate(booking.departure_date)],
       ['Reissom bij aanmelden', booking.price_cents ? formatPrice(booking.price_cents) : '–'],
-      [LABELS.payment_choice, booking.payment_choice],
+      [LABELS.payment_choice, booking.payment_choice === 'totaal' ? 'Totaalbedrag' : 'Aanbetaling'],
       ['Aangemeld', formatDateTime(booking.created_at)],
       ['Akkoord voorwaarden', formatDateTime(booking.consent_at)],
       ['Bevestigd', formatDateTime(booking.confirmed_at)],
@@ -231,6 +255,7 @@ function createBookingRoutes(options) {
             </li>`)}</ol>` : html`<p>Nog geen wijzigingen.</p>`}
           </section>
           <section>
+            ${paymentSummary ? renderPaymentSummary(paymentSummary, booking.id) : ''}
             <h2>Aanmelding</h2>
             <dl class="crm-facts">${facts.map(([label, value]) => html`<dt>${label}</dt><dd>${value}</dd>`)}</dl>
             <h2>Zoals ingevuld</h2>
