@@ -193,7 +193,7 @@ function createCategoryRoutes(options) {
             <h2>Samenvoegen</h2>
             <form class="form crm-block" method="post" action="${pageUrl}samenvoegen/">
               <input type="hidden" name="_csrf" value="${req.session.csrf}">
-              <p>Is dit een dubbeling? Dan gaan de reizen en foto's naar de gekozen ${KINDS[category.kind] ? KINDS[category.kind].toLowerCase() : 'categorie'} (alleen dezelfde soort), verdwijnt deze en verwijst het adres <code>${categoryPath(category.slug)}</code> door.</p>
+              <p>Is dit een dubbeling? Dan gaan de reizen en foto's naar een categorie van dezelfde soort, verdwijnt deze en verwijst het adres <code>${categoryPath(category.slug)}</code> door.</p>
               <div class="field"><span class="field__label"><label for="veld-doel">Samenvoegen met</label></span>
                 <select id="veld-doel" name="doel" required><option value="">Kies…</option>${others.filter((row) => row.kind === category.kind).map((row) => html`<option value="${row.id}">${row.name} (${row.slug})</option>`)}</select></div>
               <div><button class="btn btn--small btn--outline" type="submit">Samenvoegen</button></div>
