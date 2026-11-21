@@ -221,6 +221,17 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
     assert.equal(await audits('categorie.foto'), 2);
   });
 
+  await t.test('een categorie die geen land meer is, kan geen foto\'s krijgen', async () => {
+    const [former] = await db.query("INSERT INTO trip_categories (slug, name, kind) VALUES ('was-land', 'Was land', 'bestemming') RETURNING id");
+    const changed = await request(`/app/reistypes-en-landen/${former.id}/`, { cookie: kantoor.cookie, form: fields({ name: 'Was land', slug: 'was-land', kind: 'type' }) });
+    assert.equal(changed.status, 303, 'zonder foto\'s mag de soort wijzigen');
+    const media = await login('kantoor@example.nl');
+    const saved = await request(`/app/fotobibliotheek/${photo.id}/`, { cookie: media.cookie, form: { _csrf: media.csrf, title: 'Duinen', alt_text: '', caption: '', photographer: '', land: [String(double.id), String(former.id)] } });
+    assert.equal(saved.status, 303);
+    assert.deepEqual(await db.query('SELECT category_id FROM media_countries WHERE media_id = $1 ORDER BY category_id', [photo.id]), [{ category_id: double.id }]);
+    await db.query('DELETE FROM trip_categories WHERE id = $1', [former.id]);
+  });
+
   await t.test('verwijderen alleen als ongebruikt', async () => {
     assert.equal((await request(`/app/reistypes-en-landen/${double.id}/verwijderen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })).status, 409);
     const [unused] = await db.query("SELECT id FROM trip_categories WHERE slug = 'wintersport'");

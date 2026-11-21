@@ -178,7 +178,9 @@ function createMediaLibrary(options) {
   const validCountryIds = async (client, ids) => {
     const wanted = [...new Set([].concat(ids || []).map(String).filter((id) => /^\d{1,9}$/.test(id)).map(Number))];
     if (!wanted.length) return [];
-    const rows = await client.query("SELECT id FROM trip_categories WHERE kind = 'bestemming' AND id = ANY($1::int[]) ORDER BY id", [wanted]);
+    // FOR SHARE: wacht op een lopende wijziging van de soort (`categories.update` met FOR UPDATE) en kijkt dan opnieuw,
+    // zodat een foto nooit aan een categorie komt te hangen die net geen land meer is.
+    const rows = await client.query("SELECT id FROM trip_categories WHERE kind = 'bestemming' AND id = ANY($1::int[]) ORDER BY id FOR SHARE", [wanted]);
     return rows.map((row) => row.id);
   };
 
