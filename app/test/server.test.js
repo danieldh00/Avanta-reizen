@@ -601,4 +601,28 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     const [booking] = await db.query("SELECT reference FROM bookings WHERE reference LIKE 'AV-2100-%'");
     assert.ok(booking, 'aanmelding om 00:30 Nederlandse tijd op 1 januari 2100 krijgt jaar 2100');
   });
+
+  await t.test('alle plaatsen bezet: automatisch volgeboekt op de site, aanmelden geeft 409; geannuleerd telt niet', async () => {
+    const form = await formFor(1001);
+    clock += 5000;
+    const [{ total }] = await db.query("SELECT COUNT(*)::int AS total FROM bookings WHERE trip_id = (SELECT id FROM trips WHERE legacy_id = 1001) AND status <> 'geannuleerd'");
+    await db.query('UPDATE trips SET capacity = $1 WHERE legacy_id = 1001', [total]);
+    const refused = await post(form, { 'x-forwarded-for': '203.0.113.30' });
+    assert.equal(refused.status, 409);
+    assert.match(refused.text, /Deze reis is volgeboekt/);
+    assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total >= total, true);
+    assert.equal((await db.query("SELECT COUNT(*)::int AS total FROM bookings WHERE trip_id = (SELECT id FROM trips WHERE legacy_id = 1001) AND status <> 'geannuleerd'"))[0].total, total, 'niets opgeslagen');
+    assert.match((await get('/reis/8-dagen-albanie/')).text, /Volgeboekt/);
+    // Eén aanmelding geannuleerd: er is weer een plaats vrij.
+    await db.query("UPDATE bookings SET status = 'geannuleerd' WHERE id = (SELECT min(id) FROM bookings WHERE trip_id = (SELECT id FROM trips WHERE legacy_id = 1001))");
+    assert.equal((await get('/aanmelden/?id=1001')).status, 200);
+    // Twee aanmeldingen tegelijk voor de laatste plaats: precies één lukt.
+    const first = await formFor(1001);
+    const second = await formFor(1001);
+    clock += 5000;
+    const statuses = (await Promise.all([post(first, { 'x-forwarded-for': '203.0.113.31' }), post(second, { 'x-forwarded-for': '203.0.113.32' })])).map((response) => response.status).sort();
+    assert.deepEqual(statuses, [303, 409]);
+    assert.equal((await db.query("SELECT COUNT(*)::int AS total FROM bookings WHERE trip_id = (SELECT id FROM trips WHERE legacy_id = 1001) AND status <> 'geannuleerd'"))[0].total, total);
+    await db.query('UPDATE trips SET capacity = NULL WHERE legacy_id = 1001');
+  });
 });

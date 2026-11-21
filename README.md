@@ -132,6 +132,14 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     bij de migratie zijn de bestaande foto's uit de import overgenomen. Foto's uit de import zonder rij in de
     bibliotheek blijven staan (kop/kaart tot je er een kiest, galerij-items achteraan); het bewerkscherm meldt ze en
     *Foto's uit de import weghalen* haalt ze weg. Alleen de galerijtekst wijzigen herschrijft de galerij niet.
+    **Plaatsen en Kopiëren** (`app/src/trips/seats.js`): bezet = aanmeldingen voor de reis die niet geannuleerd zijn;
+    het bewerkscherm toont bezet, totaal en vrij, de lijst *bezet van totaal*. Zijn alle plaatsen bezet, dan is de reis
+    automatisch *volgeboekt* op de site, in de lijsten en bij aanmelden (409; bij het opslaan van een aanmelding wordt
+    de reis vergrendeld en opnieuw geteld, zodat twee aanmeldingen voor de laatste plaats na elkaar gaan). Het vinkje
+    *Volgeboekt* blijft werken voor een reis die eerder dicht moet; *gegarandeerd vertrek* blijft een vinkje.
+    *Kopiëren naar nieuw vertrek* maakt een concept met dezelfde teksten, prijs, landen, reistypes, reisleiders en
+    foto's (slug `<slug>-kopie`, `-kopie-2`, …), zonder vertrekdatum, aanbieding, statustekst, *gegarandeerd*,
+    *volgeboekt* en aanmeldingen (audit `reis.gekopieerd`).
   - **Reistypes en landen** op `/app/reistypes-en-landen/` (recht `reizen`: beheerder en kantoor; `app/src/trips/`,
     migratie 14): lijst per soort (reistypes, landen, overig) met het aantal reizen (komend) en foto's; nieuw aanmaken
     en wijzigen: naam, slug (leeg = uit de naam), soort, icoon uit de eigen SVG-set (leeg = op de slug), inleiding,
@@ -313,7 +321,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `app/src/system/` | `system-update.js` (updates vanuit de app), `maintenance.js` (onderhoudsmodus), `host-tasks.js` (servertaken), `request-context.js` (context per verzoek), `app-log.js` (logboek, foutcodes), `monitor.js` (bewaking) |
 | `app/src/backup/` | `backups.js` (versleutelde back-ups, planner), `drive.js` (kopie naar Google Drive), `restore-test.js` (hersteltests), `cli.js` (maken, tonen, ontsleutelen op de opdrachtregel) |
 | `app/src/media/` | fotobibliotheek: `images.js` (soort op inhoud, sharp: rechtzetten, EXIF weg, WebP-varianten), `library.js` (opslag en queries, `media_countries`), `routes.js` (`/app/fotobibliotheek/`) |
-| `app/src/trips/` | reizen beheren: `slugs.js` (slug maken, 301 bij een nieuwe slug), `categories.js` en `category-routes.js` (`/app/reistypes-en-landen/`), `trips.js` en `trip-routes.js` (`/app/reizen/`), `trip-media.js` (foto's bij een reis) |
+| `app/src/trips/` | reizen beheren: `slugs.js` (slug maken, 301 bij een nieuwe slug), `categories.js` en `category-routes.js` (`/app/reistypes-en-landen/`), `trips.js` en `trip-routes.js` (`/app/reizen/`), `trip-media.js` (foto's bij een reis), `seats.js` (plaatsen, volgeboekt) |
 | `app/src/mail/` | `mailer.js` (versturen via SMTP of Exchange-connector), `wan-ip.js` (WAN-IP van de server), `layout.js` (opmaak), `notifications.js` (meldingen aan kantoor) |
 | `docs/OPZET-WEBSITE.md` | opzet, inventaris van de huidige site, fasering en open vragen |
 | `changes/` | releasenotes-fragmenten, zie `changes/README.md` |

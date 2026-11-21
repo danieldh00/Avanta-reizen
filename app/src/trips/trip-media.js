@@ -18,14 +18,31 @@ const MAX_GALLERY = 60;
 /** Maximale lengte van galerijtitel en -subtitel. */
 const GALLERY_TEXT_LIMIT = 120;
 
+/** Voorvoegsel van de adressen van foto's in `DATA_DIR/media`. */
+const MEDIA_PREFIX = '/media/';
+
 /**
- * SQL: hoort een adres (`/media/<bestand>`) bij een foto in de bibliotheek (bestand of een van zijn varianten)?
- * @param {string} expression SQL-expressie met het adres (vaste tekst uit de code).
- * @returns {string} SQL-expressie (boolean).
+ * Welke van deze adressen horen bij een foto in de bibliotheek (bestand of een van zijn varianten)? Eén lookup op de
+ * unieke index van `local_name`; alleen voor de adressen die daarna nog over zijn één controle op de varianten.
+ * @param {{query: Function}} client Database of transactie-client.
+ * @param {string[]} urls Adressen.
+ * @returns {Promise<Set<string>>} De adressen die in de bibliotheek staan.
  */
-function inLibrarySql(expression) {
-  return `EXISTS (SELECT 1 FROM media m WHERE ${expression} = '/media/' || m.local_name
-            OR EXISTS (SELECT 1 FROM jsonb_each_text(m.variants) AS variant WHERE ${expression} = '/media/' || variant.value))`;
+async function libraryUrls(client, urls) {
+  const names = [...new Set(urls.filter((url) => typeof url === 'string' && url.startsWith(MEDIA_PREFIX)).map((url) => url.slice(MEDIA_PREFIX.length)))];
+  const found = new Set();
+  if (!names.length) return found;
+  const direct = await client.query('SELECT local_name FROM media WHERE local_name = ANY($1::text[])', [names]);
+  for (const row of direct) found.add(MEDIA_PREFIX + row.local_name);
+  const rest = names.filter((name) => !found.has(MEDIA_PREFIX + name));
+  if (rest.length) {
+    const variants = await client.query(
+      "SELECT DISTINCT variant.value AS name FROM media m CROSS JOIN LATERAL jsonb_each_text(m.variants) AS variant WHERE m.variants <> '{}'::jsonb AND variant.value = ANY($1::text[])",
+      [rest],
+    );
+    for (const row of variants) found.add(MEDIA_PREFIX + row.name);
+  }
+  return found;
 }
 
 /**
@@ -35,15 +52,12 @@ function inLibrarySql(expression) {
  * @returns {Promise<{hero: (string|null), card: (string|null), gallery: object[]}>} Adressen en galerij-items.
  */
 async function importedImages(client, tripId) {
-  const [row] = await client.query(
-    `SELECT CASE WHEN t.hero_image_url IS NOT NULL AND NOT ${inLibrarySql('t.hero_image_url')} THEN t.hero_image_url END AS hero,
-            CASE WHEN t.card_image_url IS NOT NULL AND NOT ${inLibrarySql('t.card_image_url')} THEN t.card_image_url END AS card,
-            coalesce((SELECT jsonb_agg(item.value ORDER BY item.position) FROM jsonb_array_elements(t.gallery) WITH ORDINALITY AS item(value, position)
-                       WHERE NOT ${inLibrarySql("(item.value->>'url')")}), '[]'::jsonb) AS gallery
-       FROM trips t WHERE t.id = $1`,
-    [tripId],
-  );
-  return row ? { hero: row.hero, card: row.card, gallery: row.gallery } : { hero: null, card: null, gallery: [] };
+  const [trip] = await client.query('SELECT hero_image_url, card_image_url, gallery FROM trips WHERE id = $1', [tripId]);
+  if (!trip) return { hero: null, card: null, gallery: [] };
+  const gallery = (Array.isArray(trip.gallery) ? trip.gallery : []).filter((item) => item && typeof item.url === 'string');
+  const known = await libraryUrls(client, [trip.hero_image_url, trip.card_image_url, ...gallery.map((item) => item.url)]);
+  const imported = (url) => (url && !known.has(url) ? url : null);
+  return { hero: imported(trip.hero_image_url), card: imported(trip.card_image_url), gallery: gallery.filter((item) => !known.has(item.url)) };
 }
 
 /**
@@ -144,7 +158,9 @@ function createTripMedia(options) {
       "SELECT chosen.id FROM unnest($2::int[]) AS chosen(id) WHERE NOT EXISTS (SELECT 1 FROM trip_media WHERE trip_id = $1 AND role = 'galerij' AND media_id = chosen.id)",
       [id, photos.map((photo) => photo.id)],
     );
-    if (current.count + fresh.length > MAX_GALLERY) return 'te-veel';
+    // Galerij-items uit de import (zonder rij in de bibliotheek) blijven achteraan staan en tellen mee.
+    const imported = await importedImages(client, id);
+    if (current.count + imported.gallery.length + fresh.length > MAX_GALLERY) return 'te-veel';
     await client.query(
       `INSERT INTO trip_media (trip_id, media_id, role, sort_order)
          SELECT $1, chosen.id, 'galerij', $3 + chosen.position FROM unnest($2::int[]) WITH ORDINALITY AS chosen(id, position)

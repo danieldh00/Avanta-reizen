@@ -2,7 +2,8 @@
  * Reizen beheren in het CRM (`/app/reizen/`, recht `reizen`, CMS-pakket G2): lijst met filter (komend, vertrokken,
  * concept, alle) en zoeken, een nieuwe reis aanmaken en een reis wijzigen: alle velden van de huidige reis, meerdere
  * landen en reistypes, tot drie reisleiders op volgorde, aantal plaatsen, aanbetaling en concept of gepubliceerd.
- * Een gewijzigde slug krijgt automatisch een 301. Elke wijziging in de auditlog.
+ * Een gewijzigde slug krijgt automatisch een 301. Pakket G4: de plaatsen (bezet uit de aanmeldingen, vrij, automatisch
+ * volgeboekt) en *Kopiëren naar nieuw vertrek*. Elke wijziging in de auditlog.
  */
 const express = require('express');
 const { html, raw } = require('../site/html');
@@ -17,6 +18,7 @@ const { pickerFilter, pickerPhotos, renderPhotoPicker } = require('../media/pick
 const { roleHasRight } = require('../crm/rights');
 const { MAX_FILES } = require('../media/routes');
 const { MAX_UPLOAD_BYTES } = require('../media/images');
+const { seatSummary } = require('./seats');
 
 /** Basispad van het scherm. */
 const BASE = '/app/reizen/';
@@ -32,7 +34,18 @@ const TRIP_ACTION_LABELS = {
   'reis.aangemaakt': 'Reis aangemaakt',
   'reis.gewijzigd': 'Reis gewijzigd',
   'reis.fotos': 'Foto\'s van een reis gewijzigd',
+  'reis.gekopieerd': 'Reis gekopieerd naar nieuw vertrek',
 };
+
+/**
+ * Tekst voor de plaatsen in de lijst: bezet van totaal, of alleen bezet als het aantal plaatsen onbekend is.
+ * @param {object} trip Reis met `booked_seats` en `capacity`.
+ * @returns {string} Tekst.
+ */
+function seatsText(trip) {
+  const seats = seatSummary(trip);
+  return seats.capacity === null ? `${seats.booked} aangemeld` : `${seats.booked} van ${seats.capacity}`;
+}
 
 /**
  * Zet een reis uit de database om naar de waarden van het formulier.
@@ -117,8 +130,8 @@ function createTripRoutes(options) {
               <td><a href="${BASE}${trip.id}/">${trip.title}</a></td>
               <td>${trip.countries.join(', ') || '–'}</td>
               <td>${trip.guides.join(', ') || '–'}</td>
-              <td>${trip.capacity === null ? '–' : String(trip.capacity)}</td>
-              <td>${trip.published ? (trip.fully_booked ? 'volgeboekt' : 'gepubliceerd') : html`<span class="crm-badge">concept</span>`}</td>
+              <td>${seatsText(trip)}</td>
+              <td>${trip.published ? (seatSummary(trip).full ? 'volgeboekt' : 'gepubliceerd') : html`<span class="crm-badge">concept</span>`}</td>
             </tr>`)}</tbody>
           </table></div>` : html`<p>Geen reizen gevonden.</p>`}
           <p>${page > 1 ? html`<a href="${BASE}?${query({ pagina: String(page - 1) })}">Vorige</a> ` : ''}${rows.length > PAGE_SIZE ? html`<a href="${BASE}?${query({ pagina: String(page + 1) })}">Volgende</a>` : ''}</p>`,
@@ -195,7 +208,8 @@ function createTripRoutes(options) {
                 <select id="veld-published" name="published"><option value="0">Concept (niet zichtbaar)</option><option value="1"${values.published === true || values.published === '1' ? raw(' selected') : ''}>Gepubliceerd</option></select></div>
               ${input('status_label', 'Statustekst (bijvoorbeeld "Nog 3 plaatsen")', { max: LIMITS.status_label })}
               ${checkbox('guaranteed', 'Gegarandeerd vertrek')}
-              ${checkbox('fully_booked', 'Volgeboekt')}
+              ${trip ? renderSeats(req, trip) : ''}
+              ${checkbox('fully_booked', 'Volgeboekt (ook als er nog plaatsen vrij zijn)')}
               ${checkbox('is_new', 'Nieuw (label op de reis)')}
               <h2>Reisleiders</h2>
               ${Array.from({ length: MAX_GUIDES }, (_, index) => guideSelect(index + 1))}
@@ -207,8 +221,28 @@ function createTripRoutes(options) {
           </div>
           <div><button class="btn" type="submit">${trip ? 'Opslaan' : 'Reis aanmaken'}</button></div>
         </form>
+        ${trip ? html`<form class="crm-actions" method="post" action="${BASE}${trip.id}/kopieren/">
+          <input type="hidden" name="_csrf" value="${req.session.csrf}">
+          <button class="btn btn--small" type="submit">Kopiëren naar nieuw vertrek</button>
+          <span class="field__help">Maakt een concept met dezelfde teksten, prijs, landen, reistypes, reisleiders en foto's. Niet opgeslagen wijzigingen hierboven gaan niet mee.</span>
+        </form>` : ''}
         ${trip ? await renderPhotos(req, trip) : ''}`,
     });
+  };
+
+  /**
+   * De plaatsen van een reis: bezet (aanmeldingen die niet geannuleerd zijn), vrij en of de reis daardoor volgeboekt is.
+   * @param {object} req Express-verzoek (voor het recht `aanmeldingen`).
+   * @param {object} trip Reis uit `trips.get`.
+   * @returns {object} HTML.
+   */
+  const renderSeats = (req, trip) => {
+    const seats = seatSummary(trip);
+    const booked = `${seats.booked} ${seats.booked === 1 ? 'aanmelding' : 'aanmeldingen'} (niet geannuleerd)`;
+    return html`<div class="field" id="plaatsen"><span class="field__label">Plaatsen</span>
+      <p>${seats.capacity === null ? html`${booked}; het aantal plaatsen is niet ingevuld.` : html`${booked} van ${seats.capacity} plaatsen, ${seats.free} vrij.`}
+        ${seats.automatic ? html`<strong>Volgeboekt</strong> (automatisch: alle plaatsen zijn bezet; aanmelden kan niet meer).` : ''}
+        ${roleHasRight(req.user.role, 'aanmeldingen') ? html`<a href="/app/aanmeldingen/?${new URLSearchParams({ reis: String(trip.id) }).toString()}">Aanmeldingen bekijken</a>` : ''}</p></div>`;
   };
 
   /**
@@ -306,7 +340,7 @@ function createTripRoutes(options) {
     try {
       const trip = await trips.get(req.params.id);
       if (!trip) return notFound(req, res);
-      const notices = { 1: 'De reis is opgeslagen.', 2: 'De reis is opgeslagen. Het oude adres verwijst automatisch door naar het nieuwe.', 3: 'De foto\'s zijn opgeslagen.' };
+      const notices = { 1: 'De reis is opgeslagen.', 2: 'De reis is opgeslagen. Het oude adres verwijst automatisch door naar het nieuwe.', 3: 'De foto\'s zijn opgeslagen.', 4: 'Dit is een kopie als concept. Vul de vertrekdatum in, pas zo nodig de slug en de reiscode aan en publiceer de reis.' };
       const uploaded = Number.parseInt(req.query.geupload, 10);
       if (Number.isInteger(uploaded) && uploaded > 0 && uploaded <= MAX_FILES) notices.upload = `${uploaded} ${uploaded === 1 ? 'foto' : 'foto\'s'} geüpload. Kies ze hieronder om ze toe te voegen.`;
       return res.send(await renderForm(req, { trip, values: formValues(trip), notice: notices[req.query.opgeslagen] || notices.upload || '' }));
@@ -374,6 +408,19 @@ function createTripRoutes(options) {
     if (outcome === 'te-veel') return photoError(req, res, 422, `De galerij heeft maximaal ${MAX_GALLERY} foto's.`);
     return res.redirect(303, `${BASE}${Number(req.params.id)}/?opgeslagen=3#fotos`);
   };
+
+  router.post('/reizen/:id(\\d{1,9})/kopieren/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const result = await trips.copy(req.params.id, {
+        userId: req.user.id,
+        audit: (client, id) => auth.audit(req, { userId: req.user.id, action: 'reis.gekopieerd', entity: 'trips', entityId: id }, client),
+      });
+      if (result.status === 'weg') return notFound(req, res);
+      return res.redirect(303, `${BASE}${result.id}/?opgeslagen=4`);
+    } catch (error) {
+      return next(error);
+    }
+  });
 
   router.post('/reizen/:id(\\d{1,9})/fotos/', guard, auth.checkCsrf, async (req, res, next) => {
     try {
