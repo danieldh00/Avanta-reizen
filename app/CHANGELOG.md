@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.2 — 2026-11-21 — Fotobibliotheek: foto's uit de import automatisch aan landen koppelen
+
+- Foto's van de huidige site krijgen automatisch de landen van de reizen waarin ze staan. Bij *Zonder land* staat een
+
+- `media/library.js`: `linkImportedMedia()` (één INSERT … SELECT: landen via `trip_category_links` van reizen die
+  naar de foto verwijzen, plus landpagina's; alleen importfoto's zonder land; LIKE-patroon met escapes).
+- Route `POST /app/fotobibliotheek/koppelen/` (recht `media`, CSRF, audit `media.gekoppeld`); de WordPress-import
+  koppelt na het downloaden van de afbeeldingen automatisch.
+
 ## 0.12.1 — 2026-11-21 — Fotobibliotheek: mappen per land, gebruikt in en verwijderen
 
 - De fotobibliotheek toont de landen als mappen met het aantal foto's, en een map *Zonder land*.
