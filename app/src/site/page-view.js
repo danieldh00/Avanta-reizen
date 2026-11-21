@@ -202,8 +202,21 @@ function faqAnchor(category) {
 function faqList(faqs) {
   const groups = new Map();
   for (const faq of faqs) groups.set(faq.category, [...(groups.get(faq.category) || []), faq]);
+  const usedAnchors = new Set();
+  /**
+   * Uniek anker per categorie: twee categorieën met hetzelfde anker krijgen een volgnummer.
+   * @param {string} category Categorie.
+   * @returns {string} Anker.
+   */
+  const uniqueAnchor = (category) => {
+    const base = faqAnchor(category) || 'faq';
+    let anchor = base;
+    for (let number = 2; usedAnchors.has(anchor); number += 1) anchor = `${base}-${number}`;
+    usedAnchors.add(anchor);
+    return anchor;
+  };
   return html`<div class="layout-container">
-    ${groups.size ? [...groups.entries()].map(([category, items]) => html`<div class="category category--faq" id="${faqAnchor(category)}">
+    ${groups.size ? [...groups.entries()].map(([category, items]) => html`<div class="category category--faq" id="${uniqueAnchor(category)}">
       <h3 class="category__title">${category}</h3>
       <div class="list archive archive--faq">
         ${items.map((faq) => html`<div class="list__item"><details class="faq">

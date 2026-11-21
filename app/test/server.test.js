@@ -439,6 +439,12 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match(page.text, /<h2 class="box__title" id="contact-titel">Verstuur bericht<\/h2>/);
     assert.match(page.text, /veelgestelde vragen<\/a>/);
     assert.match(page.text, /name="consent"/);
+    assert.doesNotMatch(page.headers.get('content-security-policy'), /youtube-nocookie/, 'zonder video geen YouTube in frame-src');
+    await db.query("UPDATE pages SET body_html = $1 WHERE path = '/contact/'", ['<p>Bel ons</p><p><a href="https://www.youtube.com/embed/el9qys7UK9A" rel="noopener" target="_blank">Bekijk de video</a></p>']);
+    const withVideo = await get('/contact/');
+    assert.match(withVideo.headers.get('content-security-policy'), /frame-src 'self' https:\/\/www\.youtube-nocookie\.com/, 'video op de contactpagina mag');
+    assert.match(withVideo.text, /<iframe src="https:\/\/www\.youtube-nocookie\.com\/embed\/el9qys7UK9A"/);
+    await db.query("UPDATE pages SET body_html = '<p>Bel ons</p>' WHERE path = '/contact/'");
     const form = await contactFormFor();
     clock += 5000;
     const response = await postContact(form);

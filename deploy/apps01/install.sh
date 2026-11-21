@@ -194,7 +194,7 @@ for _ in $(seq 1 45); do
       echo "Database leeg: content en afbeeldingen van www.avantareizen.nl importeren (enkele minuten)..."
       docker compose exec -T app node tools/import-wordpress.js \
         || echo "WAARSCHUWING: import mislukt; volgende run probeert het opnieuw." >&2
-    elif [ "$trips" != "onbekend" ] && ! docker compose exec -T app sh -c 'test -f /data/homepage.json && grep -q "\"version\": 2," /data/site-content.json' 2>/dev/null; then
+    elif [ "$trips" != "onbekend" ] && ! docker compose exec -T app sh -c 'test -f /data/homepage.json && grep -Eq "\"version\" *: *2[^0-9]" /data/site-content.json' 2>/dev/null; then
       # Bestaande installatie zonder (actuele) vaste inhoud: alleen die ophalen. Versie 2 van site-content.json heeft
       # ook de blogtags, het uitgelichte bericht, de aanmeldkop en de fotogalerijen van berichten en pagina's.
       echo "Vaste inhoud van www.avantareizen.nl ophalen (homepage, lijstkoppen, reisleiders; enkele minuten)..."

@@ -380,6 +380,8 @@ function createSiteRouter(options) {
      */
     const sendContactPage = async (res, formHtml, status = 200) => {
       const page = await content.pageByPath('/contact/');
+      const article = page ? pageViews.articleBody(page) : { body: '', hasVideo: false };
+      if (article.hasVideo) allowVideos(res);
       res.set('Cache-Control', 'no-store');
       send(res, {
         title: page ? page.title : 'Contact',
@@ -387,7 +389,7 @@ function createSiteRouter(options) {
         path: '/contact/',
         seo: seoFor('/contact/', { imageUrl: page ? page.image_url : '' }),
         header: renderPageHeader({ title: page ? page.title : 'Contact', pretitle: page ? page.pretitle : '', imageUrl: page ? page.image_url : '' }),
-        body: html`<div class="content-main">${page ? pageViews.articleBody(page).body : ''}${pageViews.contactLayout(res.locals.site, formHtml)}</div>`,
+        body: html`<div class="content-main">${article.body}${pageViews.contactLayout(res.locals.site, formHtml)}</div>`,
       }, status);
     };
 

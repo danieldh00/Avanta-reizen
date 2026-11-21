@@ -111,6 +111,12 @@ test('FAQ: categorieën met anker van de oude categoriepagina, vragen klappen ui
   assert.match(out, /<details class="faq">\s*<summary class="faq__summary"><h2 class="faq__question">Wat &lt;neem&gt; ik mee\?<\/h2><svg/);
   assert.match(out, /<div class="faq__answer"><p>Ja<\/p><\/div>/);
   assert.equal(views.faqAnchor('Één reis!'), 'een-reis');
+  const twice = toString(views.faqList([
+    { question: 'A?', answer_html: '', category: 'Één reis' },
+    { question: 'B?', answer_html: '', category: 'Een reis!' },
+    { question: 'C?', answer_html: '', category: '???' },
+  ]));
+  assert.match(twice, /id="een-reis"[\s\S]*id="een-reis-2"[\s\S]*id="faq"/, 'unieke ankers');
   assert.match(toString(views.faqList([])), /Er zijn nog geen vragen/);
 });
 
