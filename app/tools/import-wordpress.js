@@ -569,9 +569,11 @@ async function store(db, data) {
         // De tekst wordt één tekstblok (CMS-pakket H). Een pagina die in het CRM is gepubliceerd (managed_in_crm) of
         // waar een concept voor openstaat (draft) blijft zoals hij is, zodat het concept niet op oude inhoud rust.
         `INSERT INTO pages (legacy_id, path, title, pretitle, intro, body_html, image_url, blocks)
-         VALUES ($1,$2,$3,$4,$5,$6,$7, CASE WHEN $6 <> '' THEN jsonb_build_array(jsonb_build_object(
+         SELECT $1,$2,$3,$4,$5,$6,$7, CASE WHEN $6 <> '' THEN jsonb_build_array(jsonb_build_object(
            'id', 'b' || substr(md5('import-' || $2), 1, 12), 'type', 'tekst', 'data', jsonb_build_object('html', $6::text), 'style', '{}'::jsonb))
-           ELSE '[]'::jsonb END)
+           ELSE '[]'::jsonb END
+          -- In het CRM naar een ander adres verplaatst: niet opnieuw op het oude adres aanmaken.
+          WHERE NOT EXISTS (SELECT 1 FROM pages moved WHERE moved.legacy_id = $1 AND moved.path <> $2)
          ON CONFLICT (path) DO UPDATE SET legacy_id = EXCLUDED.legacy_id, title = EXCLUDED.title, pretitle = EXCLUDED.pretitle,
            intro = EXCLUDED.intro, body_html = EXCLUDED.body_html, image_url = EXCLUDED.image_url, blocks = EXCLUDED.blocks
          WHERE NOT pages.managed_in_crm AND pages.draft IS NULL`,

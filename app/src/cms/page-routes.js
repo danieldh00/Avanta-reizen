@@ -1,5 +1,6 @@
 /**
- * Pagina's beheren in het CRM (`/app/paginas/`, recht `content`, CMS-pakket H1): lijst met zoeken, een pagina bewerken
+ * Pagina's beheren in het CRM (`/app/paginas/`, recht `content`, CMS-pakket H1 en H3): lijst met zoeken, nieuwe pagina,
+ * adres wijzigen (met 301), offline/online, verwijderen, SEO-velden, een pagina bewerken
  * als concept (titel, bovenkop, inleiding, kopfoto en blokken: toevoegen, wijzigen, verplaatsen, kopiëren,
  * verwijderen), een voorbeeld van het concept in de opmaak van de site, publiceren, concept weggooien en eerdere versies
  * terugzetten. Werkt zonder JavaScript: elke actie is een eigen formulier met CSRF-token en de versie van het concept.
@@ -18,6 +19,7 @@ const {
   BLOCK_TYPES, STYLE_OPTIONS, BLOCK_ID_PATTERN, MAX_BLOCKS, MAX_GALLERY_IMAGES, newBlock, newBlockId, validateBlockForm, blockSummary, isDefaultStyle,
 } = require('./blocks');
 const { createPages, validatePageFields, editableState, imageFromMedia, PAGE_LIMITS } = require('./pages');
+const { slugify, MAX_SLUG_LENGTH } = require('../trips/slugs');
 const { renderPageArticle } = require('./page-render');
 const { createContent } = require('../site/content');
 
@@ -30,6 +32,11 @@ const PAGE_ACTION_LABELS = {
   'pagina.gepubliceerd': 'Pagina gepubliceerd',
   'pagina.concept-weg': 'Concept van een pagina weggegooid',
   'pagina.versie-terug': 'Eerdere versie van een pagina teruggezet als concept',
+  'pagina.nieuw': 'Nieuwe pagina gemaakt',
+  'pagina.verplaatst': 'Adres van een pagina gewijzigd',
+  'pagina.offline': 'Pagina offline gehaald',
+  'pagina.online': 'Pagina weer online gezet',
+  'pagina.verwijderd': 'Pagina verwijderd',
 };
 
 /** Meldingen na een geslaagde actie (`?opgeslagen=<n>`). */
@@ -40,7 +47,14 @@ const NOTICES = {
   4: 'De versie staat klaar als concept. Publiceer om hem terug op de site te zetten.',
   5: 'Blok toegevoegd aan het concept.',
   6: 'Blok verwijderd uit het concept.',
+  7: 'De pagina is gemaakt en staat offline. Voeg blokken toe en publiceer om hem online te zetten.',
+  8: 'Het adres is gewijzigd. Het oude adres verwijst automatisch door (ook voor de pagina\'s eronder) en het menu is bijgewerkt.',
+  9: 'De pagina staat offline; bezoekers krijgen een 404.',
+  10: 'De pagina staat weer online.',
 };
+
+/** Meldingen op de lijst (`?melding=<n>`). */
+const LIST_NOTICES = { 1: 'De pagina is verwijderd.' };
 
 /** Melding als het formulier van een oudere stand van het concept uitging. */
 const STALE_MESSAGE = 'De pagina is intussen gewijzigd (in een ander tabblad of door een collega). Je wijziging is niet opgeslagen; bekijk de nieuwe stand en probeer het opnieuw.';
@@ -165,9 +179,36 @@ function blockFields(block, errors, photoUrl, options) {
 }
 
 /**
+ * Velden voor het adres van een pagina: bovenliggende pagina en het laatste deel van het adres.
+ * @param {{path: string, title: string}[]} parents Mogelijke bovenliggende pagina's.
+ * @param {{slug: string, parentPath: string}} placement Ingevulde waarden.
+ * @param {object} errors Fouten (`slug`, `parent`).
+ * @param {string} prefix Voorvoegsel voor de id's.
+ * @returns {object} HTML.
+ */
+function renderPlacementFields(parents, placement, errors, prefix) {
+  return html`${fieldRow({
+    id: `${prefix}-parent`,
+    label: 'Onder pagina',
+    error: errors.parent,
+    control: html`<select id="${prefix}-parent" name="parent"${invalidAttributes(`${prefix}-parent`, errors.parent)}>
+      <option value="/">Geen (hoofdniveau)</option>
+      ${parents.map((parent) => html`<option value="${parent.path}"${parent.path === placement.parentPath ? raw(' selected') : ''}>${parent.title} (${parent.path})</option>`)}
+    </select>`,
+  })}
+  ${fieldRow({
+    id: `${prefix}-slug`,
+    label: 'Laatste deel van het adres',
+    error: errors.slug,
+    help: 'Kleine letters, cijfers en streepjes, bijv. onze-reizen. Het adres wordt dan /onder-pagina/onze-reizen/.',
+    control: html`<input id="${prefix}-slug" name="slug" type="text" value="${placement.slug}" maxlength="${MAX_SLUG_LENGTH}" pattern="[a-z0-9]+(-[a-z0-9]+)*"${invalidAttributes(`${prefix}-slug`, errors.slug)}>`,
+  })}`;
+}
+
+/**
  * Maakt de routes voor pagina's.
- * @param {{db: object, auth: object, library?: object, mediaDir?: string}} options Database, sessie- en rechtenlaag en
- *   de fotobibliotheek.
+ * @param {{db: object, auth: object, library?: object, mediaDir?: string, redirects?: object, menus?: object}} options
+ *   Database, sessie- en rechtenlaag, de fotobibliotheek, doorverwijzingen en menu's (opnieuw laden na verplaatsen).
  * @returns {express.Router} Router.
  */
 function createPageRoutes(options) {
@@ -223,7 +264,9 @@ function createPageRoutes(options) {
         user: req.user,
         csrf: req.session.csrf,
         path: BASE,
-        body: html`<form class="crm-search" method="get" action="${BASE}" role="search">
+        body: html`${LIST_NOTICES[req.query.melding] ? html`<p class="notice" role="status">${LIST_NOTICES[req.query.melding]}</p>` : ''}
+          <p><a class="btn btn--small" href="${BASE}nieuw/">Nieuwe pagina</a></p>
+          <form class="crm-search" method="get" action="${BASE}" role="search">
             <label for="pagina-q">Zoek op titel of adres</label>
             <input id="pagina-q" name="q" type="search" value="${text}" maxlength="100">
             <button class="btn btn--small" type="submit">Zoeken</button>
@@ -254,7 +297,10 @@ function createPageRoutes(options) {
    */
   const renderEditor = async (req, page, state = {}) => {
     const current = editableState(page);
-    const [revisionRows, options] = await Promise.all([pages.revisions(page.id), pages.sourceOptions()]);
+    const [revisionRows, options, parents] = await Promise.all([pages.revisions(page.id), pages.sourceOptions(), pages.parentOptions(page.path)]);
+    const segments = page.path.split('/').filter(Boolean);
+    const placement = state.placement || { slug: segments[segments.length - 1] || '', parentPath: segments.length > 1 ? `/${segments.slice(0, -1).join('/')}/` : '/' };
+    const canDelete = !page.published && page.legacy_id === null;
     const pageUrl = `${BASE}${page.id}/`;
     const values = state.values || current;
     const errors = state.errors || {};
@@ -283,13 +329,36 @@ function createPageRoutes(options) {
           </dl>
         </section>
 
+        <section class="crm-block" id="adres">
+          <h2>Adres en zichtbaarheid</h2>
+          <form class="form crm-narrow" method="post" action="${pageUrl}adres/">
+            ${hidden(req, page)}
+            ${renderPlacementFields(parents, placement, errors, 'adres')}
+            <p class="field__help">Wijzig je het adres, dan verwijst het oude adres automatisch door (ook voor de pagina's eronder) en gaan menu-items mee.</p>
+            <div><button class="btn btn--small btn--outline" type="submit">Adres wijzigen</button></div>
+          </form>
+          <div class="crm-actions">
+            ${page.published
+              ? html`<form method="post" action="${pageUrl}online/">${hidden(req, page)}<input type="hidden" name="stand" value="offline"><button class="btn btn--small btn--outline" type="submit">Offline halen</button></form>`
+              : html`<form method="post" action="${pageUrl}online/">${hidden(req, page)}<input type="hidden" name="stand" value="online"><button class="btn btn--small btn--outline" type="submit">Weer online zetten</button></form>`}
+            ${canDelete ? html`<form method="post" action="${pageUrl}verwijderen/">${hidden(req, page)}
+              <label class="checkbox"><input type="checkbox" name="zeker" value="ja" required> Ja, verwijder deze pagina met alle versies</label>
+              <button class="btn btn--small btn--outline" type="submit">Verwijderen</button></form>` : ''}
+          </div>
+          ${!page.published && page.legacy_id !== null ? html`<p class="field__help">Een pagina van de oude site kun je alleen offline halen (bij een nieuwe import zou hij anders terugkomen).</p>` : ''}
+        </section>
+
         <section class="crm-block" id="gegevens">
           <h2>Gegevens</h2>
           <form class="form crm-narrow" method="post" action="${pageUrl}gegevens/">
             ${hidden(req, page)}
             ${field('title', 'Titel', html`<input id="pagina-title" name="title" type="text" value="${values.title}" maxlength="${PAGE_LIMITS.title}" required${invalidAttributes('pagina-title', errors.title)}>`)}
             ${field('pretitle', 'Bovenkop (kleine tekst boven de titel)', html`<input id="pagina-pretitle" name="pretitle" type="text" value="${values.pretitle}" maxlength="${PAGE_LIMITS.pretitle}"${invalidAttributes('pagina-pretitle', errors.pretitle)}>`)}
-            ${field('intro', 'Inleiding (grote tekst bovenaan; ook de omschrijving voor zoekmachines)', html`<textarea id="pagina-intro" name="intro" rows="4" maxlength="${PAGE_LIMITS.intro}"${invalidAttributes('pagina-intro', errors.intro)}>${values.intro}</textarea>`)}
+            ${field('intro', 'Inleiding (grote tekst bovenaan)', html`<textarea id="pagina-intro" name="intro" rows="4" maxlength="${PAGE_LIMITS.intro}"${invalidAttributes('pagina-intro', errors.intro)}>${values.intro}</textarea>`)}
+            <details class="cms-style"${errors.seo_title || errors.seo_description || values.seoTitle || values.seoDescription ? raw(' open') : ''}><summary>Vindbaarheid (zoekmachines)</summary>
+              ${field('seo_title', 'Titel voor zoekmachines', html`<input id="pagina-seo_title" name="seo_title" type="text" value="${values.seoTitle}" maxlength="${PAGE_LIMITS.seoTitle}"${invalidAttributes('pagina-seo_title', errors.seo_title)}>`, `Leeg = de titel van de pagina. Hoogstens ${PAGE_LIMITS.seoTitle} tekens; de naam van de site komt er vanzelf achter.`)}
+              ${field('seo_description', 'Omschrijving voor zoekmachines', html`<textarea id="pagina-seo_description" name="seo_description" rows="3" maxlength="${PAGE_LIMITS.seoDescription}"${invalidAttributes('pagina-seo_description', errors.seo_description)}>${values.seoDescription}</textarea>`, `Leeg = de inleiding. Ongeveer 150 tekens werkt het best (hoogstens ${PAGE_LIMITS.seoDescription}).`)}
+            </details>
             <div><button class="btn" type="submit">Opslaan in concept</button></div>
           </form>
         </section>
@@ -674,6 +743,115 @@ function createPageRoutes(options) {
     try {
       const outcome = await pages.restoreRevision(req.params.id, req.params.version, req.body.versie, contextFor(req, 'pagina.versie-terug'));
       return await finish(req, res, outcome, { notice: 4, anchor: 'blokken' });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  /**
+   * Laadt doorverwijzingen en menu's opnieuw na een verplaatsing (een fout daarin breekt de actie niet af).
+   * @returns {Promise<void>}
+   */
+  const reloadAfterMove = async () => {
+    if (options.redirects) await options.redirects.reload().catch(() => {});
+    if (options.menus) await options.menus.reload().catch(() => {});
+  };
+
+  /**
+   * Het formulier voor een nieuwe pagina.
+   * @param {object} req Express-verzoek.
+   * @param {{title: string, slug: string, parentPath: string}} values Ingevulde waarden.
+   * @param {object} [errors] Fouten.
+   * @returns {Promise<string>} HTML.
+   */
+  const renderNewPage = async (req, values, errors = {}) => {
+    const parents = await pages.parentOptions();
+    return renderCrmPage({
+      title: 'Nieuwe pagina',
+      user: req.user,
+      csrf: req.session.csrf,
+      path: BASE,
+      body: html`<p><a href="${BASE}">Naar pagina's</a></p>
+        ${renderAlert(Object.keys(errors).length ? 'Controleer de velden.' : '')}
+        <form class="form crm-narrow crm-block" method="post" action="${BASE}nieuw/">
+          <input type="hidden" name="_csrf" value="${req.session.csrf}">
+          ${fieldRow({ id: 'nieuw-title', label: 'Titel', error: errors.title, control: html`<input id="nieuw-title" name="title" type="text" value="${values.title}" maxlength="${PAGE_LIMITS.title}" required${invalidAttributes('nieuw-title', errors.title)}>` })}
+          ${renderPlacementFields(parents, values, errors, 'nieuw')}
+          <p class="field__help">Laat het adres leeg om het uit de titel te maken. De pagina staat offline tot je hem publiceert.</p>
+          <div><button class="btn" type="submit">Pagina maken</button></div>
+        </form>`,
+    });
+  };
+
+  router.get('/paginas/nieuw/', guard, async (req, res, next) => {
+    try {
+      return res.send(await renderNewPage(req, { title: '', slug: '', parentPath: '/' }));
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/paginas/nieuw/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const text = (name) => (typeof req.body[name] === 'string' ? req.body[name].trim() : '');
+      const values = { title: text('title'), slug: text('slug') || slugify(text('title')), parentPath: text('parent') || '/' };
+      const outcome = await pages.create(values, {
+        userId: req.user.id,
+        audit: (client, id) => auth.audit(req, { userId: req.user.id, action: 'pagina.nieuw', entity: 'pages', entityId: id }, client),
+      });
+      if (outcome.errors) return res.status(422).send(await renderNewPage(req, values, outcome.errors));
+      return res.redirect(303, `${BASE}${outcome.id}/?opgeslagen=7`);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/paginas/:id(\\d{1,9})/adres/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const text = (name) => (typeof req.body[name] === 'string' ? req.body[name].trim() : '');
+      const placement = { slug: text('slug'), parentPath: text('parent') || '/' };
+      const outcome = await pages.move(req.params.id, placement, contextFor(req, 'pagina.verplaatst'));
+      if (outcome.status === 'weg') return notFound(req, res);
+      if (outcome.status === 'gelijk') return res.redirect(303, `${BASE}${Number(req.params.id)}/#adres`);
+      if (outcome.status === 'fout') {
+        const page = await loadOr404(req, res);
+        if (!page) return undefined;
+        return res.status(422).send(await renderEditor(req, page, { error: 'Het adres is niet gewijzigd.', errors: outcome.errors, placement }));
+      }
+      await reloadAfterMove();
+      return res.redirect(303, `${BASE}${Number(req.params.id)}/?opgeslagen=8#adres`);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/paginas/:id(\\d{1,9})/online/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const online = req.body.stand === 'online';
+      if (!online && req.body.stand !== 'offline') return await finish(req, res, { status: 'fout', message: 'Onbekende actie.' }, { notice: 1 });
+      const outcome = await pages.setOnline(req.params.id, online, contextFor(req, online ? 'pagina.online' : 'pagina.offline'));
+      if (outcome.status === 'nooit-gepubliceerd') {
+        return await finish(req, res, { status: 'fout', message: 'Deze pagina is nog nooit gepubliceerd; gebruik Publiceren om hem online te zetten.' }, { notice: 1 });
+      }
+      return await finish(req, res, outcome, { notice: online ? 10 : 9, anchor: 'adres' });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/paginas/:id(\\d{1,9})/verwijderen/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      if (req.body.zeker !== 'ja') return await finish(req, res, { status: 'fout', message: 'Vink aan dat je de pagina wilt verwijderen.' }, { notice: 1 });
+      const outcome = await pages.remove(req.params.id, { audit: auditFor(req, 'pagina.verwijderd') });
+      const messages = {
+        online: 'Haal de pagina eerst offline.',
+        import: 'Een pagina van de oude site kun je alleen offline halen.',
+        onderliggend: 'Er staan nog pagina\'s onder deze pagina; verplaats of verwijder die eerst.',
+        'in-menu': 'Deze pagina staat nog in een menu; haal hem eerst uit het menu (Menu\'s).',
+      };
+      if (messages[outcome.status]) return await finish(req, res, { status: 'fout', message: messages[outcome.status] }, { notice: 1 });
+      if (outcome.status === 'weg') return notFound(req, res);
+      return res.redirect(303, `${BASE}?melding=1`);
     } catch (error) {
       return next(error);
     }

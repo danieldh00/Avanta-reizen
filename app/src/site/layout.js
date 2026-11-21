@@ -62,10 +62,12 @@ function isActive(href, currentPath) {
  * Maakt het hoofdmenu zoals op de huidige site: items in Playfair, een submenu dat op de computer bij aanwijzen
  * openklapt en op mobiel met een eigen knop (`foldout-toggle`, zie `public/js/site.js`).
  * @param {string} currentPath Pad van de huidige pagina.
+ * @param {object[]} [items] Items uit het CRM (`cms/menus.js`); zonder: het vaste menu.
  * @returns {object} HTML van het menu.
  */
-function renderMenu(currentPath) {
-  return html`<ul class="nav">${MENU.map((item, index) => html`
+function renderMenu(currentPath, items) {
+  const menu = Array.isArray(items) && items.length ? items : MENU;
+  return html`<ul class="nav">${menu.map((item, index) => html`
     <li class="menu-item${item.children ? ' menu-item-has-children' : ''}${isActive(item.href, currentPath) ? ' is-active' : ''}">
       <a href="${item.href}">${item.label}${item.children ? icon('chevron-down', { className: 'menu-item__chevron' }) : ''}</a>
       ${item.children ? html`<button class="foldout-toggle" type="button" aria-expanded="false" aria-controls="submenu-${index}"><span class="visually-hidden">Submenu ${item.label}</span>${icon('chevron-down')}</button>
@@ -79,9 +81,10 @@ function renderMenu(currentPath) {
  * doorzichtig boven de foto (`is-transparent`, alleen met JavaScript actief).
  * @param {string} currentPath Pad van de huidige pagina.
  * @param {string} siteName Naam van de site (alt-tekst van het logo).
+ * @param {object[]} [menuItems] Hoofdmenu uit het CRM; zonder: het vaste menu.
  * @returns {object} HTML van de kop.
  */
-function renderHeader(currentPath, siteName) {
+function renderHeader(currentPath, siteName, menuItems) {
   return html`<header class="header-main${currentPath === '/' ? ' is-transparent' : ''}">
     <div class="layout-container header-main__inner">
       <div class="mobile-header">
@@ -89,7 +92,7 @@ function renderHeader(currentPath, siteName) {
         <button class="menutoggle" type="button" aria-expanded="false" aria-controls="hoofdmenu"><span class="visually-hidden">Menu</span>${icon('menu', { className: 'menutoggle__open' })}${icon('close', { className: 'menutoggle__close' })}</button>
       </div>
       <nav id="hoofdmenu" class="nav-primary" aria-label="Hoofdmenu">
-        ${renderMenu(currentPath)}
+        ${renderMenu(currentPath, menuItems)}
         <form id="zoekvenster" class="search-widget" role="search" action="/zoeken/" method="get">
           <button class="search-widget__close" type="button"><span class="visually-hidden">Zoekvenster sluiten</span>${icon('close')}</button>
           <label class="visually-hidden" for="zoekterm">Zoeken</label>
@@ -105,18 +108,19 @@ function renderHeader(currentPath, siteName) {
 /**
  * Maakt de voettekst: wit logo, menu en contact in Playfair op de achtergrondfoto, social-iconen (alleen ingevulde
  * adressen uit Beheer), het SGR-logo en de copyrightregel.
- * @param {{siteName: string, contact: {phone: string, email: string}, social?: object, measurementId?: string}} footer Gegevens.
+ * @param {{siteName: string, contact: {phone: string, email: string}, social?: object, measurementId?: string, menu?: object[]}} footer Gegevens (`menu`: menu uit het CRM; zonder: het vaste voetmenu).
  * @returns {object} HTML van de voettekst.
  */
 function renderFooter(footer) {
   const { siteName, contact } = footer;
   const social = footer.social || {};
   const socialLinks = SOCIAL_LINKS.filter((link) => social[link.key]);
+  const footerMenu = Array.isArray(footer.menu) && footer.menu.length ? footer.menu : FOOTER_MENU;
   const year = new Date().toLocaleDateString('nl-NL', { year: 'numeric', timeZone: 'Europe/Amsterdam' });
   return html`<footer class="footer-main">
     <a class="brand brand--footer" href="/"><img src="/images/logo-light.png" alt="${siteName}" width="241" height="142"></a>
     <div class="layout-container nav-footer">
-      <nav aria-label="Voettekst"><ul class="nav">${FOOTER_MENU.map((item) => html`<li><a href="${item.href}">${item.label}</a></li>`)}</ul></nav>
+      <nav aria-label="Voettekst"><ul class="nav">${footerMenu.map((item) => html`<li><a href="${item.href}">${item.label}</a></li>`)}</ul></nav>
       <div class="location">
         <span class="location__phone">T: <a href="tel:${contact.phone.replace(/[^0-9+]/g, '')}">${contact.phone}</a></span>
         <span class="location__mail">E: <a href="mailto:${contact.email}">${contact.email}</a></span>
@@ -135,7 +139,7 @@ function renderFooter(footer) {
 
 /**
  * Maakt een volledige HTML-pagina.
- * @param {{title: string, description?: string, body: object, path?: string, header?: object, bodyClass?: string, indexable?: boolean, seo?: object, site?: object}} page Gegevens van de pagina; `path` is het menupad, `seo` de canonical-URL, afbeelding, type en JSON-LD (zie `seo.renderSeoHead`), `site` de site-instellingen uit Beheer (`site/site-settings.js`: naam, titels, omschrijving, contact, social media, verificatie, tekst van de balk "in ontwikkeling"; zonder: de standaard).
+ * @param {{title: string, description?: string, body: object, path?: string, header?: object, bodyClass?: string, indexable?: boolean, seo?: object, site?: object}} page Gegevens van de pagina; `path` is het menupad, `seo` de canonical-URL, afbeelding, type en JSON-LD (zie `seo.renderSeoHead`), `site` de site-instellingen uit Beheer (`site/site-settings.js`: naam, titels, omschrijving, contact, social media, verificatie, tekst van de balk "in ontwikkeling", de menu's uit het CRM in `menus`; zonder: de standaard).
  * @returns {string} De HTML.
  */
 function renderPage(page) {
@@ -165,9 +169,9 @@ function renderPage(page) {
   <a class="skip-link" href="#inhoud">Naar de inhoud</a>
   ${renderMaintenanceBanner()}
   ${site.devBanner ? html`<div class="dev-banner" role="note">${site.devBanner}</div>` : ''}
-  ${renderHeader(currentPath, siteName)}
+  ${renderHeader(currentPath, siteName, site.menus && site.menus.hoofd)}
   <main id="inhoud" class="site-main">${page.header || ''}${page.body}</main>
-  ${renderFooter({ siteName, contact, social: site.social, measurementId })}
+  ${renderFooter({ siteName, contact, social: site.social, measurementId, menu: site.menus && site.menus.voet })}
   <script src="/js/site.js?v=${ASSET_VERSION}"></script>
   ${measurementId ? html`<script src="/js/analytics.js?v=${ASSET_VERSION}"></script>` : ''}
   ${site.captchaSiteKey ? html`<script src="/js/captcha.js?v=${ASSET_VERSION}"></script>` : ''}

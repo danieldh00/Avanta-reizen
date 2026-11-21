@@ -20,7 +20,8 @@ const { toString } = require('../src/site/html');
 const {
   newBlock, validateBlockForm, normalizeBlocks, renderBlocks, publishedBlocks, blockSummary, mediaIdsOf, youtubeId, loadBlockData, MAX_TRIP_BLOCKS,
 } = require('../src/cms/blocks');
-const { validatePageFields } = require('../src/cms/pages');
+const { validatePageFields, buildPagePath } = require('../src/cms/pages');
+const { validateMenuItem, buildMenus, isMenuHref } = require('../src/cms/menus');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'cms_pages_test';
@@ -202,6 +203,44 @@ test('bloktypes H2 met gegevens: reizen, reistypes, bestemmingen en FAQ', async 
   assert.equal(calls.length, MAX_TRIP_BLOCKS, 'hoogstens MAX_TRIP_BLOCKS queries');
   assert.equal(many.trips.get('b111111111111').length, 1, 'kopie met hetzelfde filter deelt de uitkomst');
   assert.deepEqual(many.trips.get(`b${String(MAX_TRIP_BLOCKS + 1).padStart(12, '0')}`), []);
+});
+
+test('H3: adres van een pagina, SEO-velden en menu\'s (zonder database)', () => {
+  assert.deepEqual(buildPagePath('teamdagen', '/over-ons/'), { path: '/over-ons/teamdagen/' });
+  assert.deepEqual(buildPagePath('nieuw', '/'), { path: '/nieuw/' });
+  assert.ok(buildPagePath('Hoofd Letters', '/').error);
+  assert.ok(buildPagePath('blog', '/').error, 'gereserveerd');
+  assert.ok(buildPagePath('app', '/').error, 'het CRM');
+  assert.ok(buildPagePath('x', '/reis/').error, 'onder een vaste route');
+  assert.ok(buildPagePath('x', '//evil/').error);
+  assert.ok(buildPagePath('x', 'geen-slash').error);
+  assert.ok(buildPagePath('a'.repeat(80), `/${'b'.repeat(250)}/`).error, 'te lang');
+
+  const seo = validatePageFields({ title: 'T', seo_title: '  Zoek  titel ', seo_description: 'Omschrijving' });
+  assert.equal(seo.values.seoTitle, 'Zoek titel');
+  assert.equal(seo.values.seoDescription, 'Omschrijving');
+  assert.ok(validatePageFields({ title: 'T', seo_title: 'x'.repeat(71) }).errors.seo_title);
+  assert.ok(validatePageFields({ title: 'T', seo_description: 'x'.repeat(301) }).errors.seo_description);
+
+  assert.ok(isMenuHref('/'));
+  assert.ok(isMenuHref('/reis/'));
+  assert.ok(isMenuHref('https://www.sgr.nl/'));
+  for (const bad of ['//evil.example/', 'javascript:alert(1)', 'http://example.nl/', 'mailto:a@b.nl', '', '/a"b', 'https://', '/a b/']) assert.equal(isMenuHref(bad), false, bad);
+  assert.deepEqual(validateMenuItem({ menu: 'voet', label: 'X', href: '/x/', parent_id: '3' }).errors.parent_id, 'Alleen het hoofdmenu heeft een submenu.');
+  assert.ok(validateMenuItem({ menu: 'zij', label: 'X', href: '/x/' }).errors.menu);
+  assert.ok(validateMenuItem({ menu: 'hoofd', label: '', href: '/x/' }).errors.label);
+  assert.ok(validateMenuItem({ menu: 'hoofd', label: 'X', href: '/x/', sort_order: '1.5' }).errors.sort_order);
+  assert.deepEqual(validateMenuItem({ menu: 'hoofd', label: ' Reizen ', href: ' /reis/ ', sort_order: '-5' }).values, { menu: 'hoofd', parentId: null, label: 'Reizen', href: '/reis/', sortOrder: -5 });
+  const built = buildMenus([
+    { id: 1, menu: 'hoofd', parent_id: null, label: 'Over', href: '/over/' },
+    { id: 3, menu: 'hoofd', parent_id: 1, label: 'Team', href: '/team/' },
+    { id: 2, menu: 'voet', parent_id: null, label: 'Contact', href: '/contact/' },
+    { id: 4, menu: 'hoofd', parent_id: null, label: 'Blog', href: '/blog/' },
+  ]);
+  assert.deepEqual(built, {
+    hoofd: [{ label: 'Over', href: '/over/', children: [{ label: 'Team', href: '/team/' }] }, { label: 'Blog', href: '/blog/' }],
+    voet: [{ label: 'Contact', href: '/contact/' }],
+  });
 });
 
 test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
@@ -457,5 +496,164 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     const tooMany = await post(`${pageUrl}blokken/nieuw/`, { type: 'reizen' });
     assert.equal(tooMany.status, 422);
     assert.match(tooMany.text, /hoogstens 5 blokken met reizen/);
+  });
+
+  await t.test('H3: nieuwe pagina (offline tot publiceren), gereserveerde en bezette adressen', async () => {
+    assert.equal((await request('/app/paginas/nieuw/', { cookie: leider.cookie })).status, 403);
+    assert.equal((await request('/app/paginas/nieuw/', { cookie: leider.cookie, form: { _csrf: leider.csrf, title: 'X' } })).status, 403);
+    assert.equal((await request('/app/paginas/nieuw/', { cookie: redactie.cookie, form: { _csrf: 'fout', title: 'X' } })).status, 403);
+    const form = await request('/app/paginas/nieuw/', { cookie: redactie.cookie });
+    assert.equal(form.status, 200);
+    assert.match(form.text, /<option value="\/over-ons\/">Over Avanta/);
+    await db.query("INSERT INTO posts (slug, title, published_at) VALUES ('een-bericht', 'Een bericht', now())");
+    const create = (form) => request('/app/paginas/nieuw/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf, ...form } });
+    assert.match((await create({ title: 'Blog', slug: 'blog', parent: '/' })).text, /gebruikt de site zelf/);
+    assert.match((await create({ title: 'Dubbel', slug: 'over-ons', parent: '/' })).text, /staat al een pagina/);
+    assert.match((await create({ title: 'Bericht', slug: 'een-bericht', parent: '/' })).text, /blogbericht/);
+    assert.equal((await create({ title: 'Wees', slug: 'wees', parent: '/bestaat-niet/' })).status, 422);
+    assert.equal((await create({ title: '', slug: 'leeg', parent: '/' })).status, 422);
+    const made = await create({ title: 'Teamdagen & meer', slug: '', parent: '/over-ons/' });
+    assert.equal(made.status, 303);
+    const [row] = await db.query("SELECT id, path, published, draft IS NOT NULL AS has_draft FROM pages WHERE title = 'Teamdagen & meer'");
+    assert.deepEqual({ path: row.path, published: row.published, hasDraft: row.has_draft }, { path: '/over-ons/teamdagen-meer/', published: false, hasDraft: true });
+    assert.match(made.headers.get('location'), new RegExp(`/app/paginas/${row.id}/\\?opgeslagen=7`));
+    assert.equal((await request('/over-ons/teamdagen-meer/')).status, 404, 'offline tot publiceren');
+    assert.equal(await audits('pagina.nieuw'), 1);
+    const newUrl = `/app/paginas/${row.id}/`;
+    const newVersion = async () => (await db.query('SELECT draft_version FROM pages WHERE id = $1', [row.id]))[0].draft_version;
+    // Weer online zetten kan pas na een publicatie.
+    assert.match((await request(`${newUrl}online/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, versie: String(await newVersion()), stand: 'online' } })).text, /nog nooit gepubliceerd/);
+    assert.equal((await request(`${newUrl}gegevens/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, versie: String(await newVersion()), title: 'Teamdagen', seo_title: 'x'.repeat(71) } })).status, 422);
+    assert.equal((await request(`${newUrl}gegevens/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, versie: String(await newVersion()), title: 'Teamdagen', intro: 'Inleiding', seo_title: 'Teamdagen bij Avanta', seo_description: 'Zo zien onze teamdagen eruit.' } })).status, 303);
+    assert.equal((await request(`${newUrl}publiceren/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, versie: String(await newVersion()) } })).status, 303);
+    const site = await request('/over-ons/teamdagen-meer/');
+    assert.equal(site.status, 200);
+    assert.match(site.text, /<title>Teamdagen bij Avanta - /);
+    assert.match(site.text, /<meta name="description" content="Zo zien onze teamdagen eruit.">/);
+    assert.match(site.text, /page-header__title">Teamdagen</);
+    const revisions = await db.query('SELECT version, seo_title FROM page_revisions WHERE page_id = $1 ORDER BY version', [row.id]);
+    assert.deepEqual(revisions, [{ version: 1, seo_title: 'Teamdagen bij Avanta' }], 'geen importversie voor een nieuwe pagina');
+  });
+
+  await t.test('H3: adres wijzigen met 301 (ook eronder) en menu mee; offline, online en verwijderen', async () => {
+    const [parent] = await db.query("SELECT id FROM pages WHERE path = '/over-ons/'");
+    const [child] = await db.query("SELECT id FROM pages WHERE path = '/over-ons/teamdagen-meer/'");
+    await db.query(`INSERT INTO menu_items (menu, label, href, sort_order) VALUES ('voet', 'Over ons', '/over-ons/', 99),
+      ('voet', 'Team anker', '/over-ons/teamdagen-meer/#x', 98), ('voet', 'Team kaal', '/over-ons/teamdagen-meer', 97), ('voet', 'Team kaal anker', '/over-ons/teamdagen-meer#y', 96)`);
+    await app.locals.menus.reload();
+    const moveTo = (id, form) => request(`/app/paginas/${id}/adres/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, versie: '0', ...form } });
+    assert.equal((await request(`/app/paginas/${parent.id}/adres/`, { cookie: leider.cookie, form: { _csrf: leider.csrf, slug: 'x', parent: '/' } })).status, 403);
+    assert.equal((await moveTo(999999, { slug: 'x', parent: '/' })).status, 404);
+    assert.match((await moveTo(parent.id, { slug: 'onder', parent: '/over-ons/teamdagen-meer/' })).text, /niet onder zichzelf/);
+    assert.match((await moveTo(parent.id, { slug: 'reis', parent: '/' })).text, /gebruikt de site zelf/);
+    assert.match((await moveTo(parent.id, { slug: 'een-bericht', parent: '/' })).text, /blogbericht/);
+    assert.equal((await moveTo(parent.id, { slug: 'over-ons', parent: '/' })).status, 303, 'ongewijzigd');
+    const moved = await moveTo(parent.id, { slug: 'wie-wij-zijn', parent: '/' });
+    assert.equal(moved.status, 303);
+    assert.match(moved.headers.get('location'), /opgeslagen=8/);
+    assert.deepEqual((await db.query('SELECT path FROM pages WHERE id = ANY($1::int[]) ORDER BY path', [[parent.id, child.id]])).map((r) => r.path), ['/wie-wij-zijn/', '/wie-wij-zijn/teamdagen-meer/']);
+    const old = await request('/over-ons/teamdagen-meer/');
+    assert.equal(old.status, 301);
+    assert.equal(old.headers.get('location'), '/wie-wij-zijn/teamdagen-meer/');
+    assert.equal((await request('/over-ons/')).headers.get('location'), '/wie-wij-zijn/');
+    assert.equal((await request('/wie-wij-zijn/teamdagen-meer/')).status, 200);
+    assert.match((await request('/wie-wij-zijn/')).text, /<a href="\/wie-wij-zijn\/">Over ons<\/a>/, 'menu-item gaat mee');
+    assert.equal(await audits('pagina.verplaatst'), 1);
+    assert.deepEqual((await db.query("SELECT href FROM menu_items WHERE label LIKE 'Team %' ORDER BY label")).map((r) => r.href),
+      ['/wie-wij-zijn/teamdagen-meer/#x', '/wie-wij-zijn/teamdagen-meer/', '/wie-wij-zijn/teamdagen-meer/#y'], 'ook met anker of zonder slash');
+    // Terug naar het oude adres: de doorverwijzing vanaf het oude adres vervalt, er ontstaat geen lus.
+    assert.equal((await moveTo(parent.id, { slug: 'over-ons', parent: '/' })).status, 303);
+    assert.equal((await request('/over-ons/')).status, 200);
+    assert.equal((await request('/wie-wij-zijn/')).headers.get('location'), '/over-ons/');
+
+    const childUrl = `/app/paginas/${child.id}/`;
+    const act = (url, form) => request(url, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, versie: '0', ...form } });
+    assert.match((await act(`${childUrl}verwijderen/`, { zeker: 'ja' })).text, /eerst offline/);
+    assert.equal((await act(`${childUrl}online/`, { stand: 'onzin' })).status, 422);
+    assert.equal((await act(`${childUrl}online/`, { stand: 'offline' })).status, 303);
+    assert.equal((await request('/over-ons/teamdagen-meer/')).status, 404);
+    assert.equal((await act(`${childUrl}online/`, { stand: 'online' })).status, 303);
+    assert.equal((await request('/over-ons/teamdagen-meer/')).status, 200);
+    await act(`${childUrl}online/`, { stand: 'offline' });
+    assert.match((await act(`/app/paginas/${parent.id}/online/`, { stand: 'offline' })).headers.get('location'), /opgeslagen=9/);
+    assert.match((await act(`/app/paginas/${parent.id}/verwijderen/`, { zeker: 'ja' })).text, /pagina&#39;s onder deze pagina|pagina's onder deze pagina/);
+    await db.query('UPDATE pages SET legacy_id = 4242 WHERE id = $1', [child.id]);
+    assert.match((await act(`${childUrl}verwijderen/`, { zeker: 'ja' })).text, /alleen offline halen/);
+    await db.query('UPDATE pages SET legacy_id = NULL WHERE id = $1', [child.id]);
+    assert.match((await act(`${childUrl}verwijderen/`, { zeker: 'ja' })).text, /staat nog in een menu/);
+    await db.query("DELETE FROM menu_items WHERE label LIKE 'Team %' AND label <> 'Team kaal anker'");
+    await db.query("UPDATE menu_items SET href = '/over-ons/teamdagen-meer#y' WHERE label = 'Team kaal anker'");
+    assert.match((await act(`${childUrl}verwijderen/`, { zeker: 'ja' })).text, /staat nog in een menu/, 'ook anker zonder slash');
+    await db.query("DELETE FROM menu_items WHERE label LIKE 'Team %'");
+    assert.equal((await act(`${childUrl}verwijderen/`, {})).status, 422, 'zonder vinkje');
+    const removed = await act(`${childUrl}verwijderen/`, { zeker: 'ja' });
+    assert.equal(removed.status, 303);
+    assert.equal(removed.headers.get('location'), '/app/paginas/?melding=1');
+    assert.equal((await db.query('SELECT count(*)::int AS count FROM pages WHERE id = $1', [child.id]))[0].count, 0);
+    assert.equal((await db.query('SELECT count(*)::int AS count FROM page_revisions WHERE page_id = $1', [child.id]))[0].count, 0);
+    assert.equal(await audits('pagina.verwijderd'), 1);
+    await act(`/app/paginas/${parent.id}/online/`, { stand: 'online' });
+  });
+
+  await t.test('H3: menu\'s beheren; de site toont ze', async () => {
+    assert.equal((await request('/app/menus/')).status, 303);
+    assert.equal((await request('/app/menus/', { cookie: leider.cookie })).status, 403);
+    assert.equal((await request('/app/menus/nieuw/', { cookie: boekhouding.cookie, form: { _csrf: boekhouding.csrf, menu: 'hoofd', label: 'X', href: '/x/' } })).status, 403);
+    const overview = await request('/app/menus/', { cookie: redactie.cookie });
+    assert.equal(overview.status, 200);
+    assert.match(overview.text, /Onze manier van reizen/, 'beginvulling uit de migratie');
+    assert.match(overview.text, /href="\/app\/menus\/"/, 'menu-item in het CRM');
+    const home = await request('/over-ons/');
+    assert.match(home.text, /class="sub-menu"[^]*Onze manier van reizen/);
+    const add = (form) => request('/app/menus/nieuw/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf, ...form } });
+    assert.equal((await add({ menu: 'hoofd', label: 'Kwaad', href: 'javascript:alert(1)' })).status, 422);
+    assert.equal((await add({ menu: 'voet', label: 'Sub', href: '/x/', parent_id: '1' })).status, 422);
+    const [over] = await db.query("SELECT id FROM menu_items WHERE label = 'Over Avanta' AND parent_id IS NULL");
+    const [sub] = await db.query('SELECT id FROM menu_items WHERE parent_id = $1 ORDER BY id LIMIT 1', [over.id]);
+    assert.match((await add({ menu: 'hoofd', label: 'Diep', href: '/x/', parent_id: String(sub.id) })).text, /Kies een hoofditem/);
+    assert.equal((await add({ menu: 'hoofd', label: 'Teamdagen', href: '/over-ons/teamdagen/', parent_id: String(over.id), sort_order: '60' })).status, 303);
+    assert.equal((await add({ menu: 'hoofd', label: 'Zomer <b>2027</b>', href: '/zomer/', sort_order: '5' })).status, 303);
+    assert.equal(await audits('menu.nieuw'), 2);
+    const site = await request('/over-ons/');
+    assert.match(site.text, /<a href="\/over-ons\/teamdagen\/">Teamdagen<\/a>/);
+    assert.match(site.text, /Zomer &lt;b&gt;2027&lt;\/b&gt;/, 'tekst ge-escaped');
+    assert.ok(site.text.indexOf('Zomer &lt;b&gt;') < site.text.indexOf('>Reizen<'), 'volgorde');
+
+    const [zomer] = await db.query("SELECT id FROM menu_items WHERE href = '/zomer/'");
+    assert.equal((await request(`/app/menus/${zomer.id}/`, { cookie: redactie.cookie })).status, 200);
+    assert.equal((await request('/app/menus/999999/', { cookie: redactie.cookie })).status, 404);
+    assert.equal((await request('/app/menus/999999/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf, menu: 'hoofd', label: 'X', href: '/x/' } })).status, 404);
+    assert.match((await request(`/app/menus/${over.id}/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, menu: 'voet', label: 'Over Avanta', href: '/avanta-reizen/' } })).text, /heeft een submenu/);
+    assert.match((await request(`/app/menus/${over.id}/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, menu: 'hoofd', label: 'Over Avanta', href: '/avanta-reizen/', parent_id: String(zomer.id) } })).text, /zelf een submenu/);
+    assert.equal((await request(`/app/menus/${zomer.id}/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, menu: 'voet', label: 'Zomer', href: 'https://www.sgr.nl/', sort_order: '1' } })).status, 303);
+    assert.match((await request('/over-ons/')).text, /<nav aria-label="Voettekst"><ul class="nav"><li><a href="https:\/\/www.sgr.nl\/">Zomer<\/a>/);
+    assert.equal(await audits('menu.gewijzigd'), 1);
+    assert.equal((await request(`/app/menus/${over.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: 'fout' } })).status, 403);
+    assert.equal((await request(`/app/menus/${over.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 303);
+    assert.equal((await db.query('SELECT count(*)::int AS count FROM menu_items WHERE parent_id = $1', [over.id]))[0].count, 0, 'submenu gaat mee');
+    assert.equal((await request('/app/menus/999999/verwijderen/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 404);
+    assert.doesNotMatch((await request('/over-ons/')).text, /Onze manier van reizen/);
+    // Maximum per menu.
+    const [{ count }] = await db.query("SELECT count(*)::int AS count FROM menu_items WHERE menu = 'voet'");
+    await db.query("INSERT INTO menu_items (menu, label, href) SELECT 'voet', 'Vul ' || n, '/vul/' FROM generate_series(1, $1::int) AS n", [40 - count]);
+    await db.query("DELETE FROM menu_items WHERE id = (SELECT max(id) FROM menu_items WHERE menu = 'voet')");
+    // Gelijktijdig wijzigen en toevoegen op hetzelfde menu: geen deadlock (vaste volgorde van sloten).
+    const [someVoet] = await db.query("SELECT id FROM menu_items WHERE menu = 'voet' ORDER BY id LIMIT 1");
+    const mixed = await Promise.all([
+      ...[1, 2, 3].map((n) => request(`/app/menus/${someVoet.id}/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, menu: 'voet', label: `Gewijzigd ${n}`, href: '/x/' } })),
+      add({ menu: 'voet', label: 'Tegelijk 0', href: '/x/' }),
+    ]);
+    assert.deepEqual(mixed.map((response) => response.status), [303, 303, 303, 303]);
+    await db.query("DELETE FROM menu_items WHERE label = 'Tegelijk 0'");
+    const parallel = await Promise.all([1, 2, 3].map((n) => add({ menu: 'voet', label: `Tegelijk ${n}`, href: '/x/' })));
+    assert.deepEqual(parallel.map((response) => response.status).sort(), [303, 422, 422], 'gelijktijdig: maar één past');
+    assert.equal((await db.query("SELECT count(*)::int AS count FROM menu_items WHERE menu = 'voet'"))[0].count, 40);
+    assert.match((await add({ menu: 'voet', label: 'Te veel', href: '/x/' })).text, /hoogstens 40 items/);
+    const [mover] = await db.query("SELECT id FROM menu_items WHERE menu = 'hoofd' AND parent_id IS NULL ORDER BY id LIMIT 1");
+    assert.match((await request(`/app/menus/${mover.id}/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, menu: 'voet', label: 'Verhuist', href: '/x/' } })).text, /hoogstens 40 items/, 'ook niet via verplaatsen naar een vol menu');
+    // Een leeg menu: de site toont het vaste standaardmenu.
+    await db.query("DELETE FROM menu_items WHERE menu = 'voet'");
+    await app.locals.menus.reload();
+    assert.match((await request('/over-ons/')).text, /<nav aria-label="Voettekst"><ul class="nav"><li><a href="\/avanta-reizen\/">Het Avantateam<\/a>/);
   });
 });
