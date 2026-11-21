@@ -123,6 +123,15 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     `1.849,50`). De landen van een reis komen uit de koppeling met de landen (`trips.destinations` is vervallen). Een
     reis die in het CRM is opgeslagen krijgt `managed_in_crm`: de WordPress-import laat hem daarna ongemoeid. Een
     gewijzigde slug geeft automatisch een 301. Alles in de auditlog (`reis.*`).
+    **Foto's bij een reis** (migratie 16, tabel `trip_media`): op het bewerkscherm een kopfoto, een kaartfoto (in de
+    lijsten) en een galerij (maximaal 60, op volgorde met *Naar voren*/*Naar achteren*, met titel en subtitel) kiezen
+    uit de fotobibliotheek, standaard gefilterd op het eerste land van de reis; of direct uploaden (met de landen van de
+    reis, daarna terug naar de reis). Een gekozen foto wordt bij het opslaan vergrendeld en kan niet uit de bibliotheek
+    verwijderd worden zolang hij bij een reis hoort (ook een database-RESTRICT). De kolommen `hero_image_url`,
+    `card_image_url` en `gallery` van de reis zijn een afgeleide kopie die bij elke wijziging opnieuw wordt geschreven;
+    bij de migratie zijn de bestaande foto's uit de import overgenomen. Foto's uit de import zonder rij in de
+    bibliotheek blijven staan (kop/kaart tot je er een kiest, galerij-items achteraan); het bewerkscherm meldt ze en
+    *Foto's uit de import weghalen* haalt ze weg. Alleen de galerijtekst wijzigen herschrijft de galerij niet.
   - **Reistypes en landen** op `/app/reistypes-en-landen/` (recht `reizen`: beheerder en kantoor; `app/src/trips/`,
     migratie 14): lijst per soort (reistypes, landen, overig) met het aantal reizen (komend) en foto's; nieuw aanmaken
     en wijzigen: naam, slug (leeg = uit de naam), soort, icoon uit de eigen SVG-set (leeg = op de slug), inleiding,
@@ -304,7 +313,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `app/src/system/` | `system-update.js` (updates vanuit de app), `maintenance.js` (onderhoudsmodus), `host-tasks.js` (servertaken), `request-context.js` (context per verzoek), `app-log.js` (logboek, foutcodes), `monitor.js` (bewaking) |
 | `app/src/backup/` | `backups.js` (versleutelde back-ups, planner), `drive.js` (kopie naar Google Drive), `restore-test.js` (hersteltests), `cli.js` (maken, tonen, ontsleutelen op de opdrachtregel) |
 | `app/src/media/` | fotobibliotheek: `images.js` (soort op inhoud, sharp: rechtzetten, EXIF weg, WebP-varianten), `library.js` (opslag en queries, `media_countries`), `routes.js` (`/app/fotobibliotheek/`) |
-| `app/src/trips/` | reizen beheren: `slugs.js` (slug maken, 301 bij een nieuwe slug), `categories.js` en `category-routes.js` (`/app/reistypes-en-landen/`), `trips.js` en `trip-routes.js` (`/app/reizen/`) |
+| `app/src/trips/` | reizen beheren: `slugs.js` (slug maken, 301 bij een nieuwe slug), `categories.js` en `category-routes.js` (`/app/reistypes-en-landen/`), `trips.js` en `trip-routes.js` (`/app/reizen/`), `trip-media.js` (foto's bij een reis) |
 | `app/src/mail/` | `mailer.js` (versturen via SMTP of Exchange-connector), `wan-ip.js` (WAN-IP van de server), `layout.js` (opmaak), `notifications.js` (meldingen aan kantoor) |
 | `docs/OPZET-WEBSITE.md` | opzet, inventaris van de huidige site, fasering en open vragen |
 | `changes/` | releasenotes-fragmenten, zie `changes/README.md` |

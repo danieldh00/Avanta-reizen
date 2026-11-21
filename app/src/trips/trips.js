@@ -24,7 +24,7 @@ const MAX_GUIDES = 3;
 const TRIP_COLUMNS = `t.id, t.legacy_id, t.slug, t.title, t.tagline, t.summary, t.body_html, t.trip_code, t.departure_date,
   t.duration_label, t.duration_days, t.price_cents, t.old_price_cents, t.offer_until, t.extra_costs_cents, t.deposit_cents,
   t.price_note, t.status_label, t.guaranteed, t.fully_booked, t.is_new, t.capacity, t.published, t.managed_in_crm,
-  t.hero_image_url, t.card_image_url, t.created_at, t.updated_at`;
+  t.hero_image_url, t.card_image_url, t.gallery_title, t.gallery_subtitle, t.created_at, t.updated_at`;
 
 /** Bedragvelden van het formulier en hun kolom. */
 const MONEY_FIELDS = { price: 'priceCents', old_price: 'oldPriceCents', extra_costs: 'extraCostsCents', deposit: 'depositCents' };
@@ -293,6 +293,7 @@ function createTrips(options) {
           [current.id, ...columnValues({ ...values, userId: context.userId })],
         );
         await writeLinks(client, current.id, values);
+        // Altijd een 301, ook bij een concept: een reis kan eerder gepubliceerd zijn geweest (en dat staat nergens vast).
         const moved = current.slug !== values.slug;
         if (moved) await recordMove(client, { fromPath: tripPath(current.slug), toPath: tripPath(values.slug), userId: context.userId, note: 'Automatisch: slug van reis gewijzigd' });
         await context.audit(client);

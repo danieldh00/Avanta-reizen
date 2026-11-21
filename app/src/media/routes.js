@@ -264,6 +264,9 @@ function createMediaRoutes(options) {
         const prefix = stored ? `${stored} ${stored === 1 ? 'foto' : 'foto\'s'} geüpload. Niet gelukt: ` : 'Niet gelukt: ';
         return await fail(422, prefix + problems.join(' '));
       }
+      // Vanaf een reis geüpload: terug naar die reis (alleen een vast pad binnen het CRM, geen open redirect).
+      const back = typeof form.fields.terug === 'string' && /^\/app\/reizen\/\d{1,9}\/$/.test(form.fields.terug) ? form.fields.terug : '';
+      if (back) return res.redirect(303, `${back}?geupload=${stored}#fotos`);
       return res.redirect(303, `${BASE}?geupload=${stored}`);
     } catch (error) {
       if (error.status === 403) return res.status(403).set('Connection', 'close').type('text').send('Verzoek geweigerd. Laad de pagina opnieuw en probeer het nog eens.');

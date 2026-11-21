@@ -11,6 +11,12 @@ const { searchPatterns } = require('../crm/person-routes');
 const { formatDate, isoDate, tripPath } = require('../site/format');
 const { KINDS } = require('./categories');
 const { createTrips, validateTrip, eurosText, LIMITS, MAX_GUIDES } = require('./trips');
+const { createTripMedia, ROLES, MAX_GALLERY, GALLERY_TEXT_LIMIT } = require('./trip-media');
+const { createMediaLibrary, mediaUrl } = require('../media/library');
+const { pickerFilter, pickerPhotos, renderPhotoPicker } = require('../media/picker');
+const { roleHasRight } = require('../crm/rights');
+const { MAX_FILES } = require('../media/routes');
+const { MAX_UPLOAD_BYTES } = require('../media/images');
 
 /** Basispad van het scherm. */
 const BASE = '/app/reizen/';
@@ -25,6 +31,7 @@ const STATUS_FILTERS = { komend: 'Komend', vertrokken: 'Vertrokken', concept: 'C
 const TRIP_ACTION_LABELS = {
   'reis.aangemaakt': 'Reis aangemaakt',
   'reis.gewijzigd': 'Reis gewijzigd',
+  'reis.fotos': 'Foto\'s van een reis gewijzigd',
 };
 
 /**
@@ -58,6 +65,8 @@ function formValues(trip) {
 function createTripRoutes(options) {
   const { db, auth } = options;
   const trips = createTrips({ db });
+  const tripMedia = createTripMedia({ db });
+  const library = options.library || createMediaLibrary({ db, mediaDir: options.mediaDir || '' });
   const router = express.Router();
   const guard = auth.requireRight('reizen');
 
@@ -197,8 +206,76 @@ function createTripRoutes(options) {
             </section>
           </div>
           <div><button class="btn" type="submit">${trip ? 'Opslaan' : 'Reis aanmaken'}</button></div>
-        </form>`,
+        </form>
+        ${trip ? await renderPhotos(req, trip) : ''}`,
     });
+  };
+
+  /**
+   * Het blok met foto's van een reis: kop- en kaartfoto, galerij met volgorde, galerijtekst, kiezer en direct uploaden.
+   * @param {object} req Express-verzoek.
+   * @param {object} trip Reis uit `trips.get`.
+   * @returns {Promise<object>} HTML.
+   */
+  const renderPhotos = async (req, trip) => {
+    const [links, countries, imported] = await Promise.all([tripMedia.list(trip.id), library.countries(), tripMedia.imported(trip.id)]);
+    const importedCount = imported.gallery.length + (imported.hero ? 1 : 0) + (imported.card ? 1 : 0);
+    const tripCountries = countries.filter((country) => (trip.category_ids || []).includes(country.id));
+    const filter = pickerFilter(req.query, countries, tripCountries.length ? tripCountries[0].id : null);
+    const { photos, hasMore } = await pickerPhotos(library, filter);
+    const pageUrl = `${BASE}${trip.id}/`;
+    const csrf = req.session.csrf;
+    const button = (link, action, label) => html`<form method="post" action="${pageUrl}fotos/${link.id}/${action}/"><input type="hidden" name="_csrf" value="${csrf}"><button class="btn btn--small btn--outline" type="submit">${label}</button></form>`;
+    const tile = (link, controls) => html`<li class="media-grid__item">
+      <img src="${mediaUrl(link, 400)}" alt="${link.alt_text}" loading="lazy" width="${link.width || 400}" height="${link.height || 300}">
+      <span class="media-grid__title">${link.title || link.local_name}</span>
+      <div class="crm-actions">${controls}</div>
+    </li>`;
+    const cover = (role) => {
+      const link = links.find((item) => item.role === role);
+      return html`<div><h3>${ROLES[role]}</h3>${link ? html`<ul class="media-grid">${tile(link, button(link, 'verwijderen', 'Weghalen'))}</ul>` : html`<p>Nog geen ${ROLES[role].toLowerCase()}.</p>`}</div>`;
+    };
+    const gallery = links.filter((item) => item.role === 'galerij');
+    const canUpload = roleHasRight(req.user.role, 'media');
+    return html`<section class="crm-block" id="fotos">
+      <h2>Foto's</h2>
+      <div class="crm-columns">${cover('kop')}${cover('kaart')}</div>
+      <h3>Galerij (${String(gallery.length)} van maximaal ${String(MAX_GALLERY)})</h3>
+      <form class="form crm-narrow" method="post" action="${pageUrl}galerij/">
+        <input type="hidden" name="_csrf" value="${csrf}">
+        <div class="field"><span class="field__label"><label for="veld-gallery_title">Titel van de galerij</label></span>
+          <input id="veld-gallery_title" name="gallery_title" type="text" value="${trip.gallery_title || ''}" maxlength="${GALLERY_TEXT_LIMIT}"></div>
+        <div class="field"><span class="field__label"><label for="veld-gallery_subtitle">Subtitel</label></span>
+          <input id="veld-gallery_subtitle" name="gallery_subtitle" type="text" value="${trip.gallery_subtitle || ''}" maxlength="${GALLERY_TEXT_LIMIT}"></div>
+        <div><button class="btn btn--small" type="submit">Tekst opslaan</button></div>
+      </form>
+      ${importedCount ? html`<form class="crm-actions" method="post" action="${pageUrl}fotos/import-weghalen/">
+        <input type="hidden" name="_csrf" value="${csrf}">
+        <span class="field__help">${importedCount === 1 ? 'Eén foto' : `${importedCount} foto's`} uit de import (${[imported.hero ? 'kopfoto' : '', imported.card ? 'kaartfoto' : '', imported.gallery.length ? `${imported.gallery.length} in de galerij` : ''].filter(Boolean).join(', ')}) staan niet in de bibliotheek. Ze blijven op de site staan tot je ze vervangt of hier weghaalt.</span>
+        <button class="btn btn--small btn--outline" type="submit">Foto's uit de import weghalen</button>
+      </form>` : ''}
+      ${gallery.length ? html`<ol class="media-grid">${gallery.map((link, index) => tile(link, html`${index > 0 ? button(link, 'omhoog', 'Naar voren') : ''}${index < gallery.length - 1 ? button(link, 'omlaag', 'Naar achteren') : ''}${button(link, 'verwijderen', 'Weghalen')}`))}</ol>` : html`<p>Nog geen foto's in de galerij.</p>`}
+      <h3>Foto's toevoegen uit de bibliotheek</h3>
+      <p class="field__help">Standaard de foto's van ${tripCountries.length ? tripCountries[0].name : 'alle landen'}; zoek of kies een ander land. Kies een of meer foto's en waar ze komen.</p>
+      ${renderPhotoPicker({
+        pageUrl, action: `${pageUrl}fotos/`, csrf, countries, filter, photos, hasMore, multiple: true, anchor: 'fotos', button: 'Toevoegen',
+        extraFields: html`<div class="field"><span class="field__label"><label for="veld-rol">Gebruiken als</label></span>
+          <select id="veld-rol" name="rol">${Object.entries(ROLES).map(([role, label]) => html`<option value="${role}"${role === 'galerij' ? raw(' selected') : ''}>${label}</option>`)}</select>
+          <span class="field__help">Bij kop- of kaartfoto telt de eerste gekozen foto.</span></div>`,
+      })}
+      ${canUpload ? html`<details class="crm-block media-upload">
+        <summary><strong>Direct uploaden naar de bibliotheek</strong></summary>
+        <form class="form" method="post" action="/app/fotobibliotheek/uploaden/" enctype="multipart/form-data">
+          <input type="hidden" name="_csrf" value="${csrf}">
+          <input type="hidden" name="terug" value="${pageUrl}">
+          ${tripCountries.slice(0, 6).map((country) => html`<input type="hidden" name="land" value="${country.id}">`)}
+          <div class="field"><span class="field__label"><label for="veld-foto">Foto's (JPEG, PNG of WebP, maximaal ${String(MAX_FILES)} per keer en ${String(MAX_UPLOAD_BYTES / 1024 / 1024)} MB per foto)</label></span>
+            <input id="veld-foto" name="foto" type="file" accept="image/jpeg,image/png,image/webp" multiple required></div>
+          <p class="field__help">De foto's krijgen de landen van deze reis${tripCountries.length ? html` (${tripCountries.map((country) => country.name).join(', ')})` : ''} en staan daarna bovenaan in de kiezer.</p>
+          <div><button class="btn btn--small" type="submit">Uploaden</button></div>
+        </form>
+      </details>` : ''}
+    </section>`;
   };
 
   router.get('/reizen/nieuw/', guard, async (req, res, next) => {
@@ -229,8 +306,10 @@ function createTripRoutes(options) {
     try {
       const trip = await trips.get(req.params.id);
       if (!trip) return notFound(req, res);
-      const notices = { 1: 'De reis is opgeslagen.', 2: 'De reis is opgeslagen. Het oude adres verwijst automatisch door naar het nieuwe.' };
-      return res.send(await renderForm(req, { trip, values: formValues(trip), notice: notices[req.query.opgeslagen] || '' }));
+      const notices = { 1: 'De reis is opgeslagen.', 2: 'De reis is opgeslagen. Het oude adres verwijst automatisch door naar het nieuwe.', 3: 'De foto\'s zijn opgeslagen.' };
+      const uploaded = Number.parseInt(req.query.geupload, 10);
+      if (Number.isInteger(uploaded) && uploaded > 0 && uploaded <= MAX_FILES) notices.upload = `${uploaded} ${uploaded === 1 ? 'foto' : 'foto\'s'} geüpload. Kies ze hieronder om ze toe te voegen.`;
+      return res.send(await renderForm(req, { trip, values: formValues(trip), notice: notices[req.query.opgeslagen] || notices.upload || '' }));
     } catch (error) {
       return next(error);
     }
@@ -253,6 +332,85 @@ function createTripRoutes(options) {
       if (result.status === 'fout') return await showErrors(result.errors);
       if (result.moved) await reloadRedirects();
       return res.redirect(303, `${BASE}${Number(req.params.id)}/?opgeslagen=${result.moved ? 2 : 1}`);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  /**
+   * Toont het bewerkscherm opnieuw met een foutmelding bij de foto's.
+   * @param {object} req Express-verzoek.
+   * @param {object} res Express-antwoord.
+   * @param {number} status HTTP-status.
+   * @param {string} message Melding.
+   * @returns {Promise<void>}
+   */
+  const photoError = async (req, res, status, message) => {
+    const trip = await trips.get(req.params.id);
+    if (!trip) return notFound(req, res);
+    return res.status(status).send(await renderForm(req, { trip, values: formValues(trip), error: message }));
+  };
+
+  /**
+   * De audit en gebruiker voor een wijziging aan de foto's.
+   * @param {object} req Express-verzoek.
+   * @returns {{userId: number, audit: Function}} Context.
+   */
+  const photoContext = (req) => ({
+    userId: req.user.id,
+    audit: (client) => auth.audit(req, { userId: req.user.id, action: 'reis.fotos', entity: 'trips', entityId: req.params.id }, client),
+  });
+
+  /**
+   * Stuurt na een wijziging aan de foto's door, of toont de fout.
+   * @param {object} req Express-verzoek.
+   * @param {object} res Express-antwoord.
+   * @param {string} outcome Uitkomst van `tripMedia`.
+   * @returns {Promise<void>}
+   */
+  const afterPhotoChange = async (req, res, outcome) => {
+    if (outcome === 'weg') return notFound(req, res);
+    if (outcome === 'foto-weg') return photoError(req, res, 409, 'Deze foto bestaat niet (meer). Laad de pagina opnieuw.');
+    if (outcome === 'te-veel') return photoError(req, res, 422, `De galerij heeft maximaal ${MAX_GALLERY} foto's.`);
+    return res.redirect(303, `${BASE}${Number(req.params.id)}/?opgeslagen=3#fotos`);
+  };
+
+  router.post('/reizen/:id(\\d{1,9})/fotos/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const role = Object.hasOwn(ROLES, req.body.rol) ? req.body.rol : null;
+      const ids = [...new Set([].concat(req.body.media_id ?? []).filter((id) => typeof id === 'string' && /^\d{1,9}$/.test(id)).map(Number))].slice(0, MAX_GALLERY);
+      if (!role || !ids.length) return await photoError(req, res, 422, 'Kies een of meer foto\'s en waar ze komen.');
+      return await afterPhotoChange(req, res, await tripMedia.add(req.params.id, ids, role, photoContext(req)));
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/reizen/:id(\\d{1,9})/fotos/:link(\\d{1,9})/:action(omhoog|omlaag|verwijderen)/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const context = photoContext(req);
+      const outcome = req.params.action === 'verwijderen'
+        ? await tripMedia.remove(req.params.id, req.params.link, context)
+        : await tripMedia.move(req.params.id, req.params.link, req.params.action, context);
+      if (outcome === 'rand') return res.redirect(303, `${BASE}${Number(req.params.id)}/#fotos`);
+      return await afterPhotoChange(req, res, outcome);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/reizen/:id(\\d{1,9})/fotos/import-weghalen/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      return await afterPhotoChange(req, res, await tripMedia.dropImported(req.params.id, photoContext(req)));
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/reizen/:id(\\d{1,9})/galerij/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const outcome = await tripMedia.setGalleryText(req.params.id, { title: req.body.gallery_title, subtitle: req.body.gallery_subtitle }, photoContext(req));
+      return await afterPhotoChange(req, res, outcome);
     } catch (error) {
       return next(error);
     }

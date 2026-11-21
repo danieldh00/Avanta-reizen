@@ -179,10 +179,15 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.equal((await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ _csrf: 'fout' }) })).status, 403);
   });
 
+  await t.test('ook een concept hernoemen geeft een 301 (het kan eerder gepubliceerd zijn geweest)', async () => {
+    assert.equal((await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ slug: 'tijdelijk' }) })).status, 303);
+    assert.deepEqual(await db.query("SELECT from_path FROM redirects WHERE to_url = '/reis/tijdelijk/'"), [{ from_path: '/reis/20-dagen-namibie/' }]);
+  });
+
   await t.test('publiceren: op de site met landen, reistype en beide reisleiders', async () => {
     const saved = await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ published: '1' }) });
     assert.equal(saved.status, 303);
-    assert.match(saved.headers.get('location'), /opgeslagen=1/);
+    assert.match(saved.headers.get('location'), /opgeslagen=2/, 'bij publiceren wel een 301 van de vorige slug');
     const page = await request('/reis/20-dagen-namibie/');
     assert.equal(page.status, 200);
     assert.match(page.text, /Reisleiders<\/dt><dd><a href="\/reisleider\/eva\/">Eva<\/a>, <a href="\/reisleider\/martijn\/">Martijn<\/a>/);
@@ -203,7 +208,17 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.equal(old.status, 301);
     assert.equal(old.headers.get('location'), '/reis/namibie-juni/');
     assert.equal((await request('/reis/namibie-juni/')).status, 200);
-    assert.equal(await audits('reis.gewijzigd'), 2);
+    assert.equal(await audits('reis.gewijzigd'), 3);
+  });
+
+  await t.test('gepubliceerd, dan concept, dan hernoemd: het oude adres verwijst door', async () => {
+    assert.equal((await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ slug: 'namibie-juni', published: '0' }) })).status, 303);
+    assert.equal((await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ slug: 'namibie-juli', published: '0' }) })).status, 303);
+    const old = await request('/reis/namibie-juni/');
+    assert.equal(old.status, 301);
+    assert.equal(old.headers.get('location'), '/reis/namibie-juli/');
+    assert.equal((await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ slug: 'namibie-juni', published: '1' }) })).status, 303);
+    assert.equal((await request('/reis/namibie-juni/')).status, 200, 'terug naar de oude slug: geen lus');
   });
 
   await t.test('import slaat een in het CRM gewijzigde reis over', async () => {
