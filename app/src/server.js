@@ -35,6 +35,7 @@ const { createDrive } = require('./backup/drive');
 const { roleHasRight } = require('./crm/rights');
 const { createPersons } = require('./crm/persons');
 const { createRetention } = require('./crm/retention');
+const { createPaymentReminders } = require('./crm/payment-reminders');
 const { createRestoreTests } = require('./backup/restore-test');
 const { renderPage, renderPageHeader } = require('./site/layout');
 const { createSystemUpdate } = require('./system/system-update');
@@ -240,11 +241,14 @@ function createApp(options) {
   // AVG-opschoning (Beheer > AVG en bewaartermijnen): de dagelijkse ronde start pas in `start()`.
   const retention = createRetention({ db: options.db, persons: createPersons({ vault }), settings, today: options.retentionToday });
   app.locals.retention = retention;
+  // Betaalherinneringen (Beheer > CRM > Betalingen): de dagelijkse ronde start pas in `start()`.
+  const paymentReminders = createPaymentReminders({ db: options.db, mailer, settings, now: options.now });
+  app.locals.paymentReminders = paymentReminders;
 
   // Vaste inhoud van de homepage en lijstkoppen (DATA_DIR); ook het CRM gebruikt ze (homepage als blokpagina opzetten).
   const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
   const homepage = options.homepage || createHomepageStore(DATA_DIR);
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).
@@ -349,6 +353,7 @@ async function start() {
   app.locals.restoreTests.startTimer(() => app.locals.settings.get('driveEnabled'));
   app.locals.monitor.start();
   app.locals.retention.start();
+  app.locals.paymentReminders.start();
   app.locals.mediaLibrary.startCleanupTimer();
   // Updates: de stand van "automatisch bijwerken" naar het hostscript en een afgeronde uitrol in het auditlog (elke minuut).
   startUpdateSync({ db, settings: app.locals.settings, systemUpdate: app.locals.systemUpdate });

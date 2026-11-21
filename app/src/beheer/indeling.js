@@ -91,8 +91,8 @@ const GROUPS = [
       {
         id: 'betalingen',
         label: 'Betalingen',
-        intro: 'Termijnen voor de betalingen bij een aanmelding. Het CRM rekent daarmee de vervaldatums van de aanbetaling en het restant uit, en toont welke aanmeldingen te laat zijn.',
-        fields: ['paymentDepositDays', 'paymentBalanceDaysBefore'],
+        intro: 'Termijnen voor de betalingen bij een aanmelding. Het CRM rekent daarmee de vervaldatums van de aanbetaling en het restant uit, toont welke aanmeldingen te laat zijn en stuurt desgewenst automatisch een herinnering. De betaalinstructie in de herinnering is dezelfde als in de bevestiging (E-mail > Bevestiging aan de reiziger).',
+        fields: ['paymentDepositDays', 'paymentBalanceDaysBefore', 'paymentReminderAuto', 'paymentReminderEveryDays', 'paymentReminderMax'],
         words: 'betaling betalingen aanbetaling restant restbetaling termijn vervaldatum openstaand saldo herinnering',
       },
     ],
