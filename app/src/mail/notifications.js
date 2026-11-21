@@ -111,7 +111,8 @@ function createNotifications(options) {
     rows.push(['SGR-garantie', formatPrice(SGR_CENTS)]);
     if (fee) rows.push(['Boekingskosten', formatPrice(fee)]);
     if (trip.price_cents) rows.push(['Totaal', formatPrice(trip.price_cents + SGR_CENTS + fee)]);
-    if (paymentChoice === 'aanbetaling' && depositCents) rows.push(['Nu te betalen (aanbetaling)', formatPrice(depositCents)]);
+    // Zonder ingevulde aanbetaling bij de reis geen bedrag gokken: kantoor geeft het door.
+    if (paymentChoice === 'aanbetaling') rows.push(['Nu te betalen (aanbetaling)', depositCents ? formatPrice(depositCents) : 'het bedrag ontvang je van kantoor']);
     if (trip.extra_costs_cents) rows.push(['Bijkomende kosten (ter plaatse)', formatPrice(trip.extra_costs_cents)]);
     return rows;
   };

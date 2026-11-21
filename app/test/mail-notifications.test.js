@@ -152,6 +152,10 @@ test('bevestiging aan de reiziger: bedragen, betaalinstructie, alleen als hij aa
   assert.match(total.sent[0].text, /Betaling: Totaalbedrag/);
   assert.match(total.sent[0].text, /Totaal: €1\.104,-/);
   assert.doesNotMatch(total.sent[0].text, /Boekingskosten|aanbetaling\)/);
+  // Aanbetaling zonder bedrag bij de reis: geen gegokt bedrag, wel een duidelijke regel.
+  const noDeposit = fakeMailer();
+  await createNotifications({ mailer: noDeposit, settings: fakeSettings({}) }).bookingConfirmation({ ...booking, depositCents: null });
+  assert.match(noDeposit.sent[0].text, /Nu te betalen \(aanbetaling\): het bedrag ontvang je van kantoor/);
   assert.throws(() => validateValue('bookingPaymentText', SETTING_FIELDS.bookingPaymentText, '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11'), /10 regels/);
 });
 
