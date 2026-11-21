@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.1 — 2026-11-21 — Time-out op de databaseverbinding
+
+- Als de database even niet bereikbaar is, blijft de site niet meer eindeloos laden: na enkele seconden verschijnt een
+
+- `database/db.js`: `connectionTimeoutMillis` (standaard 5000 ms, `DATABASE_CONNECT_TIMEOUT_MS`) en
+  `idleTimeoutMillis` (30 s) op de pool; ongeldige waarden in `DATABASE_POOL_SIZE` vallen terug op 10.
+- `pool.on('error')`: een verbinding die in rust wegvalt laat het proces niet meer crashen (alleen de foutcode gelogd).
+
 ## 0.9.0 — 2026-11-21 — Tweestapsverificatie voor het CRM
 
 - Tweestapsverificatie in het CRM: na het wachtwoord een code uit een authenticator-app (bijv. Microsoft of Google
