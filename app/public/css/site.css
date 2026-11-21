@@ -1088,3 +1088,11 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
 .monitor-state--warn { background: #fff3d6; color: #6b4a00; }
 .monitor-state--error { background: #fbe3e3; color: #8a1c1c; }
 .monitor-state--uit { background: var(--av-line); color: inherit; }
+
+/* Reizigersaccount (/account/, CMS-pakket J2): smal formulier in de huisstijl. */
+.page-content > .account { max-width: 560px; }
+.account__intro p, .account__done p { margin: 0 0 1rem; }
+.account__links { margin: 0; font-size: 15px; }
+.account__logout { margin-top: 30px; }
+.account .notice { margin: 0 0 1rem; }
+.account .form-alert { margin: 0 0 1rem; }
