@@ -17,6 +17,7 @@ const { createMediaLibrary } = require('../media/library');
 const { BLOCK_TYPES } = require('./blocks');
 const { createBlockEditor, fieldRow, invalidAttributes } = require('./block-editor');
 const { imageFromMedia } = require('./pages');
+const { createPostTerms, TERM_KINDS } = require('./post-terms');
 const { createPosts, validatePostFields, editablePostState, postStatus, toLocalDateTime, fromLocalDateTime, POST_LIMITS } = require('./posts');
 const { slugify, MAX_SLUG_LENGTH } = require('../trips/slugs');
 const { createSiteContentStore } = require('../site/site-content');
@@ -53,6 +54,7 @@ const NOTICES = {
   9: 'Het bericht staat offline; bezoekers krijgen een 404.',
   10: 'Het bericht staat weer online.',
   12: 'Ingepland. Het bericht verschijnt vanzelf op de site op de publicatiedatum.',
+  13: 'Categorieën, tags en uitgelicht zijn opgeslagen (meteen op de site).',
 };
 
 /** Meldingen op de lijst (`?melding=<n>`). */
@@ -77,6 +79,7 @@ const STALE_MESSAGE = 'Het bericht is intussen gewijzigd (in een ander tabblad o
 function createPostRoutes(options) {
   const { db, auth } = options;
   const posts = createPosts({ db });
+  const terms = createPostTerms({ db });
   const content = createContent(db);
   const library = options.library || createMediaLibrary({ db, mediaDir: options.mediaDir || '' });
   const router = express.Router();
@@ -130,7 +133,7 @@ function createPostRoutes(options) {
         csrf: req.session.csrf,
         path: BASE,
         body: html`${LIST_NOTICES[req.query.melding] ? html`<p class="notice" role="status">${LIST_NOTICES[req.query.melding]}</p>` : ''}
-          <div class="crm-actions"><a class="btn btn--small" href="${BASE}nieuw/">Nieuw bericht</a></div>
+          <div class="crm-actions"><a class="btn btn--small" href="${BASE}nieuw/">Nieuw bericht</a> <a class="btn btn--small btn--outline" href="${BASE}categorieen-en-tags/">Categorieën en tags</a></div>
           <form class="crm-search" method="get" action="${BASE}" role="search">
             <label for="blog-q">Zoek op titel of adres</label>
             <input id="blog-q" name="q" type="search" value="${text}" maxlength="100">
@@ -164,7 +167,7 @@ function createPostRoutes(options) {
    */
   const renderEditor = async (req, post, state = {}) => {
     const current = editablePostState(post);
-    const [revisionRows, options] = await Promise.all([posts.revisions(post.id), sourceOptions()]);
+    const [revisionRows, options, termRows, chosenTerms] = await Promise.all([posts.revisions(post.id), sourceOptions(), terms.list(), terms.termIdsOfPost(post.id)]);
     const status = postStatus(post);
     const canDelete = !post.published && post.legacy_id === null;
     const postUrl = `${BASE}${post.id}/`;
@@ -238,6 +241,22 @@ function createPostRoutes(options) {
           <h2>Uitgelichte afbeelding</h2>
           ${current.imageUrl ? html`<img class="media-preview media-preview--small" src="${current.imageUrl}" alt="" width="400" height="300">` : html`<p>Geen uitgelichte afbeelding: in de lijst van het blog en bovenaan het bericht staat dan een effen vlak.</p>`}
           <p><a class="btn btn--small btn--outline" href="${postUrl}kopfoto/">${current.imageUrl ? 'Andere afbeelding kiezen' : 'Afbeelding kiezen'}</a></p>
+        </section>
+
+        <section class="crm-block" id="indeling">
+          <h2>Categorieën, tags en uitgelicht</h2>
+          <form class="form" method="post" action="${postUrl}indeling/">
+            <input type="hidden" name="_csrf" value="${req.session.csrf}">
+            ${Object.entries(TERM_KINDS).map(([kind, definition]) => {
+              const own = termRows.filter((row) => row.kind === kind);
+              return html`<fieldset class="cms-repeat"><legend>${definition.plural}</legend>
+                ${own.length ? own.map((row) => html`<label class="checkbox"><input type="checkbox" name="term" value="${row.id}"${chosenTerms.includes(row.id) ? raw(' checked') : ''}> ${row.name}</label>`) : html`<p>Nog geen ${definition.plural.toLowerCase()}.</p>`}
+              </fieldset>`;
+            })}
+            <label class="checkbox"><input type="checkbox" name="uitgelicht" value="ja"${post.featured ? raw(' checked') : ''}> Uitgelicht bericht (groot op het blog en de homepage; een ander uitgelicht bericht wordt dan gewoon)</label>
+            <p class="field__help">Dit wordt meteen opgeslagen, zonder concept. <a href="${BASE}categorieen-en-tags/">Categorieën en tags beheren</a></p>
+            <div><button class="btn btn--small" type="submit">Opslaan</button></div>
+          </form>
         </section>
 
         ${editor.renderBlocksSection({ item: post, hidden: hidden(req, post), options, state, openBlock, typeOptions })}
@@ -355,6 +374,17 @@ function createPostRoutes(options) {
         Object.assign(state, values);
       }, contextFor(req));
       return await finish(req, res, outcome, { notice: 1, anchor: 'gegevens' });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/blog/:id(\\d{1,9})/indeling/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const outcome = await terms.setPostTerms(req.params.id, { termIds: [].concat(req.body.term || []), featured: req.body.uitgelicht === 'ja' }, contextFor(req, 'blog.indeling'));
+      if (outcome.status === 'weg') return notFound(req, res);
+      if (outcome.status === 'fout') return await finish(req, res, outcome, { notice: 13 });
+      return res.redirect(303, `${BASE}${Number(req.params.id)}/?opgeslagen=13#indeling`);
     } catch (error) {
       return next(error);
     }
@@ -500,6 +530,7 @@ function createPostRoutes(options) {
       };
       if (messages[outcome.status]) return await finish(req, res, { status: 'fout', message: messages[outcome.status] }, { notice: 1 });
       if (outcome.status === 'weg') return notFound(req, res);
+      if (options.redirects) await options.redirects.reload().catch(() => {});
       return res.redirect(303, `${BASE}?melding=1`);
     } catch (error) {
       return next(error);

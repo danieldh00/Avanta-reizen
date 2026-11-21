@@ -129,7 +129,7 @@ function createSiteRouter(options) {
     // De homepage als blokpagina (CMS-pakket H4), zodra die in het CRM is gepubliceerd en online staat; anders de vaste.
     const blockHome = await content.pageByPath('/');
     if (blockHome && blockHome.managed_in_crm) {
-      const article = await renderPageArticle(blockHome, content, null, { featuredSlug: siteContent.load().featuredPost });
+      const article = await renderPageArticle(blockHome, content, null, { featuredSlug: (await content.blogHighlights(siteContent.load())).featuredSlug });
       if (article.body) {
         if (article.hasVideo) allowVideos(res);
         // Foto voor delen (og:image): de eerste foto van de slider, als die er is.
@@ -155,7 +155,7 @@ function createSiteRouter(options) {
       content.newTripCount(),
     ]);
     // Blog: drie nieuwste links, het uitgelichte bericht (of anders het vierde) groot rechts, zoals de huidige site.
-    const featuredSlug = siteContent.load().featuredPost;
+    const { featuredSlug } = await content.blogHighlights(siteContent.load());
     const featuredPost = featuredSlug && !blog.posts.some((post) => post.slug === featuredSlug) ? (await content.postsBySlugs([featuredSlug]))[0] : null;
     const arranged = pageViews.arrangePosts(featuredPost ? [...blog.posts, featuredPost] : blog.posts, featuredSlug);
     const homePosts = [...arranged.list, ...(arranged.featured ? [arranged.featured] : [])];
@@ -323,31 +323,42 @@ function createSiteRouter(options) {
   router.get('/blog/', asyncRoute(async (req, res) => {
     const archive = siteContent.load().archives.blog;
     const { posts } = await content.posts({ perPage: 500 });
-    const { blogTags, blogArchiveLink, featuredPost } = siteContent.load();
+    const { blogArchiveLink } = siteContent.load();
+    const { tags, featuredSlug } = await content.blogHighlights(siteContent.load());
     send(res, {
       title: archive.title,
       description: archive.introduction,
       path: '/blog/',
       seo: seoFor('/blog/', { imageUrl: archive.image }),
       header: renderPageHeader({ title: archive.title, pretitle: archive.pretitle, imageUrl: archive.image }),
-      body: html`<div class="content-main">${pageViews.blogArchive({ posts, introduction: archive.introduction, tags: blogTags, archiveLink: blogArchiveLink, featured: featuredPost })}</div>`,
+      body: html`<div class="content-main">${pageViews.blogArchive({ posts, introduction: archive.introduction, tags, archiveLink: blogArchiveLink, featured: featuredSlug })}</div>`,
     });
   }));
 
-  // Tags van het weblog (uit `site-content.json`); een onbekende tag gaat naar het overzicht, zoals voorheen.
+  /**
+   * De pagina van een categorie of tag: kop met foto, inleiding en de berichten.
+   * @param {object} res Express-antwoord.
+   * @param {{name: string, path: string, image: (string|null), intro: string, posts: object[]}} term Gegevens.
+   * @returns {void}
+   */
+  const sendTermArchive = (res, term) => send(res, {
+    title: term.name,
+    description: term.intro,
+    path: '/blog/',
+    seo: seoFor(term.path, { imageUrl: term.image, structuredData: [breadcrumbs([{ name: 'Weblog', path: '/blog/' }, { name: term.name, path: term.path }])] }),
+    header: renderPageHeader({ title: term.name, imageUrl: term.image, backLink: '/blog/' }),
+    body: html`<div class="content-main">${pageViews.introduction(term.intro)}${pageViews.tagArchive(term.posts)}</div>`,
+  });
+
+  // Tags van het weblog: uit het CMS (pakket I2), anders nog uit `site-content.json`; een onbekende tag gaat naar het
+  // overzicht, zoals voorheen.
   router.get('/tag/:slug/', asyncRoute(async (req, res) => {
     const slug = safeSlug(req.params.slug);
+    const term = slug ? await content.postTerm('tag', slug) : null;
+    if (term) return sendTermArchive(res, { name: term.name, path: `/tag/${term.slug}/`, image: term.image_url, intro: term.intro, posts: await content.postsOfTerm(term.id) });
     const tag = slug ? siteContent.load().blogTags.find((item) => item.slug === slug) : null;
     if (!tag) return res.redirect(301, '/blog/');
-    const posts = await content.postsBySlugs(tag.posts);
-    const tagPath = `/tag/${tag.slug}/`;
-    return send(res, {
-      title: tag.name,
-      path: '/blog/',
-      seo: seoFor(tagPath, { imageUrl: tag.image, structuredData: [breadcrumbs([{ name: 'Weblog', path: '/blog/' }, { name: tag.name, path: tagPath }])] }),
-      header: renderPageHeader({ title: tag.name, imageUrl: tag.image, backLink: '/blog/' }),
-      body: html`<div class="content-main">${pageViews.tagArchive(posts)}</div>`,
-    });
+    return sendTermArchive(res, { name: tag.name, path: `/tag/${tag.slug}/`, image: tag.image, intro: '', posts: await content.postsBySlugs(tag.posts) });
   }));
 
   router.get('/faq/', asyncRoute(async (req, res) => {
@@ -367,7 +378,13 @@ function createSiteRouter(options) {
     const anchor = req.path.startsWith('/faq-categorie/') ? `#${encodeURIComponent(req.params.slug)}` : '';
     res.redirect(301, `/faq/${anchor}`);
   });
-  router.get('/category/:slug/', (req, res) => res.redirect(301, '/blog/'));
+  // Categorieën van het weblog (CMS-pakket I2); een onbekende categorie gaat naar het overzicht.
+  router.get('/category/:slug/', asyncRoute(async (req, res) => {
+    const slug = safeSlug(req.params.slug);
+    const term = slug ? await content.postTerm('categorie', slug) : null;
+    if (!term) return res.redirect(301, '/blog/');
+    return sendTermArchive(res, { name: term.name, path: `/category/${term.slug}/`, image: term.image_url, intro: term.intro, posts: await content.postsOfTerm(term.id) });
+  }));
 
   router.get('/zoeken/', asyncRoute(async (req, res) => {
     const term = typeof req.query.s === 'string' ? req.query.s.trim().slice(0, 80) : '';

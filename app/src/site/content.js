@@ -237,6 +237,47 @@ function createContent(db) {
     },
 
     /**
+     * De tags boven het blog en het uitgelichte bericht (CMS-pakket I2). Zolang er in de database nog geen tags zijn
+     * (niet overgenomen in het CRM), gelden de tags en het uitgelichte bericht uit `site-content.json`.
+     * @param {{blogTags: object[], featuredPost: string}} fixed Inhoud uit `site-content.json`.
+     * @returns {Promise<{tags: {slug: string, name: string}[], featuredSlug: string}>} Tags en slug van het uitgelichte bericht.
+     */
+    async blogHighlights(fixed) {
+      const [tags, featured] = await Promise.all([
+        db.query("SELECT slug, name FROM post_terms WHERE kind = 'tag' ORDER BY sort_order, name LIMIT 200"),
+        db.query(`SELECT slug FROM posts WHERE featured AND ${VISIBLE_POST_SQL} LIMIT 1`),
+      ]);
+      if (!tags.length) return { tags: fixed.blogTags, featuredSlug: featured.length ? featured[0].slug : fixed.featuredPost };
+      return { tags, featuredSlug: featured.length ? featured[0].slug : '' };
+    },
+
+    /**
+     * Een categorie of tag van het blog op slug.
+     * @param {('categorie'|'tag')} kind Soort.
+     * @param {string} slug Slug.
+     * @returns {Promise<(object|null)>} Rij (id, slug, naam, inleiding, foto) of null.
+     */
+    async postTerm(kind, slug) {
+      const [term] = await db.query('SELECT id, slug, name, intro, image_url FROM post_terms WHERE kind = $1 AND slug = $2', [kind, slug]);
+      return term || null;
+    },
+
+    /**
+     * De zichtbare berichten van een categorie of tag, nieuwste eerst.
+     * @param {number} termId Id.
+     * @returns {Promise<object[]>} Berichten (hoogstens 500).
+     */
+    async postsOfTerm(termId) {
+      const rows = await db.query(
+        `SELECT ${POST_TEASER_COLUMNS} FROM posts
+          WHERE ${VISIBLE_POST_SQL} AND EXISTS (SELECT 1 FROM post_term_links l WHERE l.post_id = posts.id AND l.term_id = $1)
+          ORDER BY published_at DESC NULLS LAST LIMIT 500`,
+        [termId],
+      );
+      return rows.map(withSummary);
+    },
+
+    /**
      * Eén pagina op pad.
      * @param {string} path Pad met slash aan het eind.
      * @returns {Promise<(object|null)>} Pagina of null.
@@ -256,17 +297,21 @@ function createContent(db) {
 
     /**
      * Alle openbare adressen voor de sitemap: ook vertrokken reizen, want die URL's bestaan.
-     * @returns {Promise<{trips: object[], categories: object[], guides: object[], posts: object[], pages: object[]}>} Rijen per soort.
+     * @returns {Promise<{trips: object[], categories: object[], guides: object[], posts: object[], pages: object[], postTerms: object[]}>} Rijen per soort.
      */
     async sitemapEntries() {
-      const [trips, categories, guides, posts, pages] = await Promise.all([
+      const [trips, categories, guides, posts, pages, postTerms] = await Promise.all([
         db.query('SELECT slug FROM trips WHERE published = $1 ORDER BY slug', [true]),
         db.query('SELECT slug FROM trip_categories ORDER BY slug'),
         db.query('SELECT slug FROM guides WHERE published = $1 ORDER BY slug', [true]),
         db.query(`SELECT slug, published_at FROM posts WHERE ${VISIBLE_POST_SQL} ORDER BY published_at DESC NULLS LAST, slug`),
         db.query("SELECT path FROM pages WHERE published = $1 AND path <> '/' ORDER BY path", [true]),
+        // Categorieën en tags met minstens één zichtbaar bericht.
+        db.query(`SELECT t.kind, t.slug FROM post_terms t
+                   WHERE EXISTS (SELECT 1 FROM post_term_links l JOIN posts ON posts.id = l.post_id WHERE l.term_id = t.id AND ${VISIBLE_POST_SQL})
+                   ORDER BY t.kind, t.slug`),
       ]);
-      return { trips, categories, guides, posts, pages };
+      return { trips, categories, guides, posts, pages, postTerms };
     },
 
     /**

@@ -23,6 +23,7 @@ const { createTripRoutes } = require('../trips/trip-routes');
 const { createPageRoutes } = require('../cms/page-routes');
 const { createMenuRoutes } = require('../cms/menu-routes');
 const { createPostRoutes } = require('../cms/post-routes');
+const { createPostTermRoutes } = require('../cms/post-term-routes');
 const { createPersons } = require('./persons');
 const { createTwoFactor, createTwoFactorRoutes, SETUP_ACTIVATION_DAYS } = require('./two-factor');
 const { createVault } = require('../security/vault');
@@ -127,9 +128,12 @@ function createCrmRouter(options) {
   const mediaForms = express.urlencoded({ extended: false, limit: '64kb', parameterLimit: 400 });
   // Pagina's en blogberichten: een tekstblok mag lang zijn (100.000 tekens opgemaakte tekst); velden per blok blijven beperkt.
   const pageForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 100 });
+  // Blog: als pagina's, plus een vinkje per categorie en tag (hoogstens 2 × 200).
+  const blogForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 450 });
   router.use((req, res, next) => {
     if (req.path.startsWith('/beheer/')) return beheerForms(req, res, next);
-    if (req.path.startsWith('/paginas/') || req.path.startsWith('/blog/')) return pageForms(req, res, next);
+    if (req.path.startsWith('/paginas/')) return pageForms(req, res, next);
+    if (req.path.startsWith('/blog/')) return blogForms(req, res, next);
     if (req.path.startsWith('/fotobibliotheek/')) return mediaForms(req, res, next);
     return smallForms(req, res, next);
   });
@@ -423,6 +427,7 @@ function createCrmRouter(options) {
   router.use(createCategoryRoutes({ db, auth, redirects: options.redirects, library: options.mediaLibrary }));
   router.use(createPageRoutes({ db, auth, library: options.mediaLibrary, redirects: options.redirects, menus: options.menus, homepage: options.homepage, siteContent: options.siteContent }));
   router.use(createMenuRoutes({ db, auth, menus: options.menus }));
+  router.use(createPostTermRoutes({ db, auth, redirects: options.redirects, siteContent: options.siteContent }));
   router.use(createPostRoutes({ db, auth, library: options.mediaLibrary, redirects: options.redirects, menus: options.menus, siteContent: options.siteContent }));
   router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, now: options.now }));
 
