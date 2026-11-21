@@ -1,6 +1,6 @@
 /**
  * De instellingen die de publieke site per verzoek nodig heeft (uit Beheer, `beheer/settings.js`), in één object:
- * indexeren, basisadres, naam en titels, standaardomschrijving en -afbeelding, contact- en organisatiegegevens,
+ * indexeren, basisadres, naam en titels, standaardomschrijving en -afbeelding, contact- en organisatiegegevens, social media (voettekst),
  * verificatiecodes, robots.txt-regels, sitemap-uitsluitingen, llms.txt, het actieve GA4-meet-ID en de balk "in ontwikkeling". De middleware in `server.js` zet het op
  * `res.locals.site`; routes en `renderPage` lezen het daar.
  */
@@ -35,6 +35,12 @@ function siteSettingsOf(settings) {
     description: settings.get('defaultDescription'),
     imageUrl: seo.absoluteUrl(siteUrl, settings.get('socialImage')),
     contact: { phone: settings.get('contactPhone'), email: settings.get('contactEmail') },
+    social: {
+      facebook: settings.get('socialFacebook'),
+      instagram: settings.get('socialInstagram'),
+      youtube: settings.get('socialYoutube'),
+      linkedin: settings.get('socialLinkedin'),
+    },
     organisation: {
       street: settings.get('orgStreet'),
       postalCode,

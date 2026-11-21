@@ -4,7 +4,7 @@
  */
 const express = require('express');
 const { html, raw } = require('./html');
-const { renderPage, renderPageHeader } = require('./layout');
+const { renderPage, renderPageHeader, cssImageUrl } = require('./layout');
 const { isExcluded } = require('./site-settings');
 const { createContent, today } = require('./content');
 const views = require('./views');
@@ -124,7 +124,7 @@ function createSiteRouter(options) {
       content.pageByPath('/avanta-reizen/onzemaniervanreizen/'),
     ]);
     const newTrips = upcoming.filter((trip) => trip.is_new).slice(0, 6);
-    const heroImage = upcoming.find((trip) => trip.card_image_url)?.card_image_url;
+    const heroImage = cssImageUrl(upcoming.find((trip) => trip.card_image_url)?.card_image_url);
     send(res, {
       path: '/',
       seo: seoFor('/', { imageUrl: heroImage, structuredData: [(site) => seo.travelAgencyData(site.siteUrl, site.contact, { ...site.organisation, name: site.siteName, imageUrl: site.imageUrl })] }),
@@ -235,7 +235,7 @@ function createSiteRouter(options) {
           breadcrumbs([{ name: 'Reizen', path: '/reis/' }, { name: trip.title, path: tripPath(trip.slug) }]),
         ],
       }),
-      header: renderPageHeader({ title: trip.title, pretitle: destinations.join(' · '), imageUrl: trip.hero_image_url, backLink: '/reis/' }),
+      header: renderPageHeader({ title: trip.title, destinations, imageUrl: trip.hero_image_url, backLink: '/reis/' }),
       body: views.tripDetail(trip, { isPast }),
     });
   }));

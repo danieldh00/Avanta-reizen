@@ -40,6 +40,13 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   `oud-formulier, geen losse art. 9-toestemming` (het oude formulier vroeg die niet los). **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.
 - Afbeeldingen staan in het volume `/data/media` (circa 250 MB na de import).
+- **Ontwerp** gelijk aan www.avantareizen.nl (CMS-pakket E, voorstel in de projectbestanden
+  `cms/voorstel-cms-reizen-boekingen.md`): kleuren, maten en breekpunten (1024 en 768 px, container 1280 px) uit het
+  thema van de huidige site in `app/public/css/site.css`; texturen (papierrand, korrel) en de achtergrondfoto van de
+  voettekst in `app/public/images/theme/`; eigen SVG-iconen voor reistypes, social media en bediening in
+  `app/src/site/icons.js` (inline, geen iconfont). De kop is vast met papierrand en op de homepage doorzichtig boven de
+  foto; op mobiel schuift een terracotta menu van links in. Social-media-iconen in de voettekst verschijnen zodra de
+  adressen in Beheer > Organisatie > Contact zijn ingevuld.
 - **CRM** op `/app/` (in opbouw, zie `docs/OPZET-CRM.md`): inloggen met e-mail en wachtwoord (scrypt, minimaal 12
   tekens), rollen `beheerder`, `kantoor`, `reisleider` en `boekhouding` met vaste rechten (`app/src/crm/rights.js`,
   per route gecontroleerd met `requireRight`), gebruikersbeheer en een auditlog op `/app/auditlog/`.
