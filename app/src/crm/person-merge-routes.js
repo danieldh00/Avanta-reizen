@@ -84,10 +84,24 @@ function createPersonMergeRoutes(options) {
    * @returns {Promise<({duplicate: object, original: object}|null)>} Beide personen, of null.
    */
   const findPair = async (client, id, mode = {}) => {
-    const duplicate = await persons.findPerson(client, id, mode);
-    if (!duplicate || !duplicate.duplicate_of) return null;
-    const original = await persons.findPerson(client, duplicate.duplicate_of, mode);
-    return original ? { duplicate, original } : null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const duplicate = await persons.findPerson(client, id);
+      // Zelfverwijzing nooit samenvoegen: dan zou de blijvende persoon worden verwijderd.
+      if (!duplicate || !duplicate.duplicate_of || duplicate.duplicate_of === duplicate.id) return null;
+      if (mode.lock) {
+        // Beide rijen in één query in vaste volgorde vergrendelen, zodat twee gelijktijdige samenvoegingen van
+        // personen die naar elkaar verwijzen elkaar niet in een deadlock houden.
+        await client.query('SELECT id FROM persons WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE', [[duplicate.id, duplicate.duplicate_of]]);
+        const locked = await persons.findPerson(client, id);
+        // Markering intussen veranderd: opnieuw, met het nieuwe paar.
+        if (!locked || locked.duplicate_of !== duplicate.duplicate_of) continue;
+        const original = await persons.findPerson(client, locked.duplicate_of);
+        return original ? { duplicate: locked, original } : null;
+      }
+      const original = await persons.findPerson(client, duplicate.duplicate_of);
+      return original ? { duplicate, original } : null;
+    }
+    return null;
   };
 
   /**

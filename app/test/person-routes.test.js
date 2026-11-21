@@ -289,4 +289,26 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal((await request(`/app/deelnemers/${personId}/niet-dubbel/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } })).status, 404);
     assert.equal((await request(`/app/deelnemers/${personId}/niet-dubbel/`, { cookie: sessions.boek.cookie, form: { _csrf: sessions.boek.csrf } })).status, 403);
   });
+
+  await t.test('samenvoegen: zelfverwijzing 404, wederzijdse verwijzing tegelijk zonder deadlock', async () => {
+    const create = (email) => db.transaction(async (client) => (await persons.savePerson(client, { ...values, email, church: '', particulars: '' })).personId);
+    const self = await create('zelf@example.nl');
+    await db.query('UPDATE persons SET duplicate_of = id WHERE id = $1', [self]);
+    assert.equal((await request(`/app/deelnemers/${self}/samenvoegen/`, { cookie: sessions.kantoor.cookie })).status, 404);
+    assert.equal((await request(`/app/deelnemers/${self}/samenvoegen/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, met: String(self) } })).status, 404);
+    assert.equal((await db.query('SELECT count(*)::int AS total FROM persons WHERE id = $1', [self]))[0].total, 1, 'persoon blijft bestaan');
+
+    const first = await create('wederzijds-a@example.nl');
+    const second = await create('wederzijds-b@example.nl');
+    await db.query('UPDATE persons SET duplicate_of = $2 WHERE id = $1', [first, second]);
+    await db.query('UPDATE persons SET duplicate_of = $1 WHERE id = $2', [first, second]);
+    const results = await Promise.all([
+      request(`/app/deelnemers/${first}/samenvoegen/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, met: String(second) } }),
+      request(`/app/deelnemers/${second}/samenvoegen/`, { cookie: sessions.beheer.cookie, form: { _csrf: sessions.beheer.csrf, met: String(first) } }),
+    ]);
+    const statuses = results.map((response) => response.status).sort();
+    assert.equal(statuses[0], 303, 'één samenvoeging slaagt');
+    assert.ok([404, 409].includes(statuses[1]), `de ander krijgt 404 of 409, geen 500 (kreeg ${statuses[1]})`);
+    assert.equal((await db.query('SELECT count(*)::int AS total FROM persons WHERE id = ANY($1::int[])', [[first, second]]))[0].total, 1);
+  });
 });
