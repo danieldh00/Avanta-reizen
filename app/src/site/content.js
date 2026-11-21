@@ -7,10 +7,12 @@ const { postSummary } = require('./format');
 
 /**
  * Kolommen voor een blogbericht in een lijst: zonder de HTML, wel het begin van de tekst voor de samenvatting (tags
- * weg, de link "Bekijk de video" van een geïmporteerde video ook).
+ * weg, de link "Bekijk de video" van een geïmporteerde video ook). De regexes draaien alleen over de eerste 6000
+ * tekens van de HTML (genoeg voor 197 bytes tekst), zodat een lange lijst geen volledige berichten doorzoekt; een
+ * afgekapte tag aan het eind valt ook weg.
  */
 const POST_TEASER_COLUMNS = `slug, title, excerpt, image_url, published_at,
-  left(regexp_replace(regexp_replace(body_html, '<a [^>]*>Bekijk de video</a>', '', 'g'), '<[^>]*>', ' ', 'g'), 800) AS body_text`;
+  left(regexp_replace(regexp_replace(regexp_replace(left(body_html, 6000), '<a [^>]*>Bekijk de video</a>', '', 'g'), '<[^>]*(>|$)', ' ', 'g'), '\\s+', ' ', 'g'), 800) AS body_text`;
 
 /**
  * Een bericht uit de lijst met zijn samenvatting (`summary`) in plaats van het begin van de tekst.
