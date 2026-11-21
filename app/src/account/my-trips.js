@@ -31,7 +31,7 @@ function paymentState(status) {
 /**
  * Maakt de functies voor Mijn reizen.
  * @param {{db: object}} options De database.
- * @returns {{bookingsOf: Function, overview: Function, details: Function, exportXlsx: Function}} Functies.
+ * @returns {{bookingsOf: Function, ownDetailsOf: Function, overview: Function, details: Function, exportXlsx: Function}} Functies.
  */
 function createMyTrips(options) {
   const { db } = options;
@@ -50,6 +50,22 @@ function createMyTrips(options) {
       LIMIT ${MAX_BOOKINGS}`,
     [email],
   );
+
+  /**
+   * De gewone gegevens van de laatste aanmelding die deze reiziger deed terwijl hij ingelogd was (kolom
+   * `customer_account_id`). Nooit op e-mailadres: het aanmeldformulier bevestigt dat adres niet, dus een aanmelding met
+   * dit adres kan van iemand anders zijn.
+   * @param {number} accountId Id van het reizigersaccount.
+   * @returns {Promise<(object|null)>} Naam, geslacht, adres, telefoon en beroep, of null zonder eigen aanmelding.
+   */
+  const ownDetailsOf = async (accountId) => {
+    const [row] = await db.query(
+      `SELECT gender, first_names, call_name, last_name, mobile, phone, street, postal_code, city, occupation
+         FROM bookings WHERE customer_account_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [accountId],
+    );
+    return row || null;
+  };
 
   /**
    * Eén aanmelding als kaart: reis, datum, referentie, status en betaalstand.
@@ -80,6 +96,7 @@ function createMyTrips(options) {
     return html`<section class="account-section" aria-labelledby="komende-reizen">
         <h2 id="komende-reizen" class="account-section__title">Komende reizen</h2>
         ${upcoming.length ? html`<ul class="account-trips">${upcoming.map(bookingCard)}</ul>` : html`<p>Je hebt nog geen komende reis. <a href="/reis/">Bekijk ons reisaanbod</a>.</p>`}
+        <p class="account__hint">Meld je je aan terwijl je bent ingelogd, dan vullen we die gegevens een volgende keer alvast in. Bijzondere gegevens en je paspoort vragen we elke keer opnieuw.</p>
       </section>
       <section class="account-section" aria-labelledby="eerdere-reizen">
         <h2 id="eerdere-reizen" class="account-section__title">Eerdere reizen</h2>
@@ -132,7 +149,7 @@ function createMyTrips(options) {
     return createXlsx(sheets);
   };
 
-  return { bookingsOf, overview, details, exportXlsx };
+  return { bookingsOf, ownDetailsOf, overview, details, exportXlsx };
 }
 
 module.exports = { createMyTrips, paymentState };

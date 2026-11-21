@@ -247,4 +247,65 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     await new Promise((resolve) => setTimeout(resolve, 50));
     assert.equal(sent.length - before, 3, 'vierde code: geen mail');
   });
+
+  await t.test('opnieuw boeken: alleen eigen aanmeldingen (ingelogd, zelfde adres) vullen het formulier in, nooit bijzondere', async () => {
+    const response = await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: 'een nieuw sterk wachtwoord' } });
+    assert.equal(response.status, 303);
+    const cookie = response.cookie;
+    // Aanmeldingen met alleen hetzelfde e-mailadres kunnen van een ander zijn: niets invullen behalve het adres.
+    const first = await request('/aanmelden/?reis=namibie-2099', { cookie });
+    assert.equal(first.status, 200);
+    assert.equal(first.headers.get('cache-control'), 'no-store');
+    assert.doesNotMatch(first.text, /Anna Maria|Dorpsstraat/);
+    assert.doesNotMatch(first.text, /alvast ingevuld/);
+    assert.match(first.text, /value="anna@example\.nl"/);
+
+    /**
+     * Verstuurt het aanmeldformulier als de ingelogde reiziger.
+     * @param {string} email E-mailadres in het formulier.
+     * @param {string} firstNames Voornamen.
+     * @returns {Promise<number>} Status.
+     */
+    const book = async (email, firstNames) => {
+      const page = await request('/aanmelden/?reis=namibie-2099', { cookie });
+      const token = /name="token" value="([^"]+)"/.exec(page.text)[1];
+      clock += 5000;
+      const form = new URLSearchParams({
+        id: '', reis: 'namibie-2099', token, website: '', gender: 'vrouw', first_names: firstNames, call_name: firstNames.split(' ')[0], last_name: 'Jansen',
+        birth_date: '1999-05-04', mobile: '0612345678', email, email_confirm: email, street: 'Kerkstraat 9', postal_code: '4331 AB',
+        city: 'Middelburg', occupation: 'Verpleegkundige', nationality: 'Nederlandse', document_type: 'paspoort', document_number: 'NX1234567',
+        earlier_trip: 'nee', credit_card: 'nee', driver_interest: 'nee', driver_before: 'nee', payment_choice: 'aanbetaling', consent: 'ja',
+      });
+      const result = await fetch(`${base}/aanmelden/`, {
+        method: 'POST', redirect: 'manual', body: form.toString(),
+        headers: { 'content-type': 'application/x-www-form-urlencoded', 'sec-fetch-site': 'same-origin', cookie: `${COOKIE_NAME}=${cookie}` },
+      });
+      await result.arrayBuffer();
+      return result.status;
+    };
+    assert.equal(await book('vriendin@example.nl', 'Vriendin'), 303);
+    assert.equal(await book('Anna@Example.nl', 'Anna Maria'), 303);
+    const rows = await db.query(
+      `SELECT b.email, a.email AS account_email FROM bookings b LEFT JOIN customer_accounts a ON a.id = b.customer_account_id
+        WHERE b.street = 'Kerkstraat 9' ORDER BY b.created_at`,
+    );
+    assert.deepEqual(rows.map((row) => [row.email, row.account_email]), [['vriendin@example.nl', null], ['anna@example.nl', 'anna@example.nl']]);
+
+    const page = await request('/aanmelden/?reis=namibie-2099', { cookie });
+    assert.match(page.text, /we hebben je gegevens van je vorige aanmelding alvast ingevuld/);
+    assert.match(page.text, /value="Anna Maria"/);
+    assert.match(page.text, /value="Kerkstraat 9"/);
+    assert.doesNotMatch(page.text, /Vriendin/);
+    assert.match(page.text, /name="gender" value="vrouw" checked/);
+    for (const name of ['birth_date', 'nationality', 'document_number', 'church', 'particulars', 'emergency_phone']) {
+      assert.match(page.text, new RegExp(`id="veld-${name}"[^>]*`), name);
+      assert.doesNotMatch(page.text, new RegExp(`<(input|textarea) [^>]*value="[^"]+"[^>]*id="veld-${name}"`), `${name} niet ingevuld`);
+    }
+    assert.match(page.text, /id="veld-particulars"[^>]*><\/textarea>/, 'bijzonderheden leeg');
+    // Kees ziet de gegevens van Anna niet, en zonder inloggen wordt niets ingevuld.
+    assert.doesNotMatch((await request('/aanmelden/?reis=namibie-2099', { cookie: kees.cookie })).text, /Anna Maria|Kerkstraat/);
+    const anonymous = await request('/aanmelden/?reis=namibie-2099');
+    assert.doesNotMatch(anonymous.text, /Anna Maria|Kerkstraat/);
+    assert.doesNotMatch(anonymous.text, /alvast ingevuld/);
+  });
 });

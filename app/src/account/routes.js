@@ -31,9 +31,16 @@ const { createMyTrips } = require('./my-trips');
 const views = require('./views');
 const { XLSX_TYPE } = require('../export/xlsx');
 
-/** Naam en pad van de sessiecookie (los van de cookie van het CRM). */
+/**
+ * Naam en pad van de sessiecookie (los van de cookie van het CRM, die op `/app` staat). Pad `/`, zodat ook het
+ * aanmeldformulier de ingelogde reiziger herkent en de gewone gegevens alvast invult (J4); alleen `/account/` en
+ * `/aanmelden/` lezen de cookie.
+ */
 const COOKIE_NAME = 'avanta_reiziger';
-const COOKIE_PATH = '/account';
+const COOKIE_PATH = '/';
+
+/** Pad van de cookie in de eerste versie (J2); bij inloggen en uitloggen gewist. */
+const LEGACY_COOKIE_PATH = '/account';
 
 /** Limieten op mislukte pogingen, gelijk aan het CRM. */
 const MAX_FAILED_LOGINS = 5;
@@ -62,6 +69,9 @@ const ACCOUNT_ACTION_LABELS = {
   'reiziger.export': 'Reiziger: eigen gegevens gedownload (Excel)',
   'reiziger.wachtwoord-gewijzigd': 'Reiziger: wachtwoord gewijzigd',
 };
+
+/** Velden van het aanmeldformulier die bij een ingelogde reiziger vooraf worden ingevuld (alleen gewone gegevens). */
+const PREFILL_FIELDS = ['gender', 'first_names', 'call_name', 'last_name', 'mobile', 'phone', 'street', 'postal_code', 'city', 'occupation'];
 
 /** Waar de reiziger na de code heen kan (vaste lijst, geen vrije adressen). */
 const STEP_UP_TARGETS = { gegevens: '/account/gegevens/', wachtwoord: '/account/wachtwoord/' };
@@ -164,6 +174,7 @@ function createAccountRouter(options) {
    */
   const setCookie = (res, token, maxAgeSeconds) => {
     res.append('Set-Cookie', `${COOKIE_NAME}=${token}; Path=${COOKIE_PATH}; Max-Age=${maxAgeSeconds}; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`);
+    res.append('Set-Cookie', `${COOKIE_NAME}=; Path=${LEGACY_COOKIE_PATH}; Max-Age=0; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`);
   };
 
   /**
@@ -611,6 +622,33 @@ function createAccountRouter(options) {
     }
   });
 
+  /**
+   * De ingelogde reiziger bij een verzoek buiten `/account/` (het aanmeldformulier, J4).
+   * @param {object} req Express-verzoek (cookie).
+   * @returns {Promise<({accountId: number, email: string}|null)>} Account-id en e-mailadres, of null zonder sessie.
+   */
+  router.customerFor = async (req) => {
+    const session = await accounts.loadSession(readCookie(req, COOKIE_NAME));
+    return session ? { accountId: session.accountId, email: session.email } : null;
+  };
+
+  /**
+   * De gewone gegevens van de vorige aanmelding die de ingelogde reiziger zelf deed (ingelogd, met het adres van het
+   * account), om het aanmeldformulier alvast in te vullen (J4). Nooit op e-mailadres alleen, nooit bijzondere of
+   * paspoortgegevens: die vraagt het formulier opnieuw. E-mailadres = dat van het account.
+   * @param {object} req Express-verzoek (cookie).
+   * @returns {Promise<Record<string, string>>} Waarden voor het formulier; leeg zonder sessie.
+   */
+  router.prefillFor = async (req) => {
+    const customer = await router.customerFor(req);
+    if (!customer) return {};
+    const row = await myTrips.ownDetailsOf(customer.accountId);
+    const values = { email: customer.email, email_confirm: customer.email };
+    if (!row) return values;
+    for (const name of PREFILL_FIELDS) values[name] = row[name] || '';
+    return values;
+  };
+
   return router;
 }
 
@@ -625,4 +663,4 @@ function startAccountMaintenance(accounts) {
   return setInterval(run, 24 * 60 * 60 * 1000).unref();
 }
 
-module.exports = { createAccountRouter, startAccountMaintenance, ACCOUNT_ACTION_LABELS, COOKIE_NAME, MAX_DAYS };
+module.exports = { createAccountRouter, startAccountMaintenance, ACCOUNT_ACTION_LABELS, COOKIE_NAME, PREFILL_FIELDS, MAX_DAYS };
