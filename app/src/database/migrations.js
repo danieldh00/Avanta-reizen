@@ -894,6 +894,7 @@ const MIGRATIONS = [
         created_by INTEGER REFERENCES users(id) ON DELETE SET NULL
       );
       CREATE INDEX payment_reminders_booking_idx ON payment_reminders (booking_id, kind, created_at);
+      CREATE INDEX payment_reminders_sent_idx ON payment_reminders (booking_id, created_at) WHERE sent;
     `,
   },
 ];

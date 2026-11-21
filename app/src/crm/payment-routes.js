@@ -417,4 +417,4 @@ function createPaymentRoutes(options) {
   return router;
 }
 
-module.exports = { createPaymentRoutes, validatePayment, validateCharge, linesVersion, PAYMENT_ACTION_LABELS };
+module.exports = { createPaymentRoutes, validatePayment, validateCharge, linesVersion, PAYMENT_ACTION_LABELS, REMINDER_LIMIT };

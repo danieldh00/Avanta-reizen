@@ -124,6 +124,9 @@ async function anonymizeBookings(client, bookingIds) {
   // Toelichtingen bij betalingen en omschrijvingen bij bedragen kunnen namen bevatten; bedragen en datums blijven.
   await client.query("UPDATE payments SET note = '' WHERE booking_id = ANY($1::int[]) AND note <> ''", [bookingIds]);
   await client.query("UPDATE booking_charges SET description = '' WHERE booking_id = ANY($1::int[]) AND description <> ''", [bookingIds]);
+  // Herinneringen bevatten nooit adres of inhoud; de foutmelding van de mailserver gaat voor de zekerheid toch weg.
+  // Termijn, tijdstip en uitkomst blijven (horen bij de administratie van de aanmelding, die met de aanmelding vervalt).
+  await client.query("UPDATE payment_reminders SET error = '' WHERE booking_id = ANY($1::int[]) AND error <> ''", [bookingIds]);
   return rows.length;
 }
 

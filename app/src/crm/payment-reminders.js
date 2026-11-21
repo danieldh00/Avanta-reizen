@@ -78,6 +78,13 @@ function createPaymentReminders(options) {
   const today = () => payments.localDay(now());
 
   /**
+   * Minimale tijd tussen twee pogingen voor dezelfde termijn bij de automatische ronde: het interval, min een uur
+   * zodat een ronde die een paar minuten later loopt de dag niet overslaat.
+   * @returns {number} Minuten.
+   */
+  const autoGapMinutes = () => settings.get('paymentReminderEveryDays') * 24 * 60 - 60;
+
+  /**
    * Leest een aanmelding met het actuele e-mailadres (van de persoon, anders van het formulier).
    * @param {{query: Function}} client Database of transactie-client.
    * @param {number} bookingId Id.
@@ -114,13 +121,14 @@ function createPaymentReminders(options) {
       const summary = payments.summarize({ booking, ...lines, terms: payments.termsFrom(settings), today: today() });
       const kind = input.kind || reminderKind(summary);
       if (!kind || (kind === 'aanbetaling' ? summary.depositOpenCents : summary.balanceCents) <= 0) return { status: 'niets-open' };
-      if (input.trigger === 'handmatig') {
-        const [recent] = await client.query(
-          `SELECT 1 AS hit FROM payment_reminders WHERE booking_id = $1 AND kind = $2 AND created_at > $3::timestamptz - make_interval(mins => $4)`,
-          [booking.id, kind, new Date(now()).toISOString(), MANUAL_GAP_MINUTES],
-        );
-        if (recent) return { status: 'te-snel', kind };
-      }
+      // Onder het slot: met de hand niet twee keer binnen 10 minuten; automatisch niet binnen het interval na een
+      // eerdere poging (ook met de hand of mislukt), zodat overlappende rondes nooit dubbel mailen.
+      const gapMinutes = input.trigger === 'handmatig' ? MANUAL_GAP_MINUTES : autoGapMinutes();
+      const [recent] = await client.query(
+        `SELECT 1 AS hit FROM payment_reminders WHERE booking_id = $1 AND kind = $2 AND created_at > $3::timestamptz - make_interval(mins => $4)`,
+        [booking.id, kind, new Date(now()).toISOString(), gapMinutes],
+      );
+      if (recent) return { status: 'te-snel', kind };
       const [row] = await client.query(
         "INSERT INTO payment_reminders (booking_id, kind, trigger, sent, error, created_by, created_at) VALUES ($1, $2, $3, false, 'bezig met versturen', $4, $5) RETURNING id",
         [booking.id, kind, input.trigger, input.userId ?? null, new Date(now()).toISOString()],
@@ -153,19 +161,20 @@ function createPaymentReminders(options) {
     if (!settings.get('paymentReminderAuto') || !mailer.configured()) return counts;
     const { rows } = await loadOverview(db, { view: 'te-laat', tripId: null, terms: payments.termsFrom(settings), today: today() });
     if (!rows.length) return counts;
+    // Het maximum telt alle automatische pogingen (ook mislukte, anders blijft een weigerend adres elke dag terugkomen);
+    // het interval rekent vanaf de laatste poging van welke soort ook (ook met de hand).
     const history = await db.query(
-      `SELECT booking_id, kind, count(*)::int AS total, max(created_at) AS last_at FROM payment_reminders
-        WHERE booking_id = ANY($1::int[]) AND trigger = 'automatisch' AND sent GROUP BY booking_id, kind`,
+      `SELECT booking_id, kind, (count(*) FILTER (WHERE trigger = 'automatisch'))::int AS total, max(created_at) AS last_at
+         FROM payment_reminders WHERE booking_id = ANY($1::int[]) GROUP BY booking_id, kind`,
       [rows.map((row) => row.id)],
     );
     const byKey = new Map(history.map((entry) => [`${entry.booking_id}:${entry.kind}`, entry]));
-    const gapMs = settings.get('paymentReminderEveryDays') * 24 * 60 * 60 * 1000;
+    const gapMs = autoGapMinutes() * 60 * 1000;
     for (const row of rows) {
       if (counts.sent + counts.failed >= MAX_PER_RUN) break;
       const kind = row.summary.overdue;
       const past = byKey.get(`${row.id}:${kind}`);
-      // Iets korter dan het interval, zodat een ronde die een paar minuten later loopt de dag niet overslaat.
-      if (past && (past.total >= settings.get('paymentReminderMax') || now() - new Date(past.last_at).getTime() < gapMs - 60 * 60 * 1000)) {
+      if (past && (past.total >= settings.get('paymentReminderMax') || now() - new Date(past.last_at).getTime() < gapMs)) {
         counts.skipped++;
         continue;
       }

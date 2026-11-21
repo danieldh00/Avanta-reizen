@@ -48,7 +48,7 @@ const OVERVIEW_SQL = `SELECT b.id, b.reference, b.trip_id, b.trip_title, b.trip_
                     sum(amount_cents) FILTER (WHERE kind IN ('boekingskosten', 'sgr')) AS fees
                FROM booking_charges WHERE removed_at IS NULL GROUP BY booking_id) c ON c.booking_id = b.id
   LEFT JOIN (SELECT booking_id, sum(amount_cents) AS paid FROM payments GROUP BY booking_id) p ON p.booking_id = b.id
-  LEFT JOIN (SELECT booking_id, max(created_at) AS last_at FROM payment_reminders WHERE sent GROUP BY booking_id) r ON r.booking_id = b.id
+  LEFT JOIN LATERAL (SELECT max(created_at) AS last_at FROM payment_reminders pr WHERE pr.booking_id = b.id AND pr.sent) r ON true
   WHERE ($1::int IS NULL OR b.trip_id = $1)
     AND ($2 OR b.status <> 'geannuleerd')
     AND ($3 = 'alles' OR ($3 = 'teveel' AND coalesce(c.total, 0) < coalesce(p.paid, 0))

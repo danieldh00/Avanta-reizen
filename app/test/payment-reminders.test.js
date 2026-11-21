@@ -11,6 +11,7 @@ const { createApp } = require('../src/server');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
 const { reminderKind, reminderContent } = require('../src/crm/payment-reminders');
+const { REMINDER_LIMIT } = require('../src/crm/payment-routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'payment_reminders_test';
@@ -195,5 +196,35 @@ test('betaalherinneringen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreek
     assert.equal((await paymentReminders.runDaily()).sent, 0, 'maximum bereikt');
     const rows = await db.query("SELECT count(*)::int AS total FROM payment_reminders WHERE trigger = 'automatisch' AND sent");
     assert.equal(rows[0].total, 4);
+  });
+
+  await t.test('dagelijkse ronde: handmatige en mislukte pogingen tellen mee, geen dubbele mail bij overlap', async () => {
+    await db.query('DELETE FROM payment_reminders');
+    await db.query("UPDATE bookings SET status = 'geannuleerd' WHERE reference = 'AV-2027-PERS0004'");
+    mailer.sent.length = 0;
+    // Met de hand vandaag: de ronde slaat deze termijn over (interval vanaf elke poging).
+    assert.equal((await remind(lateId)).status, 303);
+    assert.equal((await paymentReminders.runDaily()).sent, 0, 'handmatige herinnering telt mee voor het interval');
+    // Twee rondes tegelijk: onder het slot maar één mail.
+    clock += 7 * 24 * 60 * 60 * 1000;
+    const [one, two] = await Promise.all([
+      paymentReminders.send({ bookingId: lateId, trigger: 'automatisch', kind: 'aanbetaling' }),
+      paymentReminders.send({ bookingId: lateId, trigger: 'automatisch', kind: 'aanbetaling' }),
+    ]);
+    assert.deepEqual([one.status, two.status].sort(), ['ok', 'te-snel']);
+    // Mislukte automatische pogingen tellen voor het maximum (2): daarna stopt de ronde, ook bij een weigerend adres.
+    mailer.fail = true;
+    clock += 7 * 24 * 60 * 60 * 1000;
+    assert.equal((await paymentReminders.runDaily()).failed, 1);
+    clock += 7 * 24 * 60 * 60 * 1000;
+    assert.deepEqual(await paymentReminders.runDaily(), { sent: 0, failed: 0, skipped: 1 }, 'maximum telt ook mislukte pogingen');
+    mailer.fail = false;
+  });
+
+  await t.test('limiet op herinneringen met de hand per medewerker', async () => {
+    let last;
+    for (let i = 0; i < REMINDER_LIMIT; i++) last = await remind(lateId);
+    assert.notEqual(last.status, 429);
+    assert.equal((await remind(lateId)).status, 429);
   });
 });
