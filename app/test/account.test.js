@@ -172,7 +172,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.equal(ok.status, 303);
     assert.equal(ok.location, '/account/?welkom=1');
     assert.match(ok.setCookie, /HttpOnly; SameSite=Strict; Secure/);
-    assert.match(ok.setCookie, /Path=\/account;/);
+    assert.match(ok.setCookie, /Path=\/;/);
     annaCookie = ok.cookie;
     assert.notEqual((await db.query('SELECT verified_at FROM customer_accounts'))[0].verified_at, null);
     assert.equal((await request('/account/bevestigen/', { form: { token, password: PASSWORD } })).status, 404, 'link al gebruikt');

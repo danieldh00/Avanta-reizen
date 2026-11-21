@@ -59,6 +59,10 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   **code per e-mail** (zes cijfers, 10 minuten, 5 pogingen, 3 per uur); die geeft alleen deze sessie een kwartier
   toegang. Een gelekt wachtwoord alleen is zo nooit genoeg voor een gevoelige actie. Wijzigen van gegevens loopt via
   kantoor. Tip: zet *Mijn account* (`/account/`) in het voetmenu via Beheer > Menu's.
+  **Opnieuw boeken** (J4): meldt een ingelogde reiziger zich aan via `/aanmelden/`, dan vult het formulier de gewone
+  gegevens van de vorige aanmelding alvast in (naam, geslacht, adres, telefoon, beroep; e-mailadres = dat van het
+  account). Bijzondere en paspoortgegevens worden nooit vooraf ingevuld. Daarvoor staat de cookie op pad `/`; alleen
+  `/account/` en `/aanmelden/` lezen hem.
 - Afbeeldingen staan in het volume `/data/media` (circa 250 MB na de import).
 - **Ontwerp** gelijk aan www.avantareizen.nl (CMS-pakket E, voorstel in de projectbestanden
   `cms/voorstel-cms-reizen-boekingen.md`): kleuren, maten en breekpunten (1024 en 768 px, container 1280 px) uit het

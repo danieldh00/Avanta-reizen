@@ -24,8 +24,10 @@ const { fullyBookedSql } = require('../trips/seats');
 
 /**
  * Bouwt de router voor aanmeldingen.
- * @param {{db: object, vault: object, formKey: Buffer, notifications?: object, captcha?: object, now?: () => number, siteContent?: {load: Function}}} options
- *   Database, kluis, sleutel voor het formuliertoken, de meldingen aan kantoor, de captcha en de vaste inhoud (kop van
+ * @param {{db: object, vault: object, formKey: Buffer, notifications?: object, captcha?: object, now?: () => number, siteContent?: {load: Function}, prefill?: Function, customerFor?: Function}} options
+ *   Database, kluis, sleutel voor het formuliertoken, de meldingen aan kantoor, de captcha, een functie die bij een
+ *   ingelogde reiziger de gewone gegevens van de vorige aanmelding geeft (`req => Promise<waarden>`, reizigersaccount
+ *   J4), een functie die de ingelogde reiziger geeft (`req => Promise<{accountId, email}|null>`) en de vaste inhoud (kop van
  *   de pagina, standaard `DATA_DIR/site-content.json`). Het basisadres voor de canonical en de overige site-instellingen komen uit `res.locals.site`.
  * @returns {express.Router} De router.
  */
@@ -144,14 +146,16 @@ function createBookingRouter(options) {
    * @param {object} trip De reis.
    * @param {Record<string, string>} values Ingevulde waarden.
    * @param {Record<string, string>} errors Fouten per veld.
+   * @param {string} [notice] Melding boven het formulier (bijv. gegevens vooraf ingevuld).
    * @returns {object} HTML.
    */
-  const renderForm = (trip, values, errors) => {
+  const renderForm = (trip, values, errors, notice = '') => {
     const hasErrors = Object.keys(errors).length > 0;
     const archive = siteContent.load().archives.aanmelden;
     return html`<div class="content-main">
       ${archive.introduction ? html`<div class="page-introduction">${archive.introduction}</div>` : ''}
       <section class="page-content"><div class="page-content__form apply__form">
+      ${notice ? html`<p class="notice" role="status">${notice}</p>` : ''}
       ${hasErrors ? html`<div class="form-alert" role="alert">${errors._form || 'Controleer de gemarkeerde velden.'}</div>` : ''}
       <form class="form form--theme" method="post" action="/aanmelden/" novalidate aria-label="Aanmelden voor ${trip.title}">
         <input type="hidden" name="id" value="${trip.legacy_id || ''}">
@@ -187,7 +191,12 @@ function createBookingRouter(options) {
       if (!req.query.id && !req.query.reis) return send(res, { title: 'Aanmelden', header: header(), body: notice('Er is geen reis geselecteerd'), trip: null });
       const { trip, reason } = await findBookableTrip(req.query);
       if (!trip || reason) return send(res, { title: 'Aanmelden', header: header(), body: notice(reason), trip }, trip ? 409 : 404);
-      return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: header(), body: renderForm(trip, {}, {}) });
+      // Ingelogde reiziger: de gewone gegevens van de vorige aanmelding alvast invullen (nooit bijzondere gegevens).
+      const values = options.prefill ? await options.prefill(req) : {};
+      const prefillNotice = values.first_names
+        ? 'Je bent ingelogd: we hebben je gegevens van je vorige aanmelding alvast ingevuld. Controleer ze; bijzondere gegevens en je paspoort vragen we opnieuw.'
+        : '';
+      return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: header(), body: renderForm(trip, values, {}, prefillNotice) });
     } catch (error) {
       return next(error);
     }
@@ -219,13 +228,16 @@ function createBookingRouter(options) {
           return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: header(), body: renderForm(trip, values, { _form: verdict.message }) }, verdict.unavailable ? 503 : 422);
         }
       }
+      // Ingelogd met hetzelfde e-mailadres als het account: de aanmelding hoort bij dat account (J4, opnieuw boeken).
+      const customer = options.customerFor ? await options.customerFor(req) : null;
+      const accountId = customer && customer.email === values.email.toLowerCase() ? customer.accountId : null;
       // Referentiejaar volgens de Nederlandse datum, niet de tijdzone van de server (rond de jaarwisseling verschilt dat).
       const year = new Date(now()).toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' }).slice(0, 4);
       // De referentie is uniek; bij de (kleine) kans op een botsing opnieuw proberen met een nieuwe referentie.
       for (let attempt = 1; ; attempt++) {
         const reference = `AV-${year}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
         try {
-          const saved = await saveBooking(reference, trip, values);
+          const saved = await saveBooking(reference, trip, values, accountId);
           if (!saved) return send(res, { title: 'Aanmelden', header: header(), body: notice('Deze reis is volgeboekt.'), trip }, 409);
           // De melding aan kantoor en de bevestiging aan de reiziger wachten niet op de mailserver en gooien nooit.
           if (options.notifications) {
@@ -250,10 +262,11 @@ function createBookingRouter(options) {
    * @param {string} reference Referentie (AV-jjjj-XXXXXXXX).
    * @param {object} trip De reis.
    * @param {object} values Gecontroleerde velden.
+   * @param {(number|null)} accountId Reizigersaccount van de ingelogde reiziger met hetzelfde e-mailadres, anders null.
    * @returns {Promise<({depositCents: (number|null)}|null)>} De aanbetaling van de reis als de aanmelding is opgeslagen;
    *   null als de reis intussen volgeboekt of weg is.
    */
-  const saveBooking = (reference, trip, values) => options.db.transaction(async (client) => {
+  const saveBooking = (reference, trip, values, accountId) => options.db.transaction(async (client) => {
     const yes = (name) => values[name] === 'ja';
     // Eerst de reis vergrendelen, dan in een nieuw statement (met een nieuwe snapshot) tellen: twee gelijktijdige
     // aanmeldingen voor de laatste plaats gaan zo na elkaar en de tweede ziet de eerste.
@@ -265,13 +278,13 @@ function createBookingRouter(options) {
     const [booking] = await client.query(
       `INSERT INTO bookings (reference, trip_id, trip_code, trip_title, departure_date, gender, first_names, call_name, last_name,
          email, mobile, phone, street, postal_code, city, occupation, travel_with, earlier_trip, credit_card, driver_interest,
-         driver_before, driver_when, payment_method, payment_choice, price_cents, person_id, consent_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26, now())
+         driver_before, driver_when, payment_method, payment_choice, price_cents, person_id, customer_account_id, consent_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27, now())
        RETURNING id`,
       [reference, trip.id, trip.trip_code, trip.title, isoDate(trip.departure_date), values.gender, values.first_names, values.call_name,
         values.last_name, values.email.toLowerCase(), values.mobile, values.phone, values.street, values.postal_code.toUpperCase(),
         values.city, values.occupation, values.travel_with, yes('earlier_trip'), yes('credit_card'), yes('driver_interest'),
-        yes('driver_before'), values.driver_when, 'handmatig', values.payment_choice, trip.price_cents, personId],
+        yes('driver_before'), values.driver_when, 'handmatig', values.payment_choice, trip.price_cents, personId, accountId],
     );
     await persons.recordConsents(client, { personId, bookingId: booking.id, values });
     return { depositCents: locked.deposit_cents };
