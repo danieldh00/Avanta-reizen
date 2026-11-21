@@ -809,6 +809,7 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
 .crm-removed { margin: .75rem 0 0; color: var(--av-muted); font-size: .9rem; }
 .crm-removed summary { cursor: pointer; }
 .crm-removed ul { margin: .5rem 0 0; padding-left: 1.25rem; overflow-wrap: anywhere; }
+.crm-reminders { margin: 0 0 1rem; padding-left: 1.25rem; overflow-wrap: anywhere; }
 .crm-search select { max-width: 100%; }
 @media (max-width: 800px) { .crm-columns { grid-template-columns: minmax(0, 1fr); gap: 1rem; } }
 /* Fotobibliotheek: uploadblok, raster met foto's (vaste verhouding 4:3) en voorbeeld. */

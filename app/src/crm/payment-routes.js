@@ -14,12 +14,27 @@ const { roleHasGlobalRight } = require('./rights');
 const { renderCrmPage, renderAlert, formatDateTime } = require('./layout');
 const { STATUSES } = require('./booking-routes');
 const payments = require('./payments');
+const { createRateLimiter } = require('../security/rate-limit');
+const { reminderKind, KIND_LABELS } = require('./payment-reminders');
+
+/** Hoogstens zoveel herinneringen met de hand per medewerker per tien minuten. */
+const REMINDER_LIMIT = 30;
+
+/** Meldingen bij een herinnering die niet is verstuurd. */
+const REMINDER_ERRORS = {
+  'geen-mailserver': [503, 'Er is geen mailserver ingesteld (Beheer > E-mail > Mailserver); de herinnering is niet verstuurd.'],
+  'geen-adres': [422, 'Van deze aanmelding is geen e-mailadres (meer) bekend.'],
+  geannuleerd: [422, 'Deze aanmelding is geannuleerd; een herinnering is niet nodig.'],
+  'niets-open': [422, 'Er staat niets open; een herinnering is niet nodig.'],
+  'te-snel': [409, 'Er is net al een herinnering voor deze termijn verstuurd. Probeer het over tien minuten opnieuw als dat nodig is.'],
+};
 
 /** Acties voor het auditlog (zie `ACTION_LABELS` in `crm/users.js`). */
 const PAYMENT_ACTION_LABELS = {
   'betaling.geregistreerd': 'Betaling geregistreerd bij een aanmelding',
   'betaling.bedrag': 'Bedrag toegevoegd aan een aanmelding',
   'betaling.bedrag-weg': 'Bedrag weggehaald bij een aanmelding',
+  'betaling.herinnering': 'Betaalherinnering verstuurd aan de reiziger',
 };
 
 /** Kolommen van de aanmelding die deze pagina nodig heeft (geen bijzondere gegevens). */
@@ -92,7 +107,9 @@ function validateCharge(body) {
  * @returns {express.Router} Router.
  */
 function createPaymentRoutes(options) {
-  const { db, auth, settings } = options;
+  const { db, auth, settings, reminders } = options;
+  // Herinneringen met de hand: hoogstens zoveel per medewerker per tien minuten (geen massamail vanuit één sessie).
+  const reminderLimiter = createRateLimiter({ limit: REMINDER_LIMIT, windowMs: 10 * 60 * 1000, now: options.now });
   const now = options.now || Date.now;
   const router = express.Router();
   const guard = auth.requireGlobalRight('betalingen');
@@ -128,7 +145,7 @@ function createPaymentRoutes(options) {
    * @returns {Promise<string>} HTML-pagina.
    */
   const renderPage = async (req, booking, state = {}) => {
-    const lines = await payments.loadLines(db, booking.id);
+    const [lines, sentReminders] = await Promise.all([payments.loadLines(db, booking.id), reminders ? reminders.list(booking.id) : []]);
     const day = today();
     const summary = payments.summarize({ booking, ...lines, terms: payments.termsFrom(settings), today: day });
     const hidden = html`<input type="hidden" name="_csrf" value="${req.session.csrf}"><input type="hidden" name="stand" value="${linesVersion(lines)}">`;
@@ -196,6 +213,14 @@ function createPaymentRoutes(options) {
             <td>${formatDateTime(line.created_at)}${line.user_name ? ` · ${line.user_name}` : ''}</td>
           </tr>`)}</tbody>
         </table></div>` : html`<p>Nog geen betalingen ontvangen.</p>`}
+        ${reminders ? html`<h2>Herinneringen</h2>
+          ${reminderKind(summary) && booking.status !== 'geannuleerd' ? html`<form method="post" action="/app/betalingen/${booking.id}/herinnering/">${hidden}
+            <p>Stuur de reiziger een mail met het openstaande bedrag voor de ${KIND_LABELS[reminderKind(summary)]}, de vervaldatum en de betaalinstructie.
+            <button class="btn btn--small btn--outline" type="submit">Herinnering sturen</button></p>
+          </form>` : ''}
+          ${sentReminders.length ? html`<ul class="crm-reminders">${sentReminders.map((line) => html`<li>${formatDateTime(line.created_at)}: ${KIND_LABELS[line.kind] || line.kind},
+            ${line.trigger === 'automatisch' ? 'automatisch' : `door ${line.user_name || 'onbekend'}`}, ${line.sent ? 'verstuurd' : html`<strong>niet verstuurd</strong> (${line.error})`}</li>`)}</ul>`
+    : html`<p>Nog geen herinneringen verstuurd.</p>`}` : ''}
         <div class="crm-columns">
           <section>
             <h2>Betaling registreren</h2>
@@ -287,7 +312,7 @@ function createPaymentRoutes(options) {
     try {
       const booking = await findBooking(db, req.params.id);
       if (!booking) return notFound(req, res);
-      const notices = { betaling: 'De betaling is geregistreerd.', bedrag: 'Het bedrag is toegevoegd.', weg: 'Het bedrag is weggehaald.' };
+      const notices = { betaling: 'De betaling is geregistreerd.', bedrag: 'Het bedrag is toegevoegd.', weg: 'Het bedrag is weggehaald.', herinnering: 'De herinnering is verstuurd.' };
       let notice = notices[req.query.opgeslagen] || '';
       if (notice && Object.hasOwn(STATUSES, req.query.status)) notice += ` De aanmelding staat nu op ${STATUSES[req.query.status].toLowerCase()}.`;
       return res.send(await renderPage(req, booking, { notice }));
@@ -365,7 +390,31 @@ function createPaymentRoutes(options) {
     }
   });
 
+  router.post('/betalingen/:id(\\d{1,9})/herinnering/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const booking = await findBooking(db, req.params.id);
+      if (!booking || !reminders) return notFound(req, res);
+      if (!reminderLimiter.hit(`gebruiker:${req.user.id}`)) {
+        return res.status(429).send(await renderPage(req, booking, { error: `Je hebt het maximum van ${REMINDER_LIMIT} herinneringen per tien minuten bereikt. Probeer het straks opnieuw.` }));
+      }
+      const outcome = await reminders.send({ bookingId: booking.id, trigger: 'handmatig', userId: req.user.id });
+      if (outcome.status === 'weg') return notFound(req, res);
+      // Ook een mislukte poging staat in het auditlog: er is geprobeerd persoonsgegevens te versturen.
+      if (outcome.status === 'ok' || outcome.status === 'mislukt') {
+        await auth.audit(req, { userId: req.user.id, action: 'betaling.herinnering', entity: 'bookings', entityId: booking.id });
+      }
+      if (outcome.status === 'mislukt') return res.status(502).send(await renderPage(req, booking, { error: `De herinnering is niet verstuurd. ${outcome.error}` }));
+      if (REMINDER_ERRORS[outcome.status]) {
+        const [code, message] = REMINDER_ERRORS[outcome.status];
+        return res.status(code).send(await renderPage(req, booking, { error: message }));
+      }
+      return res.redirect(303, `/app/betalingen/${booking.id}/?opgeslagen=herinnering`);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   return router;
 }
 
-module.exports = { createPaymentRoutes, validatePayment, validateCharge, linesVersion, PAYMENT_ACTION_LABELS };
+module.exports = { createPaymentRoutes, validatePayment, validateCharge, linesVersion, PAYMENT_ACTION_LABELS, REMINDER_LIMIT };

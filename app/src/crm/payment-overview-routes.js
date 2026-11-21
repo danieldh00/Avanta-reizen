@@ -41,12 +41,14 @@ const PAYMENT_OVERVIEW_ACTION_LABELS = {
 /** Totalen per aanmelding: verwacht, waarvan boekingskosten en SGR, en betaald (zonder N+1). */
 const OVERVIEW_SQL = `SELECT b.id, b.reference, b.trip_id, b.trip_title, b.trip_code, b.departure_date, b.status, b.created_at,
     b.first_names, b.call_name, b.last_name, b.payment_choice, b.deposit_cents,
-    coalesce(c.total, 0)::int AS total_cents, coalesce(c.fees, 0)::int AS fee_cents, coalesce(p.paid, 0)::int AS paid_cents
+    coalesce(c.total, 0)::int AS total_cents, coalesce(c.fees, 0)::int AS fee_cents, coalesce(p.paid, 0)::int AS paid_cents,
+    r.last_at AS reminded_at
   FROM bookings b
   LEFT JOIN (SELECT booking_id, sum(amount_cents) AS total,
                     sum(amount_cents) FILTER (WHERE kind IN ('boekingskosten', 'sgr')) AS fees
                FROM booking_charges WHERE removed_at IS NULL GROUP BY booking_id) c ON c.booking_id = b.id
   LEFT JOIN (SELECT booking_id, sum(amount_cents) AS paid FROM payments GROUP BY booking_id) p ON p.booking_id = b.id
+  LEFT JOIN LATERAL (SELECT max(created_at) AS last_at FROM payment_reminders pr WHERE pr.booking_id = b.id AND pr.sent) r ON true
   WHERE ($1::int IS NULL OR b.trip_id = $1)
     AND ($2 OR b.status <> 'geannuleerd')
     AND ($3 = 'alles' OR ($3 = 'teveel' AND coalesce(c.total, 0) < coalesce(p.paid, 0))
@@ -60,7 +62,7 @@ const OVERVIEW_SQL = `SELECT b.id, b.reference, b.trip_id, b.trip_title, b.trip_
  * @param {{view: string, tripId: (number|null), terms: object, today: string, maxRows?: number}} filter Weergave, reis,
  *   termijnen, vandaag en (voor tests) het maximum aantal aanmeldingen.
  * @returns {Promise<{rows: object[], truncated: boolean, scanCapped: boolean}>} Regels met `summary`, of de lijst is
- *   afgekapt, en of dat kwam doordat de voorselectie vol zat (bij *te laat*: te veel openstaande om de te late te bepalen).
+ *   afgekapt, en of dat kwam doordat de voorselectie vol zat (bij *te laat*: te veel openstaande om te bepalen welke te laat zijn).
  */
 async function loadOverview(db, filter) {
   const withCancelled = filter.view === 'teveel' || filter.view === 'alles';
@@ -102,7 +104,7 @@ async function loadOverview(db, filter) {
  */
 function truncationMessage(filter, maxRows, scanCapped, where) {
   if (filter.view === 'te-laat' && scanCapped) {
-    return `Er zijn te veel openstaande aanmeldingen om de te late te bepalen${filter.tripId ? '' : '; kies een reis'}.`;
+    return `Er zijn te veel openstaande aanmeldingen om te bepalen welke te laat zijn${filter.tripId ? '' : '; kies een reis'}.`;
   }
   const lead = where === 'pagina'
     ? `Alleen de eerste ${maxRows} aanmeldingen${filter.tripId ? ' van deze reis' : ''} zijn meegenomen`
@@ -119,11 +121,12 @@ function truncationMessage(filter, maxRows, scanCapped, where) {
 function buildOverviewWorkbook(input) {
   const euro = (cents) => cents / 100;
   const header = ['Referentie', 'Achternaam', 'Roepnaam', 'Reis', 'Reiscode', 'Vertrek', 'Status aanmelding', 'Betaalstatus',
-    'Totaal (€)', 'Betaald (€)', 'Openstaand (€)', 'Aanbetaling (€)', 'Aanbetaling uiterlijk', 'Restant uiterlijk', 'Te late termijn'];
+    'Totaal (€)', 'Betaald (€)', 'Openstaand (€)', 'Aanbetaling (€)', 'Aanbetaling uiterlijk', 'Restant uiterlijk', 'Te late termijn', 'Laatste herinnering'];
   const rows = input.rows.map((row) => [
     row.reference, row.last_name, row.call_name || row.first_names, row.trip_title, row.trip_code || '', isoDate(row.departure_date),
     STATUSES[row.status] || row.status, payments.PAYMENT_STATES[row.summary.state], euro(row.summary.totalCents), euro(row.summary.paidCents),
     euro(row.summary.balanceCents), euro(row.summary.depositRequiredCents), row.summary.depositDueOn, row.summary.balanceDueOn || '', row.summary.overdue,
+    row.reminded_at ? payments.localDay(row.reminded_at) : '',
   ]);
   const open = input.rows.reduce((sum, row) => sum + Math.max(row.summary.balanceCents, 0), 0);
   const about = [
@@ -199,7 +202,7 @@ function createPaymentOverviewRoutes(options) {
           ${truncated ? renderAlert(truncationMessage(filter, maxRows, scanCapped, 'pagina')) : ''}
           ${rows.length ? html`<div class="crm-table-wrap"><table class="crm-table">
             <thead><tr><th scope="col">Referentie</th><th scope="col">Naam</th><th scope="col">Reis</th><th scope="col">Vertrek</th><th scope="col">Status</th>
-              <th scope="col">Totaal</th><th scope="col">Betaald</th><th scope="col">Openstaand</th><th scope="col">Aanbetaling uiterlijk</th><th scope="col">Restant uiterlijk</th></tr></thead>
+              <th scope="col">Totaal</th><th scope="col">Betaald</th><th scope="col">Openstaand</th><th scope="col">Aanbetaling uiterlijk</th><th scope="col">Restant uiterlijk</th><th scope="col">Laatste herinnering</th></tr></thead>
             <tbody>${rows.map((row) => html`<tr>
               <td><a href="/app/betalingen/${row.id}/">${row.reference}</a></td>
               <td>${row.last_name}, ${row.call_name || row.first_names}</td>
@@ -211,6 +214,7 @@ function createPaymentOverviewRoutes(options) {
               <td>${payments.formatAmount(row.summary.balanceCents)}</td>
               <td>${formatDate(row.summary.depositDueOn)}</td>
               <td>${row.summary.balanceDueOn ? formatDate(row.summary.balanceDueOn) : '–'}</td>
+              <td>${row.reminded_at ? formatDate(payments.localDay(row.reminded_at)) : '–'}</td>
             </tr>`)}</tbody>
           </table></div>` : html`<p>Geen aanmeldingen in deze weergave.</p>`}`,
       }));

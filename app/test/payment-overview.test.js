@@ -202,7 +202,7 @@ test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
       assert.doesNotMatch(tooMuch.text, /zijn meegenomen/);
       assert.equal((await get('/app/betalingen/overzicht.xlsx?weergave=teveel')).status, 200);
       // Te laat met een volle voorselectie: een eigen reden in plaats van "eerste N meegenomen".
-      assert.equal(truncationMessage({ view: 'te-laat', tripId: null }, 5000, true, 'pagina'), 'Er zijn te veel openstaande aanmeldingen om de te late te bepalen; kies een reis.');
+      assert.equal(truncationMessage({ view: 'te-laat', tripId: null }, 5000, true, 'pagina'), 'Er zijn te veel openstaande aanmeldingen om te bepalen welke te laat zijn; kies een reis.');
       assert.equal(truncationMessage({ view: 'te-laat', tripId: 3 }, 5000, false, 'export'), 'Deze reis heeft in deze weergave meer dan 5000 aanmeldingen.');
       // Te laat: twee openstaande aanmeldingen, waarvan één te laat; het maximum telt pas na het filter.
       const late = await get(`/app/betalingen/?weergave=te-laat&reis=${albania.id}`);
@@ -214,10 +214,10 @@ test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
       // Vijf openstaande bij een voorselectie van 4 × 1: de te late kan buiten de voorselectie vallen, dus 422 met eigen reden.
       for (const [index, name] of ['Aap', 'Beer', 'Cavia'].entries()) await booking(`AV-2027-EXTRA00${index}`, albania, { lastName: name });
       const capped = await get('/app/betalingen/?weergave=te-laat');
-      assert.match(capped.text, /Er zijn te veel openstaande aanmeldingen om de te late te bepalen; kies een reis/);
+      assert.match(capped.text, /Er zijn te veel openstaande aanmeldingen om te bepalen welke te laat zijn; kies een reis/);
       const cappedExport = await get('/app/betalingen/overzicht.xlsx?weergave=te-laat');
       assert.equal(cappedExport.status, 422);
-      assert.match(cappedExport.text, /te veel openstaande aanmeldingen om de te late te bepalen/);
+      assert.match(cappedExport.text, /te veel openstaande aanmeldingen om te bepalen welke te laat zijn/);
     } finally {
       smallServer.close();
     }

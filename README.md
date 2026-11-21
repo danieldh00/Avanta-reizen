@@ -282,6 +282,15 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     aanmeldingen*, filter op reis, aantal en totaal openstaand. Dezelfde lijst als Excel (`/app/betalingen/overzicht.xlsx`,
     nooit CSV; audit `export.betalingen`, hoogstens 30 exports per 10 minuten per gebruiker). Totalen in één query,
     berekening met dezelfde `summarize` als de pagina van een aanmelding.
+    **Herinneringen** (`app/src/crm/payment-reminders.js`, migratie 27): op de betaalpagina *Herinnering sturen* (mail
+    aan de reiziger met het openstaande bedrag van de aanbetaling of het restant, de vervaldatum en de betaalinstructie
+    uit Beheer > E-mail > Bevestiging; adres van de persoon, anders van het formulier; nooit bijzondere gegevens).
+    Elke poging staat in `payment_reminders` (termijn, wie, gelukt of de foutmelding zonder adres) en in het auditlog;
+    binnen 10 minuten geen tweede voor dezelfde termijn (409), hoogstens 30 per medewerker per 10 minuten. Met
+    `paymentReminderAuto` (Beheer > CRM > Betalingen, standaard uit) stuurt de app elke dag een herinnering (alleen bij
+    aanmeldingen die kantoor heeft bevestigd, niet bij status *nieuw*) voor te late
+    termijnen, niet vaker dan elke `paymentReminderEveryDays` (7) dagen en hoogstens `paymentReminderMax` (3) keer per
+    termijn. Het overzicht toont de laatste herinnering.
   - **Deelnemerslijsten** op `/app/deelnemerslijsten/` (recht `export.deelnemers`; `app/src/crm/participant-list-routes.js`
     en `participant-lists.js`): per vertrek een Excel-bestand (.xlsx, nooit CSV) met alle aanmeldingen die niet
     geannuleerd zijn, met de actuele NAW van de persoon (anders het formulier). Bijzondere gegevens alleen als je ze

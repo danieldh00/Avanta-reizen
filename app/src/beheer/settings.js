@@ -210,6 +210,19 @@ const SETTING_FIELDS = {
     help: 'Vervaldatum van het restant. Wie zich later aanmeldt, betaalt het restant op de vervaldatum van de aanbetaling. Advies: 42 dagen (6 weken).',
     default: 42, min: 0, max: 365,
   },
+  paymentReminderAuto: {
+    type: 'bool', label: 'Automatisch herinneren bij een te late betaling',
+    help: 'Elke dag krijgt een reiziger van wie de aanbetaling of het restant te laat is een herinnering per mail (alleen bij aanmeldingen die kantoor heeft bevestigd; de mail gaat naar het opgegeven adres), met het openstaande bedrag en de betaalinstructie uit de bevestiging. Werkt alleen met een ingestelde mailserver. Herinneren met de hand kan altijd op de betaalpagina.',
+    default: false,
+  },
+  paymentReminderEveryDays: {
+    type: 'int', label: 'Volgende automatische herinnering na (dagen)',
+    help: 'Zo lang wacht de app na een herinnering voor dezelfde termijn voordat hij de volgende stuurt.', default: 7, min: 1, max: 60,
+  },
+  paymentReminderMax: {
+    type: 'int', label: 'Hoogstens zoveel automatische herinneringen per termijn',
+    help: 'Daarna stopt de app voor die termijn; kantoor neemt dan zelf contact op.', default: 3, min: 1, max: 10,
+  },
   mailHeaderColor: {
     type: 'text',
     label: 'Kleur van de titelbalk',
