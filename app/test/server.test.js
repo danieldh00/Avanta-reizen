@@ -102,6 +102,29 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     }
   });
 
+  await t.test('homepage: last-minutes, reistypes, bestemmingen en blog uit de database; nieuwe reizen bovenaan', async () => {
+    await db.query("INSERT INTO trip_categories (slug, name, kind) VALUES ('hostel', 'Hostelreizen', 'type')");
+    await insertTrip([1004, 'nieuw-ijsland', 'Nieuw IJsland', '', '27-IJS-1', daysFromNow(90), 99900, false, null, []]);
+    await db.query("UPDATE trips SET is_new = TRUE WHERE slug = 'nieuw-ijsland'");
+    const page = (await get('/')).text;
+    assert.match(page, /<body class="home">|class="home"/);
+    const lastMinutes = page.slice(page.indexOf('homepage__last-minutes'), page.indexOf('homepage__trip-types'));
+    assert.match(lastMinutes, /href="\/reis\/8-dagen-albanie\/"/);
+    assert.match(lastMinutes, /href="\/reis\/nieuw-ijsland\/"[\s\S]*<span class="box__label">Nieuw<\/span>/);
+    assert.doesNotMatch(lastMinutes, /Volle reis|Oude reis/, 'alleen reizen met plek die nog niet vertrokken zijn');
+    // Reistypes in de volgorde van de huidige site (hostel voor kamperen), alleen bestaande types.
+    const types = page.slice(page.indexOf('homepage__trip-types'), page.indexOf('homepage__inspiration'));
+    assert.ok(types.indexOf('/reis-categorie/hostel/') < types.indexOf('/reis-categorie/kamperen/'));
+    assert.doesNotMatch(types, /reis-categorie\/jeugd\//);
+    assert.match(page, /<a class="banner banner--fullimage" href="\/reis-categorie\/albanie\/"/);
+    assert.match(page, /href="\/op-avantuur\/"/);
+    assert.match(page, /Nieuwe reizen \(1\)/);
+    const list = (await get('/reis/?nieuw=1')).text;
+    assert.ok(list.indexOf('Nieuw IJsland') > -1 && list.indexOf('Nieuw IJsland') < list.indexOf('8 dagen Albanië'), 'nieuw=1 zet nieuwe reizen bovenaan');
+    const normal = (await get('/reis/')).text;
+    assert.ok(normal.indexOf('8 dagen Albanië') < normal.indexOf('Nieuw IJsland'), 'standaard op vertrekdatum');
+  });
+
   await t.test('lijsten tonen geen vertrokken reizen; volle en oude reizen tonen geen aanmeldknop', async () => {
     const list = await get('/reis/');
     assert.doesNotMatch(list.text, /Oude reis/);

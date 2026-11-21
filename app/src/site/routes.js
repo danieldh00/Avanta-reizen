@@ -8,6 +8,9 @@ const { renderPage, renderPageHeader, cssImageUrl } = require('./layout');
 const { isExcluded } = require('./site-settings');
 const { createContent, today } = require('./content');
 const views = require('./views');
+const homeViews = require('./home-view');
+const { createHomepageStore } = require('./homepage');
+const { DATA_DIR } = require('../paths');
 const { formatLongDate, isoDate, toDate, tripPath, categoryPath, guidePath, postPath } = require('./format');
 const seo = require('./seo');
 
@@ -42,7 +45,8 @@ function queryValue(value) {
 
 /**
  * Bouwt de router van de website.
- * @param {{db: object, contactForm?: object}} options Database en het contactformulier. Indexeren, basisadres, naam en
+ * @param {{db: object, contactForm?: object, homepage?: {load: Function}}} options Database, het contactformulier en
+ *   (voor tests) de vaste inhoud van de homepage (standaard `DATA_DIR/homepage.json`, zie `site/homepage.js`). Indexeren, basisadres, naam en
  *   de overige site-instellingen komen per verzoek uit `res.locals.site` (Beheer, zie `site/site-settings.js`).
  *   Zonder contactformulier (`contact/routes.js`) is `/contact/` een gewone pagina.
  * @returns {express.Router} De router.
@@ -50,6 +54,7 @@ function queryValue(value) {
 function createSiteRouter(options) {
   const router = express.Router({ strict: true });
   const content = createContent(options.db);
+  const homepage = options.homepage || createHomepageStore(DATA_DIR);
   let sitemapCache = null;
 
   /**
@@ -113,67 +118,33 @@ function createSiteRouter(options) {
 
   router.get('/', asyncRoute(async (req, res) => {
     if (typeof req.query.s === 'string') return res.redirect(302, `/zoeken/?s=${encodeURIComponent(req.query.s)}`);
-    const limit = new Date(`${today()}T12:00:00`);
-    limit.setDate(limit.getDate() + 75);
-    const [finder, lastMinutes, upcoming, types, blog, about] = await Promise.all([
+    const home = homepage.load();
+    const [finder, lastMinutes, upcoming, types, blog] = await Promise.all([
       finderOptions(),
-      content.upcomingTrips({ before: isoDate(limit), onlyAvailable: true, limit: 6 }),
-      content.upcomingTrips({ limit: 12 }),
+      content.upcomingTrips({ onlyAvailable: true, limit: 6 }),
+      content.upcomingTrips({ limit: 60 }),
       content.categories('type'),
       content.posts({ perPage: 4 }),
-      content.pageByPath('/avanta-reizen/onzemaniervanreizen/'),
     ]);
-    const newTrips = upcoming.filter((trip) => trip.is_new).slice(0, 6);
-    const heroImage = cssImageUrl(upcoming.find((trip) => trip.card_image_url)?.card_image_url);
+    const typeBySlug = new Map(types.map((type) => [type.slug, type]));
+    const homeTypes = home.typeSlugs.map((slug) => typeBySlug.get(slug)).filter(Boolean);
+    const destinations = finder.destinations.filter((destination) => destination.trip_count > 0);
+    const tripImages = upcoming.map((trip) => cssImageUrl(trip.card_image_url)).filter(Boolean);
+    const filled = homeViews.withFallbackImages(home, tripImages);
+    const heroImage = cssImageUrl(filled.slides[0].image || filled.slides[0].fallbackImage);
     send(res, {
       path: '/',
       seo: seoFor('/', { imageUrl: heroImage, structuredData: [(site) => seo.travelAgencyData(site.siteUrl, site.contact, { ...site.organisation, name: site.siteName, imageUrl: site.imageUrl })] }),
       bodyClass: 'home',
-      header: html`<section class="hero"${heroImage ? html` style="--header-image: url('${heroImage}')"` : ''}>
-        <div class="container hero__inner">
-          <p class="hero__pretitle">your adventure starts here</p>
-          <h1 class="hero__title">Avontuurlijke groepsreizen over heel de wereld</h1>
-          ${views.tripFinder(finder)}
-        </div>
-      </section>`,
-      body: html`
-        <section class="section">
-          <div class="container">
-            <h2 class="section__title">Inpakken en wegwezen!</h2>
-            <p class="section__subtitle">voor plotselinge reiskriebels</p>
-            ${views.tripGrid(lastMinutes, 'Op dit moment geen last-minutes.')}
-            <p class="section__footer"><a class="btn btn--outline" href="/reis/">Bekijk alle reizen</a></p>
-          </div>
-        </section>
-        <section class="section section--soil">
-          <div class="container">
-            <h2 class="section__title">Met Avanta reis je zoals reizen bedoeld is</h2>
-            <p class="section__subtitle">voor verschillende leeftijden</p>
-            <ul class="type-grid">${types.map((type) => html`<li><a class="type-tile" href="/reis-categorie/${encodeURIComponent(type.slug)}/"><span>${type.name}</span><small>${type.trip_count} ${type.trip_count === 1 ? 'reis' : 'reizen'}</small></a></li>`)}</ul>
-          </div>
-        </section>
-        ${newTrips.length ? html`<section class="section">
-          <div class="container">
-            <h2 class="section__title">Nieuwe reizen</h2>
-            <p class="section__subtitle">laat je inspireren</p>
-            ${views.tripGrid(newTrips)}
-          </div>
-        </section>` : ''}
-        <section class="section section--soft">
-          <div class="container">
-            <h2 class="section__title">Weblog</h2>
-            <p class="section__subtitle">verhalen van onderweg</p>
-            <div class="card-grid card-grid--four">${blog.posts.map(views.postCard)}</div>
-            <p class="section__footer"><a class="btn btn--outline" href="/blog/">Naar het weblog</a></p>
-          </div>
-        </section>
-        ${about ? html`<section class="section section--about">
-          <div class="container container--narrow">
-            <h2 class="section__title">De Avanta way of life</h2>
-            <p class="lead">${about.intro}</p>
-            <p><a class="btn" href="${about.path}">Onze manier van reizen</a></p>
-          </div>
-        </section>` : ''}`,
+      body: homeViews.renderHome({
+        home: filled,
+        finder,
+        newCount: upcoming.filter((trip) => trip.is_new).length,
+        lastMinutes,
+        types: homeTypes.length ? homeTypes : types.filter((type) => type.trip_count > 0),
+        destinations,
+        posts: blog.posts,
+      }),
     });
   }));
 
@@ -200,10 +171,11 @@ function createSiteRouter(options) {
 
   router.get('/reis/', asyncRoute(async (req, res) => {
     const selected = { bestemming: queryValue(req.query.bestemming), type: queryValue(req.query.type), vertrek: queryValue(req.query.vertrek) };
+    const newFirst = req.query.nieuw === '1';
     const departure = /^\d{4}-\d{2}-\d{2}$/.test(selected.vertrek) ? selected.vertrek : '';
     const [finder, trips] = await Promise.all([
       finderOptions(),
-      content.upcomingTrips({ destination: selected.bestemming, type: selected.type, departure }),
+      content.upcomingTrips({ destination: selected.bestemming, type: selected.type, departure, newFirst }),
     ]);
     send(res, {
       title: 'Reizen',

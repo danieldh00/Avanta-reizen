@@ -270,7 +270,66 @@ function parsePage(markup, url) {
   };
 }
 
+/**
+ * Leest de homepage: de slider (pretitel, titel, knop, link, foto of YouTube-video), de titels van de secties, de
+ * inspiratie-dia's en het blok "Voor Avanta Reizen is geen bestemming te ver". Links en foto's blijven de adressen van
+ * de huidige site; de import zet ze om naar eigen paden.
+ * @param {string} markup HTML van de homepage.
+ * @returns {object} De inhoud (zie `src/site/homepage.js`).
+ */
+function parseHome(markup) {
+  const root = parse(markup, { comment: false });
+  const text = (node) => cleanText(node && node.text);
+  const sectionOf = (selector) => {
+    const section = root.querySelector(selector);
+    return {
+      title: text(section && section.querySelector('.section__title')),
+      subtitle: text(section && section.querySelector('.section__subtitle')),
+      button: text(section && section.querySelector('.section__footer .btn')),
+    };
+  };
+  const slides = root.querySelectorAll('.homepage__slides .slide').map((slide) => {
+    const video = /\/embed\/([A-Za-z0-9_-]{11})/.exec(slide.querySelector('.slide__video iframe')?.getAttribute('src') || '');
+    const button = slide.querySelector('.slide__btn');
+    return {
+      pretitle: text(slide.querySelector('.slide__pretitle')),
+      title: text(slide.querySelector('.slide__title')),
+      button: text(button),
+      href: button?.getAttribute('href') || '',
+      image: backgroundUrl(slide.querySelector('.slide__image')?.getAttribute('style')),
+      videoId: video ? video[1] : null,
+    };
+  });
+  const inspiration = root.querySelectorAll('.homepage__inspiration .slide').map((slide) => ({
+    title: text(slide.querySelector('.slide__title')),
+    text: text(slide.querySelector('.slide__text')),
+    image: backgroundUrl(slide.querySelector('.slide__figure')?.getAttribute('style')),
+  }));
+  const about = root.querySelector('.homepage__about');
+  const readon = about?.querySelector('.readon');
+  const content = about?.querySelector('.section__content');
+  if (readon && content) readon.remove();
+  return {
+    slides,
+    sections: {
+      lastMinutes: sectionOf('.homepage__last-minutes'),
+      types: sectionOf('.homepage__trip-types'),
+      destinations: sectionOf('.homepage__popular'),
+      blog: sectionOf('.homepage__blog'),
+    },
+    inspiration,
+    about: {
+      title: text(about?.querySelector('.section__title')),
+      text: text(content),
+      linkLabel: text(readon),
+      href: readon?.getAttribute('href') || '',
+      image: about?.querySelector('.about__image img')?.getAttribute('src') || null,
+    },
+    typeSlugs: root.querySelectorAll('.homepage__trip-types .trip-type').map((link) => slugFromUrl(link.getAttribute('href') || '')).filter(Boolean),
+  };
+}
+
 module.exports = {
   cleanText, parseEuros, parseDutchDate, backgroundUrl, slugFromUrl, pathFromUrl,
-  parseCommon, parseTrip, parseGuide, parseCategory, parseFaqCategory, parsePost, parsePage,
+  parseCommon, parseTrip, parseGuide, parseCategory, parseFaqCategory, parsePost, parsePage, parseHome,
 };

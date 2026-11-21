@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 /**
  * Importeert de content van de huidige WordPress-site (www.avantareizen.nl) in PostgreSQL: reizen, reisleiders,
- * reiscategorieën, blog, pagina's en FAQ, plus alle gebruikte afbeeldingen naar DATA_DIR/media.
+ * reiscategorieën, blog, pagina's en FAQ, plus alle gebruikte afbeeldingen naar DATA_DIR/media, en de vaste inhoud van
+ * de homepage (slider, inspiratie, "over Avanta") naar DATA_DIR/homepage.json (zie `src/site/homepage.js`).
  * Herhaalbaar tot go-live: bestaande rijen worden bijgewerkt (op slug/pad), niets wordt dubbel aangemaakt.
  *
- * Gebruik: DATABASE_URL=… node tools/import-wordpress.js [--cache <map>] [--delay <ms>] [--zonder-media]
+ * Gebruik: DATABASE_URL=… node tools/import-wordpress.js [--cache <map>] [--delay <ms>] [--zonder-media] [--alleen-homepage]
+ * (`--alleen-homepage`: alleen homepage.json en de foto's daarvan vernieuwen, altijd vers van de huidige site)
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -13,6 +15,7 @@ const { createDatabase } = require('../src/database/db');
 const { DATA_DIR, MEDIA_DIR } = require('../src/paths');
 const { sanitizeHtml, plainText } = require('./import/sanitize');
 const parsers = require('./import/parse');
+const { HOMEPAGE_FILE } = require('../src/site/homepage');
 
 const SITE = 'https://www.avantareizen.nl';
 const USER_AGENT = 'Mozilla/5.0 (compatible; AvantaSiteImport/1.0)';
@@ -25,7 +28,7 @@ const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 /**
  * Leest de opdrachtregel.
  * @param {string[]} argv Argumenten.
- * @returns {{cache: string, delay: number, media: boolean}} Opties.
+ * @returns {{cache: string, delay: number, media: boolean, homepageOnly?: boolean}} Opties.
  */
 function readOptions(argv) {
   const options = { cache: path.join(DATA_DIR, 'import-cache'), delay: 500, media: true };
@@ -33,6 +36,7 @@ function readOptions(argv) {
     if (argv[i] === '--cache') options.cache = path.resolve(argv[++i]);
     else if (argv[i] === '--delay') options.delay = Number(argv[++i]) || 0;
     else if (argv[i] === '--zonder-media') options.media = false;
+    else if (argv[i] === '--alleen-homepage') options.homepageOnly = true;
   }
   return options;
 }
@@ -158,7 +162,20 @@ function createMediaStore(options) {
     return { ok, failed };
   };
 
-  return { local, download, count: () => wanted.size };
+  /**
+   * Geeft het lokale pad voor de stilstaande afbeelding van een YouTube-video (voor de slider, zodat bezoekers geen
+   * verbinding met YouTube maken) en onthoudt hem voor de download.
+   * @param {string} videoId Id van de video (11 tekens).
+   * @returns {(string|null)} Pad onder /media/, of null bij een ongeldig id of zonder media.
+   */
+  const poster = (videoId) => {
+    if (!options.media || !/^[A-Za-z0-9_-]{11}$/.test(String(videoId || ''))) return null;
+    const name = `yt-${videoId}.jpg`;
+    wanted.set(`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, name);
+    return `/media/${name}`;
+  };
+
+  return { local, poster, download, count: () => wanted.size };
 }
 
 /**
@@ -184,6 +201,70 @@ function rewriteLink(url) {
 function summarize(markup, length = 220) {
   const text = plainText(markup).replace(/\[[^\]]{0,40}\]\s*/g, '');
   return text.length > length ? `${text.slice(0, length).replace(/\s+\S*$/, '')} …` : text;
+}
+
+/**
+ * Zet een link van de homepage om naar de nieuwe site: eigen pad in plaats van het oude domein, en het oude filter
+ * `/reis/?trip_destination=<id>&trip_type=<id>` naar `/reis/?bestemming=<slug>&type=<slug>` (en `trip_new=1` naar
+ * `nieuw=1`).
+ * @param {string} href Oude link.
+ * @param {Map<number, string>} slugByLegacyId Slug per oud categorie-id.
+ * @returns {string} Nieuwe link.
+ */
+function homepageLink(href, slugByLegacyId) {
+  if (!href) return '';
+  const local = rewriteLink(href);
+  if (!local.startsWith('/reis/?')) return local;
+  const query = new URLSearchParams(local.slice('/reis/?'.length));
+  const result = new URLSearchParams();
+  const destination = slugByLegacyId.get(Number(query.get('trip_destination')));
+  const type = slugByLegacyId.get(Number(query.get('trip_type')));
+  if (destination) result.set('bestemming', destination);
+  if (type) result.set('type', type);
+  if (query.get('trip_new') === '1') result.set('nieuw', '1');
+  const search = result.toString();
+  return search ? `/reis/?${search}` : '/reis/';
+}
+
+/**
+ * Maakt de inhoud voor `DATA_DIR/homepage.json` uit de geparste homepage: links omgezet, foto's lokaal; een videoslide
+ * krijgt de stilstaande afbeelding van de video.
+ * @param {object} home Uitkomst van `parsers.parseHome`.
+ * @param {{local: Function, poster: Function}} media Mediaopslag van de import.
+ * @param {Map<number, string>} slugByLegacyId Slug per oud categorie-id.
+ * @returns {object} De inhoud.
+ */
+function homepageData(home, media, slugByLegacyId) {
+  return {
+    importedAt: new Date().toISOString(),
+    slides: home.slides.map((slide) => ({
+      pretitle: slide.pretitle,
+      title: slide.title,
+      button: slide.button,
+      href: homepageLink(slide.href, slugByLegacyId),
+      image: (slide.image && media.local(slide.image)) || (slide.videoId && media.poster(slide.videoId)) || '',
+      videoId: slide.videoId || null,
+    })),
+    sections: home.sections,
+    inspiration: home.inspiration.map((item) => ({ title: item.title, text: item.text, image: (item.image && media.local(item.image)) || '' })),
+    about: { ...home.about, href: homepageLink(home.about.href, slugByLegacyId), image: (home.about.image && media.local(home.about.image)) || '' },
+    typeSlugs: home.typeSlugs,
+  };
+}
+
+/**
+ * Schrijft `homepage.json` in DATA_DIR (eerst naar een tijdelijk bestand, dan hernoemen, zodat de site nooit een half
+ * bestand leest).
+ * @param {object} data Inhoud.
+ * @returns {string} Pad van het bestand.
+ */
+function writeHomepage(data) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const file = path.join(DATA_DIR, HOMEPAGE_FILE);
+  const temporary = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, `${JSON.stringify(data, null, 2)}\n`);
+  fs.renameSync(temporary, file);
+  return file;
 }
 
 /**
@@ -221,13 +302,21 @@ async function collect(fetchText, media) {
   const posts = (await readAll('post', parsers.parsePost)).filter((post) => post.title && post.slug !== 'blog');
   const pages = (await readAll('page', parsers.parsePage)).filter((page) => page.title && !GENERATED_PATHS.has(page.path));
   const faqCategories = await readAll('faq-category', parsers.parseFaqCategory);
+  let home = null;
+  try {
+    home = parsers.parseHome(await fetchText(`${SITE}/`));
+  } catch (error) {
+    warnings.push(`homepage: ${error.message}`);
+  }
 
   const typeSlugs = new Set(trips.flatMap((trip) => trip.types.map((type) => type.slug)));
   const destinationSlugs = new Set(trips.flatMap((trip) => trip.destinations.map((destination) => destination.slug)));
   const teaserBySlug = new Map(categories.flatMap((category) => category.teasers).map((teaser) => [teaser.slug, teaser]));
 
+  const slugByLegacyId = new Map(categories.filter((category) => category.legacyId).map((category) => [category.legacyId, category.slug]));
   return {
     warnings,
+    homepage: home ? homepageData(home, media, slugByLegacyId) : null,
     guides: guides.map((guide) => ({
       legacyId: guide.legacyId, slug: guide.slug, name: guide.name, intro: guide.intro,
       bodyHtml: clean(guide.bodyHtml), photoUrl: media.local(guide.photo),
@@ -368,16 +457,46 @@ async function main() {
   try {
     await db.migrate();
     const media = createMediaStore(options);
+    if (options.homepageOnly) {
+      // Alleen de homepage, altijd vers (niet uit de cache): slider, inspiratie en "over Avanta" bijwerken.
+      const response = await fetch(`${SITE}/`, { headers: { 'User-Agent': USER_AGENT } });
+      if (!response.ok) throw new Error(`homepage: HTTP ${response.status}`);
+      const categories = await db.query('SELECT legacy_id, slug FROM trip_categories WHERE legacy_id IS NOT NULL');
+      const slugByLegacyId = new Map(categories.map((category) => [category.legacy_id, category.slug]));
+      const homepage = homepageData(parsers.parseHome(await response.text()), media, slugByLegacyId);
+      const result = await media.download(db);
+      console.log(`Homepage: ${homepage.slides.length} dia's, afbeeldingen lokaal: ${result.ok}, mislukt: ${result.failed.length}`);
+      console.log(`Opgeslagen in ${writeHomepage(withExistingImages(homepage))}`);
+      for (const line of result.failed.slice(0, 20)) console.warn(`  let op: ${line}`);
+      return;
+    }
     const data = await collect(createFetcher(options), media);
     const counts = await store(db, data);
     console.log('Geïmporteerd:', counts);
     console.log(`Afbeeldingen: ${media.count()} gevonden`);
     const result = await media.download(db);
     console.log(`Afbeeldingen lokaal: ${result.ok}, mislukt: ${result.failed.length}`);
+    if (data.homepage) console.log(`Homepage opgeslagen in ${writeHomepage(withExistingImages(data.homepage))}`);
     for (const line of [...data.warnings, ...result.failed].slice(0, 50)) console.warn(`  let op: ${line}`);
   } finally {
     await db.close();
   }
+}
+
+/**
+ * Haalt foto's uit de homepage-inhoud die niet gedownload konden worden, zodat de site geen kapotte afbeelding toont
+ * (de route vult dan een foto van een reis in).
+ * @param {object} homepage Inhoud voor `homepage.json`.
+ * @returns {object} Dezelfde inhoud met alleen bestaande foto's.
+ */
+function withExistingImages(homepage) {
+  const keep = (image) => (image && fs.existsSync(path.join(MEDIA_DIR, path.basename(image))) ? image : '');
+  return {
+    ...homepage,
+    slides: homepage.slides.map((slide) => ({ ...slide, image: keep(slide.image) })),
+    inspiration: homepage.inspiration.map((item) => ({ ...item, image: keep(item.image) })),
+    about: { ...homepage.about, image: keep(homepage.about.image) },
+  };
 }
 
 if (require.main === module) {
@@ -387,4 +506,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { cacheName, rewriteLink, summarize, readSitemaps, collect, store, createMediaStore };
+module.exports = { cacheName, rewriteLink, summarize, readSitemaps, collect, store, createMediaStore, homepageLink, homepageData, withExistingImages };

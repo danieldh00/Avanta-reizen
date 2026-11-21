@@ -47,6 +47,13 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   `app/src/site/icons.js` (inline, geen iconfont). De kop is vast met papierrand en op de homepage doorzichtig boven de
   foto; op mobiel schuift een terracotta menu van links in. Social-media-iconen in de voettekst verschijnen zodra de
   adressen in Beheer > Organisatie > Contact zijn ingevuld.
+  De **homepage** volgt de huidige site: slider (wisselt automatisch, niet bij "minder beweging"), filterbalk naar
+  `/reis/` (met `nieuw=1` voor nieuwe reizen bovenaan), last-minutes met label Nieuw/Volgeboekt, reistypes met icoon,
+  inspiratie-slider, bestemmingsbanners, blog en "over Avanta". Reizen, types, bestemmingen en blog komen uit de
+  database; de vaste teksten en foto's (slider, inspiratie, "over Avanta", sectietitels) staan tot CMS-pakket H in
+  `DATA_DIR/homepage.json` (`app/src/site/homepage.js`, alles gecontroleerd). De import schrijft dat bestand; los
+  vernieuwen kan met `node tools/import-wordpress.js --alleen-homepage`, en `install.sh` doet dat zelf als het bestand
+  ontbreekt. Een videodia van de huidige site wordt een foto (de stilstaande afbeelding van de video).
 - **CRM** op `/app/` (in opbouw, zie `docs/OPZET-CRM.md`): inloggen met e-mail en wachtwoord (scrypt, minimaal 12
   tekens), rollen `beheerder`, `kantoor`, `reisleider` en `boekhouding` met vaste rechten (`app/src/crm/rights.js`,
   per route gecontroleerd met `requireRight`), gebruikersbeheer en een auditlog op `/app/auditlog/`.

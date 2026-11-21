@@ -25,7 +25,7 @@ function createContent(db) {
   return {
     /**
      * Toekomstige reizen, op vertrekdatum, optioneel gefilterd.
-     * @param {{destination?: string, type?: string, departure?: string, search?: string, limit?: number, onlyAvailable?: boolean, before?: string}} [filter] Filters (categorieslugs, datum).
+     * @param {{destination?: string, type?: string, departure?: string, search?: string, limit?: number, onlyAvailable?: boolean, before?: string, newFirst?: boolean}} [filter] Filters (categorieslugs, datum); `newFirst` zet nieuwe reizen bovenaan.
      * @returns {Promise<object[]>} Reizen.
      */
     async upcomingTrips(filter = {}) {
@@ -45,7 +45,8 @@ function createContent(db) {
       if (filter.onlyAvailable) conditions.push('NOT t.fully_booked');
       if (filter.search) conditions.push(`(t.title ILIKE ${param(`%${filter.search}%`)} OR t.trip_code ILIKE $${params.length} OR array_to_string(t.destinations, ' ') ILIKE $${params.length})`);
       const limit = filter.limit ? ` LIMIT ${param(filter.limit)}` : '';
-      return db.query(`SELECT ${TRIP_CARD_COLUMNS} FROM trips t WHERE ${conditions.join(' AND ')} ORDER BY t.departure_date, t.title${limit}`, params);
+      const order = filter.newFirst ? 't.is_new DESC, t.departure_date, t.title' : 't.departure_date, t.title';
+      return db.query(`SELECT ${TRIP_CARD_COLUMNS} FROM trips t WHERE ${conditions.join(' AND ')} ORDER BY ${order}${limit}`, params);
     },
 
     /**
