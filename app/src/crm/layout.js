@@ -12,6 +12,7 @@ const ASSET_VERSION = require('../../package.json').version;
 /** Menu van het CRM; een item verschijnt alleen als de gebruiker het recht heeft (de server controleert opnieuw). `global`: niet voor rollen die tot eigen vertrekken beperkt zijn. */
 const CRM_MENU = [
   { label: 'Overzicht', href: '/app/' },
+  { label: 'Aanmeldingen', href: '/app/aanmeldingen/', right: 'aanmeldingen', global: true },
   { label: 'Deelnemers', href: '/app/deelnemers/', right: 'deelnemers', global: true },
   { label: 'Gebruikers', href: '/app/gebruikers/', right: 'gebruikers' },
   { label: 'Auditlog', href: '/app/auditlog/', right: 'gebruikers' },

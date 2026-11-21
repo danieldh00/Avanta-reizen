@@ -260,10 +260,19 @@ h3 { font-size: 1.25rem; margin: 1.5rem 0 .5rem; }
 .crm-block h3 { margin: 0 0 .5rem; font-size: 1.1rem; }
 .crm-block .form { display: grid; gap: .75rem; }
 .crm-block input:not([type="checkbox"]), .crm-block select, .crm-block textarea { width: 100%; max-width: 100%; }
-.crm-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .25rem 1rem; margin: 0; }
-.crm-facts dt { color: var(--av-muted); }
+.crm-facts { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: .25rem 1rem; margin: 0; }
+.crm-facts dt { color: var(--av-muted); overflow-wrap: anywhere; }
 .crm-facts dd { margin: 0; overflow-wrap: anywhere; }
 .crm-badge { display: inline-block; padding: 0 .4rem; font-size: .8rem; background: var(--av-soft); border: 1px solid var(--av-accent); border-radius: var(--av-radius); }
+/* Aanmeldingen: statuslabel en historie. */
+.crm-status { display: inline-block; padding: 0 .5rem; font-size: .85rem; border-radius: var(--av-radius); border: 1px solid var(--av-line); background: var(--av-white); }
+.crm-status--bevestigd, .crm-status--aanbetaald { border-color: var(--av-accent); }
+.crm-status--betaald { background: var(--av-soft); border-color: var(--av-accent); }
+.crm-status--geannuleerd { color: var(--av-muted); text-decoration: line-through; }
+.crm-history { margin: 0; padding-left: 1.25rem; display: grid; gap: .75rem; }
+.crm-history p { margin: .25rem 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.crm-history__when { display: block; color: var(--av-muted); font-size: .9rem; }
+.crm-search select { max-width: 100%; }
 @media (max-width: 800px) { .crm-columns { grid-template-columns: minmax(0, 1fr); gap: 1rem; } }
 /* Tweestapsverificatie: QR-code, sleutel om over te typen en herstelcodes. */
 .crm-qr { display: block; width: 220px; max-width: 100%; height: auto; border: 1px solid var(--av-line); }

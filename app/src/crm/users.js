@@ -11,6 +11,7 @@ const { hashPassword, passwordProblem, MAX_LENGTH } = require('./passwords');
 const { renderCrmPage, renderInput, renderAlert, formatDateTime } = require('./layout');
 const { PERSON_ACTION_LABELS } = require('./person-routes');
 const { MERGE_ACTION_LABELS } = require('./person-merge-routes');
+const { BOOKING_ACTION_LABELS } = require('./booking-routes');
 
 /** Aantal regels per pagina van het auditlog. */
 const AUDIT_PAGE_SIZE = 100;
@@ -50,6 +51,7 @@ const ACTION_LABELS = {
   'instelling.teruggezet': 'Instelling teruggezet naar de startwaarde',
   ...PERSON_ACTION_LABELS,
   ...MERGE_ACTION_LABELS,
+  ...BOOKING_ACTION_LABELS,
 };
 
 /**
