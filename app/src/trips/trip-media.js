@@ -68,14 +68,15 @@ function createTripMedia(options) {
    * @param {(number|string)} tripId Id van de reis.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client) => Promise`).
    * @param {Function} change `(client, tripId) => Promise<string>`: geeft 'ok' of een andere uitkomst.
+   * @param {{sync?: boolean}} [options] `sync: false` laat de afgeleide fotokolommen staan (alleen tekst gewijzigd).
    * @returns {Promise<string>} 'ok', 'weg' (geen reis) of de uitkomst van de wijziging.
    */
-  const withTrip = (tripId, context, change) => db.transaction(async (client) => {
+  const withTrip = (tripId, context, change, options = {}) => db.transaction(async (client) => {
     const [trip] = await client.query('SELECT id FROM trips WHERE id = $1 FOR UPDATE', [Number(tripId)]);
     if (!trip) return 'weg';
     const outcome = await change(client, trip.id);
     if (outcome !== 'ok') return outcome;
-    await syncTripImages(client, trip.id, context.userId);
+    if (options.sync !== false) await syncTripImages(client, trip.id, context.userId);
     await context.audit(client);
     return 'ok';
   });
@@ -156,18 +157,20 @@ function createTripMedia(options) {
   });
 
   /**
-   * Zet titel en subtitel van de galerij.
+   * Zet titel en subtitel van de galerij. Raakt de foto's niet: de galerij wordt niet opnieuw geschreven, zodat
+   * galerijfoto's uit de import zonder rij in de bibliotheek blijven staan.
    * @param {(number|string)} tripId Id van de reis.
    * @param {{title: string, subtitle: string}} texts Teksten.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit.
    * @returns {Promise<('ok'|'weg')>} Uitkomst.
    */
   const setGalleryText = (tripId, texts, context) => withTrip(tripId, context, async (client, id) => {
-    await client.query('UPDATE trips SET gallery_title = $2, gallery_subtitle = $3 WHERE id = $1', [
-      id, cleanText(texts.title, GALLERY_TEXT_LIMIT), cleanText(texts.subtitle, GALLERY_TEXT_LIMIT),
-    ]);
+    await client.query(
+      'UPDATE trips SET gallery_title = $2, gallery_subtitle = $3, updated_at = now(), updated_by = $4, managed_in_crm = true WHERE id = $1',
+      [id, cleanText(texts.title, GALLERY_TEXT_LIMIT), cleanText(texts.subtitle, GALLERY_TEXT_LIMIT), context.userId],
+    );
     return 'ok';
-  });
+  }, { sync: false });
 
   return { list, add, move, remove, setGalleryText };
 }

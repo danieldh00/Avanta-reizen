@@ -195,4 +195,13 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.equal(elsewhere.headers.get('location'), '/app/fotobibliotheek/?geupload=1');
     assert.match((await request(`${tripsBase}?geupload=1`, { cookie: kantoor.cookie })).text, /1 foto geüpload/);
   });
+
+  await t.test('alleen de galerijtekst wijzigen laat de galerij (ook foto\'s uit de import) staan', async () => {
+    const gallery = [{ url: '/media/niet-in-de-bibliotheek.jpg', alt: '' }];
+    await db.query('UPDATE trips SET gallery = $2 WHERE id = $1', [trip.id, JSON.stringify(gallery)]);
+    assert.equal((await request(`${tripsBase}galerij/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, gallery_title: 'Nieuwe titel', gallery_subtitle: '' } })).status, 303);
+    const row = await tripRow();
+    assert.deepEqual(row.gallery, gallery);
+    assert.equal(row.gallery_title, 'Nieuwe titel');
+  });
 });

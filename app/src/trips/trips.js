@@ -281,7 +281,7 @@ function createTrips(options) {
   const update = async (id, values, context) => {
     try {
       return await db.transaction(async (client) => {
-        const [current] = await client.query('SELECT id, slug, published FROM trips WHERE id = $1 FOR UPDATE', [Number(id)]);
+        const [current] = await client.query('SELECT id, slug FROM trips WHERE id = $1 FOR UPDATE', [Number(id)]);
         if (!current) return { status: 'weg' };
         await client.query(
           `UPDATE trips SET slug = $2, title = $3, tagline = $4, summary = $5, body_html = $6, trip_code = $7, departure_date = $8,
@@ -293,8 +293,8 @@ function createTrips(options) {
           [current.id, ...columnValues({ ...values, userId: context.userId })],
         );
         await writeLinks(client, current.id, values);
-        // Een concept dat nooit op de site stond heeft geen oud adres om door te verwijzen.
-        const moved = current.slug !== values.slug && (current.published || values.published);
+        // Altijd een 301, ook bij een concept: een reis kan eerder gepubliceerd zijn geweest (en dat staat nergens vast).
+        const moved = current.slug !== values.slug;
         if (moved) await recordMove(client, { fromPath: tripPath(current.slug), toPath: tripPath(values.slug), userId: context.userId, note: 'Automatisch: slug van reis gewijzigd' });
         await context.audit(client);
         return { status: 'ok', moved };
