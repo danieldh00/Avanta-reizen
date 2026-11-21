@@ -19,6 +19,9 @@ const EXPORT_LIMIT = 30;
 /** Venster van de exportlimiet (minuten). */
 const EXPORT_WINDOW_MINUTES = 10;
 
+/** Hoogstens zoveel deelnemers in één lijst (een vertrek heeft er veel minder; dit begrenst geheugen en ontsleutelen). */
+const MAX_ROWS = 1000;
+
 /** Hoogstens zoveel reizen in het overzicht. */
 const MAX_TRIPS = 300;
 
@@ -107,9 +110,10 @@ function createParticipantListRoutes(options) {
         }));
       }
       if (!limiter.hit(`gebruiker:${req.user.id}`)) {
-        return res.status(429).send(await renderOverview(req, { error: `Je hebt het maximum van ${EXPORT_LIMIT} exports per ${EXPORT_WINDOW_MINUTES} minuten bereikt. Probeer het straks opnieuw.` }));
+        return res.status(429).type('text').send(`Je hebt het maximum van ${EXPORT_LIMIT} exports per ${EXPORT_WINDOW_MINUTES} minuten bereikt. Probeer het straks opnieuw.`);
       }
-      const rows = await loadParticipants(db, trip.id);
+      const rows = await loadParticipants(db, trip.id, MAX_ROWS);
+      if (rows.length > MAX_ROWS) return res.status(422).type('text').send(`Deze reis heeft meer dan ${MAX_ROWS} deelnemers; zo'n lijst maakt het CRM niet in één keer.`);
       const file = buildParticipantWorkbook({ trip, rows, categories: requested, openBlock: persons.openBlock, userName: req.user.name });
       // Eerst loggen: een export die niet gelogd kan worden gaat niet de deur uit.
       await db.transaction(async (client) => {
@@ -129,4 +133,4 @@ function createParticipantListRoutes(options) {
   return router;
 }
 
-module.exports = { createParticipantListRoutes, PARTICIPANT_LIST_ACTION_LABELS, EXPORT_LIMIT };
+module.exports = { createParticipantListRoutes, PARTICIPANT_LIST_ACTION_LABELS, EXPORT_LIMIT, MAX_ROWS };

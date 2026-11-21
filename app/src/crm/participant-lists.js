@@ -108,9 +108,10 @@ const BOOKING_EXTRA = ['travel_with', 'earlier_trip', 'credit_card', 'driver_int
  * Leest de reis en de deelnemers (aanmeldingen die niet geannuleerd zijn) van één vertrek, in één query.
  * @param {{query: Function}} db Database.
  * @param {number} tripId Id van de reis.
+ * @param {number} max Hoogstens zoveel rijen; er komt er één meer terug als de reis er meer heeft (dan weigeren).
  * @returns {Promise<Array<object>>} Rijen op achternaam; `plain` bevat de NAW-velden (persoon, anders formulier).
  */
-async function loadParticipants(db, tripId) {
+async function loadParticipants(db, tripId, max) {
   const rows = await db.query(
     `SELECT b.id, b.reference, b.status, b.created_at, b.person_id, ${BOOKING_EXTRA.map((name) => `b.${name}`).join(', ')},
             ${PLAIN_FIELDS.map((name) => `b.${name} AS booking_${name}, p.${name} AS person_${name}`).join(', ')},
@@ -119,8 +120,9 @@ async function loadParticipants(db, tripId) {
             EXISTS (SELECT 1 FROM consents c WHERE c.person_id = p.id AND c.kind = $3 AND c.withdrawn_at IS NULL) AS consent_health
        FROM bookings b LEFT JOIN persons p ON p.id = b.person_id
       WHERE b.trip_id = $1 AND b.status <> 'geannuleerd'
-      ORDER BY lower(coalesce(p.last_name, b.last_name)), lower(coalesce(p.first_names, b.first_names)), b.id`,
-    [tripId, BLOCK_CONSENTS.special_data, BLOCK_CONSENTS.health_data],
+      ORDER BY lower(coalesce(p.last_name, b.last_name)), lower(coalesce(p.first_names, b.first_names)), b.id
+      LIMIT $4`,
+    [tripId, BLOCK_CONSENTS.special_data, BLOCK_CONSENTS.health_data, max + 1],
   );
   return rows.map((row, index) => ({
     ...row,
