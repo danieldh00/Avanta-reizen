@@ -165,12 +165,16 @@ function createAuth(options) {
   };
 
   /**
-   * Of tweestapsverificatie verplicht is voor een rol: altijd voor rollen met een `gegevens.*`-recht, en voor alle
-   * rollen als Beheer > Toegang en beveiliging > Tweestapsverificatie op *iedereen* staat (de standaard).
+   * Of tweestapsverificatie verplicht is voor een rol, volgens Beheer > Toegang en beveiliging > Tweestapsverificatie:
+   * *niemand* (standaard: optioneel, ieder zet het zelf aan), *gegevens* (rollen met een `gegevens.*`-recht) of
+   * *iedereen*. Wie 2FA heeft aangezet, moet bij het inloggen altijd de code geven, ook als het niet verplicht is.
    * @param {string} role Rol.
    * @returns {boolean} Waar als de rol 2FA moet hebben.
    */
-  const mfaRequiredFor = (role) => roleNeedsMfa(role) || (options.settings ? options.settings.get('mfaRequiredFor') : 'iedereen') === 'iedereen';
+  const mfaRequiredFor = (role) => {
+    const policy = options.settings ? options.settings.get('mfaRequiredFor') : 'niemand';
+    return policy === 'iedereen' || (policy === 'gegevens' && roleNeedsMfa(role));
+  };
 
   /**
    * Maakt een nieuwe sessie (na inloggen) en zet de cookie. Ruimt meteen verlopen sessies op (via de index op
@@ -274,7 +278,7 @@ function createAuth(options) {
         return next();
       }
       req.user = account;
-      req.session = { tokenHash, mfaOk: row.mfa_ok, csrf: csrfToken(tokenHash) };
+      req.session = { tokenHash, mfaOk: row.mfa_ok, setupOk: row.mfa_setup_ok, csrf: csrfToken(tokenHash) };
       return next();
     } catch (error) {
       return next(error);

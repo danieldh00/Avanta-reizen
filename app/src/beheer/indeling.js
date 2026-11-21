@@ -84,7 +84,7 @@ const GROUPS = [
       {
         id: 'tweestaps',
         label: 'Tweestapsverificatie',
-        intro: 'Na het wachtwoord vraagt het CRM een code uit een authenticator-app (bijv. Microsoft Authenticator of Google Authenticator). Een geraden of gelekt wachtwoord is dan niet genoeg om in te loggen. Kan iemand niet meer bij de app (toestel kwijt), dan zet een beheerder de tweestapsverificatie van die gebruiker uit onder Gebruikers.',
+        intro: 'Na het wachtwoord vraagt het CRM een code uit een authenticator-app (bijv. Microsoft Authenticator of Google Authenticator). Een geraden of gelekt wachtwoord is dan niet genoeg om in te loggen. Standaard is het optioneel: ieder zet het zelf aan onder Tweestapsverificatie; hier kun je het verplicht maken. Kan iemand niet meer bij de app (toestel kwijt), dan zet een beheerder de tweestapsverificatie van die gebruiker uit onder Gebruikers.',
         fields: ['mfaRequiredFor'],
         words: 'tweestapsverificatie 2fa mfa totp authenticator app code herstelcode inloggen beveiliging',
       },

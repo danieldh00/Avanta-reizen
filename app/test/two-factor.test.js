@@ -153,10 +153,20 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
   let officeRecovery = [];
   let adminAfterSetup = '';
 
-  await t.test('installatiesessie is volledig, met een herinnering om 2FA in te stellen', async () => {
+  await t.test('standaard optioneel: inloggen zonder 2FA, aanzetten alleen met een activatiecode', async () => {
     assert.equal(adminHome.status, 200);
-    assert.match(adminHome.text, /Tweestapsverificatie staat nog uit/);
-    assert.match(adminHome.text, /verplicht vanaf de volgende keer/);
+    assert.match(adminHome.text, /Tweestapsverificatie staat nog uit voor je account\./, 'herinnering, niet verplicht');
+    const direct = await firstStep('kees@example.nl', OFFICE_PASSWORD);
+    assert.equal(direct.headers.get('location'), '/app/', 'zonder 2FA direct een volledige sessie');
+    const page = await request('/app/tweestaps/', { cookie: direct.cookie });
+    assert.match(page.text, /action="\/app\/tweestaps\/activeren\/"/, 'ook ingelogd eerst de activatiecode');
+    const csrf = csrfFrom(page.text);
+    assert.equal((await request('/app/tweestaps/instellen/', { cookie: direct.cookie, form: { _csrf: csrf } })).headers.get('location'), '/app/tweestaps/');
+    assert.equal((await db.query('SELECT totp_secret FROM users WHERE id = $1', [officeId]))[0].totp_secret, null, 'een gelekt wachtwoord koppelt geen eigen app');
+    assert.equal((await request('/app/tweestaps/bevestigen/', { cookie: direct.cookie, form: { _csrf: csrf, code: '123456' } })).headers.get('location'), '/app/tweestaps/');
+    await request('/app/uitloggen/', { cookie: direct.cookie, form: { _csrf: csrfFrom((await request('/app/', { cookie: direct.cookie })).text) } });
+    // De rest van deze tests gaat over verplichte 2FA.
+    await settings.update({ values: { mfaRequiredFor: 'iedereen' } });
   });
 
   await t.test('halve sessie na het wachtwoord: alleen 2FA instellen bereikbaar', async () => {
@@ -356,7 +366,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
 
   await t.test('instelling "alleen bijzondere gegevens": boekhouding zonder 2FA, aanzetten en uitzetten kan', async () => {
     const forced = await firstStep('bea@example.nl', BOOKKEEPER_PASSWORD);
-    assert.equal(forced.headers.get('location'), '/app/tweestaps/', 'standaard verplicht voor iedereen');
+    assert.equal(forced.headers.get('location'), '/app/tweestaps/', 'verplicht voor iedereen');
     await settings.update({ values: { mfaRequiredFor: 'gegevens' } });
     assert.equal((await request('/app/', { cookie: forced.cookie })).status, 200, 'na de wijziging geldt de halve sessie als volledig');
     const direct = await firstStep('bea@example.nl', BOOKKEEPER_PASSWORD);
@@ -364,7 +374,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     const home = await request('/app/', { cookie: direct.cookie });
     assert.match(home.text, /Tweestapsverificatie staat nog uit voor je account\./);
     // Zelf aanzetten (volledige sessie, dus zonder activatiecode): andere sessies vervallen, de huidige blijft.
-    const enabled = await enableTwoFactor(request, direct.cookie, { now: clock });
+    const enabled = await enableTwoFactor(request, direct.cookie, { now: clock, admin: { cookie: adminCookie, csrf: adminCsrf }, email: 'bea@example.nl' });
     assert.equal(enabled.cookie, direct.cookie, 'een volledige sessie houdt haar token');
     assert.equal((await request('/app/', { cookie: direct.cookie })).status, 200);
     assert.equal((await request('/app/', { cookie: forced.cookie })).status, 303, 'andere sessie uitgelogd');

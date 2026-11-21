@@ -11,9 +11,10 @@
  *   nooit; raden met veel IP-adressen tegelijk levert dus hoogstens een halve sessie op.
  * - `/app/tweestaps/`: stand, aanzetten (QR-code + bevestigen met een code), nieuwe herstelcodes en uitzetten (alleen
  *   als het voor de rol niet verplicht is, met wachtwoord én code). Ook bereikbaar met een halve sessie als 2FA
- *   verplicht is maar nog niet is ingesteld; die moet eerst de **activatiecode** geven die de beheerder heeft gemaakt
- *   (eenmalig, 7 dagen geldig, alleen als SHA-256 bewaard). Zo is een gelekt of tijdelijk wachtwoord alleen niet
- *   genoeg om een eigen authenticator te koppelen. De eerste beheerder gebruikt de installatiecode als activatiecode.
+ *   verplicht is maar nog niet is ingesteld. 2FA is standaard optioneel (instelling `mfaRequiredFor`). Wie het aanzet,
+ *   geeft eerst de **activatiecode** die de beheerder heeft gemaakt (eenmalig, 7 dagen geldig, alleen als SHA-256
+ *   bewaard, gebonden aan de sessie die hem gaf). Zo is een gelekt of tijdelijk wachtwoord nooit genoeg om een eigen
+ *   authenticator te koppelen. De eerste beheerder gebruikt de installatiecode als activatiecode.
  * Een beheerder zet de 2FA van een collega uit en maakt activatiecodes via `crm/users.js`.
  */
 const crypto = require('node:crypto');
@@ -323,17 +324,19 @@ function createTwoFactorRoutes(options) {
    * @returns {({id: number, email: string, name: string, role: string, csrf: string, pending: boolean}|null)} Account, of null.
    */
   const accountOf = (req) => {
-    if (req.user) return { ...req.user, csrf: req.session.csrf, pending: false };
+    if (req.user) return { ...req.user, csrf: req.session.csrf, tokenHash: req.session.tokenHash, setupOk: req.session.setupOk, pending: false };
     if (req.pending && req.pending.step === 'setup') return { ...req.pending, pending: true };
     return null;
   };
 
   /**
-   * Of dit account 2FA mag instellen: een ingelogde gebruiker altijd, een halve sessie pas na de activatiecode.
+   * Of dit account 2FA mag instellen: pas nadat deze sessie de activatiecode van de beheerder heeft gegeven. Dat geldt
+   * ook voor een ingelogde gebruiker zonder 2FA: die sessie bewijst alleen het wachtwoord, en een gelekt wachtwoord mag
+   * nooit genoeg zijn om een eigen app te koppelen.
    * @param {object} account Account (`accountOf`).
    * @returns {boolean} Waar als instellen mag.
    */
-  const mayConfigure = (account) => !account.pending || account.setupOk === true;
+  const mayConfigure = (account) => account.setupOk === true;
 
   /**
    * Middleware: een ingelogde gebruiker of een halve sessie die 2FA moet instellen; anders als `requireLogin`.

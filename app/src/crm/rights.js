@@ -45,7 +45,7 @@ function roleHasRight(role, right) {
 }
 
 /**
- * Of een rol een recht op bijzondere of identiteitsgegevens heeft (dan wordt 2FA verplicht, vanaf CRM-PR 2).
+ * Of een rol een recht op bijzondere of identiteitsgegevens heeft (dan is 2FA verplicht als Beheer dat voor deze rollen instelt).
  * @param {string} role Rol.
  * @returns {boolean} Waar als de rol een `gegevens.*`-recht heeft.
  */

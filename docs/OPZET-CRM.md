@@ -94,8 +94,9 @@ de HTML verbergt alleen. Reisleider-rechten gelden altijd alleen voor vertrekken
 | `export.deelnemers` (.xlsx) | ✔ | ✔ (volledig) | eigen vertrek (beperkt) | – |
 | `kpis` | ✔ | ✔ | – | ✔ (financieel) |
 
-- 2FA altijd verplicht voor elke rol met een `gegevens.*`-recht (dus beheerder, kantoor, reisleider); standaard ook voor
-  boekhouding (instelbaar in Beheer).
+- 2FA is optioneel (besluit Daniël 21-11-2026): ieder zet het zelf aan; in Beheer kan het verplicht worden voor rollen
+  met een `gegevens.*`-recht of voor iedereen. Een gelekt wachtwoord mag nooit genoeg zijn om 2FA te koppelen: daarvoor
+  is altijd een activatiecode van de beheerder nodig.
 - Bijzondere gegevens worden nooit in lijsten getoond, alleen op de detailpagina na een klik *Toon* (dat is het
   auditmoment). Exports met bijzondere gegevens worden gelogd.
 
@@ -142,10 +143,10 @@ database in de back-up.
 - **Inloggen**: e-mail + wachtwoord; hash met scrypt (Node `crypto`, geen extra pakket), minimaal 12 tekens, rehash bij
   inloggen. Sessie in tabel `sessions` (alleen SHA-256 van het token), cookie `HttpOnly`, `Secure`, `SameSite=Strict`,
   verloop na inactiviteit (bijv. 8 uur) en maximaal 7 dagen.
-- **2FA**: TOTP (authenticator-app), eigen implementatie op `crypto`; herstelcodes eenmalig getoond. Altijd verplicht voor
-  rollen met `gegevens.*`; standaard voor iedereen (instelling `mfaRequiredFor`). Zonder `mfa_ok` alleen de codestap of
-  de 2FA-pagina bereikbaar (halve sessie, 15 minuten); instellen vanuit een halve sessie vraagt een activatiecode van de
-  beheerder (eerste beheerder: de installatiecode). Gebouwd in M9 (`crm/totp.js`, `crm/two-factor.js`).
+- **2FA**: TOTP (authenticator-app), eigen implementatie op `crypto`; herstelcodes eenmalig getoond. Standaard
+  optioneel; verplicht te maken per instelling `mfaRequiredFor` (niemand / rollen met `gegevens.*` / iedereen). Wie 2FA
+  aan heeft of moet hebben: zonder `mfa_ok` alleen de codestap of de 2FA-pagina bereikbaar (halve sessie, 15 minuten).
+  Aanzetten vraagt altijd een activatiecode van de beheerder (eerste beheerder: de installatiecode). Gebouwd in M9 (`crm/totp.js`, `crm/two-factor.js`).
 - **Eerste beheerder**: eenmalige installatiecode in het serverlog, zoals AquaTech.
 - **Rechten op de server**: middleware `requireRight(recht)` per route; vertrek-scope voor reisleider in de query zelf
   (`JOIN trip_guides … WHERE guide_id = $1`). Onbekend of niet-eigen record → 404, ontbrekend recht → 403.
@@ -178,7 +179,7 @@ met eigen migraties na de CRM-kern.
 | 10+ | later: reisleider-toegang, e-mails, facturen + export, betaalprovider, KPI's-dashboard, content-beheer | per PR |
 
 ## Aanbevolen MVP
-- Inloggen met rollen en verplichte 2FA voor wie bijzondere gegevens ziet (PR 1–2).
+- Inloggen met rollen en 2FA (optioneel, in Beheer verplicht te maken) (PR 1–2).
 - Personen ontdubbeld, met versleuteling per categorie en apart vastgelegde art. 9-toestemming (PR 3).
 - Aanmeldingen met status en wachtlijst, plus reizen beheren met capaciteit en een berekende plaatsen-teller (PR 4–5).
 - Deelnemerslijst per vertrek als .xlsx en handmatig afboeken van betalingen (PR 6–7).

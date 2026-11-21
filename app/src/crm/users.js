@@ -262,7 +262,7 @@ function createUserRoutes(options) {
           <input type="hidden" name="_csrf" value="${req.session.csrf}">
           <button class="btn btn--outline" type="submit">Tweestapsverificatie uitzetten</button>
         </form>`
-    : html`<p>Staat uit${auth.mfaRequiredFor(target.role) ? '; de gebruiker stelt het in bij de volgende keer inloggen' : ''}.
+    : html`<p>Staat uit${auth.mfaRequiredFor(target.role) ? '; de gebruiker stelt het in bij de volgende keer inloggen' : ' (optioneel voor deze gebruiker)'}.
           Daarvoor is een activatiecode nodig: maak die hier en geef hem persoonlijk door (niet in dezelfde mail als het
           wachtwoord). Zo is het wachtwoord alleen nooit genoeg om een eigen app te koppelen.</p>
         ${state.activationCode
