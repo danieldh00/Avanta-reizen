@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.26.1 — 2026-11-21 — Overzicht openstaande betalingen met Excel-export
+
+- Onder Reizigers > Betalingen zie je in één lijst wie nog moet betalen, wie te laat is en waar te veel is betaald,
+
+- `/app/betalingen/` (recht `betalingen`, `crm/payment-overview-routes.js`): weergaven nog te betalen, te laat, te veel
+  betaald en alles; filter op reis; totaal openstaand. Totalen per aanmelding in één query, berekening via
+  `payments.summarize`.
+- `/app/betalingen/overzicht.xlsx`: zelfde lijst als .xlsx met blad *Over deze export*; audit `export.betalingen`,
+  limiet 30 per 10 minuten per gebruiker.
+- Menu-item *Betalingen* onder Reizigers met een eigen euro-icoon.
+
 ## 0.26.0 — 2026-11-21 — Betalingen per aanmelding registreren
 
 - Per aanmelding zie je in het CRM wat er verwacht wordt (reissom, SGR-garantie, boekingskosten, kortingen) en wat er
