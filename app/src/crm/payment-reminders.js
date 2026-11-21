@@ -19,6 +19,9 @@ const MAX_PER_RUN = 200;
 /** Binnen zoveel minuten geen tweede herinnering met de hand voor dezelfde termijn (dubbelklik, twee tabbladen). */
 const MANUAL_GAP_MINUTES = 10;
 
+/** Melding van een poging die nog bezig is (vastgelegd vóór het versturen). */
+const SENDING = 'bezig met versturen';
+
 /** Eerste automatische ronde na het starten, en daarna elke dag. */
 const FIRST_RUN_MS = 10 * 60 * 1000;
 const INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -133,8 +136,8 @@ function createPaymentReminders(options) {
       );
       if (recent) return { status: 'te-snel', kind };
       const [row] = await client.query(
-        "INSERT INTO payment_reminders (booking_id, kind, trigger, sent, error, created_by, created_at) VALUES ($1, $2, $3, false, 'bezig met versturen', $4, $5) RETURNING id",
-        [booking.id, kind, input.trigger, input.userId ?? null, new Date(now()).toISOString()],
+        "INSERT INTO payment_reminders (booking_id, kind, trigger, sent, error, created_by, created_at) VALUES ($1, $2, $3, false, $6, $4, $5) RETURNING id",
+        [booking.id, kind, input.trigger, input.userId ?? null, new Date(now()).toISOString(), SENDING],
       );
       return { status: 'klaar', booking, summary, kind, rowId: row.id };
     });
@@ -162,6 +165,12 @@ function createPaymentReminders(options) {
    */
   const runDaily = async () => {
     const counts = { sent: 0, failed: 0, skipped: 0 };
+    // Een poging die door een herstart halverwege bleef hangen: blijft meetellen (liever niet dubbel mailen), maar met
+    // een eerlijke melding.
+    await db.query(
+      "UPDATE payment_reminders SET error = $2 WHERE NOT sent AND error = $3 AND created_at < $1::timestamptz - interval '1 hour'",
+      [new Date(now()).toISOString(), 'afgebroken, niet zeker verstuurd', SENDING],
+    );
     if (!settings.get('paymentReminderAuto') || !mailer.configured()) return counts;
     const { rows } = await loadOverview(db, { view: 'te-laat', tripId: null, terms: payments.termsFrom(settings), today: today() });
     if (!rows.length) return counts;

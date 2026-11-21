@@ -16,3 +16,4 @@ titel: Online betalen via Mollie (iDEAL)
   een geslaagde betaling één keer registreert (status schuift door).
 - Betaalherinnering: knop *online betalen* (mail-opmaak kreeg een optionele knop, alleen https). Betaalpagina in het
   CRM: betaallink en lijst met online betalingen.
+- Betaalherinneringen: een poging die door een herstart bleef hangen krijgt bij de volgende ronde de melding *afgebroken, niet zeker verstuurd*.

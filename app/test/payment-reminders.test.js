@@ -184,7 +184,10 @@ test('betaalherinneringen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreek
     const personId = (await db.query("INSERT INTO persons (first_names, call_name, last_name, email, match_key) VALUES ('Piet', 'Piet', 'Bakker', 'nieuw@example.nl', 'x') RETURNING id"))[0].id;
     const linkedId = await booking('AV-2027-PERS0004', { email: 'oud@example.nl' });
     await db.query('UPDATE bookings SET person_id = $2 WHERE id = $1', [linkedId, personId]);
+    await db.query("INSERT INTO payment_reminders (booking_id, kind, trigger, sent, error, created_at) VALUES ($1, 'restant', 'handmatig', false, 'bezig met versturen', $2)", [linkedId, new Date(clock - 2 * 60 * 60 * 1000).toISOString()]);
     assert.deepEqual(await paymentReminders.runDaily(), { sent: 0, failed: 0, skipped: 0 }, 'schakelaar staat uit');
+    const [stale] = await db.query("SELECT error FROM payment_reminders WHERE booking_id = $1 AND kind = 'restant'", [linkedId]);
+    assert.equal(stale.error, 'afgebroken, niet zeker verstuurd', 'hangende poging krijgt een eerlijke melding');
     await settings.update({ values: { paymentReminderAuto: true, paymentReminderEveryDays: '7', paymentReminderMax: '2' } });
     const newId = await booking('AV-2027-NIEUW005', { status: 'nieuw', email: 'derde@example.nl' });
     const first = await paymentReminders.runDaily();
