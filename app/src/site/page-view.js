@@ -18,9 +18,10 @@ const SUMMARY_LENGTH = 200;
 
 /**
  * Een video uit de import: de opschoning maakt van een YouTube-iframe een alinea met alleen de link "Bekijk de
- * video" naar het embed-adres. Het id is altijd 11 tekens uit letters, cijfers, `-` en `_`.
+ * video" naar het embed-adres. Het id is altijd 11 tekens uit letters, cijfers, `-` en `_`. Na een tweede opschoning
+ * (tekstblok opgeslagen in het CRM) staan `target` en `rel` in omgekeerde volgorde; beide vormen tellen.
  */
-const VIDEO_PARAGRAPH = /^<p><a href="https:\/\/www\.youtube(?:-nocookie)?\.com\/embed\/([A-Za-z0-9_-]{11})(?:[?#][^"]*)?" rel="noopener" target="_blank">Bekijk de video<\/a><\/p>$/;
+const VIDEO_PARAGRAPH = /^<p><a href="https:\/\/www\.youtube(?:-nocookie)?\.com\/embed\/([A-Za-z0-9_-]{11})(?:[?#][^"]*)?" (?:rel="noopener" target="_blank"|target="_blank" rel="noopener")>Bekijk de video<\/a><\/p>$/;
 
 /** Hoeveel opgeschoonde HTML er per bericht of pagina in blokken wordt verdeeld (daarboven: één tekstblok). */
 const MAX_BLOCK_SOURCE = 500000;

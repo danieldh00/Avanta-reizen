@@ -230,7 +230,7 @@ function createContent(db) {
      * @returns {Promise<(object|null)>} Pagina of null.
      */
     async pageByPath(path) {
-      const [page] = await db.query('SELECT path, title, pretitle, intro, body_html, image_url FROM pages WHERE path = $1 AND published', [path]);
+      const [page] = await db.query('SELECT path, title, pretitle, intro, blocks, body_html, managed_in_crm, image_url FROM pages WHERE path = $1 AND published', [path]);
       return page || null;
     },
 
