@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { createVault } = require('../src/security/vault');
-const { createPersons } = require('../src/crm/persons');
+const { createPersons, LEGACY_ART9_TEXT_VERSION } = require('../src/crm/persons');
 const { searchPatterns } = require('../src/crm/person-routes');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
@@ -290,6 +290,17 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal((await persons.findPerson(db, personId)).duplicate_of, null);
     assert.equal((await request(`/app/deelnemers/${personId}/niet-dubbel/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } })).status, 404);
     assert.equal((await request(`/app/deelnemers/${personId}/niet-dubbel/`, { cookie: sessions.boek.cookie, form: { _csrf: sessions.boek.csrf } })).status, 403);
+  });
+
+  await t.test('toestemming uit een oud formulier telt niet als gegeven, intrekken kan wel', async () => {
+    const [legacy] = await db.query("INSERT INTO consents (person_id, kind, text_version, given_at) VALUES ($1, 'art9_gezondheid', $2, '2026-01-02T10:00:00Z') RETURNING id", [otherId, LEGACY_ART9_TEXT_VERSION]);
+    const page = await request(`/app/deelnemers/${otherId}/`, { cookie: sessions.kantoor.cookie });
+    assert.match(page.text, /niet los gegeven/);
+    const save = await request(`/app/deelnemers/${otherId}/blok/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, block: 'health_data', particulars: 'Diabetes' } });
+    assert.equal(save.status, 422, 'geen nieuwe gezondheidsgegevens op een oude regel');
+    const withdraw = await request(`/app/deelnemers/${otherId}/toestemming/${legacy.id}/intrekken/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } });
+    assert.equal(withdraw.status, 303);
+    assert.ok((await db.query('SELECT withdrawn_at FROM consents WHERE id = $1', [legacy.id]))[0].withdrawn_at);
   });
 
   await t.test('samenvoegen: zelfverwijzing 404, wederzijdse verwijzing tegelijk zonder deadlock', async () => {

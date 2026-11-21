@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createDatabase } = require('../src/database/db');
 const { createVault } = require('../src/security/vault');
-const { createPersons, LEGACY_TEXT_VERSION } = require('../src/crm/persons');
+const { createPersons, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION } = require('../src/crm/persons');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'persons_test';
@@ -179,13 +179,20 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal(person.email, 'oud@example.nl');
     assert.equal(persons.openBlock('emergency_data', person).emergency_phone, '0644444444');
     assert.equal(persons.openBlock('identity_data', person).birth_date, '1970-01-01');
-    assert.equal(person.health_data, null, 'art. 9 zonder losse toestemming gaat niet mee');
-    assert.equal(person.special_data, null);
+    assert.equal(persons.openBlock('health_data', person).particulars, 'Diabetes', 'art. 9 gaat mee (besluit Daniël)');
+    assert.equal(persons.openBlock('special_data', person).church, 'GKV');
     const consents = await db.query('SELECT kind, text_version, given_at FROM consents WHERE booking_id = $1 ORDER BY kind', [good.id]);
-    assert.deepEqual(consents.map((consent) => consent.kind), ['voorwaarden']);
-    assert.equal(consents[0].text_version, LEGACY_TEXT_VERSION);
-    assert.equal(consents[0].given_at.toISOString(), '2026-01-02T10:00:00.000Z');
+    assert.deepEqual(consents.map((consent) => [consent.kind, consent.text_version]), [
+      ['art9_gezondheid', LEGACY_ART9_TEXT_VERSION],
+      ['art9_religie', LEGACY_ART9_TEXT_VERSION],
+      ['voorwaarden', LEGACY_TEXT_VERSION],
+    ]);
+    assert.ok(consents.every((consent) => consent.given_at.toISOString() === '2026-01-02T10:00:00.000Z'));
     assert.equal((await db.query('SELECT person_id FROM bookings WHERE id = $1', [bad.id]))[0].person_id, null);
     assert.deepEqual(await persons.backfillPersons(db), { converted: 1, failed: 1 }, 'volgende start: de eerder mislukte lukt nu, de kapotte blijft');
+    const [plain] = await insertOld('AV-OUD-3', 'zonder-art9@example.nl', vault.seal({ ...sensitive, church: '', particulars: '' }));
+    assert.deepEqual(await persons.backfillPersons(db), { converted: 1, failed: 1 });
+    const plainConsents = await db.query('SELECT kind FROM consents WHERE booking_id = $1', [plain.id]);
+    assert.deepEqual(plainConsents.map((consent) => consent.kind), ['voorwaarden'], 'lege art. 9-velden: geen art. 9-toestemming');
   });
 });

@@ -36,8 +36,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   met dezelfde afwijking komt bij dat dubbel uit, niet bij weer een nieuwe persoon. Kerkgenootschap en
   bijzonderheden (AVG art. 9) zijn vrijwillig en worden alleen opgeslagen met een eigen toestemmingsvinkje; elke
   toestemming staat met de versie van de tekst in `consents`. Aanmeldingen van vóór migratie 10 zet de app bij het
-  starten zelf om (alleen aantallen in het logboek); hun art. 9-gegevens gaan niet mee, want daarvoor was geen losse
-  toestemming. **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
+  starten zelf om (alleen aantallen in het logboek); hun art. 9-gegevens gaan mee, met een toestemmingsregel met tekstversie
+  `oud-formulier, geen losse art. 9-toestemming` (het oude formulier vroeg die niet los). **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.
 - Afbeeldingen staan in het volume `/data/media` (circa 250 MB na de import).
 - **CRM** op `/app/` (in opbouw, zie `docs/OPZET-CRM.md`): inloggen met e-mail en wachtwoord (scrypt, minimaal 12

@@ -11,7 +11,7 @@ const { formatDate } = require('../site/format');
 const { today } = require('../site/content');
 const { FIELDS, validateFields } = require('../booking/fields');
 const { roleHasRight } = require('./rights');
-const { PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS } = require('./persons');
+const { PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, LEGACY_ART9_TEXT_VERSION } = require('./persons');
 const { renderCrmPage, renderAlert, formatDateTime } = require('./layout');
 
 /** Aantal personen per pagina van de lijst. */
@@ -128,7 +128,8 @@ function createPersonRoutes(options) {
   };
 
   /**
-   * Of er voor een art. 9-blok een geldige (niet ingetrokken) toestemming is.
+   * Of er voor een art. 9-blok een geldige (niet ingetrokken) toestemming is. Een regel uit een omgezette oude
+   * aanmelding (`LEGACY_ART9_TEXT_VERSION`) telt niet: die toestemming is nooit los gegeven.
    * @param {{query: Function}} client Database of transactie-client.
    * @param {number} personId Id van de persoon.
    * @param {string} block Naam van het blok.
@@ -137,8 +138,8 @@ function createPersonRoutes(options) {
   const hasConsentFor = async (client, personId, block) => {
     if (!BLOCK_CONSENTS[block]) return true;
     const [row] = await client.query(
-      'SELECT EXISTS (SELECT 1 FROM consents WHERE person_id = $1 AND kind = $2 AND withdrawn_at IS NULL) AS present',
-      [personId, BLOCK_CONSENTS[block]],
+      'SELECT EXISTS (SELECT 1 FROM consents WHERE person_id = $1 AND kind = $2 AND withdrawn_at IS NULL AND text_version <> $3) AS present',
+      [personId, BLOCK_CONSENTS[block], LEGACY_ART9_TEXT_VERSION],
     );
     return row.present;
   };
@@ -275,7 +276,7 @@ function createPersonRoutes(options) {
         <h2>Toestemmingen</h2>
         ${consents.length ? html`<div class="crm-table-wrap"><table class="crm-table">
           <thead><tr><th scope="col">Toestemming</th><th scope="col">Tekstversie</th><th scope="col">Gegeven</th><th scope="col">Ingetrokken</th><th scope="col"><span class="visually-hidden">Actie</span></th></tr></thead>
-          <tbody>${consents.map((consent) => html`<tr><td>${CONSENT_LABELS[consent.kind] || consent.kind}</td><td>${consent.text_version}</td><td>${formatDateTime(consent.given_at)}</td><td>${formatDateTime(consent.withdrawn_at)}</td>
+          <tbody>${consents.map((consent) => html`<tr><td>${CONSENT_LABELS[consent.kind] || consent.kind}</td><td>${consent.text_version}</td><td>${consent.text_version === LEGACY_ART9_TEXT_VERSION ? html`niet los gegeven (aanmelding ${formatDateTime(consent.given_at)})` : formatDateTime(consent.given_at)}</td><td>${formatDateTime(consent.withdrawn_at)}</td>
             <td>${canChange && consent.kind !== 'voorwaarden' && !consent.withdrawn_at ? html`<form method="post" action="/app/deelnemers/${person.id}/toestemming/${consent.id}/intrekken/">${hidden}<button class="btn btn--outline btn--small" type="submit">Intrekken en gegevens wissen</button></form>` : ''}</td></tr>`)}</tbody>
         </table></div>` : html`<p>Geen toestemmingen vastgelegd.</p>`}`,
     });
