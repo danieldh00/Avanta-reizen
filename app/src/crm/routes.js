@@ -17,6 +17,7 @@ const { createUserRoutes } = require('./users');
 const { createPersonRoutes } = require('./person-routes');
 const { createPersonMergeRoutes } = require('./person-merge-routes');
 const { createBookingRoutes } = require('./booking-routes');
+const { createMediaRoutes } = require('../media/routes');
 const { createPersons } = require('./persons');
 const { createTwoFactor, createTwoFactorRoutes, SETUP_ACTIVATION_DAYS } = require('./two-factor');
 const { createVault } = require('../security/vault');
@@ -117,7 +118,13 @@ function createCrmRouter(options) {
   // Beheer heeft formulieren met meer en langere velden (bijv. robots.txt-regels); de rest blijft klein.
   const smallForms = express.urlencoded({ extended: false, limit: '16kb', parameterLimit: 20 });
   const beheerForms = express.urlencoded({ extended: false, limit: '64kb', parameterLimit: 100 });
-  router.use((req, res, next) => (req.path.startsWith('/beheer/') ? beheerForms : smallForms)(req, res, next));
+  // De fotobibliotheek heeft een keuzelijst met alle landen (één veld per gekozen land).
+  const mediaForms = express.urlencoded({ extended: false, limit: '64kb', parameterLimit: 400 });
+  router.use((req, res, next) => {
+    if (req.path.startsWith('/beheer/')) return beheerForms(req, res, next);
+    if (req.path.startsWith('/fotobibliotheek/')) return mediaForms(req, res, next);
+    return smallForms(req, res, next);
+  });
   router.use(auth.loadSession);
 
   /**
@@ -402,6 +409,7 @@ function createCrmRouter(options) {
   router.use(createPersonRoutes({ db, auth, persons }));
   router.use(createPersonMergeRoutes({ db, auth, persons }));
   router.use(createBookingRoutes({ db, auth }));
+  router.use(createMediaRoutes({ db, auth, mediaDir: options.mediaDir, now: options.now }));
   router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, now: options.now }));
 
   router.use((req, res) => {

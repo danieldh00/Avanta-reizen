@@ -14,6 +14,7 @@ const CRM_MENU = [
   { label: 'Overzicht', href: '/app/' },
   { label: 'Aanmeldingen', href: '/app/aanmeldingen/', right: 'aanmeldingen', global: true },
   { label: 'Deelnemers', href: '/app/deelnemers/', right: 'deelnemers', global: true },
+  { label: 'Fotobibliotheek', href: '/app/fotobibliotheek/', right: 'media' },
   { label: 'Gebruikers', href: '/app/gebruikers/', right: 'gebruikers' },
   { label: 'Auditlog', href: '/app/auditlog/', right: 'gebruikers' },
   { label: 'Beheer', href: '/app/beheer/', right: 'systeem' },
