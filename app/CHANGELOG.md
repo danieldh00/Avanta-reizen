@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.15.0 — 2026-11-21 — Reizen aanmaken en wijzigen in het CRM
+
+- In het CRM staat onder *Website* het scherm **Reizen**: reizen zoeken en filteren, een nieuwe reis aanmaken en een
+
+- Migratie 15: tabel `trip_guides` (reisleiders per reis op volgorde, gevuld uit `trips.guide_id`); `trips.guide_id`
+  en `trips.destinations` vervallen (landen uit `trip_category_links`); `trips` krijgt `capacity`, `managed_in_crm`,
+  `created_at`, `updated_at`, `updated_by` en een index op `lower(trip_code)`.
+- Nieuw `app/src/trips/trips.js` en `trip-routes.js` onder `/app/reizen/` (recht `reizen`), auditacties `reis.*`;
+  slugwijziging → 301 via `recordMove`.
+- Site: reisdetail toont alle reisleiders; zoeken op land via de koppeltabel; reisleiderpagina via `trip_guides`.
+- Import (`tools/import-wordpress.js`): schrijft reisleiders naar `trip_guides` en slaat reizen met `managed_in_crm` over.
+- Fotobibliotheek: de controle op landen (`validCountryIds`) neemt `FOR SHARE`, zodat een foto niet aan een categorie
+  komt te hangen waarvan de soort tegelijk verandert. Tekst bij samenvoegen verbeterd.
+
 ## 0.14.0 — 2026-11-21 — Reistypes en landen beheren
 
 - In het CRM staat onder *Website* het scherm **Reistypes en landen**: reistypes en landen toevoegen en wijzigen
