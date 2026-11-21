@@ -96,7 +96,7 @@ test('homepage.json: alles wordt gecontroleerd en ingekort; onveilige links en f
   assert.equal(home.slides[0].title.length, 120);
   assert.equal(home.slides[0].href, '');
   assert.equal(home.slides[0].image, '');
-  assert.deepEqual(home.slides[1], { pretitle: '', title: 'Goed', button: '', href: '/reis/?type=kamperen', image: '/media/abc_1.webp' });
+  assert.deepEqual(home.slides[1], { pretitle: '', title: 'Goed', button: '', href: '/reis/?type=kamperen', image: '/media/abc_1.webp', videoId: '' });
   assert.equal(home.slides[2].href, 'https://example.nl/x');
   assert.equal(home.slides[2].image, '', 'geen externe foto');
   assert.deepEqual(home.inspiration, [{ title: 'Eén', text: '', image: '' }]);

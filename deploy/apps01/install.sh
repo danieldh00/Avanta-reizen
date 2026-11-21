@@ -194,11 +194,11 @@ for _ in $(seq 1 45); do
       echo "Database leeg: content en afbeeldingen van www.avantareizen.nl importeren (enkele minuten)..."
       docker compose exec -T app node tools/import-wordpress.js \
         || echo "WAARSCHUWING: import mislukt; volgende run probeert het opnieuw." >&2
-    elif [ "$trips" != "onbekend" ] && ! docker compose exec -T app test -f /data/homepage.json 2>/dev/null; then
-      # Bestaande installatie zonder homepage-inhoud (slider, inspiratie, "over Avanta"): alleen die ophalen.
-      echo "Homepage-inhoud van www.avantareizen.nl ophalen..."
-      docker compose exec -T app node tools/import-wordpress.js --alleen-homepage \
-        || echo "WAARSCHUWING: homepage-import mislukt; de site toont de standaardteksten, volgende run probeert het opnieuw." >&2
+    elif [ "$trips" != "onbekend" ] && ! docker compose exec -T app sh -c 'test -f /data/homepage.json && test -f /data/site-content.json' 2>/dev/null; then
+      # Bestaande installatie zonder vaste inhoud (homepage, lijstkoppen, reisleidergegevens): alleen die ophalen.
+      echo "Vaste inhoud van www.avantareizen.nl ophalen (homepage, lijstkoppen, reisleiders; enkele minuten)..."
+      docker compose exec -T app node tools/import-wordpress.js --alleen-vaste-inhoud \
+        || echo "WAARSCHUWING: ophalen vaste inhoud mislukt; de site toont de standaardteksten, volgende run probeert het opnieuw." >&2
     fi
     docker compose ps
     # Alleen oude images van deze stack opruimen, niet die van andere stacks op apps01.

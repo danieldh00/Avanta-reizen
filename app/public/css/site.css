@@ -247,7 +247,11 @@ h4, h5, h6 { font-size: 16px; }
   .page-header > .layout-container, .page-header--trip > .layout-container { padding: 60px 0; }
   .page-header__title, .hero__title { font-size: 40px; }
   .page-header__subtitle { font-size: 16px; }
-  .to-archive { position: static; margin-bottom: 30px; }
+  .to-archive { top: 0; left: 0; width: 100%; padding: 17px 10px; border-radius: 0; background: var(--av-accent); }
+  .to-archive:hover { background: var(--av-accent-dark); }
+  .page-header--trip > .layout-container { padding: 200px 0 60px; }
+  .page-header--bare > .layout-container { height: 50px; padding: 0; }
+  .page-header--trip > .layout-container, .page-header--bare > .layout-container { position: static; }
   .hero { min-height: 65vh; padding: calc(var(--av-header-height) + 3rem) 0 3rem; }
   .hero__pretitle { font-size: 18px; }
   .footer-main p { display: inline-block; }
@@ -259,11 +263,7 @@ h4, h5, h6 { font-size: 16px; }
 }
 
 /* Zoeker */
-.finder { display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 1rem; align-items: end; background: var(--av-white); color: var(--av-text); padding: 1.25rem; border-radius: var(--av-radius); box-shadow: var(--av-shadow); }
-.finder--compact { box-shadow: none; border: 1px solid var(--av-line); }
-.finder__field { display: grid; gap: .25rem; }
-.finder__label { font-size: .85rem; font-weight: 600; }
-.finder select, .search-form input, .form input, .form select, .form textarea { width: 100%; padding: .65rem .75rem; border: 1px solid #bcbcbd; border-radius: var(--av-radius); font: 1rem var(--av-font); color: var(--av-text); background: var(--av-white); }
+.search-form input, .form input, .form select, .form textarea { width: 100%; padding: .65rem .75rem; border: 1px solid #bcbcbd; border-radius: var(--av-radius); font: 1rem var(--av-font); color: var(--av-text); background: var(--av-white); }
 .search-form { display: flex; gap: .75rem; max-width: 640px; }
 
 /* Kaarten */
@@ -287,34 +287,6 @@ h4, h5, h6 { font-size: 16px; }
 .trip-card__footer { display: flex; align-items: flex-end; justify-content: space-between; gap: .75rem; padding: .75rem 1.1rem 1rem; border-top: 1px solid var(--av-line); }
 .trip-card__more { color: var(--av-accent); font-weight: 600; font-size: .9rem; white-space: nowrap; }
 
-/* Prijs */
-.price { display: grid; gap: .1rem; }
-.price__amount { font-family: var(--av-serif); font-size: 1.5rem; font-weight: 700; color: var(--av-accent); }
-.price__old { color: var(--av-muted); font-size: 1rem; }
-.price__extra, .price__offer { font-size: .85rem; color: var(--av-muted); }
-
-/* Reistypes */
-.type-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 1rem; }
-.type-tile { display: grid; place-items: center; text-align: center; gap: .25rem; min-height: 110px; padding: 1rem; background: var(--av-white); border-radius: var(--av-radius); text-decoration: none; color: var(--av-dark); box-shadow: var(--av-shadow); }
-.type-tile span { font-family: var(--av-serif); font-size: 1.15rem; font-weight: 700; }
-.type-tile small { color: var(--av-muted); }
-.type-pill { display: inline-block; padding: .2rem .7rem; margin: 0 .35rem .35rem 0; border: 1px solid var(--av-green); border-radius: 999px; color: var(--av-green); font-size: .85rem; font-weight: 600; text-decoration: none; }
-
-/* Reisdetail */
-.trip { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 2.5rem; padding-top: 2.5rem; padding-bottom: 3rem; align-items: start; }
-.trip__badges { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; margin-bottom: 1.5rem; }
-.trip__badges small, .type-list small { display: block; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--av-muted); }
-.guide-badge { display: flex; align-items: center; gap: .75rem; color: var(--av-dark); text-decoration: none; font-weight: 700; }
-.guide-badge img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
-.trip__facts { position: sticky; top: 96px; }
-.facts { padding: 1.5rem; background: var(--av-soil); border-radius: var(--av-radius); display: grid; gap: 1rem; }
-.facts dl { display: grid; grid-template-columns: auto 1fr; gap: .4rem 1rem; margin: 0; font-size: .95rem; }
-.facts dt { font-weight: 700; }
-.facts dd { margin: 0; }
-.facts__guaranteed { margin: 0; color: var(--av-green); font-weight: 700; }
-.facts__guaranteed::before { content: "✓ "; }
-.facts__status { margin: 0; font-weight: 700; color: var(--av-accent); text-transform: uppercase; font-size: .9rem; }
-
 /* Tekst uit het CMS */
 .prose { overflow-wrap: break-word; }
 .prose img { border-radius: var(--av-radius); margin: 1rem 0; }
@@ -322,13 +294,6 @@ h4, h5, h6 { font-size: 16px; }
 .prose th, .prose td { border: 1px solid var(--av-line); padding: .4rem .6rem; text-align: left; }
 .prose blockquote { margin: 1.5rem 0; padding-left: 1rem; border-left: 3px solid var(--av-accent); font-style: italic; }
 .prose--intro { margin-bottom: 2rem; }
-.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; margin: 1.5rem 0; }
-.gallery img { width: 100%; height: 100%; aspect-ratio: 4 / 3; object-fit: cover; margin: 0; border-radius: var(--av-radius); }
-
-/* Reisleider */
-.guide { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 2rem; align-items: start; }
-.guide__photo { width: 100%; border-radius: var(--av-radius); }
-
 /* FAQ */
 .faq-group h2 { margin-top: 2.5rem; }
 .faq { border-bottom: 1px solid var(--av-line); }
@@ -418,6 +383,9 @@ h4, h5, h6 { font-size: 16px; }
 .homepage__slides .slides, .homepage__inspiration .slides { margin: 0; padding: 0; list-style: none; }
 .homepage__slides .slide { position: absolute; inset: 0; display: flex; align-items: center; opacity: 0; visibility: hidden; transition: opacity .8s, visibility .8s; }
 .homepage__slides .slide.is-active { opacity: 1; visibility: visible; }
+.slide__video { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.slide__video iframe { position: absolute; top: 50%; left: 50%; width: 100vw; height: 56.25vw; min-width: 142.224vh; min-height: 80vh; border: 0; transform: translate(-50%, -50%); }
+@media (prefers-reduced-motion: reduce) { .slide__video { display: none; } }
 .homepage__slides .slide::after { content: ""; position: absolute; inset: 0; z-index: -1; background: rgba(67, 66, 72, .5); }
 .slide__image { position: absolute; inset: 0; z-index: -2; background: no-repeat 50% 50% / cover; }
 .homepage__slides .slide__content { display: flex; flex-direction: column; align-items: center; max-width: 1000px; margin: auto; padding: 0 30px; text-align: center; }
@@ -494,8 +462,9 @@ h4, h5, h6 { font-size: 16px; }
 .homepage__blog .featured-post { width: 100%; }
 .homepage__blog .featured-post .post-teaser__thumb { height: 452px; }
 /* Over Avanta */
+.homepage__about { overflow-x: clip; }
 .homepage__about-images { position: relative; flex-direction: column; }
-.stamp { position: absolute; top: 0; left: 40%; z-index: 1; font-size: 160px; color: var(--av-accent); stroke-width: .9; transform: rotate(20deg) translateX(-50px); }
+.stamp { position: absolute; top: -43px; left: 71%; z-index: 1; font-size: 260px; color: var(--av-accent); stroke-width: .9; transform: rotate(20deg) translateX(-50px); pointer-events: none; }
 .about__image { display: block; width: 100%; padding-right: 120px; }
 .about__image img { width: 100%; height: auto; }
 .homepage__about-text { flex-direction: column; align-content: flex-start; }
@@ -521,7 +490,7 @@ h4, h5, h6 { font-size: 16px; }
   .homepage__about-text { order: -1; margin: 0 30px 30px; }
   .homepage__about .section__content { padding-left: 0; }
   .about__image { padding-right: 0; }
-  .stamp { left: auto; right: -40px; font-size: 100px; }
+  .stamp { top: 20px; left: auto; right: -70px; font-size: 162px; }
 }
 @media (max-width: 768px) {
   .grid { margin: 0; }
@@ -569,17 +538,178 @@ h4, h5, h6 { font-size: 16px; }
   .destinations__track { scroll-behavior: auto; }
 }
 
-/* Onderdelen die in E3–E4 nog naar het thema gaan: tablet en mobiel */
+/* ===== Reizen, categorieën en reisleiders (CMS-pakket E3) ===== */
+.content-main { padding-top: 60px; overflow-x: clip; }
+.page-header--bare { overflow: visible; background: none; }
+.page-header--bare::after, .page-header--bare > .layout-container { padding: 0; }
+.page-header--bare::after { display: none; }
+.page-header--bare .to-archive { z-index: 2; }
+.page-introduction { width: calc(100% - 30px); max-width: 1280px; margin: 0 auto; padding: 0 60px 60px; font-family: var(--av-serif); font-size: 34px; font-weight: 700; line-height: 1.2; text-align: center; color: var(--av-heading); }
+.page-content > [class*="page-content__"] { width: calc(100% - 30px); max-width: 850px; margin: 0 auto 60px; }
+.page-content__text { line-height: 1.75; overflow-wrap: break-word; }
+.page-content__text p { margin: 0; }
+.page-content__text p:not(:last-child) { margin-bottom: 45px; }
+.page-content__text a { text-decoration: underline; }
+.page-content__text strong { color: var(--av-heading); }
+.page-content__text img { height: auto; margin: 1rem 0; }
+.page-content__text ul, .page-content__text ol { margin: 2em 0 2em .5em; padding: 0; list-style: none; }
+.page-content__text li { position: relative; padding: .5em 0 .5em 20px; }
+.page-content__text ul li::before { content: ""; position: absolute; left: 0; top: 19px; width: 7px; height: 7px; background: var(--av-accent); transform: rotate(45deg); }
+.page-content__text ol { counter-reset: lijst; }
+.page-content__text ol li { counter-increment: lijst; }
+.page-content__text ol li::before { content: counter(lijst); position: absolute; left: 0; font-weight: 700; color: var(--av-accent); }
+.page-content__text table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; }
+.page-content__text th, .page-content__text td { padding: .4rem .6rem; border: 1px solid var(--av-line); text-align: left; }
+.alert { display: block; padding: 30px; border-radius: 10px; background: rgba(67, 66, 72, .05); line-height: 1.2; text-align: center; }
+.content-main dl { display: flex; flex-wrap: wrap; width: 100%; margin: 0; font-size: 15px; line-height: 2; }
+.content-main dl dt, .content-main dl dd { width: 50%; margin: 0; }
+.content-main dl dt { padding-right: 15px; font-weight: 700; letter-spacing: 1pt; text-transform: uppercase; color: var(--av-heading); }
+
+/* Reis in een lijst: liggende box met foto, tekst en donker prijsvak */
+.list .list__item { width: 100%; margin-bottom: 15px; }
+.list--journey { display: flex; flex-flow: column nowrap; }
+.archive--journey .post-teaser { margin: 0 0 15px; padding: 0; border: 0; color: var(--av-muted); transition: box-shadow .2s; }
+.archive--journey .post-teaser:hover { box-shadow: 0 0 30px rgba(67, 66, 72, .3); }
+.archive--journey .post-teaser:hover .box__title, .archive--journey .post-teaser:hover .box__readon { color: var(--av-accent); }
+.box--landscape { display: flex; }
+.box--landscape > * { flex: 0 0 50%; }
+.box--landscape .box__image { min-height: 245px; }
+.box--landscape .box__image img { visibility: hidden; position: absolute; inset: 0; height: 100%; }
+.box--landscape .box__image::after { display: none; }
+.box--additional .box__image, .box--additional .box__additional { flex: 0 0 280px; }
+.box--additional .box__inner { flex: 1 1 auto; min-width: 0; }
+.box__content { width: 100%; line-height: 1.5; }
+.box--landscape .box__content { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.box__additional { display: flex; flex-direction: column; justify-content: center; align-items: center; width: 100%; background: var(--av-dark); color: var(--av-white); }
+.trip__price { position: relative; margin: 0 0 22.5px; font-family: var(--av-serif); font-size: 52px; font-weight: 900; line-height: 1; text-align: center; color: var(--av-white); }
+.trip__price--old { position: absolute; top: -15px; right: 20px; font-size: 24px; font-weight: 400; }
+.trip__price--old::after { content: ""; position: absolute; top: 70%; left: 0; width: 100%; height: 1px; background: currentColor; transform: rotate(-15deg); }
+.trip__price-info { position: absolute; top: 15px; right: -15px; font-size: 20px; font-weight: 400; }
+.trip__additional-costs { font-size: 14px; line-height: 2; color: rgba(255, 255, 255, .5); }
+.trip__additional-costs span { font-weight: 700; }
+.trip__offer-date { font-size: 12px; line-height: 2; color: rgba(255, 255, 255, .5); }
+
+/* Reisdetail: inhoud links, vak met prijs en gegevens rechts (30 %) */
+.trip__single { display: flex; }
+.trip__content { flex: 1 1 auto; width: 100%; min-width: 0; padding-right: 90px; }
+.trip__content-header { display: flex; margin-bottom: 60px; }
+.trip__content-header > * { flex: 1 1 50%; }
+.block-ghost { display: flex; flex-direction: column; align-items: flex-start; padding: 0 0 0 15px; border: 1px solid var(--av-line); border-top: 0; border-right: 0; }
+.block-ghost:first-child { border-left: 0; }
+.block-ghost__label { margin-right: 15px; font-weight: 700; letter-spacing: 1pt; text-transform: uppercase; color: var(--av-heading); }
+.guide-widget { display: flex; align-items: center; }
+.guide-widget__thumb { flex: 0 0 70px; height: 70px; margin: -20px 30px 0 0; overflow: hidden; border-radius: 100%; background: var(--av-soil); }
+.guide-widget__thumb img { width: 100%; height: 100%; object-fit: cover; }
+.guide-widget__title { margin: 0 0 22.5px; font-size: 20px; font-weight: 400; color: var(--av-blue); }
+.guide-widget__title a { color: inherit; }
+.trip-types--compact { display: flex; flex-wrap: nowrap; justify-content: flex-start; margin: 0; }
+.trip-types--compact .trip-type { flex: 0 0 60px; width: 60px; height: 60px; margin: 0 15px 15px 0; border: 1px solid rgba(67, 66, 72, .25); color: var(--av-heading); }
+.trip-types--compact .trip-type:hover { border-color: var(--av-heading); }
+.trip-types--compact .trip-type__icon { margin: 15px 0; font-size: 20px; }
+.trip__content .page-introduction { width: auto; margin: 0 15px; padding: 0 60px 60px 0; font-size: 26px; text-align: left; }
+.trip__content .page-content > [class*="page-content__"] { width: auto; max-width: none; margin: 0 15px 60px; }
+.trip__meta { flex: 0 0 30%; min-width: 0; }
+.trip__meta .box__inner { align-items: stretch; padding: 60px 30px 30px; }
+.trip__meta .box__inner > :not(:last-child) { margin-bottom: 15px; }
+.trip__meta .box__additional { background: transparent; color: var(--av-heading); }
+.trip__meta .trip__price { margin-bottom: 15px; color: var(--av-heading); }
+.trip__meta .trip__additional-costs, .trip__meta .trip__offer-date { line-height: 1.2; color: var(--av-heading); }
+.trip__meta dl { margin: 15px 0; padding: 30px 0; border-top: 1px solid rgba(188, 188, 189, .25); border-bottom: 1px solid rgba(188, 188, 189, .25); }
+.trip__meta dl a { color: var(--av-muted); }
+.trip__meta dl a:hover { color: var(--av-green); }
+.trip__guaranteed { display: block; width: 100%; padding: 30px; background: rgba(45, 105, 176, .1); font-size: 15px; line-height: 1.2; }
+.trip__guaranteed h3 { margin: 0; font-size: 20px; }
+.trip__status { margin: 0; font-weight: 700; letter-spacing: 1pt; text-transform: uppercase; color: var(--av-accent); }
+.trip__meta .btn { width: 100%; padding: 1.25em; text-align: center; }
+
+/* Fotogalerij: strook met foto's van 500 px hoog (mobiel 300 px), opzij te schuiven */
+.page-gallery .section__title, .page-gallery .section__subtitle { text-align: center; }
+.gallery-strip__track { display: flex; margin: 0; padding: 0 50px; list-style: none; overflow-x: auto; scroll-snap-type: x proximity; scroll-behavior: smooth; scrollbar-width: none; }
+.gallery-strip__track::-webkit-scrollbar { display: none; }
+.gallery-strip__item { flex: 0 0 auto; scroll-snap-align: center; }
+.gallery-strip__item img { display: block; width: auto; max-width: none; height: 500px; margin: 0 15px; }
+.gallery-strip__nav { display: flex; justify-content: center; gap: 20px; margin-top: 30px; }
+
+/* Reisleiders: lijst met staande foto's, detail met stempel, foto's, citaat en gegevens */
+.archive--guide > .grid__item { width: calc(25% - 30px); }
+.post-teaser--guide { padding: 0 0 15px; border: 0; }
+.post-teaser--guide .post-teaser__thumb { height: 340px; background: rgba(67, 66, 72, .05) no-repeat 50% 50% / cover; }
+.post-teaser--guide .post-teaser__thumb::after { display: none; }
+.post-teaser--guide .post-teaser__title { margin: 0; }
+.post-teaser--guide .post-teaser__subtitle { display: none; }
+.content-main > .layout-container > .grid > .grid__item { position: relative; }
+.guide__personal { display: flex; flex-direction: column; width: 100%; padding-right: 60px; }
+.guide__featured-image { display: block; padding-right: 60px; }
+.guide__featured-image img { display: block; width: 100%; height: auto; }
+.guide__image { display: block; align-self: flex-end; max-width: 320px; margin-top: -120px; box-shadow: 0 15px 30px rgba(0, 0, 0, .25); }
+.guide__image img { display: block; width: 100%; height: auto; }
+.guide__quote { margin: 60px 60px 0; font-family: var(--av-serif); font-size: 34px; font-weight: 700; line-height: 1.2; text-align: left; color: var(--av-heading); }
+.guide__details { width: 100%; margin-bottom: 60px; text-align: center; }
+.guide__name { margin: 0; font-size: 90px; font-weight: 900; }
+.guide__surname { margin: 10px 0 22.5px; font-family: var(--av-serif); font-size: 20px; font-style: italic; line-height: 1; color: var(--av-heading); }
+.guide__stats { display: flex; border-top: 4px solid var(--av-line); border-bottom: 4px solid var(--av-line); }
+.guide__stat { display: flex; flex: 0 0 50%; flex-direction: column; padding: 30px; }
+.guide__stat:first-child { border-right: 4px solid var(--av-line); }
+.guide__stat .label { margin-bottom: 15px; font-size: 13px; font-weight: 700; letter-spacing: 1pt; text-transform: uppercase; color: var(--av-heading); }
+.guide__city, .guide__year { font-family: var(--av-serif); font-weight: 900; line-height: 1; color: var(--av-heading); }
+.guide__city { font-size: 28px; }
+.guide__year { font-size: 52px; margin-top: -22.5px; }
+.content-main .grid .page-content > [class*="page-content__"] { width: auto; margin: 0 15px 60px; }
+.guide-trips .section__title { text-align: center; }
+
 @media (max-width: 1024px) {
-  .trip { grid-template-columns: minmax(0, 1fr); }
-  .trip__facts { position: static; }
-  .finder { grid-template-columns: repeat(2, 1fr); }
-  .finder .btn { grid-column: 1 / -1; }
+  .archive--guide > .grid__item { width: calc(50% - 30px); }
+  .trip__single { flex-direction: column; }
+  .trip__content { padding: 0; }
+  .trip__content-header { flex-wrap: wrap; }
+  .trip__content-header > * { flex: 1 1 auto; }
+  .block-ghost { border: 0; }
+  .trip-types--compact { width: 100%; margin: 0 15px 15px 0; }
+  .content-main dl dt, .content-main dl dd { width: 100%; padding: 0; }
 }
 @media (max-width: 768px) {
-  .finder, .form-grid { grid-template-columns: minmax(0, 1fr); }
-  .guide { grid-template-columns: minmax(0, 1fr); }
-  .guide__photo { max-width: 280px; }
+  .content-main { padding-top: 30px; }
+  .page-introduction { margin: 0 15px; padding: 0 15px 30px; font-size: 24px; width: auto; }
+  .page-content > [class*="page-content__"] { margin-bottom: 30px; padding: 0 15px; }
+  .box--landscape { flex-direction: column; }
+  .box--landscape .box__image, .box--additional .box__image { flex: 0 0 100px; min-height: 100px; height: 100px; }
+  .box--landscape .box__inner { padding: 15px; }
+  .box--landscape .box__inner > :not(:last-child) { margin-bottom: 5px; }
+  .box--landscape .box__title { font-size: 20px; line-height: 1.2; }
+  .box--additional .box__additional { flex: 1 1 auto; align-items: flex-start; padding: 15px; }
+  .box--additional .box__additional .trip__price { margin: 0 0 5px; font-size: 24px; }
+  .box--additional .box__additional .trip__price--old { top: 0; left: 100%; right: auto; margin-left: 10px; font-size: 16px; }
+  .trip__price-info { top: 2px; right: 0; font-size: 14px; }
+  .box--additional .box__content, .box--additional .box__readon { display: none; }
+  .trip__content-header .block-ghost { flex-direction: row; flex-wrap: wrap; }
+  .trip-types--compact { flex-wrap: wrap; }
+  .guide-widget { margin-bottom: 30px; }
+  .trip__content .page-content { margin: 0 -15px; }
+  .trip__content .page-introduction { padding: 0 15px 30px 0; }
+  .trip__content .page-content > [class*="page-content__"] { margin: 0 15px 30px; padding: 0; }
+  .trip__meta .trip__price { font-size: 34px; }
+  .gallery-strip__item img { height: 300px; }
+  .archive--guide { margin: 0; }
+  .archive--guide > .grid__item { width: 100%; margin: 0 0 10px; }
+  .post-teaser--guide { flex-direction: row; padding: 0; }
+  .post-teaser--guide .post-teaser__thumb { flex: 0 0 100px; height: 90px; margin: 0 15px 0 0; }
+  .post-teaser--guide .post-teaser__inner { display: flex; align-items: center; }
+  .post-teaser--guide .post-teaser__title { font-size: 20px; line-height: 1.2; }
+  .guide__personal, .guide__featured-image { padding: 0; }
+  .guide__featured-image { padding-right: 60px; }
+  .guide__quote { margin: 30px 0; font-size: 24px; }
+  .guide__name { font-size: 40px; }
+  .guide__stats { flex-wrap: wrap; padding: 15px 0; }
+  .guide__stat { flex: 1 1 100%; padding: 0; }
+  .guide__stat .label { margin: 0; }
+  .guide__stat:first-child { border: 0; margin-bottom: 15px; }
+  .guide__year { font-size: 34px; margin-top: -10px; }
+  .content-main .grid .page-content > [class*="page-content__"] { margin: 0 15px 30px; padding: 0 15px; }
+}
+
+/* Onderdelen die in E4 nog naar het thema gaan: tablet en mobiel */
+@media (max-width: 768px) {
+  .form-grid { grid-template-columns: minmax(0, 1fr); }
   .search-form { flex-direction: column; }
   .card-grid, .card-grid--four { grid-template-columns: minmax(0, 1fr); }
   .card-grid--guides { grid-template-columns: repeat(2, minmax(0, 1fr)); }

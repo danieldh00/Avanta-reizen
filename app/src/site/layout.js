@@ -200,12 +200,14 @@ function cssImageUrl(url) {
 /**
  * Maakt de paginakop zoals op de huidige site: foto over de volle breedte met verloop, cursieve pretitel en titel in
  * Playfair 900. Met `destinations` (reis) staat de titel links met de landen erboven en een knop "Naar overzicht".
- * @param {{title: string, pretitle?: string, subtitle?: string, imageUrl?: string, backLink?: string, destinations?: string[]}} header Gegevens van de kop.
+ * @param {{title?: string, pretitle?: string, subtitle?: string, imageUrl?: string, backLink?: string, destinations?: string[], bare?: boolean}} header Gegevens van de kop (`bare`: alleen de knop "Naar overzicht", zoals bij een reisleider).
  * @returns {object} HTML van de kop.
  */
 function renderPageHeader(header) {
   const imageUrl = cssImageUrl(header.imageUrl);
   const back = header.backLink ? html`<a class="to-archive" href="${header.backLink}">${icon('chevron-left')}<span class="to-archive__label">Naar overzicht</span></a>` : '';
+  // Zonder titel en foto (reisleider): alleen de knop "Naar overzicht", zoals op de huidige site.
+  if (header.bare) return html`<section class="page-header page-header--bare"><div class="layout-container">${back}</div></section>`;
   const isTrip = Array.isArray(header.destinations);
   const titleBlock = isTrip
     ? html`<div class="page-header__title-block">

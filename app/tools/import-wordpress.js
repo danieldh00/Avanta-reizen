@@ -5,8 +5,9 @@
  * de homepage (slider, inspiratie, "over Avanta") naar DATA_DIR/homepage.json (zie `src/site/homepage.js`).
  * Herhaalbaar tot go-live: bestaande rijen worden bijgewerkt (op slug/pad), niets wordt dubbel aangemaakt.
  *
- * Gebruik: DATABASE_URL=… node tools/import-wordpress.js [--cache <map>] [--delay <ms>] [--zonder-media] [--alleen-homepage]
- * (`--alleen-homepage`: alleen homepage.json en de foto's daarvan vernieuwen, altijd vers van de huidige site)
+ * Gebruik: DATABASE_URL=… node tools/import-wordpress.js [--cache <map>] [--delay <ms>] [--zonder-media] [--alleen-vaste-inhoud]
+ * (`--alleen-vaste-inhoud`, ook `--alleen-homepage`: alleen homepage.json en site-content.json met hun foto's
+ * vernieuwen, altijd vers van de huidige site; de database blijft verder ongemoeid)
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -16,6 +17,7 @@ const { DATA_DIR, MEDIA_DIR } = require('../src/paths');
 const { sanitizeHtml, plainText } = require('./import/sanitize');
 const parsers = require('./import/parse');
 const { HOMEPAGE_FILE } = require('../src/site/homepage');
+const { SITE_CONTENT_FILE } = require('../src/site/site-content');
 
 const SITE = 'https://www.avantareizen.nl';
 const USER_AGENT = 'Mozilla/5.0 (compatible; AvantaSiteImport/1.0)';
@@ -24,11 +26,13 @@ const GENERATED_PATHS = new Set(['/', '/reis/', '/blog/', '/faq/', '/reisleider/
 /** Afbeeldingstypen die we overnemen. */
 const IMAGE_TYPES = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif' };
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+/** Lijstpagina's waarvan de kop (pretitel, titel, foto, inleiding) in site-content.json komt. */
+const ARCHIVE_PAGES = [['reis', '/reis/'], ['reisleider', '/reisleider/'], ['blog', '/blog/'], ['faq', '/faq/']];
 
 /**
  * Leest de opdrachtregel.
  * @param {string[]} argv Argumenten.
- * @returns {{cache: string, delay: number, media: boolean, homepageOnly?: boolean}} Opties.
+ * @returns {{cache: string, delay: number, media: boolean, fixedOnly?: boolean}} Opties.
  */
 function readOptions(argv) {
   const options = { cache: path.join(DATA_DIR, 'import-cache'), delay: 500, media: true };
@@ -36,7 +40,7 @@ function readOptions(argv) {
     if (argv[i] === '--cache') options.cache = path.resolve(argv[++i]);
     else if (argv[i] === '--delay') options.delay = Number(argv[++i]) || 0;
     else if (argv[i] === '--zonder-media') options.media = false;
-    else if (argv[i] === '--alleen-homepage') options.homepageOnly = true;
+    else if (argv[i] === '--alleen-vaste-inhoud' || argv[i] === '--alleen-homepage') options.fixedOnly = true;
   }
   return options;
 }
@@ -74,6 +78,20 @@ function createFetcher(options) {
     const text = await response.text();
     fs.writeFileSync(file, text);
     return text;
+  };
+}
+
+/**
+ * Ophaler zonder cache (voor de vaste inhoud, altijd vers), met een pauze tussen de verzoeken.
+ * @param {{delay: number}} options Pauze.
+ * @returns {(url: string) => Promise<string>} Functie die de HTML van een URL geeft.
+ */
+function createFreshFetcher(options) {
+  return async (url) => {
+    await sleep(options.delay);
+    const response = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+    if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+    return response.text();
   };
 }
 
@@ -268,6 +286,81 @@ function writeHomepage(data) {
 }
 
 /**
+ * Leest de koppen van de lijstpagina's en de volgorde van de reisleiders; een fout bij één pagina stopt de rest niet.
+ * @param {(url: string) => Promise<string>} fetchText Ophaler.
+ * @param {string[]} warnings Lijst waar fouten in komen.
+ * @returns {Promise<{archives: object, guideOrder: string[]}>} Koppen per lijst en de volgorde (slugs of oude id's).
+ */
+async function collectArchives(fetchText, warnings) {
+  const archives = {};
+  let guideOrder = [];
+  for (const [key, urlPath] of ARCHIVE_PAGES) {
+    try {
+      const markup = await fetchText(`${SITE}${urlPath}`);
+      archives[key] = parsers.parseArchiveHeader(markup);
+      if (key === 'reisleider') guideOrder = parsers.parseGuideOrder(markup);
+    } catch (error) {
+      warnings.push(`${urlPath}: ${error.message}`);
+    }
+  }
+  return { archives, guideOrder };
+}
+
+/**
+ * Maakt de inhoud voor `DATA_DIR/site-content.json`: lijstkoppen, extra gegevens per reisleider en hun volgorde,
+ * met foto's lokaal. Oude id's in de volgorde (adressen als /reisleider/23250/) worden slugs.
+ * @param {{archives: object, guideOrder: string[]}} fixed Uitkomst van `collectArchives`.
+ * @param {Array<{slug: string, legacyId: (number|null), extra: object}>} guides Geparste reisleiders.
+ * @param {{local: Function}} media Mediaopslag van de import.
+ * @returns {object} De inhoud.
+ */
+function siteContentData(fixed, guides, media) {
+  const slugByLegacyId = new Map(guides.filter((guide) => guide.legacyId).map((guide) => [String(guide.legacyId), guide.slug]));
+  const local = (url) => (url && media.local(url)) || '';
+  return {
+    importedAt: new Date().toISOString(),
+    archives: Object.fromEntries(Object.entries(fixed.archives).map(([key, header]) => [key, { ...header, image: local(header.image) }])),
+    guides: Object.fromEntries(guides.filter((guide) => guide.extra).map((guide) => [guide.slug, {
+      ...guide.extra,
+      portrait: local(guide.extra.portrait),
+      image: local(guide.extra.image),
+      gallery: guide.extra.gallery.map(local).filter(Boolean),
+    }])),
+    guideOrder: fixed.guideOrder.map((reference) => slugByLegacyId.get(reference) || reference),
+  };
+}
+
+/**
+ * Schrijft `site-content.json` in DATA_DIR (tijdelijk bestand, dan hernoemen).
+ * @param {object} data Inhoud.
+ * @returns {string} Pad van het bestand.
+ */
+function writeSiteContent(data) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const file = path.join(DATA_DIR, SITE_CONTENT_FILE);
+  const temporary = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, `${JSON.stringify(data, null, 2)}\n`);
+  fs.renameSync(temporary, file);
+  return file;
+}
+
+/**
+ * Haalt foto's uit `site-content.json` die niet gedownload konden worden.
+ * @param {object} data Inhoud voor `site-content.json`.
+ * @returns {object} Dezelfde inhoud met alleen bestaande foto's.
+ */
+function withExistingSiteImages(data) {
+  const keep = (image) => (image && fs.existsSync(path.join(MEDIA_DIR, path.basename(image))) ? image : '');
+  return {
+    ...data,
+    archives: Object.fromEntries(Object.entries(data.archives).map(([key, header]) => [key, { ...header, image: keep(header.image) }])),
+    guides: Object.fromEntries(Object.entries(data.guides).map(([slug, guide]) => [slug, {
+      ...guide, portrait: keep(guide.portrait), image: keep(guide.image), gallery: guide.gallery.map(keep).filter(Boolean),
+    }])),
+  };
+}
+
+/**
  * Leest alle pagina's van de oude site en zet ze om naar rijen voor de database.
  * @param {(url: string) => Promise<string>} fetchText Ophaler.
  * @param {object} media Afbeeldingenbeheerder.
@@ -314,9 +407,11 @@ async function collect(fetchText, media) {
   const teaserBySlug = new Map(categories.flatMap((category) => category.teasers).map((teaser) => [teaser.slug, teaser]));
 
   const slugByLegacyId = new Map(categories.filter((category) => category.legacyId).map((category) => [category.legacyId, category.slug]));
+  const fixed = await collectArchives(fetchText, warnings);
   return {
     warnings,
     homepage: home ? homepageData(home, media, slugByLegacyId) : null,
+    siteContent: siteContentData(fixed, guides, media),
     guides: guides.map((guide) => ({
       legacyId: guide.legacyId, slug: guide.slug, name: guide.name, intro: guide.intro,
       bodyHtml: clean(guide.bodyHtml), photoUrl: media.local(guide.photo),
@@ -457,17 +552,28 @@ async function main() {
   try {
     await db.migrate();
     const media = createMediaStore(options);
-    if (options.homepageOnly) {
-      // Alleen de homepage, altijd vers (niet uit de cache): slider, inspiratie en "over Avanta" bijwerken.
-      const response = await fetch(`${SITE}/`, { headers: { 'User-Agent': USER_AGENT } });
-      if (!response.ok) throw new Error(`homepage: HTTP ${response.status}`);
+    if (options.fixedOnly) {
+      // Alleen de vaste inhoud, altijd vers (niet uit de cache): homepage, lijstkoppen en reisleiders.
+      const fetchText = createFreshFetcher(options);
+      const warnings = [];
       const categories = await db.query('SELECT legacy_id, slug FROM trip_categories WHERE legacy_id IS NOT NULL');
       const slugByLegacyId = new Map(categories.map((category) => [category.legacy_id, category.slug]));
-      const homepage = homepageData(parsers.parseHome(await response.text()), media, slugByLegacyId);
+      const homepage = homepageData(parsers.parseHome(await fetchText(`${SITE}/`)), media, slugByLegacyId);
+      const groups = await readSitemaps(fetchText);
+      const guides = [];
+      for (const url of groups.guide || []) {
+        try {
+          const guide = parsers.parseGuide(await fetchText(url), url);
+          if (guide.slug !== 'reisleider' && guide.name) guides.push(guide);
+        } catch (error) {
+          warnings.push(`${url}: ${error.message}`);
+        }
+      }
+      const siteContent = siteContentData(await collectArchives(fetchText, warnings), guides, media);
       const result = await media.download(db);
-      console.log(`Homepage: ${homepage.slides.length} dia's, afbeeldingen lokaal: ${result.ok}, mislukt: ${result.failed.length}`);
-      console.log(`Opgeslagen in ${writeHomepage(withExistingImages(homepage))}`);
-      for (const line of result.failed.slice(0, 20)) console.warn(`  let op: ${line}`);
+      console.log(`Vaste inhoud: ${homepage.slides.length} dia's, ${Object.keys(siteContent.guides).length} reisleiders, afbeeldingen lokaal: ${result.ok}, mislukt: ${result.failed.length}`);
+      console.log(`Opgeslagen in ${writeHomepage(withExistingImages(homepage))} en ${writeSiteContent(withExistingSiteImages(siteContent))}`);
+      for (const line of [...warnings, ...result.failed].slice(0, 20)) console.warn(`  let op: ${line}`);
       return;
     }
     const data = await collect(createFetcher(options), media);
@@ -477,6 +583,7 @@ async function main() {
     const result = await media.download(db);
     console.log(`Afbeeldingen lokaal: ${result.ok}, mislukt: ${result.failed.length}`);
     if (data.homepage) console.log(`Homepage opgeslagen in ${writeHomepage(withExistingImages(data.homepage))}`);
+    console.log(`Lijstkoppen en reisleiders opgeslagen in ${writeSiteContent(withExistingSiteImages(data.siteContent))}`);
     for (const line of [...data.warnings, ...result.failed].slice(0, 50)) console.warn(`  let op: ${line}`);
   } finally {
     await db.close();
@@ -506,4 +613,7 @@ if (require.main === module) {
   });
 }
 
-module.exports = { cacheName, rewriteLink, summarize, readSitemaps, collect, store, createMediaStore, homepageLink, homepageData, withExistingImages };
+module.exports = {
+  cacheName, rewriteLink, summarize, readSitemaps, collect, store, createMediaStore, homepageLink, homepageData, withExistingImages,
+  collectArchives, siteContentData, withExistingSiteImages,
+};
