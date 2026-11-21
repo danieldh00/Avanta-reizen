@@ -22,8 +22,9 @@ const POST_TEASER_COLUMNS = `slug, title, excerpt, image_url, published_at, mana
  */
 function withSummary(row) {
   const { body_text: bodyText, managed_in_crm: managed, ...post } = row;
-  // Een bericht uit het CMS heeft een eigen samenvatting (bij publiceren zonder samenvatting: het begin van de tekst).
-  return { ...post, summary: managed ? post.excerpt : postSummary(bodyText) };
+  // Een bericht uit het CMS heeft een eigen samenvatting (bij publiceren zonder samenvatting: het begin van de tekst);
+  // zonder samenvatting (bijv. een geïmporteerd bericht dat alleen een ander adres kreeg) het begin van body_html.
+  return { ...post, summary: managed && post.excerpt ? post.excerpt : postSummary(bodyText) };
 }
 
 /**

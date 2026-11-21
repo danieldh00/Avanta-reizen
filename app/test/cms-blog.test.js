@@ -313,6 +313,16 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.equal((await send(`${postUrl}online/`, { stand: 'online' })).status, 303);
   });
 
+  await t.test('geïmporteerd bericht zonder samenvatting houdt na een adreswijziging zijn samenvatting', async () => {
+    const [plain] = await db.query(
+      `INSERT INTO posts (legacy_id, slug, title, excerpt, body_html, published_at)
+       VALUES (503, 'zonder-samenvatting', 'Zonder samenvatting', '', '<p>Tekst uit WordPress over kanoën</p>', '2025-07-01T10:00:00Z') RETURNING id`,
+    );
+    assert.equal((await send(`/app/blog/${plain.id}/adres/`, { slug: 'met-nieuw-adres' }, { id: plain.id })).status, 303);
+    assert.equal((await db.query('SELECT managed_in_crm FROM posts WHERE id = $1', [plain.id]))[0].managed_in_crm, true);
+    assert.match((await request('/blog/')).text, /Tekst uit WordPress over kano/);
+  });
+
   await t.test('de WordPress-import laat een bericht uit het CRM staan', async () => {
     const data = {
       guides: [], categories: [], trips: [], pages: [], faqs: [],
