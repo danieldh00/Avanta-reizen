@@ -65,6 +65,41 @@ function mediaUrl(media, minWidth = 0) {
 }
 
 /**
+ * Koppelt foto's uit de import die nog geen land hebben automatisch aan landen (CMS-pakket F3): een foto die in een
+ * reis staat (kop-, kaart- of galerijfoto of in de tekst) krijgt de landen van die reis, een foto die de kopfoto of in
+ * de tekst van een landpagina staat krijgt dat land. Foto's met al een land (ook met de hand gekozen) blijven ongemoeid.
+ * @param {{query: Function}} client Database of transactie-client.
+ * @returns {Promise<{linked: number, links: number}>} Aantal foto's dat een land kreeg en aantal koppelingen.
+ */
+async function linkImportedMedia(client) {
+  // De bestandsnaam als LIKE-patroon: \, % en _ ge-escaped.
+  const rows = await client.query(
+    `WITH open_media AS (
+       SELECT m.id, '%/media/' || replace(replace(replace(m.local_name, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%' AS pattern
+         FROM media m
+        WHERE m.source = 'import' AND m.content_type LIKE 'image/%'
+          AND NOT EXISTS (SELECT 1 FROM media_countries mc WHERE mc.media_id = m.id)
+     ),
+     found AS (
+       SELECT o.id AS media_id, c.id AS category_id
+         FROM open_media o
+         JOIN trips t ON concat_ws(' ', t.hero_image_url, t.card_image_url, t.gallery::text, t.body_html) LIKE o.pattern
+         JOIN trip_category_links l ON l.trip_id = t.id
+         JOIN trip_categories c ON c.id = l.category_id AND c.kind = 'bestemming'
+       UNION
+       SELECT o.id, c.id
+         FROM open_media o
+         JOIN trip_categories c ON c.kind = 'bestemming' AND concat_ws(' ', c.image_url, c.body_html) LIKE o.pattern
+     )
+     INSERT INTO media_countries (media_id, category_id)
+     SELECT media_id, category_id FROM found
+     ON CONFLICT DO NOTHING
+     RETURNING media_id`,
+  );
+  return { linked: new Set(rows.map((row) => row.media_id)).size, links: rows.length };
+}
+
+/**
  * Alle bestandsnamen van een foto: het hoofdbestand en de varianten.
  * @param {{local_name: string, variants?: object}} media Foto.
  * @returns {string[]} Unieke bestandsnamen.
@@ -328,4 +363,4 @@ function createMediaLibrary(options) {
   return { countries, storeUpload, list, get, update, usage, remove, folders, cleanupOrphans, startCleanupTimer };
 }
 
-module.exports = { createMediaLibrary, mediaUrl, titleFromFilename, cleanText, fileNamesOf, TEXT_LIMITS, USAGE_SOURCES };
+module.exports = { createMediaLibrary, linkImportedMedia, mediaUrl, titleFromFilename, cleanText, fileNamesOf, TEXT_LIMITS, USAGE_SOURCES };

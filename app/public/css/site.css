@@ -831,6 +831,8 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
 .media-folders a { display: inline-block; padding: .2rem .6rem; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); color: var(--av-text); text-decoration: none; font-size: .9rem; }
 .media-folders a[aria-current="page"], .media-folders a:hover { border-color: var(--av-accent); color: var(--av-accent-dark); }
 .media-folders__count { color: var(--av-muted); }
+.media-autolink { display: grid; gap: .5rem; justify-items: start; margin: 0 0 1rem; padding: 1rem; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); }
+.media-autolink p { margin: 0; }
 .media-usage { margin: 0 0 1rem; padding-left: 1.25rem; }
 .media-preview { display: block; width: 100%; height: auto; margin-bottom: 1rem; background: var(--av-white); border: 1px solid var(--av-line); }
 /* Tweestapsverificatie: QR-code, sleutel om over te typen en herstelcodes. */
