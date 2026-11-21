@@ -306,4 +306,41 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     const typeFilter = await request(`/app/fotobibliotheek/?land=${hostel.id}`, { cookie: redactie.cookie });
     assert.ok((typeFilter.text.match(/class="media-grid__item"/g) || []).length >= 4);
   });
+
+  await t.test('uurgrens en gelijktijdige uploads', async () => {
+    /**
+     * Start een tweede app met andere grenzen en logt daar in als redacteur.
+     * @param {object} limits Grenzen.
+     * @returns {Promise<{post: Function, close: Function}>} Upload-functie en afsluiter.
+     */
+    const startWith = async (limits) => {
+      const other = createApp({ db, masterKey: MASTER_KEY, mediaDir, mediaLimits: limits }).listen(0);
+      const otherBase = `http://127.0.0.1:${other.address().port}`;
+      const send = async (url, init) => {
+        const response = await fetch(otherBase + url, { redirect: 'manual', ...init });
+        return { status: response.status, text: await response.text(), cookie: ((response.headers.getSetCookie().find((value) => value.startsWith(`${COOKIE_NAME}=`)) || '').split(';')[0].split('=')[1]) || '' };
+      };
+      const loggedIn = await send('/app/inloggen/', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email: 'redactie@example.nl', password: PASSWORD }).toString() });
+      const home = await send('/app/', { headers: { cookie: `${COOKIE_NAME}=${loggedIn.cookie}` } });
+      const csrf = home.text.match(/name="_csrf" value="([^"]+)"/)[1];
+      const post = (count) => send('/app/fotobibliotheek/uploaden/', {
+        method: 'POST', headers: { cookie: `${COOKIE_NAME}=${loggedIn.cookie}` }, body: uploadForm({ csrf, files: Array.from({ length: count }, (_, i) => ({ name: `grens-${i}.jpg`, data: photo })) }),
+      });
+      return { post, close: () => other.close() };
+    };
+    const count = async () => (await db.query('SELECT count(*)::int AS n FROM media'))[0].n;
+    const limited = await startWith({ uploadsPerHour: 3 });
+    const before = await count();
+    assert.equal((await limited.post(2)).status, 303);
+    const over = await limited.post(2);
+    assert.equal(over.status, 429, 'twee extra passen niet meer binnen de grens van drie');
+    assert.match(over.text, /maximaal 3 foto/);
+    assert.equal(await count(), before + 2, 'niets opgeslagen boven de grens');
+    assert.equal((await limited.post(1)).status, 429, 'grens bereikt: meteen geweigerd');
+    limited.close();
+    const busy = await startWith({ maxParallelUploads: 0 });
+    assert.equal((await busy.post(1)).status, 503);
+    busy.close();
+    assert.equal(await count(), before + 2);
+  });
 });

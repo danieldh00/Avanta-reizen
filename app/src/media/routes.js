@@ -102,7 +102,8 @@ function readMultipart(req, tokenValid) {
 
 /**
  * Maakt de routes van de fotobibliotheek.
- * @param {{db: object, auth: object, mediaDir: string, now?: Function}} options Database, sessie- en rechtenlaag, map met bestanden.
+ * @param {{db: object, auth: object, mediaDir: string, now?: Function, limits?: {uploadsPerHour?: number, maxParallelUploads?: number}}} options
+ *   Database, sessie- en rechtenlaag, map met bestanden en (voor tests) andere grenzen.
  * @returns {express.Router} Router.
  */
 function createMediaRoutes(options) {
@@ -110,7 +111,9 @@ function createMediaRoutes(options) {
   const library = createMediaLibrary({ db, mediaDir: options.mediaDir });
   const router = express.Router();
   const guard = auth.requireRight('media');
-  const uploadLimiter = createRateLimiter({ limit: UPLOADS_PER_HOUR, windowMs: 60 * 60 * 1000, now: options.now });
+  const uploadsPerHour = options.limits?.uploadsPerHour ?? UPLOADS_PER_HOUR;
+  const maxParallelUploads = options.limits?.maxParallelUploads ?? MAX_PARALLEL_UPLOADS;
+  const uploadLimiter = createRateLimiter({ limit: uploadsPerHour, windowMs: 60 * 60 * 1000, now: options.now });
   let runningUploads = 0;
 
   /**
@@ -200,7 +203,10 @@ function createMediaRoutes(options) {
     }
     // Herkomst vooraf (goedkoop); het token zelf wordt gecontroleerd zodra het in de upload binnenkomt.
     if (!auth.csrfValid(req, req.session?.csrf)) return res.status(403).type('text').send('Verzoek geweigerd. Laad de pagina opnieuw en probeer het nog eens.');
-    if (runningUploads >= MAX_PARALLEL_UPLOADS) return res.status(503).set('Retry-After', '10').type('text').send('Er worden al foto\'s verwerkt. Probeer het over een paar seconden opnieuw.');
+    // Al aan de uurgrens: niet eerst de hele upload inlezen (de teller gaat hier niet omhoog).
+    const userKey = `user:${req.user.id}`;
+    if (uploadLimiter.isBlocked(userKey)) return res.status(429).set('Retry-After', '3600').type('text').send(`Je kunt maximaal ${uploadsPerHour} foto's per uur uploaden. Probeer het later opnieuw.`);
+    if (runningUploads >= maxParallelUploads) return res.status(503).set('Retry-After', '10').type('text').send('Er worden al foto\'s verwerkt. Probeer het over een paar seconden opnieuw.');
     runningUploads++;
     try {
       const form = await readMultipart(req, (token) => auth.csrfValid(req, token));
@@ -209,9 +215,8 @@ function createMediaRoutes(options) {
       if (form.tooMany) return await fail(413, `Upload maximaal ${MAX_FILES} foto's tegelijk.`);
       if (!form.files.length) return await fail(422, 'Kies een of meer foto\'s.');
       // Alle bestanden van deze upload in één keer (zonder await ertussen) tellen, zodat de grens ook bij gelijktijdige uploads geldt.
-      const userKey = `user:${req.user.id}`;
       const withinLimit = form.files.map(() => uploadLimiter.hit(userKey)).every(Boolean);
-      if (!withinLimit) return await fail(429, `Je kunt maximaal ${UPLOADS_PER_HOUR} foto's per uur uploaden. Probeer het later opnieuw.`);
+      if (!withinLimit) return await fail(429, `Je kunt maximaal ${uploadsPerHour} foto's per uur uploaden. Probeer het later opnieuw.`);
       const countryIds = [].concat(form.fields.land || []);
       const problems = [];
       let stored = 0;
