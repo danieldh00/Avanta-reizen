@@ -140,6 +140,21 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     *Kopiëren naar nieuw vertrek* maakt een concept met dezelfde teksten, prijs, landen, reistypes, reisleiders en
     foto's (slug `<slug>-kopie`, `-kopie-2`, …), zonder vertrekdatum, aanbieding, statustekst, *gegarandeerd*,
     *volgeboekt* en aanmeldingen (audit `reis.gekopieerd`).
+  - **Pagina's** op `/app/paginas/` (recht `content`: beheerder, kantoor en *Redacteur*; `app/src/cms/`, migratie 17):
+    een pagina bestaat uit **blokken** met vaste velden en vaste stijlopties uit de huisstijl, geen vrije HTML of CSS.
+    Bloktypes nu: *tekst* (opgemaakte tekst, door `sanitizeHtml`), *kop met subtitel*, *afbeelding* (uit de
+    fotobibliotheek, met bijschrift), *knoppen* (1–3, terracotta of omlijnd; alleen adressen op de eigen site, https,
+    mailto of tel) en *citaat*. Stijl per blok: achtergrond (geen, wit, lichtgrijs, textuur, terracotta), breedte
+    (smal 850 px, normaal 1280 px, volle breedte), uitlijning en ruimte boven/onder. Bij de migratie is de tekst van elke
+    bestaande pagina één tekstblok geworden; de site ziet er daardoor hetzelfde uit. Elke wijziging (gegevens,
+    kopfoto, blok toevoegen, wijzigen, verplaatsen, kopiëren, verwijderen) komt eerst in een **concept**
+    (`pages.draft`); *Voorbeeld* toont het concept in de opmaak van de site (alleen voor ingelogde gebruikers met het
+    recht), *Publiceren* zet het op de site en bewaart een **versie** (`page_revisions`; bij de eerste publicatie ook de
+    stand uit de import als versie 1). Een versie kun je terugzetten als concept; een concept kun je weggooien. Een
+    formulier van een oudere stand (ander tabblad, collega) geeft 409 in plaats van te overschrijven. Gebruikte foto's
+    worden vergrendeld en staan bij *gebruikt in*; bij publiceren wordt opnieuw gecontroleerd dat ze bestaan. Een
+    gepubliceerde pagina krijgt `managed_in_crm`: de WordPress-import laat hem dan ongemoeid. Alles in de auditlog
+    (`pagina.*`).
   - **Reistypes en landen** op `/app/reistypes-en-landen/` (recht `reizen`: beheerder en kantoor; `app/src/trips/`,
     migratie 14): lijst per soort (reistypes, landen, overig) met het aantal reizen (komend) en foto's; nieuw aanmaken
     en wijzigen: naam, slug (leeg = uit de naam), soort, icoon uit de eigen SVG-set (leeg = op de slug), inleiding,
@@ -322,6 +337,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `app/src/backup/` | `backups.js` (versleutelde back-ups, planner), `drive.js` (kopie naar Google Drive), `restore-test.js` (hersteltests), `cli.js` (maken, tonen, ontsleutelen op de opdrachtregel) |
 | `app/src/media/` | fotobibliotheek: `images.js` (soort op inhoud, sharp: rechtzetten, EXIF weg, WebP-varianten), `library.js` (opslag en queries, `media_countries`), `routes.js` (`/app/fotobibliotheek/`) |
 | `app/src/trips/` | reizen beheren: `slugs.js` (slug maken, 301 bij een nieuwe slug), `categories.js` en `category-routes.js` (`/app/reistypes-en-landen/`), `trips.js` en `trip-routes.js` (`/app/reizen/`), `trip-media.js` (foto's bij een reis), `seats.js` (plaatsen, volgeboekt) |
+| `app/src/cms/` | pagina's in blokken: `blocks.js` (bloktypes, stijlopties, controle en HTML), `pages.js` (concept, publiceren, versies), `page-routes.js` (`/app/paginas/`), `page-render.js` (inhoud voor site en voorbeeld) |
 | `app/src/mail/` | `mailer.js` (versturen via SMTP of Exchange-connector), `wan-ip.js` (WAN-IP van de server), `layout.js` (opmaak), `notifications.js` (meldingen aan kantoor) |
 | `docs/OPZET-WEBSITE.md` | opzet, inventaris van de huidige site, fasering en open vragen |
 | `changes/` | releasenotes-fragmenten, zie `changes/README.md` |

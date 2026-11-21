@@ -8,6 +8,7 @@ const { renderPage, renderPageHeader, cssImageUrl } = require('./layout');
 const { isExcluded } = require('./site-settings');
 const { createContent, today } = require('./content');
 const pageViews = require('./page-view');
+const { renderPageArticle } = require('../cms/page-render');
 const homeViews = require('./home-view');
 const { createHomepageStore, YOUTUBE_ORIGIN } = require('./homepage');
 const { addCspSources } = require('../security/csp');
@@ -384,7 +385,7 @@ function createSiteRouter(options) {
      */
     const sendContactPage = async (res, formHtml, status = 200) => {
       const page = await content.pageByPath('/contact/');
-      const article = page ? pageViews.articleBody(page) : { body: '', hasVideo: false };
+      const article = page ? renderPageArticle(page) : { body: '', hasVideo: false };
       if (article.hasVideo) allowVideos(res);
       res.set('Cache-Control', 'no-store');
       send(res, {
@@ -420,7 +421,7 @@ function createSiteRouter(options) {
     if (path.length > 300) return next();
     const page = await content.pageByPath(path);
     if (page) {
-      const article = pageViews.articleBody(page, siteContent.load().galleries.get(page.path));
+      const article = renderPageArticle(page, siteContent.load().galleries.get(page.path));
       if (article.hasVideo) allowVideos(res);
       return send(res, {
         title: page.title,
