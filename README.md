@@ -26,8 +26,16 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   er geen proxy voor de app staat.** Staat er een proxy in een andere container voor, zet dan het **exacte** adres
   daarvan (bijv. `TRUST_PROXY=172.18.0.5`), nooit een heel subnet: verkeer van buiten kan via het Docker-bridgeadres
   binnenkomen en zou dan met een zelfgekozen `X-Forwarded-For` de limiet op de formulieren kunnen omzeilen.
-- Aanmeldingen komen in de tabel `bookings`; kerkgenootschap, medische bijzonderheden, geboortedatum en
-  paspoortgegevens staan versleuteld. **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
+- Aanmeldingen komen in de tabel `bookings`, de persoon in `persons` (`app/src/crm/persons.js`, migratie 10): één
+  persoon, meerdere aanmeldingen, ontdubbeld op e-mailadres + geboortedatum via `match_key` (HMAC met een van de
+  hoofdsleutel afgeleide sleutel, de geboortedatum zelf blijft versleuteld). Bijzondere gegevens staan per categorie
+  versleuteld bij de persoon (`identity_data`, `special_data`, `health_data`, `emergency_data`, AES-256-GCM, gebonden
+  aan dat record), zodat rechten per categorie kunnen. Het formulier overschrijft nooit een bestaande persoon: bij
+  dezelfde persoon worden alleen lege velden aangevuld; wijkt iets af (of klopt alleen het e-mailadres), dan komt er
+  een nieuwe persoon met de markering *mogelijk dubbel* (`duplicate_of`) en beslist kantoor. Kerkgenootschap en
+  bijzonderheden (AVG art. 9) zijn vrijwillig en worden alleen opgeslagen met een eigen toestemmingsvinkje; elke
+  toestemming staat met de versie van de tekst in `consents`. Aanmeldingen van vóór migratie 10 zet de app bij het
+  starten zelf om (alleen aantallen in het logboek). **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.
 - Afbeeldingen staan in het volume `/data/media` (circa 250 MB na de import).
 - **CRM** op `/app/` (in opbouw, zie `docs/OPZET-CRM.md`): inloggen met e-mail en wachtwoord (scrypt, minimaal 12

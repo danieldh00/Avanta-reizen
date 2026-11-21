@@ -217,7 +217,7 @@ test('meldingen vanuit het contact- en aanmeldformulier, en Beheer', { skip: !DA
         id: '1001', reis: '', token: tokenFrom(page.text), website: '',
         gender: 'vrouw', first_names: 'Anna Maria', call_name: 'Anna', last_name: 'Jansen', birth_date: '1999-05-04',
         mobile: '0612345678', email: 'anna@example.nl', email_confirm: 'anna@example.nl', street: 'Dorpsstraat 1',
-        postal_code: '4331 ab', city: 'Middelburg', occupation: 'Verpleegkundige', church: 'PKN', nationality: 'Nederlandse',
+        postal_code: '4331 ab', city: 'Middelburg', occupation: 'Verpleegkundige', church: 'PKN', consent_religion: 'ja', consent_health: 'ja', nationality: 'Nederlandse',
         document_type: 'paspoort', document_number: 'NX1234567', particulars: 'Notenallergie', earlier_trip: 'nee',
         credit_card: 'ja', driver_interest: 'ja', driver_before: 'nee', payment_choice: 'totaal', consent: 'ja',
       };

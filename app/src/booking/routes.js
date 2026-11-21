@@ -1,6 +1,7 @@
 /**
  * Aanmelden voor een reis (`/aanmelden/?id=<oud reis-id>`, zoals op de huidige site). De aanmelding komt in de tabel
- * bookings, de basis voor het CRM. Bijzondere en paspoortgegevens worden versleuteld opgeslagen. Daarna gaat er een
+ * bookings, de persoon in persons (`crm/persons.js`, ontdubbeld). Bijzondere en paspoortgegevens worden per categorie
+ * versleuteld bij de persoon opgeslagen; art. 9-gegevens alleen met een eigen toestemmingsvinkje (tabel consents). Daarna gaat er een
  * melding naar kantoor (`mail/notifications.js`, als die aan staat), zonder de bijzondere gegevens.
  * Bescherming via `security/form-guard.js`: limiet per bezoeker, herkomst, honeypot en ondertekend tijdstempel; met
  * een actieve captcha (`security/captcha.js`) ook een onzichtbare controle door Google.
@@ -11,7 +12,8 @@ const { html, raw } = require('../site/html');
 const { renderPage, renderPageHeader } = require('../site/layout');
 const { createContent, today } = require('../site/content');
 const { formatPrice, formatDate, isoDate, tripPath } = require('../site/format');
-const { FIELD_GROUPS, FIELDS, validateBooking } = require('./fields');
+const { FIELD_GROUPS, validateBooking } = require('./fields');
+const { createPersons } = require('../crm/persons');
 const { createFormGuard } = require('../security/form-guard');
 const { captchaField } = require('../security/captcha');
 const seo = require('../site/seo');
@@ -28,6 +30,7 @@ const BOOKING_FEE_CENTS = 1500;
 function createBookingRouter(options) {
   const router = express.Router({ strict: true });
   const content = createContent(options.db);
+  const persons = createPersons({ vault: options.vault });
   const now = options.now || Date.now;
   const guard = createFormGuard({
     purpose: 'aanmelden',
@@ -94,7 +97,9 @@ function createBookingRouter(options) {
     if (field.type === 'radio') {
       control = html`<div class="choice" role="radiogroup" aria-labelledby="${id}-label">${field.options.map((option) => html`<label><input type="radio" name="${field.name}" value="${option.value}"${value === option.value ? raw(' checked') : ''}${field.required ? raw(' required') : ''}> ${option.label}</label>`)}</div>`;
     } else if (field.type === 'checkbox') {
-      control = html`<label class="choice"><input type="checkbox" id="${id}" name="${field.name}" value="ja"${value ? raw(' checked') : ''} required> ${field.label} <a href="/algemene-voorwaarden/" target="_blank" rel="noopener">Voorwaarden</a> · <a href="/privacy/" target="_blank" rel="noopener">Privacy</a></label>`;
+      // Een toestemmingsvinkje voor art. 9 is vrijwillig; het vinkje voor de voorwaarden is verplicht en linkt naar de teksten.
+      const links = field.consentFor ? '' : html` <a href="/algemene-voorwaarden/" target="_blank" rel="noopener">Voorwaarden</a> · <a href="/privacy/" target="_blank" rel="noopener">Privacy</a>`;
+      control = html`<label class="choice"><input type="checkbox" id="${id}" name="${field.name}" value="ja"${value ? raw(' checked') : ''}${field.required ? raw(' required') : ''}${error ? html` aria-describedby="${id}-fout" aria-invalid="true"` : ''}> ${field.label}${links}</label>`;
     } else if (field.type === 'textarea') {
       control = html`<textarea rows="4"${common}>${value}</textarea>`;
     } else {
@@ -191,16 +196,13 @@ function createBookingRouter(options) {
           return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: renderPageHeader({ title: 'Aanmelden', subtitle: trip.title }), body: renderForm(trip, values, { _form: verdict.message }) }, verdict.unavailable ? 503 : 422);
         }
       }
-      const sensitive = Object.fromEntries(FIELDS.filter((field) => field.sensitive).map((field) => [field.name, values[field.name]]));
       // Referentiejaar volgens de Nederlandse datum, niet de tijdzone van de server (rond de jaarwisseling verschilt dat).
       const year = new Date(now()).toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' }).slice(0, 4);
-      const yes = (name) => values[name] === 'ja';
-      const sealed = options.vault.seal(sensitive);
       // De referentie is uniek; bij de (kleine) kans op een botsing opnieuw proberen met een nieuwe referentie.
       for (let attempt = 1; ; attempt++) {
         const reference = `AV-${year}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
         try {
-          await insertBooking(reference, trip, values, yes, sealed);
+          await saveBooking(reference, trip, values);
           // De melding wacht niet op de mailserver en gooit nooit.
           if (options.notifications) void options.notifications.booking({ reference, trip, values });
           break;
@@ -215,26 +217,30 @@ function createBookingRouter(options) {
   });
 
   /**
-   * Slaat een aanmelding op.
+   * Slaat een aanmelding op, in één transactie: de persoon zoeken of aanmaken (`crm/persons.js`, met de bijzondere
+   * gegevens versleuteld per blok), de aanmelding zelf (NAW als momentopname, zonder bijzondere gegevens) en de
+   * toestemmingen.
    * @param {string} reference Referentie (AV-jjjj-XXXXXXXX).
    * @param {object} trip De reis.
    * @param {object} values Gecontroleerde velden.
-   * @param {(name: string) => boolean} yes Of een ja/nee-veld ja is.
-   * @param {string} sealed Versleutelde bijzondere gegevens.
    * @returns {Promise<void>}
    */
-  const insertBooking = async (reference, trip, values, yes, sealed) => {
-    await options.db.query(
+  const saveBooking = (reference, trip, values) => options.db.transaction(async (client) => {
+    const yes = (name) => values[name] === 'ja';
+    const { personId } = await persons.savePerson(client, values);
+    const [booking] = await client.query(
       `INSERT INTO bookings (reference, trip_id, trip_code, trip_title, departure_date, gender, first_names, call_name, last_name,
          email, mobile, phone, street, postal_code, city, occupation, travel_with, earlier_trip, credit_card, driver_interest,
-         driver_before, driver_when, payment_method, payment_choice, price_cents, sensitive_data, consent_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26, now())`,
+         driver_before, driver_when, payment_method, payment_choice, price_cents, person_id, consent_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26, now())
+       RETURNING id`,
       [reference, trip.id, trip.trip_code, trip.title, isoDate(trip.departure_date), values.gender, values.first_names, values.call_name,
         values.last_name, values.email.toLowerCase(), values.mobile, values.phone, values.street, values.postal_code.toUpperCase(),
         values.city, values.occupation, values.travel_with, yes('earlier_trip'), yes('credit_card'), yes('driver_interest'),
-        yes('driver_before'), values.driver_when, 'handmatig', values.payment_choice, trip.price_cents, sealed],
+        yes('driver_before'), values.driver_when, 'handmatig', values.payment_choice, trip.price_cents, personId],
     );
-  };
+    await persons.recordConsents(client, { personId, bookingId: booking.id, values });
+  });
 
   return router;
 }

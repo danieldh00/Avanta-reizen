@@ -261,7 +261,7 @@ test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DA
         id: '1001', reis: '', token: tokenFrom(page.text), website: '',
         gender: 'vrouw', first_names: 'Anna', call_name: 'Anna', last_name: 'Jansen', birth_date: '1999-05-04',
         mobile: '0612345678', email: 'anna@example.nl', email_confirm: 'anna@example.nl', street: 'Dorpsstraat 1',
-        postal_code: '4331 ab', city: 'Middelburg', occupation: 'Verpleegkundige', church: 'PKN', nationality: 'Nederlandse',
+        postal_code: '4331 ab', city: 'Middelburg', occupation: 'Verpleegkundige', church: 'PKN', consent_religion: 'ja', consent_health: 'ja', nationality: 'Nederlandse',
         document_type: 'paspoort', earlier_trip: 'nee', credit_card: 'ja', driver_interest: 'nee', driver_before: 'nee',
         payment_choice: 'aanbetaling', consent: 'ja', ...extra,
       };

@@ -27,6 +27,7 @@ const { PUBLIC_DIR, MEDIA_DIR, DATA_DIR } = require('./paths');
 const { createBackupService } = require('./backup/backups');
 const { createDrive } = require('./backup/drive');
 const { roleHasRight } = require('./crm/rights');
+const { createPersons } = require('./crm/persons');
 const { createRestoreTests } = require('./backup/restore-test');
 const { renderPage, renderPageHeader } = require('./site/layout');
 const { createSystemUpdate } = require('./system/system-update');
@@ -278,10 +279,18 @@ async function start() {
   fs.mkdirSync(MEDIA_DIR, { recursive: true });
   const port = Number(process.env.PORT) || 3400;
   const setupCode = generateSetupCode();
-  const app = createApp({ db, masterKey: loadMasterKey(), databaseUrl, indexable: process.env.SITE_INDEXABLE === 'true', setupCode });
+  const masterKey = loadMasterKey();
+  const app = createApp({ db, masterKey, databaseUrl, indexable: process.env.SITE_INDEXABLE === 'true', setupCode });
   // Logboek: wegschrijven en opschonen, fouten van achtergrondtaken (console) en onverwerkte fouten van het proces.
   app.locals.appLog.start();
   app.locals.appLog.captureConsole();
+  // Aanmeldingen van vóór de personen-tabel (migratie 10) omzetten naar personen; alleen aantallen in het log.
+  createPersons({ vault: createVault(masterKey) }).backfillPersons(db)
+    .then(({ converted, failed }) => {
+      if (converted) console.log(`personen: ${converted} oude aanmelding(en) omgezet`);
+      if (failed) console.error(`personen: ${failed} oude aanmelding(en) niet te ontsleutelen (andere hoofdsleutel?)`);
+    })
+    .catch((error) => console.error(`personen: omzetten mislukt (${error.code || error.name})`));
   // Een onverwerkte promise-fout stopt het proces, net als zonder deze listener (Node 22: `--unhandled-rejections=throw`),
   // maar pas nadat de fout in het logboek staat. Docker start de container daarna opnieuw.
   let stopping = false;
