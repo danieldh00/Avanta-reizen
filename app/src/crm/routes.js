@@ -21,6 +21,7 @@ const { createMediaRoutes } = require('../media/routes');
 const { createCategoryRoutes } = require('../trips/category-routes');
 const { createTripRoutes } = require('../trips/trip-routes');
 const { createPageRoutes } = require('../cms/page-routes');
+const { createMenuRoutes } = require('../cms/menu-routes');
 const { createPersons } = require('./persons');
 const { createTwoFactor, createTwoFactorRoutes, SETUP_ACTIVATION_DAYS } = require('./two-factor');
 const { createVault } = require('../security/vault');
@@ -419,7 +420,8 @@ function createCrmRouter(options) {
   router.use(createMediaRoutes({ db, auth, library: options.mediaLibrary, limits: options.mediaLimits, now: options.now }));
   router.use(createTripRoutes({ db, auth, redirects: options.redirects, library: options.mediaLibrary }));
   router.use(createCategoryRoutes({ db, auth, redirects: options.redirects, library: options.mediaLibrary }));
-  router.use(createPageRoutes({ db, auth, library: options.mediaLibrary }));
+  router.use(createPageRoutes({ db, auth, library: options.mediaLibrary, redirects: options.redirects, menus: options.menus }));
+  router.use(createMenuRoutes({ db, auth, menus: options.menus }));
   router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, now: options.now }));
 
   router.use((req, res) => {

@@ -389,8 +389,8 @@ function createSiteRouter(options) {
       if (article.hasVideo) allowVideos(res);
       res.set('Cache-Control', 'no-store');
       send(res, {
-        title: page ? page.title : 'Contact',
-        description: page ? page.intro : '',
+        title: page ? page.seo_title || page.title : 'Contact',
+        description: page ? page.seo_description || page.intro : '',
         path: '/contact/',
         seo: seoFor('/contact/', { imageUrl: page ? page.image_url : '' }),
         header: renderPageHeader({ title: page ? page.title : 'Contact', pretitle: page ? page.pretitle : '', imageUrl: page ? page.image_url : '' }),
@@ -424,8 +424,8 @@ function createSiteRouter(options) {
       const article = await renderPageArticle(page, content, siteContent.load().galleries.get(page.path));
       if (article.hasVideo) allowVideos(res);
       return send(res, {
-        title: page.title,
-        description: page.intro,
+        title: page.seo_title || page.title,
+        description: page.seo_description || page.intro,
         path,
         seo: seoFor(seo.encodePagePath(page.path), { imageUrl: page.image_url }),
         header: renderPageHeader({ title: page.title, pretitle: page.pretitle, imageUrl: page.image_url }),

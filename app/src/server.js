@@ -18,6 +18,7 @@ const { loadMasterKey, createVault } = require('./security/vault');
 const { createSettings } = require('./beheer/settings');
 const { siteSettingsOf } = require('./site/site-settings');
 const { createRedirects } = require('./site/redirects');
+const { createMenus } = require('./cms/menus');
 const { cspWith } = require('./site/analytics');
 const { createMailer } = require('./mail/mailer');
 const { createWanIp } = require('./mail/wan-ip');
@@ -155,6 +156,19 @@ function createApp(options) {
     }
   });
 
+  // Menu's van de site uit het CRM (`cms/menus.js`), één keer geladen; lukt dat niet, dan toont de site het vaste menu.
+  const menus = createMenus({ db: options.db });
+  app.locals.menus = menus;
+  app.use(async (req, res, next) => {
+    try {
+      await menus.ready();
+    } catch (error) {
+      appLog.error('menu', `Menu's laden mislukt (${describeError(error).message}); de site toont het vaste menu.`);
+    }
+    res.locals.site.menus = menus.current();
+    next();
+  });
+
   // Updates vanuit de app en servertaken: de gedeelde mappen met het hostscript (leeg = niet ingericht, bijv. lokaal).
   const updateStatusDir = options.updateStatusDir ?? process.env.UPDATE_STATUS_DIR ?? '';
   const systemUpdate = options.systemUpdate || createSystemUpdate({
@@ -220,7 +234,7 @@ function createApp(options) {
   });
   app.locals.monitor = monitor;
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, mediaLibrary, mediaLimits: options.mediaLimits, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, mediaLibrary, menus, mediaLimits: options.mediaLimits, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).

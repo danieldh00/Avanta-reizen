@@ -162,7 +162,22 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     formulier van een oudere stand (ander tabblad, collega) geeft 409 in plaats van te overschrijven. Gebruikte foto's
     worden vergrendeld en staan bij *gebruikt in*; bij publiceren wordt opnieuw gecontroleerd dat ze bestaan. Een
     gepubliceerde pagina krijgt `managed_in_crm`: de WordPress-import laat hem dan ongemoeid. Alles in de auditlog
-    (`pagina.*`).
+    (`pagina.*`). Videokeuze: *voortaan direct laden* geldt 12 maanden en is in te trekken met *Video's weer blokkeren*
+    onder elke video; een pagina heeft hoogstens 5 reizenblokken (gelijke filters delen één query).
+    **Nieuwe pagina's en adressen** (migratie 18): *Nieuwe pagina* vraagt titel, bovenliggende pagina en het laatste deel
+    van het adres (leeg = uit de titel); het adres wordt `/<bovenliggend pad>/<slug>/`. Adressen die de site zelf
+    gebruikt (`/app/`, `/reis/`, `/blog/`, `/faq/`, `/zoeken/`, `/aanmelden/`, …), een bestaande pagina of (op het
+    hoofdniveau) een blogbericht worden geweigerd. Een nieuwe pagina staat offline tot de eerste publicatie. *Adres
+    wijzigen* verplaatst de pagina met alles eronder; elk oud adres krijgt een 301 (`recordMove`, zonder lus) en
+    menu-items gaan mee. *Offline halen* geeft bezoekers een 404, *Weer online zetten* draait dat terug. Alleen een
+    offline pagina die in het CRM is gemaakt en niets onder zich heeft kan weg (met versies); een pagina van de oude
+    site kan alleen offline (een nieuwe import zou hem anders terugzetten). **SEO per pagina**: titel en omschrijving voor
+    zoekmachines (leeg = titel en inleiding), in het concept en in elke versie.
+  - **Menu's** op `/app/menus/` (recht `content`, `app/src/cms/menus.js`, migratie 18): het hoofdmenu (met één niveau
+    submenu) en het menu in de voettekst, beginnend met de vaste menu's van de huidige site. Per item tekst, adres (pad
+    op de eigen site of https), plaats en volgorde; hoogstens 40 items per menu. De site leest de menu's uit het geheugen
+    en laadt ze na elke wijziging opnieuw; een leeg menu (of een databasefout) toont het vaste standaardmenu uit
+    `site/layout.js`. Audit `menu.*`.
   - **Reistypes en landen** op `/app/reistypes-en-landen/` (recht `reizen`: beheerder en kantoor; `app/src/trips/`,
     migratie 14): lijst per soort (reistypes, landen, overig) met het aantal reizen (komend) en foto's; nieuw aanmaken
     en wijzigen: naam, slug (leeg = uit de naam), soort, icoon uit de eigen SVG-set (leeg = op de slug), inleiding,
@@ -345,7 +360,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `app/src/backup/` | `backups.js` (versleutelde back-ups, planner), `drive.js` (kopie naar Google Drive), `restore-test.js` (hersteltests), `cli.js` (maken, tonen, ontsleutelen op de opdrachtregel) |
 | `app/src/media/` | fotobibliotheek: `images.js` (soort op inhoud, sharp: rechtzetten, EXIF weg, WebP-varianten), `library.js` (opslag en queries, `media_countries`), `routes.js` (`/app/fotobibliotheek/`) |
 | `app/src/trips/` | reizen beheren: `slugs.js` (slug maken, 301 bij een nieuwe slug), `categories.js` en `category-routes.js` (`/app/reistypes-en-landen/`), `trips.js` en `trip-routes.js` (`/app/reizen/`), `trip-media.js` (foto's bij een reis), `seats.js` (plaatsen, volgeboekt) |
-| `app/src/cms/` | pagina's in blokken: `blocks.js` (bloktypes, stijlopties, controle en HTML), `pages.js` (concept, publiceren, versies), `page-routes.js` (`/app/paginas/`), `page-render.js` (inhoud voor site en voorbeeld) |
+| `app/src/cms/` | pagina's in blokken: `blocks.js` (bloktypes, stijlopties, controle en HTML), `pages.js` (concept, publiceren, versies), `page-routes.js` (`/app/paginas/`), `page-render.js` (inhoud voor site en voorbeeld), `menus.js` + `menu-routes.js` (`/app/menus/`) |
 | `app/src/mail/` | `mailer.js` (versturen via SMTP of Exchange-connector), `wan-ip.js` (WAN-IP van de server), `layout.js` (opmaak), `notifications.js` (meldingen aan kantoor) |
 | `docs/OPZET-WEBSITE.md` | opzet, inventaris van de huidige site, fasering en open vragen |
 | `changes/` | releasenotes-fragmenten, zie `changes/README.md` |

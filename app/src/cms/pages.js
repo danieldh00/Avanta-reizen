@@ -1,5 +1,6 @@
 /**
- * Pagina's van de website in het CMS (pakket H1, migratie 17): lijst, één pagina met concept, het concept wijzigen
+ * Pagina's van de website in het CMS (pakket H1, migratie 17; H3, migratie 18: nieuwe pagina's, adres wijzigen, offline
+ * halen en verwijderen, SEO-velden): lijst, één pagina met concept, het concept wijzigen
  * (gegevens, kopfoto, blokken toevoegen/wijzigen/verplaatsen/verwijderen), publiceren (met versie), concept weggooien
  * en een versie terugzetten als concept. Het concept staat in `pages.draft`; de site toont alleen de gepubliceerde
  * kolommen. Elke wijziging controleert `draft_version` (twee tabbladen overschrijven elkaar niet) en schrijft de audit
@@ -7,16 +8,26 @@
  */
 const { cleanText, lockMediaForUse, mediaUrl } = require('../media/library');
 const { normalizeBlocks, normalizeImage, publishedBlocks, mediaIdsOf, MAX_BLOCKS, MAX_TRIP_BLOCKS } = require('./blocks');
+const { isValidSlug, recordMove } = require('../trips/slugs');
 
 /** Maximale lengtes van de gegevens van een pagina. */
-const PAGE_LIMITS = { title: 200, pretitle: 200, intro: 2000 };
+const PAGE_LIMITS = { title: 200, pretitle: 200, intro: 2000, seoTitle: 70, seoDescription: 300, path: 300 };
+
+/**
+ * Eerste delen van een pad die de site zelf gebruikt: daar kan geen pagina staan (de vaste route gaat voor, of het is
+ * een bestand of het CRM).
+ */
+const RESERVED_SEGMENTS = new Set([
+  'app', 'api', 'media', 'css', 'js', 'images', 'fonts', 'reis', 'reis-categorie', 'reisleider', 'blog', 'tag', 'faq',
+  'faq-categorie', 'category', 'zoeken', 'aanmelden', 'sitemap-xml', 'robots-txt', 'llms-txt', 'wp-admin', 'wp-content', 'feed',
+]);
 
 /** Breedte van de foto die in een afbeeldingsblok en als kopfoto wordt opgeslagen. */
 const IMAGE_WIDTH = 1600;
 
 /** Kolommen van een pagina (nooit `SELECT *`). */
 const PAGE_COLUMNS = `p.id, p.path, p.title, p.pretitle, p.intro, p.image_url, p.blocks, p.body_html, p.published, p.draft, p.draft_version,
-  p.managed_in_crm, p.created_at, p.updated_at, p.legacy_id`;
+  p.managed_in_crm, p.created_at, p.updated_at, p.legacy_id, p.seo_title, p.seo_description`;
 
 /**
  * Leest en controleert de gegevens van een pagina (titel, bovenkop, inleiding) uit een formulier.
@@ -34,17 +45,49 @@ function validatePageFields(body) {
   // eslint-disable-next-line no-control-regex
   const intro = text('intro').replace(/\r\n/g, '\n').replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '').trim();
   if (intro.length > PAGE_LIMITS.intro) errors.intro = `Maximaal ${PAGE_LIMITS.intro} tekens.`;
-  return { values: { title: title.slice(0, PAGE_LIMITS.title), pretitle: pretitle.slice(0, PAGE_LIMITS.pretitle), intro: intro.slice(0, PAGE_LIMITS.intro) }, errors };
+  const seoTitle = cleanText(text('seo_title'), PAGE_LIMITS.seoTitle + 1);
+  if (seoTitle.length > PAGE_LIMITS.seoTitle) errors.seo_title = `Maximaal ${PAGE_LIMITS.seoTitle} tekens.`;
+  const seoDescription = cleanText(text('seo_description'), PAGE_LIMITS.seoDescription + 1);
+  if (seoDescription.length > PAGE_LIMITS.seoDescription) errors.seo_description = `Maximaal ${PAGE_LIMITS.seoDescription} tekens.`;
+  return {
+    values: {
+      title: title.slice(0, PAGE_LIMITS.title),
+      pretitle: pretitle.slice(0, PAGE_LIMITS.pretitle),
+      intro: intro.slice(0, PAGE_LIMITS.intro),
+      seoTitle: seoTitle.slice(0, PAGE_LIMITS.seoTitle),
+      seoDescription: seoDescription.slice(0, PAGE_LIMITS.seoDescription),
+    },
+    errors,
+  };
+}
+
+/**
+ * Bouwt en controleert het pad van een pagina uit een slug en het pad van de bovenliggende pagina (`/` = hoofdniveau).
+ * @param {string} slug Laatste deel van het adres.
+ * @param {string} parentPath Pad van de bovenliggende pagina (met slash aan beide kanten) of `/`.
+ * @returns {{path?: string, error?: string}} Pad, of een foutmelding.
+ */
+function buildPagePath(slug, parentPath) {
+  if (!isValidSlug(slug)) return { error: 'Gebruik kleine letters, cijfers en streepjes (bijv. onze-reizen).' };
+  if (typeof parentPath !== 'string' || !/^\/(?:[^/\s]+\/)*$/.test(parentPath)) return { error: 'Kies een bovenliggende pagina uit de lijst.' };
+  const path = `${parentPath}${slug}/`;
+  if (path.length > PAGE_LIMITS.path) return { error: `Het adres is te lang (hoogstens ${PAGE_LIMITS.path} tekens).` };
+  const first = path.split('/')[1];
+  if (RESERVED_SEGMENTS.has(first)) return { error: `Het adres /${first}/ gebruikt de site zelf; kies een ander adres.` };
+  return { path };
 }
 
 /**
  * De stand die je bewerkt: het concept als dat er is, anders de gepubliceerde pagina.
  * @param {object} page Rij uit de database.
- * @returns {{title: string, pretitle: string, intro: string, imageUrl: (string|null), imageMediaId: (number|null), blocks: object[]}} Stand.
+ * @returns {{title: string, pretitle: string, intro: string, imageUrl: (string|null), imageMediaId: (number|null), blocks: object[], seoTitle: string, seoDescription: string}} Stand.
  */
 function editableState(page) {
   const draft = page.draft && typeof page.draft === 'object' ? page.draft : null;
-  const source = draft || { title: page.title, pretitle: page.pretitle, intro: page.intro, imageUrl: page.image_url, imageMediaId: null, blocks: publishedBlocks(page) };
+  const source = draft || {
+    title: page.title, pretitle: page.pretitle, intro: page.intro, imageUrl: page.image_url, imageMediaId: null, blocks: publishedBlocks(page),
+    seoTitle: page.seo_title, seoDescription: page.seo_description,
+  };
   return {
     title: typeof source.title === 'string' ? source.title : page.title,
     pretitle: typeof source.pretitle === 'string' ? source.pretitle : '',
@@ -52,6 +95,8 @@ function editableState(page) {
     imageUrl: typeof source.imageUrl === 'string' && /^(\/media\/[A-Za-z0-9._-]+|https:\/\/[^\s"]+)$/.test(source.imageUrl) ? source.imageUrl : null,
     imageMediaId: Number.isInteger(source.imageMediaId) ? source.imageMediaId : null,
     blocks: normalizeBlocks(source.blocks),
+    seoTitle: typeof source.seoTitle === 'string' ? source.seoTitle.slice(0, PAGE_LIMITS.seoTitle) : '',
+    seoDescription: typeof source.seoDescription === 'string' ? source.seoDescription.slice(0, PAGE_LIMITS.seoDescription) : '',
   };
 }
 
@@ -144,7 +189,7 @@ function createPages(options) {
   });
 
   /**
-   * Publiceert het concept: controleert en vergrendelt de gebruikte foto's (een verdwenen foto weigert), schrijft de
+   * Publiceert het concept (en zet de pagina online): controleert en vergrendelt de gebruikte foto's (een verdwenen foto weigert), schrijft de
    * gepubliceerde kolommen en een nieuwe versie, en maakt het concept leeg. De eerste publicatie van een geïmporteerde
    * pagina bewaart eerst de stand van de import als versie 1.
    * @param {(number|string)} id Id.
@@ -166,25 +211,26 @@ function createPages(options) {
     }
     const [{ latest }] = await client.query('SELECT coalesce(max(version), 0)::int AS latest FROM page_revisions WHERE page_id = $1', [page.id]);
     let next = latest + 1;
-    if (latest === 0) {
+    // Een nieuwe pagina (nog nooit online, niet uit de import) heeft geen eerdere stand om te bewaren.
+    if (latest === 0 && (page.published || page.legacy_id !== null)) {
       await client.query(
-        `INSERT INTO page_revisions (page_id, version, title, pretitle, intro, image_url, blocks, note, published_by)
-         VALUES ($1, 1, $2, $3, $4, $5, $6, $7, NULL)`,
-        [page.id, page.title, page.pretitle, page.intro, page.image_url, JSON.stringify(publishedBlocks(page)), page.managed_in_crm ? 'Stand vóór de eerste versie' : 'Stand uit de import'],
+        `INSERT INTO page_revisions (page_id, version, title, pretitle, intro, image_url, blocks, note, published_by, seo_title, seo_description)
+         VALUES ($1, 1, $2, $3, $4, $5, $6, $7, NULL, $8, $9)`,
+        [page.id, page.title, page.pretitle, page.intro, page.image_url, JSON.stringify(publishedBlocks(page)), page.managed_in_crm ? 'Stand vóór de eerste versie' : 'Stand uit de import', page.seo_title, page.seo_description],
       );
       next = 2;
     }
     const blocks = JSON.stringify(state.blocks);
     await client.query(
-      `INSERT INTO page_revisions (page_id, version, title, pretitle, intro, image_url, blocks, published_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [page.id, next, state.title, state.pretitle, state.intro, state.imageUrl, blocks, context.userId],
+      `INSERT INTO page_revisions (page_id, version, title, pretitle, intro, image_url, blocks, published_by, seo_title, seo_description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [page.id, next, state.title, state.pretitle, state.intro, state.imageUrl, blocks, context.userId, state.seoTitle, state.seoDescription],
     );
     await client.query(
-      `UPDATE pages SET title = $2, pretitle = $3, intro = $4, image_url = $5, blocks = $6, draft = NULL,
-              draft_version = draft_version + 1, managed_in_crm = true, updated_at = now(), updated_by = $7
+      `UPDATE pages SET title = $2, pretitle = $3, intro = $4, image_url = $5, blocks = $6, seo_title = $8, seo_description = $9,
+              draft = NULL, draft_version = draft_version + 1, managed_in_crm = true, published = true, updated_at = now(), updated_by = $7
         WHERE id = $1`,
-      [page.id, state.title, state.pretitle, state.intro, state.imageUrl, blocks, context.userId],
+      [page.id, state.title, state.pretitle, state.intro, state.imageUrl, blocks, context.userId, state.seoTitle, state.seoDescription],
     );
     await context.audit(client);
     return { status: 'ok', version: next };
@@ -219,7 +265,7 @@ function createPages(options) {
   const restoreRevision = (id, revision, version, context) => changeDraft(id, version, async (state, client) => {
     if (!/^\d{1,9}$/.test(String(revision))) return { status: 'versie-weg' };
     const [row] = await client.query(
-      'SELECT title, pretitle, intro, image_url, blocks FROM page_revisions WHERE page_id = $1 AND version = $2',
+      'SELECT title, pretitle, intro, image_url, blocks, seo_title, seo_description FROM page_revisions WHERE page_id = $1 AND version = $2',
       [Number(id), Number(revision)],
     );
     if (!row) return { status: 'versie-weg' };
@@ -232,7 +278,7 @@ function createPages(options) {
         ORDER BY m.id LIMIT 1`,
       [row.image_url],
     ) : [];
-    Object.assign(state, editableState({ draft: { title: row.title, pretitle: row.pretitle, intro: row.intro, imageUrl: row.image_url, imageMediaId: media ? media.id : null, blocks: row.blocks }, title: row.title }));
+    Object.assign(state, editableState({ draft: { title: row.title, pretitle: row.pretitle, intro: row.intro, imageUrl: row.image_url, imageMediaId: media ? media.id : null, blocks: row.blocks, seoTitle: row.seo_title, seoDescription: row.seo_description }, title: row.title }));
     return undefined;
   }, context);
 
@@ -252,7 +298,157 @@ function createPages(options) {
     };
   };
 
-  return { list, get, revisions, changeDraft, publish, discardDraft, restoreRevision, sourceOptions };
+  /**
+   * Of een pad vrij is voor een pagina: geen andere pagina en (op het hoofdniveau) geen blogbericht met die slug, want
+   * een pagina gaat op de site voor een bericht.
+   * @param {object} client Transactie-client.
+   * @param {string} path Pad.
+   * @param {(number|null)} selfId Id van de pagina zelf (bij verplaatsen).
+   * @returns {Promise<(string|null)>} Foutmelding, of null als het vrij is.
+   */
+  const pathTaken = async (client, path, selfId) => {
+    const [page] = await client.query('SELECT id FROM pages WHERE path = $1', [path]);
+    if (page && page.id !== selfId) return 'Op dit adres staat al een pagina.';
+    const segments = path.split('/').filter(Boolean);
+    if (segments.length === 1) {
+      const [post] = await client.query('SELECT id FROM posts WHERE slug = $1', [segments[0]]);
+      if (post) return 'Op dit adres staat een blogbericht; kies een ander adres.';
+    }
+    return null;
+  };
+
+  /**
+   * De pagina's die als bovenliggende pagina kunnen dienen (op pad), zonder de pagina zelf en wat eronder staat.
+   * @param {(string|null)} [ownPath] Pad van de pagina die je verplaatst.
+   * @returns {Promise<{path: string, title: string}[]>} Pagina's.
+   */
+  const parentOptions = (ownPath = null) => db.query(
+    `SELECT path, title FROM pages
+      WHERE ($1::text IS NULL OR left(path, length($1)) <> $1)
+      ORDER BY path LIMIT 500`,
+    [ownPath],
+  );
+
+  /**
+   * Maakt een nieuwe pagina: offline (`published = false`) met een concept met alleen de titel, tot de eerste publicatie.
+   * @param {{title: string, slug: string, parentPath: string}} values Titel, slug en pad van de bovenliggende pagina.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, id) => Promise`).
+   * @returns {Promise<{id?: number, errors?: object}>} Nieuw id of fouten.
+   */
+  const create = (values, context) => db.transaction(async (client) => {
+    const title = cleanText(values.title || '', PAGE_LIMITS.title + 1);
+    const errors = {};
+    if (!title) errors.title = 'Vul een titel in.';
+    else if (title.length > PAGE_LIMITS.title) errors.title = `Maximaal ${PAGE_LIMITS.title} tekens.`;
+    const built = buildPagePath(values.slug, values.parentPath);
+    if (built.error) errors.slug = built.error;
+    if (!built.error && values.parentPath !== '/') {
+      const [parent] = await client.query('SELECT id FROM pages WHERE path = $1', [values.parentPath]);
+      if (!parent) errors.parent = 'Kies een bovenliggende pagina uit de lijst.';
+    }
+    if (!errors.slug && !errors.parent) {
+      // Slot op het pad: twee gelijktijdige nieuwe pagina's op hetzelfde adres krijgen niet allebei een id.
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`pagina:${built.path}`]);
+      const taken = await pathTaken(client, built.path, null);
+      if (taken) errors.slug = taken;
+    }
+    if (Object.keys(errors).length) return { errors };
+    const draft = { title, pretitle: '', intro: '', imageUrl: null, imageMediaId: null, blocks: [], seoTitle: '', seoDescription: '' };
+    const [row] = await client.query(
+      `INSERT INTO pages (path, title, published, draft, managed_in_crm, updated_by)
+       VALUES ($1, $2, false, $3, true, $4) RETURNING id`,
+      [built.path, title, JSON.stringify(draft), context.userId],
+    );
+    await context.audit(client, row.id);
+    return { id: row.id };
+  });
+
+  /**
+   * Verplaatst een pagina naar een nieuw adres, met alle pagina's eronder. Elk oud adres krijgt een 301 naar het nieuwe
+   * (`recordMove`) en menu-items die naar een oud adres wezen gaan mee. Daarna `redirects.reload()` en `menus.reload()`.
+   * @param {(number|string)} id Id.
+   * @param {{slug: string, parentPath: string}} values Nieuwe slug en bovenliggende pagina.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
+   * @returns {Promise<{status: ('ok'|'weg'|'fout'|'gelijk'), errors?: object, path?: string}>} Uitkomst.
+   */
+  const move = (id, values, context) => db.transaction(async (client) => {
+    if (!/^\d{1,9}$/.test(String(id))) return { status: 'weg' };
+    const [page] = await client.query('SELECT id, path FROM pages WHERE id = $1 FOR UPDATE', [Number(id)]);
+    if (!page) return { status: 'weg' };
+    const built = buildPagePath(values.slug, values.parentPath);
+    if (built.error) return { status: 'fout', errors: { slug: built.error } };
+    if (built.path === page.path) return { status: 'gelijk' };
+    if (built.path.startsWith(page.path)) return { status: 'fout', errors: { parent: 'Een pagina kan niet onder zichzelf staan.' } };
+    if (values.parentPath !== '/') {
+      const [parent] = await client.query('SELECT id FROM pages WHERE path = $1', [values.parentPath]);
+      if (!parent) return { status: 'fout', errors: { parent: 'Kies een bovenliggende pagina uit de lijst.' } };
+    }
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`pagina:${built.path}`]);
+    const moving = await client.query(
+      'SELECT id, path FROM pages WHERE left(path, length($1)) = $1 ORDER BY path FOR UPDATE',
+      [page.path],
+    );
+    for (const row of moving) {
+      const target = built.path + row.path.slice(page.path.length);
+      if (target.length > PAGE_LIMITS.path) return { status: 'fout', errors: { slug: 'Een adres eronder wordt te lang.' } };
+      const taken = await pathTaken(client, target, row.id);
+      if (taken) return { status: 'fout', errors: { slug: row.id === page.id ? taken : `${taken} (${target})` } };
+    }
+    // Eerst alle paden tijdelijk vrijmaken: zo botst een verschuiving binnen dezelfde boom niet met de unieke index.
+    await client.query("UPDATE pages SET path = '#verplaatsen-' || id::text WHERE id = ANY($1::int[])", [moving.map((row) => row.id)]);
+    for (const row of moving) {
+      const target = built.path + row.path.slice(page.path.length);
+      await client.query('UPDATE pages SET path = $2, managed_in_crm = true, updated_at = now(), updated_by = $3 WHERE id = $1', [row.id, target, context.userId]);
+      await recordMove(client, { fromPath: row.path, toPath: target, userId: context.userId, note: 'Pagina verplaatst' });
+      await client.query('UPDATE menu_items SET href = $2, updated_at = now() WHERE href = $1', [row.path, target]);
+    }
+    await context.audit(client);
+    return { status: 'ok', path: built.path };
+  });
+
+  /**
+   * Zet een pagina offline of weer online. Online kan alleen als de pagina eerder online stond of uit de import komt
+   * (een nieuwe pagina gaat online met *Publiceren*).
+   * @param {(number|string)} id Id.
+   * @param {boolean} online Gewenste stand.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
+   * @returns {Promise<{status: ('ok'|'weg'|'nooit-gepubliceerd')}>} Uitkomst.
+   */
+  const setOnline = (id, online, context) => db.transaction(async (client) => {
+    if (!/^\d{1,9}$/.test(String(id))) return { status: 'weg' };
+    const [page] = await client.query(
+      `SELECT p.id, p.legacy_id, EXISTS (SELECT 1 FROM page_revisions r WHERE r.page_id = p.id) AS has_revisions
+         FROM pages p WHERE p.id = $1 FOR UPDATE`,
+      [Number(id)],
+    );
+    if (!page) return { status: 'weg' };
+    if (online && !page.has_revisions && page.legacy_id === null) return { status: 'nooit-gepubliceerd' };
+    await client.query('UPDATE pages SET published = $2, updated_at = now(), updated_by = $3 WHERE id = $1', [page.id, online, context.userId]);
+    await context.audit(client);
+    return { status: 'ok' };
+  });
+
+  /**
+   * Verwijdert een pagina die offline staat, niet uit de import komt (die zou bij een nieuwe import terugkomen; zet hem
+   * offline) en geen pagina's onder zich heeft. Versies gaan mee (ON DELETE CASCADE).
+   * @param {(number|string)} id Id.
+   * @param {{audit: Function}} context Audit.
+   * @returns {Promise<{status: ('ok'|'weg'|'online'|'import'|'onderliggend')}>} Uitkomst.
+   */
+  const remove = (id, context) => db.transaction(async (client) => {
+    if (!/^\d{1,9}$/.test(String(id))) return { status: 'weg' };
+    const [page] = await client.query('SELECT id, path, published, legacy_id FROM pages WHERE id = $1 FOR UPDATE', [Number(id)]);
+    if (!page) return { status: 'weg' };
+    if (page.published) return { status: 'online' };
+    if (page.legacy_id !== null) return { status: 'import' };
+    const [child] = await client.query('SELECT id FROM pages WHERE left(path, length($1)) = $1 AND id <> $2 LIMIT 1', [page.path, page.id]);
+    if (child) return { status: 'onderliggend' };
+    await client.query('DELETE FROM pages WHERE id = $1', [page.id]);
+    await context.audit(client);
+    return { status: 'ok' };
+  });
+
+  return { list, get, revisions, changeDraft, publish, discardDraft, restoreRevision, sourceOptions, parentOptions, create, move, setOnline, remove };
 }
 
-module.exports = { createPages, validatePageFields, editableState, imageFromMedia, PAGE_LIMITS, IMAGE_WIDTH };
+module.exports = { createPages, validatePageFields, buildPagePath, editableState, imageFromMedia, PAGE_LIMITS, IMAGE_WIDTH, RESERVED_SEGMENTS };
