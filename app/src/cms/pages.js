@@ -220,7 +220,16 @@ function createPages(options) {
       [Number(id), Number(revision)],
     );
     if (!row) return { status: 'versie-weg' };
-    Object.assign(state, editableState({ draft: { title: row.title, pretitle: row.pretitle, intro: row.intro, imageUrl: row.image_url, imageMediaId: null, blocks: row.blocks }, title: row.title }));
+    // De kopfoto staat in een versie alleen als adres; zoek de foto in de bibliotheek erbij, zodat publiceren hem weer
+    // controleert en vergrendelt. Een foto uit de import zonder bibliotheekrij blijft een los adres.
+    const [media] = row.image_url ? await client.query(
+      `SELECT m.id FROM media m
+        WHERE m.content_type LIKE 'image/%'
+          AND ('/media/' || m.local_name = $1 OR EXISTS (SELECT 1 FROM jsonb_each_text(m.variants) AS variant WHERE '/media/' || variant.value = $1))
+        ORDER BY m.id LIMIT 1`,
+      [row.image_url],
+    ) : [];
+    Object.assign(state, editableState({ draft: { title: row.title, pretitle: row.pretitle, intro: row.intro, imageUrl: row.image_url, imageMediaId: media ? media.id : null, blocks: row.blocks }, title: row.title }));
     return undefined;
   }, context);
 

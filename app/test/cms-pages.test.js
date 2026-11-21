@@ -325,10 +325,14 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match((await request('/over-ons/')).text, /Nieuwe tekst/, 'terugzetten is eerst een concept');
     assert.equal((await post(`${pageUrl}concept-weggooien/`, {})).status, 303);
     assert.equal((await db.query('SELECT draft FROM pages WHERE id = $1', [page.id]))[0].draft, null);
+    // Versie 2 had een kopfoto uit de bibliotheek: na terugzetten weet het concept weer welke foto het is.
+    assert.equal((await post(`${pageUrl}versies/2/terugzetten/`, {})).status, 303);
+    assert.equal((await db.query("SELECT (draft ->> 'imageMediaId')::int AS id FROM pages WHERE id = $1", [page.id]))[0].id, photo.id);
+    assert.equal((await post(`${pageUrl}concept-weggooien/`, {})).status, 303);
     assert.ok(await audits('pagina.concept') >= 10);
     assert.equal(await audits('pagina.gepubliceerd'), 1);
-    assert.equal(await audits('pagina.versie-terug'), 1);
-    assert.equal(await audits('pagina.concept-weg'), 1);
+    assert.equal(await audits('pagina.versie-terug'), 2);
+    assert.equal(await audits('pagina.concept-weg'), 2);
     const log = await request('/app/auditlog/', { cookie: (await login('kantoor@example.nl')).cookie });
     assert.equal(log.status, 403, 'auditlog alleen met recht gebruikers');
   });
