@@ -478,10 +478,19 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     // Een upload van vóór migratie 13 (alleen het bestand) komt alsnog in de database; zonder bestand wordt hij geteld.
     await db.query('DELETE FROM media_files WHERE media_id = $1', [item.id]);
     await db.query("INSERT INTO media (local_name, content_type, bytes, source, variants) VALUES ('bib-ffffffffffffffff-400.webp', 'image/webp', 1, 'upload', '{\"400\": \"bib-ffffffffffffffff-400.webp\"}')");
-    assert.deepEqual(await library.backfillFiles(), { stored: 1, missing: 1 });
-    const [copy] = await db.query('SELECT sha256 FROM media_files WHERE media_id = $1', [item.id]);
+    // Een bestand dat geen WebP is, telt ook als ontbrekend en houdt de rest niet tegen.
+    await fs.writeFile(path.join(mediaDir, 'bib-eeeeeeeeeeeeeeee-400.webp'), 'geen foto');
+    await db.query("INSERT INTO media (local_name, content_type, bytes, source, variants) VALUES ('bib-eeeeeeeeeeeeeeee-400.webp', 'image/webp', 1, 'upload', '{\"400\": \"bib-eeeeeeeeeeeeeeee-400.webp\"}')");
+    // Zonder breedte in de media-rij haalt de backfill de breedte uit het bestand.
+    await db.query('UPDATE media SET width = NULL WHERE id = $1', [item.id]);
+    assert.deepEqual(await library.backfillFiles(), { stored: 1, missing: 2 });
+    const [copy] = await db.query('SELECT sha256, width FROM media_files WHERE media_id = $1', [item.id]);
     assert.equal(copy.sha256, hash(largest));
-    await db.query("DELETE FROM media WHERE local_name = 'bib-ffffffffffffffff-400.webp'");
+    assert.equal(copy.width, (await sharp(largest).metadata()).width);
+    await fs.rm(path.join(mediaDir, item.local_name));
+    assert.equal((await library.restoreMissingFiles()).restored, 1, 'herstel werkt ook na een backfill zonder breedte');
+    assert.deepEqual(await fs.readFile(path.join(mediaDir, item.local_name)), largest);
+    await db.query("DELETE FROM media WHERE local_name IN ('bib-ffffffffffffffff-400.webp', 'bib-eeeeeeeeeeeeeeee-400.webp')");
     // Verwijderen van de foto haalt ook de kopie in de database weg.
     await db.query('DELETE FROM media WHERE id = $1', [item.id]);
     assert.equal((await db.query('SELECT media_id FROM media_files WHERE media_id = $1', [item.id])).length, 0);

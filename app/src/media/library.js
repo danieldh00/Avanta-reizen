@@ -6,7 +6,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { processImage, resizeWebp } = require('./images');
+const { processImage, resizeWebp, webpWidth, MAX_UPLOAD_BYTES } = require('./images');
 
 /** Waar een foto gebruikt kan worden: soort, tabel, titelkolom, sleutelkolom, kolommen met adressen en het publieke pad. */
 const USAGE_SOURCES = [
@@ -375,26 +375,34 @@ function createMediaLibrary(options) {
 
   /**
    * Zet geüploade foto's van vóór migratie 13 (alleen als bestand op schijf) alsnog in de database, zodat ze in de
-   * back-up komen. Een ontbrekend of beschadigd bestand wordt overgeslagen en geteld.
+   * back-up komen. Een ontbrekend, onleesbaar of beschadigd bestand wordt overgeslagen en geteld; de rest gaat door.
    * @returns {Promise<{stored: number, missing: number}>} Aantallen.
    */
   const backfillFiles = async () => {
     const rows = await db.query(
-      `SELECT m.id, m.local_name, m.width FROM media m
+      `SELECT m.id, m.local_name FROM media m
         WHERE m.source = 'upload' AND NOT EXISTS (SELECT 1 FROM media_files f WHERE f.media_id = m.id) ORDER BY m.id`,
     );
     let stored = 0;
     let missing = 0;
     for (const row of rows) {
       let data;
+      let width = null;
       try {
-        data = await fs.readFile(path.join(mediaDir, row.local_name));
-      } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
+        const file = path.join(mediaDir, row.local_name);
+        if (/^bib-[0-9a-f]{16}-\d{1,5}\.webp$/.test(row.local_name) && (await fs.stat(file)).size <= MAX_UPLOAD_BYTES) {
+          data = await fs.readFile(file);
+          // De breedte uit het bestand zelf: daarmee herkent het herstel de grootste variant.
+          width = await webpWidth(data);
+        }
+      } catch {
+        // Ontbrekend of onleesbaar (bijv. EACCES): overslaan en tellen, de rest gaat door.
+      }
+      if (!width) {
         missing++;
         continue;
       }
-      await db.query('INSERT INTO media_files (media_id, width, sha256, data) VALUES ($1, $2, $3, $4) ON CONFLICT (media_id) DO NOTHING', [row.id, row.width || 0, sha256(data), data]);
+      await db.query('INSERT INTO media_files (media_id, width, sha256, data) VALUES ($1, $2, $3, $4) ON CONFLICT (media_id) DO NOTHING', [row.id, width, sha256(data), data]);
       stored++;
     }
     return { stored, missing };
