@@ -909,6 +909,7 @@ const MIGRATIONS = [
         provider_ref TEXT NOT NULL UNIQUE CHECK (provider_ref ~ '^tr_[A-Za-z0-9]{4,40}$'),
         kind TEXT NOT NULL CHECK (kind IN ('aanbetaling', 'restant')),
         amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+        checkout_url TEXT NOT NULL DEFAULT '' CHECK (length(checkout_url) <= 500),
         status TEXT NOT NULL DEFAULT 'open' CHECK (length(status) <= 20),
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

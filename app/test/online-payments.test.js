@@ -11,7 +11,7 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { createMollie, MollieError, centsFromMollie, mollieAmount } = require('../src/crm/mollie');
+const { createMollie, isMollieUrl, MollieError, centsFromMollie, mollieAmount } = require('../src/crm/mollie');
 const { START_LIMIT } = require('../src/crm/online-payment-routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -62,6 +62,10 @@ test('Mollie-koppeling: bedragen, uit zonder sleutel, fouten zonder sleutel', as
   assert.equal(centsFromMollie({ currency: 'EUR', value: '505.00' }), 50500);
   assert.equal(centsFromMollie({ currency: 'USD', value: '5.00' }), null);
   assert.equal(centsFromMollie({ currency: 'EUR', value: '5' }), null);
+  assert.equal(isMollieUrl('https://www.mollie.com/checkout/x'), true);
+  assert.equal(isMollieUrl('https://x.example/#mollie.com/'), false);
+  assert.equal(isMollieUrl('https://evilmollie.com/'), false);
+  assert.equal(isMollieUrl('http://www.mollie.com/'), false);
   const values = { mollieEnabled: false, mollieApiKey: API_KEY };
   const settings = { get: (key) => values[key] };
   const fake = fakeMollie();
@@ -190,6 +194,18 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.doesNotMatch(JSON.stringify(call.body), /Jansen|jan@example/);
     const rows = await db.query('SELECT kind, amount_cents, status FROM online_payments WHERE booking_id = $1', [openId]);
     assert.deepEqual(rows, [{ kind: 'aanbetaling', amount_cents: 500, status: 'open' }]);
+    // Tweede tabblad of dubbelklik: hetzelfde betaalscherm, geen tweede betaling bij Mollie.
+    const posts = fake.calls.filter((entry) => entry.method === 'POST').length;
+    const [again, third] = await Promise.all([request(path, { form: {} }), request(path, { form: {} })]);
+    assert.equal(again.status, 200);
+    assert.equal(third.status, 200);
+    assert.equal(fake.calls.filter((entry) => entry.method === 'POST').length, posts, 'open betaling hergebruikt');
+    assert.equal((await db.query('SELECT 1 FROM online_payments WHERE booking_id = $1', [openId])).length, 1);
+    await db.query("UPDATE online_payments SET status = 'pending' WHERE booking_id = $1", [openId]);
+    const busy = await request(path, { form: {} });
+    assert.equal(busy.status, 409);
+    assert.match(busy.text, /al een betaling voor deze aanmelding in behandeling/);
+    await db.query("UPDATE online_payments SET status = 'open' WHERE booking_id = $1", [openId]);
   });
 
   await t.test('webhook: onbekend 200, afwijkend bedrag niet geregistreerd, geslaagd één keer met status door', async () => {
@@ -206,6 +222,11 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.equal((await request('/betalen/webhook/', { form: { id: ref } })).status, 503, 'Mollie niet bereikbaar: later opnieuw');
     assert.equal((await request('/betalen/webhook/', { form: { id: ref } })).status, 200);
     assert.equal((await request('/betalen/webhook/', { form: { id: ref } })).status, 200, 'tweede melding');
+    // Een later binnenkomend, ouder antwoord zet de betaalde stand niet terug.
+    fake.remote.get(ref).status = 'pending';
+    await request('/betalen/webhook/', { form: { id: ref } });
+    assert.equal((await db.query('SELECT status FROM online_payments WHERE provider_ref = $1', [ref]))[0].status, 'paid');
+    fake.remote.get(ref).status = 'paid';
     const paid = await db.query('SELECT amount_cents, method, received_on::text AS day, provider_ref, created_by FROM payments WHERE booking_id = $1', [openId]);
     assert.deepEqual(paid, [{ amount_cents: 500, method: 'ideal', day: '2027-03-01', provider_ref: ref, created_by: null }]);
     const [{ status }] = await db.query('SELECT status FROM bookings WHERE id = $1', [openId]);

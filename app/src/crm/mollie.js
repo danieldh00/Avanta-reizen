@@ -53,6 +53,20 @@ function centsFromMollie(amount) {
 }
 
 /**
+ * Of een adres een https-adres op (een subdomein van) mollie.com is.
+ * @param {*} value Adres.
+ * @returns {boolean} Waar als het een Mollie-adres is.
+ */
+function isMollieUrl(value) {
+  try {
+    const url = new URL(String(value));
+    return url.protocol === 'https:' && !url.username && !url.password && !url.port && (url.hostname === 'mollie.com' || url.hostname.endsWith('.mollie.com'));
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * Maakt de Mollie-koppeling.
  * @param {{settings: object, fetchImpl?: Function}} options Instellingen en (voor tests) fetch.
  * @returns {{enabled: Function, createPayment: Function, getPayment: Function}} Functies.
@@ -112,7 +126,7 @@ function createMollie(options) {
       locale: 'nl_NL',
     });
     const checkoutUrl = payment && payment._links && payment._links.checkout && payment._links.checkout.href;
-    if (!PAYMENT_ID_PATTERN.test(String(payment && payment.id)) || !/^https:\/\/[^/]*mollie\.com\//.test(String(checkoutUrl))) {
+    if (!PAYMENT_ID_PATTERN.test(String(payment && payment.id)) || !isMollieUrl(checkoutUrl)) {
       throw new MollieError('invalid_response', 'Mollie gaf geen geldig betaalscherm terug.');
     }
     return { id: payment.id, checkoutUrl };
@@ -138,4 +152,4 @@ function createMollie(options) {
   return { enabled, createPayment, getPayment };
 }
 
-module.exports = { createMollie, MollieError, mollieAmount, centsFromMollie, API_KEY_PATTERN, PAYMENT_ID_PATTERN, API_BASE };
+module.exports = { createMollie, isMollieUrl, MollieError, mollieAmount, centsFromMollie, API_KEY_PATTERN, PAYMENT_ID_PATTERN, API_BASE };

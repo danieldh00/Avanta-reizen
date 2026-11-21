@@ -14,6 +14,10 @@ const { PAYMENT_ID_PATTERN, MollieError } = require('./mollie');
 /** Lengte van het token in de betaallink (base64url, 132 bits). */
 const TOKEN_LENGTH = 22;
 
+/** Zo lang (minuten) wordt een nog open betaalscherm hergebruikt in plaats van een nieuwe betaling (Mollie houdt een
+ * open betaling minstens 15 minuten geldig). */
+const REUSE_MINUTES = 15;
+
 /** Patroon van het deel `<id>-<token>` in de betaallink. */
 const LINK_PATTERN = /^(\d{1,9})-([A-Za-z0-9_-]{22})$/;
 
@@ -124,35 +128,51 @@ function createOnlinePayments(options) {
   /**
    * Start een betaling voor de openstaande termijn.
    * @param {number} bookingId Id.
-   * @returns {Promise<{status: string, checkoutUrl?: string}>} `ok` met het adres van het betaalscherm, of `uit`,
-   *   `weg`, `geannuleerd`, `niets-open`, `mislukt`.
+   * @returns {Promise<{status: string, checkoutUrl?: string}>} `ok` met het adres van het betaalscherm (een nog open
+   *   betaling van de laatste minuten wordt hergebruikt), of `uit`, `weg`, `geannuleerd`, `niets-open`, `bezig` (een
+   *   betaling is bij de bank in behandeling) of `mislukt`.
    */
   const start = async (bookingId) => {
     if (!enabled()) return { status: 'uit' };
-    const state = await loadState(db, bookingId);
-    if (!state) return { status: 'weg' };
-    const blocked = blockedReason(state);
-    if (blocked) return { status: blocked };
-    const { booking, kind, amountCents } = state;
-    const path = pathFor(booking.id);
-    let created;
-    try {
-      created = await mollie.createPayment({
-        amountCents,
-        description: `${booking.reference} ${kind} ${booking.trip_title}`,
-        redirectUrl: `${baseUrl()}${path}klaar/`,
-        webhookUrl: `${baseUrl()}/betalen/webhook/`,
-        metadata: { bookingId: booking.id, kind },
-      });
-    } catch (error) {
-      log(`Betaling starten mislukt (${error instanceof MollieError ? error.code : 'onbekend'})`, { bookingId: booking.id });
-      return { status: 'mislukt' };
-    }
-    await db.query(
-      'INSERT INTO online_payments (booking_id, provider_ref, kind, amount_cents, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $5)',
-      [booking.id, created.id, kind, amountCents, new Date(now()).toISOString()],
-    );
-    return { status: 'ok', checkoutUrl: created.checkoutUrl };
+    // Alles onder het slot van de aanmelding: twee tabbladen of een dubbelklik leveren nooit twee betalingen op.
+    return db.transaction(async (client) => {
+      const state = await loadState(client, bookingId, true);
+      if (!state) return { status: 'weg' };
+      const blocked = blockedReason(state);
+      if (blocked) return { status: blocked };
+      const { booking, kind, amountCents } = state;
+      const [running] = await client.query(
+        `SELECT status, kind, amount_cents, checkout_url, created_at FROM online_payments
+          WHERE booking_id = $1 AND status IN ('open', 'pending', 'authorized') AND created_at > $2::timestamptz - make_interval(mins => $3)
+          ORDER BY created_at DESC, id DESC LIMIT 1`,
+        [booking.id, new Date(now()).toISOString(), REUSE_MINUTES],
+      );
+      // Een betaling die bij de bank in behandeling is: niet nog een starten.
+      if (running && running.status !== 'open') return { status: 'bezig' };
+      // Nog een open betaalscherm voor dezelfde termijn en hetzelfde bedrag: dat hergebruiken.
+      if (running && running.kind === kind && running.amount_cents === amountCents && running.checkout_url) {
+        return { status: 'ok', checkoutUrl: running.checkout_url };
+      }
+      const path = pathFor(booking.id);
+      let created;
+      try {
+        created = await mollie.createPayment({
+          amountCents,
+          description: `${booking.reference} ${kind} ${booking.trip_title}`,
+          redirectUrl: `${baseUrl()}${path}klaar/`,
+          webhookUrl: `${baseUrl()}/betalen/webhook/`,
+          metadata: { bookingId: booking.id, kind },
+        });
+      } catch (error) {
+        log(`Betaling starten mislukt (${error instanceof MollieError ? error.code : 'onbekend'})`, { bookingId: booking.id });
+        return { status: 'mislukt' };
+      }
+      await client.query(
+        'INSERT INTO online_payments (booking_id, provider_ref, kind, amount_cents, checkout_url, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $6)',
+        [booking.id, created.id, kind, amountCents, created.checkoutUrl, new Date(now()).toISOString()],
+      );
+      return { status: 'ok', checkoutUrl: created.checkoutUrl };
+    });
   };
 
   /**
@@ -183,7 +203,8 @@ function createOnlinePayments(options) {
       const current = await loadState(client, row.booking_id, true);
       const paidAt = state === 'paid' ? (remote.paidAt || new Date(now()).toISOString()) : null;
       await client.query(
-        'UPDATE online_payments SET status = $2, paid_at = coalesce(paid_at, $3::timestamptz), updated_at = $4 WHERE id = $1',
+        // Een bereikte betaalde stand nooit terugzetten met een ouder antwoord (webhook en terugkeerpagina tegelijk).
+        "UPDATE online_payments SET status = $2, paid_at = coalesce(paid_at, $3::timestamptz), updated_at = $4 WHERE id = $1 AND status <> 'paid'",
         [row.id, state, paidAt, new Date(now()).toISOString()],
       );
       if (state !== 'paid' || !current) return { status: 'ok', state, newStatus: null };

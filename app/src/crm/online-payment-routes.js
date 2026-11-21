@@ -25,6 +25,7 @@ const MESSAGES = {
   uit: 'Online betalen is op dit moment niet beschikbaar. Maak het bedrag over zoals in de bevestiging staat.',
   geannuleerd: 'Voor deze aanmelding kan niet (meer) online betaald worden. Neem bij vragen contact met ons op.',
   'niets-open': 'Er staat voor deze aanmelding niets open. Dank je wel!',
+  bezig: 'Er is al een betaling voor deze aanmelding in behandeling. Wacht even af; je krijgt bericht als er iets niet goed gaat.',
   mislukt: 'Het betaalscherm kon niet worden geopend. Probeer het over een paar minuten opnieuw, of maak het bedrag over.',
 };
 
