@@ -124,6 +124,9 @@ function createMenus(options) {
    * @returns {Promise<(object|null)>} Fouten, of null als het klopt.
    */
   const checkPlacement = async (client, values, selfId) => {
+    // Slot per menu: FOR UPDATE vergrendelt alleen bestaande rijen, dus zonder dit slot zien twee gelijktijdige
+    // toevoegingen allebei 39 items en komt het menu op 41.
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`menu:${values.menu}`]);
     const rows = await client.query('SELECT id, parent_id FROM menu_items WHERE menu = $1 ORDER BY id FOR UPDATE', [values.menu]);
     // Tel de andere items van dit menu: zo telt ook een item dat uit een ander menu hierheen verhuist mee.
     if (rows.filter((row) => row.id !== selfId).length >= MAX_ITEMS) return { label: `Een menu heeft hoogstens ${MAX_ITEMS} items.` };
