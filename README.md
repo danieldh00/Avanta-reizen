@@ -291,6 +291,18 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     aanmeldingen die kantoor heeft bevestigd, niet bij status *nieuw*) voor te late
     termijnen, niet vaker dan elke `paymentReminderEveryDays` (7) dagen en hoogstens `paymentReminderMax` (3) keer per
     termijn. Het overzicht toont de laatste herinnering.
+    **Online betalen** (optioneel, migratie 28; `app/src/crm/mollie.js`, `online-payments.js`, `online-payment-routes.js`):
+    met `mollieEnabled` en een Mollie-sleutel (`mollieApiKey`, geheim; Beheer > CRM > Online betalen) én een
+    https-basisadres van de site krijgt elke aanmelding een vaste, niet te raden betaallink `/betalen/<id>-<token>/`
+    (HMAC uit de hoofdsleutel). De link staat als knop in de betaalherinnering en op de betaalpagina in het CRM. De
+    reiziger ziet alleen referentie, reis, termijn en bedrag, en start met één knop een betaling bij Mollie (herkomst-
+    controle, hoogstens 10 per bezoeker en per aanmelding per 10 minuten; daarna een tussenpagina naar Mollie vanwege de
+    CSP). Mollie meldt een wijziging aan `/betalen/webhook/`; de app vraagt de betaling dan zelf op (vast adres
+    `https://api.mollie.com/v2`), controleert aanmelding en bedrag en registreert een geslaagde betaling één keer in
+    `payments` (methode iDEAL, `provider_ref` = Mollie-id), waarna de status van de aanmelding doorschuift. Elke
+    aangemaakte betaling staat in `online_payments`; fouten staan in het logboek (bron `mollie`), nooit de sleutel.
+    Naar Mollie gaan geen persoonsgegevens. Terugbetalingen en storno's registreert kantoor met de hand (correctie).
+    Zonder Mollie werkt alles met overmaken en handmatige registratie.
   - **Deelnemerslijsten** op `/app/deelnemerslijsten/` (recht `export.deelnemers`; `app/src/crm/participant-list-routes.js`
     en `participant-lists.js`): per vertrek een Excel-bestand (.xlsx, nooit CSV) met alle aanmeldingen die niet
     geannuleerd zijn, met de actuele NAW van de persoon (anders het formulier). Bijzondere gegevens alleen als je ze

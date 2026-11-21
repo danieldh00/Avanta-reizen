@@ -39,10 +39,11 @@ function reminderKind(summary) {
 
 /**
  * De inhoud van een herinnering voor `renderMail`.
- * @param {{booking: object, summary: object, kind: string, paymentText: string}} input Aanmelding, stand, termijn en betaalinstructie.
+ * @param {{booking: object, summary: object, kind: string, paymentText: string, payLink?: string}} input Aanmelding, stand,
+ *   termijn, betaalinstructie en (bij online betalen) de persoonlijke betaallink.
  * @returns {{subject: string, content: object}} Onderwerp en inhoud.
  */
-function reminderContent({ booking, summary, kind, paymentText }) {
+function reminderContent({ booking, summary, kind, paymentText, payLink }) {
   const amount = kind === 'aanbetaling' ? summary.depositOpenCents : summary.balanceCents;
   const due = kind === 'aanbetaling' ? summary.depositDueOn : summary.balanceDueOn;
   const late = summary.overdue === kind;
@@ -62,14 +63,16 @@ function reminderContent({ booking, summary, kind, paymentText }) {
         [`Nu te betalen (${KIND_LABELS[kind]})`, payments.formatAmount(amount)],
         ['Uiterlijk', due ? formatDate(due) : '–'],
       ],
-      body: `${paymentText}\n\nReferentie voor de omschrijving: ${booking.reference}`,
+      body: `${payLink ? 'Je kunt direct online betalen met de knop hieronder, of het bedrag overmaken:\n\n' : ''}${paymentText}\n\nReferentie voor de omschrijving: ${booking.reference}`,
+      ...(payLink ? { action: { label: `${KIND_LABELS[kind][0].toUpperCase()}${KIND_LABELS[kind].slice(1)} online betalen`, url: payLink } } : {}),
     },
   };
 }
 
 /**
  * Maakt de herinneringen.
- * @param {{db: object, mailer: object, settings: object, now?: () => number}} options Database, mailer, instellingen en klok.
+ * @param {{db: object, mailer: object, settings: object, onlinePayments?: object, now?: () => number}} options Database,
+ *   mailer, instellingen, online betalen (betaallink in de mail) en klok.
  * @returns {{send: Function, runDaily: Function, list: Function, start: Function}} Functies.
  */
 function createPaymentReminders(options) {
@@ -137,7 +140,8 @@ function createPaymentReminders(options) {
     });
     if (prepared.status !== 'klaar') return prepared;
     const { booking, summary, kind, rowId } = prepared;
-    const mail = reminderContent({ booking, summary, kind, paymentText: settings.get('bookingPaymentText') });
+    const payLink = options.onlinePayments ? options.onlinePayments.linkFor(booking.id) : '';
+    const mail = reminderContent({ booking, summary, kind, paymentText: settings.get('bookingPaymentText'), payLink });
     try {
       const rendered = renderMail({ headerColor: settings.get('mailHeaderColor'), footerText: settings.get('mailFooterText'), siteName: settings.get('siteName'), ...mail.content });
       await mailer.send({ kind: 'herinnering-betaling', to: booking.email, subject: mail.subject, text: rendered.text, html: rendered.html, attachments: rendered.attachments });

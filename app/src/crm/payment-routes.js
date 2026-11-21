@@ -16,6 +16,7 @@ const { STATUSES } = require('./booking-routes');
 const payments = require('./payments');
 const { createRateLimiter } = require('../security/rate-limit');
 const { reminderKind, KIND_LABELS } = require('./payment-reminders');
+const { ONLINE_STATES } = require('./online-payments');
 
 /** Hoogstens zoveel herinneringen met de hand per medewerker per tien minuten. */
 const REMINDER_LIMIT = 30;
@@ -107,7 +108,7 @@ function validateCharge(body) {
  * @returns {express.Router} Router.
  */
 function createPaymentRoutes(options) {
-  const { db, auth, settings, reminders } = options;
+  const { db, auth, settings, reminders, onlinePayments } = options;
   // Herinneringen met de hand: hoogstens zoveel per medewerker per tien minuten (geen massamail vanuit één sessie).
   const reminderLimiter = createRateLimiter({ limit: REMINDER_LIMIT, windowMs: 10 * 60 * 1000, now: options.now });
   const now = options.now || Date.now;
@@ -145,7 +146,12 @@ function createPaymentRoutes(options) {
    * @returns {Promise<string>} HTML-pagina.
    */
   const renderPage = async (req, booking, state = {}) => {
-    const [lines, sentReminders] = await Promise.all([payments.loadLines(db, booking.id), reminders ? reminders.list(booking.id) : []]);
+    const [lines, sentReminders, onlineLines] = await Promise.all([
+      payments.loadLines(db, booking.id),
+      reminders ? reminders.list(booking.id) : [],
+      onlinePayments ? onlinePayments.list(booking.id) : [],
+    ]);
+    const payLink = onlinePayments ? onlinePayments.linkFor(booking.id) : '';
     const day = today();
     const summary = payments.summarize({ booking, ...lines, terms: payments.termsFrom(settings), today: day });
     const hidden = html`<input type="hidden" name="_csrf" value="${req.session.csrf}"><input type="hidden" name="stand" value="${linesVersion(lines)}">`;
@@ -221,6 +227,10 @@ function createPaymentRoutes(options) {
           ${sentReminders.length ? html`<ul class="crm-reminders">${sentReminders.map((line) => html`<li>${formatDateTime(line.created_at)}: ${KIND_LABELS[line.kind] || line.kind},
             ${line.trigger === 'automatisch' ? 'automatisch' : `door ${line.user_name || 'onbekend'}`}, ${line.sent ? 'verstuurd' : html`<strong>niet verstuurd</strong> (${line.error})`}</li>`)}</ul>`
     : html`<p>Nog geen herinneringen verstuurd.</p>`}` : ''}
+        ${payLink || onlineLines.length ? html`<h2>Online betalen</h2>
+          ${payLink ? html`<p>Persoonlijke betaallink (staat ook in de herinnering): <a href="${payLink}" rel="noreferrer">${payLink}</a></p>` : ''}
+          ${onlineLines.length ? html`<ul class="crm-reminders">${onlineLines.map((line) => html`<li>${formatDateTime(line.created_at)}: ${KIND_LABELS[line.kind] || line.kind}
+            ${payments.formatAmount(line.amount_cents)}, ${ONLINE_STATES[line.status] || line.status}${line.paid_at ? ` op ${formatDateTime(line.paid_at)}` : ''}</li>`)}</ul>` : html`<p>Nog geen online betalingen gestart.</p>`}` : ''}
         <div class="crm-columns">
           <section>
             <h2>Betaling registreren</h2>

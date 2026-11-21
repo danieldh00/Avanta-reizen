@@ -53,14 +53,15 @@ function contrastWithWhite(hex) {
 /**
  * Bouwt een mail: kop met logo, titelbalk, inleiding, een tabel met gegevens, eventueel een blok vrije tekst en de
  * voettekst.
- * @param {{title: string, intro?: string, rows?: Array<[string, string]>, body?: string, headerColor: string, footerText?: string, siteName: string}} content
- *   Titel, inleiding, rijen (label, waarde; lege waarden vallen weg), vrije tekst (regeleinden blijven), kleur van de
- *   titelbalk, voettekst en naam van de site (alt-tekst van het logo).
+ * @param {{title: string, intro?: string, rows?: Array<[string, string]>, body?: string, action?: {label: string, url: string}, headerColor: string, footerText?: string, siteName: string}} content
+ *   Titel, inleiding, rijen (label, waarde; lege waarden vallen weg), vrije tekst (regeleinden blijven), eventueel een
+ *   knop (alleen een https-adres), kleur van de titelbalk, voettekst en naam van de site (alt-tekst van het logo).
  * @returns {{html: string, text: string, attachments: object[]}} HTML, platte tekst en het logo als ingebedde bijlage.
  */
 function renderMail(content) {
   const rows = (content.rows || []).filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '');
   const logo = logoBuffer();
+  const action = content.action && /^https:\/\/[^\s"'<>]+$/.test(String(content.action.url)) ? content.action : null;
   const color = content.headerColor;
   const cell = 'padding:6px 12px 6px 0;vertical-align:top;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;color:#434248;';
   const paragraphs = (text) => String(text || '').split(/\n{2,}/).filter((part) => part.trim())
@@ -76,6 +77,7 @@ ${logo ? html`<tr><td style="padding:20px 24px 12px;"><img src="cid:${LOGO_CID}"
 ${paragraphs(content.intro)}
 ${rows.length ? html`<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 12px;">${rows.map(([label, value]) => html`<tr><td style="${cell}font-weight:bold;white-space:nowrap;">${label}</td><td style="${cell}">${value}</td></tr>`)}</table>` : ''}
 ${content.body ? html`<div style="margin:4px 0 12px;padding:12px;background:#f7f7f7;border-left:3px solid ${color};">${paragraphs(content.body)}</div>` : ''}
+${action ? html`<p style="margin:8px 0 16px;"><a href="${action.url}" style="display:inline-block;padding:10px 18px;background:${color};border-radius:4px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">${action.label}</a></p>` : ''}
 </td></tr>
 ${content.footerText ? html`<tr><td style="padding:12px 24px 20px;border-top:1px solid #e4e2df;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#6b6b6b;">${content.footerText.split('\n').map((line, index) => (index ? [html`<br>`, line] : line))}</td></tr>` : ''}
 </table>
@@ -87,6 +89,7 @@ ${content.footerText ? html`<tr><td style="padding:12px 24px 20px;border-top:1px
     content.intro || '',
     rows.length ? `\n${rows.map(([label, value]) => `${label}: ${value}`).join('\n')}` : '',
     content.body ? `\n${content.body}` : '',
+    action ? `\n${action.label}: ${action.url}` : '',
     content.footerText ? `\n--\n${content.footerText}` : '',
   ].filter((part, index) => index < 2 || part).join('\n').replace(/\n{3,}/g, '\n\n').trim();
   return {

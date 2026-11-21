@@ -95,6 +95,13 @@ const GROUPS = [
         fields: ['paymentDepositDays', 'paymentBalanceDaysBefore', 'paymentReminderAuto', 'paymentReminderEveryDays', 'paymentReminderMax'],
         words: 'betaling betalingen aanbetaling restant restbetaling termijn vervaldatum openstaand saldo herinnering',
       },
+      {
+        id: 'online-betalen',
+        label: 'Online betalen',
+        intro: 'Optioneel: laat reizigers het openstaande bedrag online betalen via Mollie (iDEAL). Zonder Mollie werkt alles gewoon met overmaken en registreert kantoor de betalingen met de hand. De betaallink staat in de betaalherinnering en op de betaalpagina in het CRM; Mollie meldt een geslaagde betaling terug aan de site, die hem dan zelf registreert. Fouten van de koppeling staan in het logboek (bron mollie).',
+        fields: ['mollieEnabled', 'mollieApiKey'],
+        words: 'mollie ideal online betalen betaallink betaalprovider api sleutel webhook',
+      },
     ],
   },
   {

@@ -36,6 +36,9 @@ const { roleHasRight } = require('./crm/rights');
 const { createPersons } = require('./crm/persons');
 const { createRetention } = require('./crm/retention');
 const { createPaymentReminders } = require('./crm/payment-reminders');
+const { createMollie } = require('./crm/mollie');
+const { createOnlinePayments } = require('./crm/online-payments');
+const { createOnlinePaymentRoutes } = require('./crm/online-payment-routes');
 const { createRestoreTests } = require('./backup/restore-test');
 const { renderPage, renderPageHeader } = require('./site/layout');
 const { createSystemUpdate } = require('./system/system-update');
@@ -241,14 +244,18 @@ function createApp(options) {
   // AVG-opschoning (Beheer > AVG en bewaartermijnen): de dagelijkse ronde start pas in `start()`.
   const retention = createRetention({ db: options.db, persons: createPersons({ vault }), settings, today: options.retentionToday });
   app.locals.retention = retention;
+  // Online betalen via Mollie (Beheer > CRM > Online betalen), standaard uit.
+  const mollie = createMollie({ settings, fetchImpl: options.mollieFetch });
+  const onlinePayments = createOnlinePayments({ db: options.db, settings, mollie, masterKey: options.masterKey, appLog, now: options.now });
+  app.locals.onlinePayments = onlinePayments;
   // Betaalherinneringen (Beheer > CRM > Betalingen): de dagelijkse ronde start pas in `start()`.
-  const paymentReminders = createPaymentReminders({ db: options.db, mailer, settings, now: options.now });
+  const paymentReminders = createPaymentReminders({ db: options.db, mailer, settings, onlinePayments, now: options.now });
   app.locals.paymentReminders = paymentReminders;
 
   // Vaste inhoud van de homepage en lijstkoppen (DATA_DIR); ook het CRM gebruikt ze (homepage als blokpagina opzetten).
   const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
   const homepage = options.homepage || createHomepageStore(DATA_DIR);
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).
@@ -257,6 +264,7 @@ function createApp(options) {
   const accounts = createAccounts({ db: options.db });
   app.locals.accounts = accounts;
   const accountRouter = createAccountRouter({ db: options.db, masterKey: options.masterKey, formKey, mailer, settings, captcha, accounts, secureCookies: options.secureCookies, now: options.now });
+  app.use(createOnlinePaymentRoutes({ db: options.db, onlinePayments, settings, now: options.now }));
   app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now, siteContent, prefill: accountRouter.prefillFor, customerFor: accountRouter.customerFor }));
   app.use(accountRouter);
   const contactForm = createContactForm({ db: options.db, formKey, notifications, captcha, now: options.now });
