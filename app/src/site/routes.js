@@ -14,7 +14,7 @@ const homeViews = require('./home-view');
 const { createHomepageStore, YOUTUBE_ORIGIN } = require('./homepage');
 const { addCspSources } = require('../security/csp');
 const tripViews = require('./trip-view');
-const { createSiteContentStore, sortGuides, EMPTY_GUIDE } = require('./site-content');
+const { createSiteContentStore, sortGuides, guideExtra } = require('./site-content');
 const { DATA_DIR } = require('../paths');
 const { isoDate, toDate, tripPath, categoryPath, guidePath, postPath } = require('./format');
 const seo = require('./seo');
@@ -282,7 +282,7 @@ function createSiteRouter(options) {
   router.get('/reisleider/', asyncRoute(async (req, res) => {
     const extra = siteContent.load();
     const archive = extra.archives.reisleider;
-    const guides = sortGuides(await content.guides(), extra.guideOrder).map((guide) => ({ ...guide, extra: extra.guides.get(guide.slug) || EMPTY_GUIDE }));
+    const guides = sortGuides(await content.guides(), extra.guideOrder).map((guide) => ({ ...guide, extra: guideExtra(guide, extra.guides) }));
     send(res, {
       title: 'Reisleiders',
       path: '/reisleider/',
@@ -303,7 +303,7 @@ function createSiteRouter(options) {
       path: '/reisleider/',
       seo: seoFor(guidePath(guide.slug), { imageUrl: guide.photo_url }),
       header: renderPageHeader({ bare: true, backLink: '/reisleider/' }),
-      body: html`${tripViews.guideDetail({ ...guide, extra: siteContent.load().guides.get(guide.slug) || EMPTY_GUIDE })}
+      body: html`${tripViews.guideDetail({ ...guide, extra: guideExtra(guide, siteContent.load().guides) })}
       ${guide.trips.length ? html`<section class="section guide-trips"><div class="layout-container">
         <h2 class="section__title">Reizen met ${guide.name}</h2>
         ${tripViews.tripList(guide.trips, '')}

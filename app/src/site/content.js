@@ -33,6 +33,9 @@ function withSummary(row) {
  */
 const VISIBLE_POST_SQL = '(published AND (published_at IS NULL OR published_at <= now()))';
 
+/** Gegevens van een reisleider die het CRM beheert (CMS-pakket I4); zie `guideExtra` in `site-content.js`. */
+const GUIDE_EXTRA_COLUMNS = 'surname, city, since, quote, image_url, managed_in_crm';
+
 /** Kolommen voor een reis in een lijst (teaser). */
 const TRIP_CARD_COLUMNS = `t.id, t.slug, t.title, t.summary, t.trip_code, t.departure_date, t.duration_label, t.price_cents,
   t.old_price_cents, t.offer_until, t.extra_costs_cents,
@@ -170,7 +173,7 @@ function createContent(db) {
      * @returns {Promise<object[]>} Reisleiders.
      */
     async guides() {
-      return db.query('SELECT slug, legacy_id, name, intro, photo_url FROM guides WHERE published ORDER BY name');
+      return db.query(`SELECT slug, legacy_id, name, intro, photo_url, ${GUIDE_EXTRA_COLUMNS} FROM guides WHERE published ORDER BY name`);
     },
 
     /**
@@ -181,7 +184,7 @@ function createContent(db) {
     async guideByReference(reference) {
       const legacyId = /^\d+$/.test(reference) ? Number(reference) : null;
       const [guide] = await db.query(
-        'SELECT id, slug, legacy_id, name, intro, body_html, photo_url FROM guides WHERE published AND (slug = $1 OR legacy_id = $2)',
+        `SELECT id, slug, legacy_id, name, intro, body_html, photo_url, ${GUIDE_EXTRA_COLUMNS} FROM guides WHERE published AND (slug = $1 OR legacy_id = $2)`,
         [reference, legacyId],
       );
       if (!guide) return null;

@@ -42,6 +42,7 @@ const CRM_MENU = [
       { label: 'Menu\'s', href: '/app/menus/', icon: 'menu', right: 'content' },
       { label: 'Reizen', href: '/app/reizen/', icon: 'location', right: 'reizen' },
       { label: 'Reistypes en landen', href: '/app/reistypes-en-landen/', icon: 'label', right: 'reizen' },
+      { label: 'Reisleiders', href: '/app/reisleiders/', icon: 'user', right: 'reizen' },
       { label: 'Fotobibliotheek', href: '/app/fotobibliotheek/', icon: 'image', right: 'media' },
     ],
   },

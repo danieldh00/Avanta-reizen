@@ -213,7 +213,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
     assert.equal(overview.headers.get('cache-control'), 'no-store');
     assert.match(overview.text, /Systeemoverzicht/);
     assert.match(overview.text, new RegExp(require('../package.json').version.replace(/\./g, '\\.')));
-    assert.match(overview.text, /21: website: veelgestelde vragen beheren/);
+    assert.match(overview.text, /22: website: reisleiders beheren/);
     assert.match(overview.text, /Standaardwaarde/);
     assert.match(overview.text, /href="\/app\/beheer\/contact\/"/);
     assert.match((await request('/app/', { cookie: adminCookie })).text, /href="\/app\/beheer\/"/);
