@@ -26,7 +26,9 @@ function withSummary(row) {
 
 /** Kolommen voor een reis in een lijst (teaser). */
 const TRIP_CARD_COLUMNS = `t.id, t.slug, t.title, t.summary, t.trip_code, t.departure_date, t.duration_label, t.price_cents,
-  t.old_price_cents, t.offer_until, t.extra_costs_cents, t.destinations, t.status_label, t.guaranteed, t.fully_booked,
+  t.old_price_cents, t.offer_until, t.extra_costs_cents,
+  ARRAY(SELECT c.name FROM trip_category_links l JOIN trip_categories c ON c.id = l.category_id
+         WHERE l.trip_id = t.id AND c.kind = 'bestemming' ORDER BY c.sort_order, c.name) AS destinations, t.status_label, t.guaranteed, t.fully_booked,
   t.is_new, t.card_image_url`;
 
 /**
@@ -64,7 +66,7 @@ function createContent(db) {
       if (filter.departure) conditions.push(`t.departure_date = ${param(filter.departure)}`);
       if (filter.before) conditions.push(`t.departure_date <= ${param(filter.before)}`);
       if (filter.onlyAvailable) conditions.push('NOT t.fully_booked');
-      if (filter.search) conditions.push(`(t.title ILIKE ${param(`%${filter.search}%`)} OR t.trip_code ILIKE $${params.length} OR array_to_string(t.destinations, ' ') ILIKE $${params.length})`);
+      if (filter.search) conditions.push(`(t.title ILIKE ${param(`%${filter.search}%`)} OR t.trip_code ILIKE $${params.length} OR EXISTS (SELECT 1 FROM trip_category_links l JOIN trip_categories c ON c.id = l.category_id WHERE l.trip_id = t.id AND c.kind = 'bestemming' AND c.name ILIKE $${params.length}))`);
       const limit = filter.limit ? ` LIMIT ${param(filter.limit)}` : '';
       const order = filter.newFirst ? 't.is_new DESC, t.departure_date, t.title' : 't.departure_date, t.title';
       return db.query(`SELECT ${TRIP_CARD_COLUMNS} FROM trips t WHERE ${conditions.join(' AND ')} ORDER BY ${order}${limit}`, params);
@@ -89,19 +91,24 @@ function createContent(db) {
     },
 
     /**
-     * Eén reis met reisleider en categorieën.
+     * Eén reis met reisleiders (`guides`, op volgorde; de eerste ook als `guide_*`) en categorieën.
      * @param {string} slug Slug van de reis.
      * @returns {Promise<(object|null)>} De reis of null.
      */
     async tripBySlug(slug) {
       const [trip] = await db.query(
         `SELECT ${TRIP_CARD_COLUMNS}, t.legacy_id, t.tagline, t.body_html, t.duration_days, t.hero_image_url, t.gallery,
-           t.gallery_title, t.gallery_subtitle, g.slug AS guide_slug, g.name AS guide_name, g.photo_url AS guide_photo
-         FROM trips t LEFT JOIN guides g ON g.id = t.guide_id
+           t.gallery_title, t.gallery_subtitle
+         FROM trips t
          WHERE t.slug = $1 AND t.published`,
         [slug],
       );
       if (!trip) return null;
+      trip.guides = await db.query(
+        `SELECT g.slug, g.name, g.photo_url FROM trip_guides tg JOIN guides g ON g.id = tg.guide_id
+         WHERE tg.trip_id = $1 AND g.published ORDER BY tg.sort_order, g.name`,
+        [trip.id],
+      );
       trip.categories = await db.query(
         `SELECT c.slug, c.name, c.kind, c.icon FROM trip_category_links l JOIN trip_categories c ON c.id = l.category_id
          WHERE l.trip_id = $1 ORDER BY c.kind, c.sort_order, c.name`,
@@ -170,7 +177,7 @@ function createContent(db) {
       );
       if (!guide) return null;
       guide.trips = await db.query(
-        `SELECT ${TRIP_CARD_COLUMNS} FROM trips t WHERE t.guide_id = $1 AND t.published AND t.departure_date >= $2 ORDER BY t.departure_date`,
+        `SELECT ${TRIP_CARD_COLUMNS} FROM trips t JOIN trip_guides tg ON tg.trip_id = t.id WHERE tg.guide_id = $1 AND t.published AND t.departure_date >= $2 ORDER BY t.departure_date`,
         [guide.id, today()],
       );
       return guide;

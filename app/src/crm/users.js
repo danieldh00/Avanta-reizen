@@ -14,6 +14,7 @@ const { MERGE_ACTION_LABELS } = require('./person-merge-routes');
 const { BOOKING_ACTION_LABELS } = require('./booking-routes');
 const { MEDIA_ACTION_LABELS } = require('../media/routes');
 const { CATEGORY_ACTION_LABELS } = require('../trips/category-routes');
+const { TRIP_ACTION_LABELS } = require('../trips/trip-routes');
 
 /** Aantal regels per pagina van het auditlog. */
 const AUDIT_PAGE_SIZE = 100;
@@ -56,6 +57,7 @@ const ACTION_LABELS = {
   ...BOOKING_ACTION_LABELS,
   ...MEDIA_ACTION_LABELS,
   ...CATEGORY_ACTION_LABELS,
+  ...TRIP_ACTION_LABELS,
 };
 
 /**

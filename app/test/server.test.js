@@ -33,17 +33,21 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   const db = createDatabase(DATABASE_URL);
   await db.query('DROP SCHEMA public CASCADE');
   await db.query('CREATE SCHEMA public');
-  assert.deepEqual(await db.migrate(), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+  assert.deepEqual(await db.migrate(), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
   assert.deepEqual(await db.migrate(), [], 'tweede keer migreren doet niets');
 
   const [guide] = await db.query("INSERT INTO guides (legacy_id, slug, name, body_html) VALUES (500, 'harmen', 'Harmen', '<p>Ervaren</p>') RETURNING id");
   const [destination] = await db.query("INSERT INTO trip_categories (legacy_id, slug, name, kind) VALUES (232, 'albanie', 'Albanië', 'bestemming') RETURNING id");
   const [type] = await db.query("INSERT INTO trip_categories (slug, name, kind) VALUES ('kamperen', 'Kampeerreizen', 'type') RETURNING id");
-  const insertTrip = (values) => db.query(
-    `INSERT INTO trips (legacy_id, slug, title, body_html, trip_code, departure_date, price_cents, fully_booked, guide_id, destinations)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-    values,
-  );
+  const insertTrip = async ([legacyId, slug, title, body, code, departure, price, full, guideId]) => {
+    const rows = await db.query(
+      `INSERT INTO trips (legacy_id, slug, title, body_html, trip_code, departure_date, price_cents, fully_booked)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      [legacyId, slug, title, body, code, departure, price, full],
+    );
+    if (guideId) await db.query('INSERT INTO trip_guides (trip_id, guide_id) VALUES ($1, $2)', [rows[0].id, guideId]);
+    return rows;
+  };
   const [open] = await insertTrip([1001, '8-dagen-albanie', '8 dagen Albanië', '<p>Ruig</p>', '27-AKO-56', daysFromNow(30), 79900, false, guide.id, ['Albanië']]);
   await insertTrip([1002, 'vol-albanie', 'Volle reis', '', '27-VOL-1', daysFromNow(40), 50000, true, null, []]);
   await insertTrip([1003, 'oude-reis', 'Oude reis', '', '19-OUD-1', '2019-07-30', 50000, false, null, []]);

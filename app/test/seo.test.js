@@ -118,10 +118,11 @@ test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TES
   const future = new Date(`${today()}T12:00:00Z`);
   future.setUTCDate(future.getUTCDate() + 30);
   const [trip] = await db.query(
-    `INSERT INTO trips (slug, title, tagline, departure_date, price_cents, guide_id, hero_image_url)
-     VALUES ('8-dagen-albanie', $1, 'Ruig', $2, 79900, $3, '/media/hero.jpg') RETURNING id`,
-    ['8 dagen </script><script>alert(1)</script>', future.toISOString().slice(0, 10), guide.id],
+    `INSERT INTO trips (slug, title, tagline, departure_date, price_cents, hero_image_url)
+     VALUES ('8-dagen-albanie', $1, 'Ruig', $2, 79900, '/media/hero.jpg') RETURNING id`,
+    ['8 dagen </script><script>alert(1)</script>', future.toISOString().slice(0, 10)],
   );
+  await db.query('INSERT INTO trip_guides (trip_id, guide_id) VALUES ($1, $2)', [trip.id, guide.id]);
   await db.query("INSERT INTO trips (slug, title, departure_date, price_cents) VALUES ('oude-reis', 'Oude reis', '2019-07-30', 50000)");
   await db.query("INSERT INTO trips (slug, title, departure_date, published) VALUES ('verborgen', 'Verborgen', '2030-01-01', false)");
   await db.query('INSERT INTO trip_category_links (trip_id, category_id) VALUES ($1, $2)', [trip.id, category.id]);
