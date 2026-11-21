@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.25.1 — 2026-11-21 — Inzage-export en persoon wissen bij AVG-verzoeken
+
+- Bij een deelnemer staan nu de AVG-verzoeken: *Gegevens exporteren* geeft een Excel-bestand met alles wat het CRM van die persoon bewaart, en *Persoon wissen* anonimiseert de persoon direct (ook het reizigersaccount). *Nu opschonen* in Beheer vraagt nu een bevestiging.
+
+- Nieuw recht `avg` (beheerder, kantoor) en `crm/person-privacy-routes.js`: POST `/app/deelnemers/:id/inzage/` (.xlsx met bladen Persoon, Aanmeldingen, Historie, Toestemmingen en Over deze export; blokken alleen met het recht van dat blok; audit `deelnemer.inzage` + per blok; limiet 20 per 10 min) en POST `/app/deelnemers/:id/wissen/` (bevestiging WISSEN, `anonymizePerson`, reizigersaccount met hetzelfde e-mailadres verwijderd, audit `deelnemer.gewist`).
+- *Nu opschonen* vraagt een bevestigingsvinkje (422 zonder); de auditregel `avg.opschonen` verwijst nu naar de ronde in `retention_runs` (`run.runId`).
+
 ## 0.25.0 — 2026-11-21 — AVG-opschoning met instelbare bewaartermijnen
 
 - Het CRM schoont elke dag zelf persoonsgegevens op volgens de bewaartermijnen: bijzondere en paspoortgegevens een maand na terugkomst, personen twee jaar na de laatste reis (geanonimiseerd), geannuleerde aanmeldingen zonder betaling na zes maanden en oude contactberichten na een jaar. De termijnen, een voorbeeld en *Nu opschonen* staan in Beheer > AVG en bewaartermijnen.
