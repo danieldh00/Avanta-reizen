@@ -223,7 +223,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
     const found = await request('/app/beheer/?zoek=telefoon', { cookie: adminCookie });
     assert.equal(found.status, 200);
     assert.match(found.text, /Contact en organisatie/);
-    assert.doesNotMatch(found.text, /<li><a href="\/app\/beheer\/overzicht\/"/);
+    assert.doesNotMatch(found.text, /href="\/app\/beheer\/overzicht\/"/);
     const none = await request(`/app/beheer/?zoek=${encodeURIComponent('<script>')}`, { cookie: adminCookie });
     assert.match(none.text, /Niets gevonden voor “&lt;script&gt;”/);
     assert.doesNotMatch(none.text, /<script>/);
