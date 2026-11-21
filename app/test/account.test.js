@@ -125,10 +125,14 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.deepEqual(account, { email: 'anna@example.nl', verified_at: null });
     const firstToken = linkToken(sent[0]);
     assert.ok(firstToken);
-    // Nog eens registreren (onbevestigd): nieuw wachtwoord en een nieuwe link; de eerste link vervalt.
-    await submitPublic('/account/registreren/', { email: 'anna@example.nl', password: PASSWORD, password2: PASSWORD });
+    const [original] = await db.query('SELECT password_hash, created_at FROM customer_accounts');
+    // Nog eens registreren (onbevestigd, ander wachtwoord): het account blijft gelijk, er komt alleen een nieuwe link.
+    clock += 1000;
+    await submitPublic('/account/registreren/', { email: 'anna@example.nl', password: 'een ander wachtwoord!', password2: 'een ander wachtwoord!' });
     await waitFor(() => sent.length >= 2);
-    assert.equal((await request(`/account/bevestigen/?token=${encodeURIComponent(firstToken)}`)).status, 404);
+    assert.match(sent[1].text, /gebruik het wachtwoord van die eerste keer/);
+    assert.deepEqual((await db.query('SELECT password_hash, created_at FROM customer_accounts'))[0], original, 'geen nieuw wachtwoord en geen nieuwe opruimtermijn');
+    assert.equal((await request(`/account/bevestigen/?token=${encodeURIComponent(firstToken)}`)).status, 200, 'eerste link blijft geldig');
     assert.equal((await db.query('SELECT count(*)::int AS total FROM customer_accounts'))[0].total, 1);
   });
 
@@ -161,7 +165,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     const page = await request(`/account/bevestigen/?token=${encodeURIComponent(token)}`);
     assert.equal(page.status, 200);
     assert.match(page.text, /Account bevestigen/);
-    const wrong = await request('/account/bevestigen/', { form: { token, password: 'niet mijn wachtwoord' } });
+    const wrong = await request('/account/bevestigen/', { form: { token, password: 'een ander wachtwoord!' } });
     assert.equal(wrong.status, 401);
     assert.equal((await db.query('SELECT verified_at FROM customer_accounts'))[0].verified_at, null);
     const ok = await request('/account/bevestigen/', { form: { token, password: PASSWORD } });
@@ -172,6 +176,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     annaCookie = ok.cookie;
     assert.notEqual((await db.query('SELECT verified_at FROM customer_accounts'))[0].verified_at, null);
     assert.equal((await request('/account/bevestigen/', { form: { token, password: PASSWORD } })).status, 404, 'link al gebruikt');
+    assert.equal((await request(`/account/bevestigen/?token=${encodeURIComponent(linkToken(sent[0]))}`)).status, 404, 'andere bevestigingslinks vervallen ook');
     const overview = await request('/account/?welkom=1', { cookie: annaCookie });
     assert.equal(overview.status, 200);
     assert.match(overview.text, /Je account is bevestigd/);
@@ -195,7 +200,13 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.match(done.text, /We hebben een mail gestuurd/);
     await waitFor(() => sent.length > count);
     assert.equal(sent.at(-1).kind, 'account-bestaat');
-    assert.match(sent.at(-1).text, /wachtwoord-herstellen\/\?token=/);
+    assert.match(sent.at(-1).text, /\/account\/wachtwoord-vergeten\//);
+    assert.doesNotMatch(sent.at(-1).text, /token=/, 'geen herstellink in deze mail');
+    // Vaker registreren met dit adres: hoogstens drie van deze mails per uur, en het quotum voor herstellinks blijft vrij.
+    for (let i = 0; i < 3; i += 1) await submitPublic('/account/registreren/', { email: 'anna@example.nl', password: 'een ander wachtwoord', password2: 'een ander wachtwoord' });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(sent.filter((message) => message.kind === 'account-bestaat').length, 3);
+    assert.equal((await db.query("SELECT count(*)::int AS total FROM customer_tokens WHERE purpose = 'herstellen'"))[0].total, 0);
     assert.equal((await db.query('SELECT password_hash FROM customer_accounts'))[0].password_hash, before.password_hash);
   });
 
@@ -243,13 +254,20 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.equal((await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: 'nieuw en heel geheim' } })).status, 303);
   });
 
-  await t.test('mailbom: hoogstens drie herstellinks per account per uur', async () => {
+  await t.test('mailbom: hoogstens drie herstellinks per account per uur, ook bij gelijktijdige verzoeken', async () => {
     const [account] = await db.query("SELECT id FROM customer_accounts WHERE email = 'anna@example.nl'");
     const accounts = createAccounts({ db });
-    // Er is dit uur al één herstellink (vorige test) en één uit de registratie met een bestaand adres.
+    // Er is dit uur al één herstellink (vorige test).
+    assert.ok(await accounts.createToken(account.id, 'herstellen'));
     assert.ok(await accounts.createToken(account.id, 'herstellen'));
     assert.equal(await accounts.createToken(account.id, 'herstellen'), '');
     await assert.rejects(accounts.createToken(account.id, 'iets'), /onbekende soort/);
+    await db.query("INSERT INTO customer_accounts (email, password_hash) VALUES ('parallel@example.nl', 'x')");
+    const [parallel] = await db.query("SELECT id FROM customer_accounts WHERE email = 'parallel@example.nl'");
+    const results = await Promise.all(Array.from({ length: 8 }, () => accounts.createToken(parallel.id, 'bevestigen')));
+    assert.equal(results.filter(Boolean).length, 3);
+    assert.equal((await db.query('SELECT count(*)::int AS total FROM customer_tokens WHERE account_id = $1', [parallel.id]))[0].total, 3);
+    assert.equal(await accounts.createToken(999999, 'herstellen'), '', 'onbekend account');
   });
 
   await t.test('te veel mislukte pogingen: account vanaf deze reeks dicht, ook met het juiste wachtwoord', async () => {

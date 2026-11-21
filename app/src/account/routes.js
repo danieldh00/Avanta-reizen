@@ -8,7 +8,8 @@
  *   controle, zodat de responstijd niets verraadt. Meldingen verraden nooit of een adres een account heeft.
  * - Inloggen: limiet per bezoeker, per account + IP-reeks (5 per kwartier) en per account over 30 IP-reeksen per uur.
  * - Bevestigen vraagt de link uit de mail én het wachtwoord: wie andermans adres registreert, kan het account nooit
- *   overnemen, en wie de mail onderschept zonder wachtwoord ook niet.
+ *   overnemen, en wie de mail onderschept zonder wachtwoord ook niet. Opnieuw registreren verandert een bestaand account
+ *   nooit (geen nieuw wachtwoord); de eigenaar die het eerste wachtwoord niet kent, gebruikt *wachtwoord vergeten*.
  * - Registreren en wachtwoord vergeten zijn openbare formulieren: herkomst, limiet, honeypot, ondertekend tijdstempel
  *   en de captcha (`security/form-guard.js`, `security/captcha.js`). Per account hoogstens drie mails per soort per uur.
  * - Links bevatten een eenmalig token (alleen de hash in de database); de pagina's sturen geen `Referer` mee.
@@ -353,13 +354,15 @@ function createAccountRouter(options) {
       const passwordHash = await hashPassword(password);
       const result = await accounts.register(email, passwordHash);
       const siteUrl = res.locals.site.siteUrl;
-      if (result.id && result.existing) {
-        const token = await accounts.createToken(result.id, 'herstellen');
-        if (token) void mails.alreadyRegistered({ to: email, token, siteUrl });
+      if (result.id && result.state === 'bevestigd') {
+        // Geen herstellink: die zou het quotum van de eigenaar opmaken. De mail wijst naar *wachtwoord vergeten*.
+        if (await accounts.createToken(result.id, 'melding')) void mails.alreadyRegistered({ to: email, siteUrl });
       } else if (result.id) {
         const token = await accounts.createToken(result.id, 'bevestigen');
-        await audit(req, 'reiziger.geregistreerd', result.id);
-        if (token) void mails.verify({ to: email, token, siteUrl });
+        if (token) {
+          if (result.state === 'nieuw') await audit(req, 'reiziger.geregistreerd', result.id);
+          void mails.verify({ to: email, token, siteUrl, repeat: result.state === 'onbevestigd' });
+        }
       }
       return send(res, { title: 'Account aanmaken', body: views.mailSentView(REGISTER_DONE) });
     } catch (error) {
@@ -386,7 +389,7 @@ function createAccountRouter(options) {
       const passwordOk = await verifyPassword(passwordField(req.body.password), row.password_hash);
       if (attempt.blocked || !passwordOk) {
         await audit(req, 'reiziger.bevestigen.mislukt', row.account_id);
-        return send(res, { title: 'Account bevestigen', body: views.verifyView({ token, error: `Dit wachtwoord klopt niet. Na ${MAX_FAILED_LOGINS} mislukte pogingen binnen ${LOCK_MINUTES} minuten moet je even wachten.` }) }, 401);
+        return send(res, { title: 'Account bevestigen', body: views.verifyView({ token, error: `Dit wachtwoord klopt niet. Gebruik het wachtwoord van de eerste keer dat je dit account aanmaakte; weet je het niet meer, stel dan een nieuw in via Wachtwoord vergeten. Na ${MAX_FAILED_LOGINS} mislukte pogingen binnen ${LOCK_MINUTES} minuten moet je even wachten.` }) }, 401);
       }
       attempt.clear();
       const done = await db.transaction(async (client) => {
@@ -442,8 +445,9 @@ function createAccountRouter(options) {
         const account = await accounts.findByEmail(email);
         if (!account) return;
         const token = await accounts.createToken(account.id, 'herstellen');
+        if (!token) return;
         await audit(req, 'reiziger.herstel-aangevraagd', account.id);
-        if (token) await mails.reset({ to: email, token, siteUrl });
+        await mails.reset({ to: email, token, siteUrl });
       };
       void request().catch((error) => console.error(`reizigersaccount: herstellink maken mislukt (${error.code || error.name})`));
       return send(res, { title: 'Wachtwoord vergeten', body: views.mailSentView(FORGOT_DONE) });

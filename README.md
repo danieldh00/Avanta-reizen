@@ -41,7 +41,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.
 - **Reizigersaccount** onder `/account/` (CMS-pakket J2, `app/src/account/`, migratie 23): een reiziger maakt een
   account met e-mailadres en wachtwoord (minimaal 12 tekens, scrypt zoals het CRM) en bevestigt het via de link in de
-  mail **plus** het wachtwoord (wie andermans adres registreert, kan het account zo nooit overnemen). Inloggen heeft
+  mail **plus** het wachtwoord (wie andermans adres registreert, kan het account zo nooit overnemen; opnieuw registreren
+  verandert een bestaand account nooit, de eigenaar gebruikt dan *wachtwoord vergeten*). Inloggen heeft
   dezelfde limieten als het CRM (per bezoeker, per account + IP-reeks, per account over 30 reeksen per uur); wachtwoord
   vergeten gaat via een eenmalige link (een uur geldig) en beëindigt alle andere sessies. Registreren en wachtwoord
   vergeten zijn openbare formulieren met limiet, honeypot, ondertekend tijdstempel en captcha; meldingen verraden nooit

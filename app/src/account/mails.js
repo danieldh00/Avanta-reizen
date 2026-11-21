@@ -38,13 +38,14 @@ function createAccountMails(options) {
 
   /**
    * Mail met de link om het e-mailadres te bevestigen.
-   * @param {{to: string, token: string, siteUrl: string}} input Ontvanger, token en basisadres.
+   * @param {{to: string, token: string, siteUrl: string, repeat?: boolean}} input Ontvanger, token, basisadres en of het
+   *   account er al was (dan geldt het wachtwoord van de eerste registratie).
    * @returns {Promise<boolean>} Waar als de mail is verstuurd.
    */
   const verify = (input) => deliver('account-bevestigen', input.to, {
     subject: 'Bevestig je account bij Avanta Reizen',
     title: 'Bevestig je account',
-    intro: 'Je hebt een account aangemaakt op de website van Avanta Reizen. Open de link hieronder en log in met je wachtwoord om je e-mailadres te bevestigen. De link is 24 uur geldig.\n\nHeb je dit niet zelf gedaan? Dan kun je deze mail negeren; zonder bevestiging verdwijnt het account vanzelf.',
+    intro: `Je hebt een account aangemaakt op de website van Avanta Reizen. Open de link hieronder en log in met je wachtwoord om je e-mailadres te bevestigen. De link is 24 uur geldig.${input.repeat ? '\n\nDit adres was al eerder geregistreerd: gebruik het wachtwoord van die eerste keer. Weet je dat niet meer? Kies dan op de website "Wachtwoord vergeten".' : ''}\n\nHeb je dit niet zelf gedaan? Dan kun je deze mail negeren; zonder bevestiging verdwijnt het account vanzelf.`,
     body: absoluteUrl(input.siteUrl, `/account/bevestigen/?token=${encodeURIComponent(input.token)}`),
   });
 
@@ -61,16 +62,17 @@ function createAccountMails(options) {
   });
 
   /**
-   * Mail aan wie zich registreert met een adres dat al een account heeft, met een link om het wachtwoord te herstellen.
-   * Zo verraadt de website zelf nooit of een adres een account heeft.
-   * @param {{to: string, token: string, siteUrl: string}} input Ontvanger, token en basisadres.
+   * Mail aan wie zich registreert met een adres dat al een account heeft, met een verwijzing naar *wachtwoord vergeten*
+   * (bewust zonder herstellink: die zou het quotum van de eigenaar opmaken). Zo verraadt de website zelf nooit of een
+   * adres een account heeft.
+   * @param {{to: string, siteUrl: string}} input Ontvanger en basisadres.
    * @returns {Promise<boolean>} Waar als de mail is verstuurd.
    */
   const alreadyRegistered = (input) => deliver('account-bestaat', input.to, {
     subject: 'Je hebt al een account bij Avanta Reizen',
     title: 'Je hebt al een account',
-    intro: 'Iemand probeerde een account aan te maken met dit e-mailadres, maar daar is al een account voor. Ben je je wachtwoord vergeten? Via de link hieronder stel je een nieuw wachtwoord in (een uur geldig).\n\nHeb je dit niet zelf gedaan? Dan kun je deze mail negeren.',
-    body: absoluteUrl(input.siteUrl, `/account/wachtwoord-herstellen/?token=${encodeURIComponent(input.token)}`),
+    intro: 'Iemand probeerde een account aan te maken met dit e-mailadres, maar daar is al een account voor. Log in met je wachtwoord, of vraag via de pagina hieronder een nieuw wachtwoord aan als je het vergeten bent.\n\nHeb je dit niet zelf gedaan? Dan kun je deze mail negeren.',
+    body: absoluteUrl(input.siteUrl, '/account/wachtwoord-vergeten/'),
   });
 
   return { verify, reset, alreadyRegistered };

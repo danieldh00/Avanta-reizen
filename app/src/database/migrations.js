@@ -778,11 +778,12 @@ const MIGRATIONS = [
       );
       CREATE INDEX customer_sessions_account_idx ON customer_sessions (account_id);
       CREATE INDEX customer_sessions_expires_idx ON customer_sessions (expires_at);
-      -- Eenmalige links en codes per e-mail: bevestigen, wachtwoord herstellen en de code voor gevoelige acties (J3).
+      -- Eenmalige links en codes per e-mail: bevestigen, wachtwoord herstellen en de code voor gevoelige acties (J3);
+      -- 'melding' telt alleen mails zonder link (bijv. "je hebt al een account") voor de limiet per uur.
       CREATE TABLE customer_tokens (
         token_hash TEXT PRIMARY KEY,
         account_id INTEGER NOT NULL REFERENCES customer_accounts(id) ON DELETE CASCADE,
-        purpose TEXT NOT NULL CHECK (purpose IN ('bevestigen', 'herstellen', 'code')),
+        purpose TEXT NOT NULL CHECK (purpose IN ('bevestigen', 'herstellen', 'code', 'melding')),
         attempts INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         expires_at TIMESTAMPTZ NOT NULL,
