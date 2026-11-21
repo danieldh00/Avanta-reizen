@@ -96,6 +96,8 @@ const CANDIDATES = {
        AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.booking_id = b.id)
      ORDER BY b.id LIMIT $3`,
   // Alleen al geanonimiseerde aanmeldingen: van een persoon die nog actief is blijft de aanmelding tot de anonimisering.
+  // Dit is het einde van de fiscale bewaarplicht (retentionBookingYears, minimaal 7 jaar): de bedragen en betalingen
+  // (booking_charges, payments) gaan dan bewust mee (ON DELETE CASCADE); daarvoor blijven ze altijd staan.
   verlopen: `SELECT b.id FROM bookings b LEFT JOIN trips t ON t.id = b.trip_id
      WHERE b.anonymized_at IS NOT NULL AND ($4::int IS NULL OR b.id = $4) AND b.id > $5
        AND ${BOOKING_END_SQL} + make_interval(years => $2) < $1::date

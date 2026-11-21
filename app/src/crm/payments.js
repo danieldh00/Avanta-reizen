@@ -200,16 +200,31 @@ function nextBookingStatus(status, state) {
 }
 
 /**
+ * Of de status van de aanmelding achterloopt op of voorloopt op de betaalstand, bijvoorbeeld na een correctie of een
+ * extra bedrag (de status schuift automatisch alleen vooruit; terugzetten beslist kantoor zelf).
+ * @param {string} status Status van de aanmelding.
+ * @param {string} state Betaalstatus.
+ * @returns {string} Waarschuwing voor het scherm, of leeg.
+ */
+function statusMismatch(status, state) {
+  const paidInFull = state === 'betaald' || state === 'teveel';
+  if (status === 'betaald' && !paidInFull) return 'De aanmelding staat op betaald, maar er staat nog een bedrag open.';
+  if (status === 'aanbetaald' && state === 'open') return 'De aanmelding staat op aanbetaald, maar de aanbetaling is niet (meer) voldaan.';
+  return '';
+}
+
+/**
  * Leest de bedragen en betalingen van een aanmelding.
  * @param {{query: Function}} client Database of transactie-client.
  * @param {number} bookingId Id van de aanmelding.
- * @returns {Promise<{charges: object[], payments: object[]}>} Regels, oudste eerst.
+ * @returns {Promise<{charges: object[], removedCharges: object[], payments: object[]}>} Regels, oudste eerst; weggehaalde
+ *   bedragen apart (die tellen niet mee).
  */
 async function loadLines(client, bookingId) {
   const [charges, payments] = await Promise.all([
     client.query(
-      `SELECT c.id, c.kind, c.description, c.amount_cents, c.created_at, u.name AS user_name
-         FROM booking_charges c LEFT JOIN users u ON u.id = c.created_by
+      `SELECT c.id, c.kind, c.description, c.amount_cents, c.created_at, u.name AS user_name, c.removed_at, r.name AS removed_by_name
+         FROM booking_charges c LEFT JOIN users u ON u.id = c.created_by LEFT JOIN users r ON r.id = c.removed_by
         WHERE c.booking_id = $1 ORDER BY c.created_at, c.id`,
       [bookingId],
     ),
@@ -220,7 +235,7 @@ async function loadLines(client, bookingId) {
       [bookingId],
     ),
   ]);
-  return { charges, payments };
+  return { charges: charges.filter((charge) => !charge.removed_at), removedCharges: charges.filter((charge) => charge.removed_at), payments };
 }
 
 /**
@@ -249,6 +264,7 @@ module.exports = {
   dueDates,
   summarize,
   nextBookingStatus,
+  statusMismatch,
   loadLines,
   termsFrom,
 };

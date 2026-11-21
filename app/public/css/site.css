@@ -806,6 +806,9 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
 .crm-history { margin: 0; padding-left: 1.25rem; display: grid; gap: .75rem; }
 .crm-history p { margin: .25rem 0 0; white-space: pre-line; overflow-wrap: anywhere; }
 .crm-history__when { display: block; color: var(--av-muted); font-size: .9rem; }
+.crm-removed { margin: .75rem 0 0; color: var(--av-muted); font-size: .9rem; }
+.crm-removed summary { cursor: pointer; }
+.crm-removed ul { margin: .5rem 0 0; padding-left: 1.25rem; overflow-wrap: anywhere; }
 .crm-search select { max-width: 100%; }
 @media (max-width: 800px) { .crm-columns { grid-template-columns: minmax(0, 1fr); gap: 1rem; } }
 /* Fotobibliotheek: uploadblok, raster met foto's (vaste verhouding 4:3) en voorbeeld. */

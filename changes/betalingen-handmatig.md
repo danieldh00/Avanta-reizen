@@ -14,7 +14,8 @@ bump: minor
   boekingskosten zoals het formulier ze toonde.
 - `crm/payments.js`: bedragen lezen, saldo, aanbetaling, vervaldatums, betaalstatus en achterstand berekenen.
 - `/app/betalingen/<aanmelding>/` (recht `betalingen`): betaling registreren, korting/annuleringskosten/overig
-  toevoegen of weghalen, controle op dubbel of verouderd formulier (409), automatische statusovergang met historie,
+  toevoegen of weghalen (gemarkeerd met `removed_at`, blijft zichtbaar), controle op dubbel of verouderd formulier (409),
+  automatische statusovergang alleen vooruit met historie, waarschuwing als de status voorloopt op de betaalstand,
   audit zonder bedragen. Betaalstand op de pagina van de aanmelding.
 - Instellingen `paymentDepositDays` en `paymentBalanceDaysBefore` (Beheer > CRM > Betalingen).
 - Aanmeldformulier zet de verwachte bedragen en de aanbetaling van de reis bij de aanmelding.

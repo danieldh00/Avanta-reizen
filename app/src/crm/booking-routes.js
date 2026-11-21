@@ -86,6 +86,7 @@ function renderPaymentSummary(summary, bookingId) {
       <dt>Betaald</dt><dd>${payments.formatAmount(summary.paidCents)}</dd>
       <dt>Openstaand</dt><dd>${payments.formatAmount(summary.balanceCents)}</dd>
     </dl>
+    ${summary.mismatch ? html`<p class="form-alert" role="status">${summary.mismatch}</p>` : ''}
     <p><a href="/app/betalingen/${bookingId}/">Betalingen bekijken en registreren</a></p>`;
 }
 
@@ -194,9 +195,11 @@ function createBookingRoutes(options) {
    */
   const renderBooking = async (req, booking, state = {}) => {
     const showPayments = roleHasGlobalRight(req.user.role, 'betalingen');
-    const paymentSummary = showPayments
-      ? payments.summarize({ booking, ...(await payments.loadLines(db, booking.id)), terms: payments.termsFrom(settings), today: payments.localDay(now()) })
-      : null;
+    let paymentSummary = null;
+    if (showPayments) {
+      const summary = payments.summarize({ booking, ...(await payments.loadLines(db, booking.id)), terms: payments.termsFrom(settings), today: payments.localDay(now()) });
+      paymentSummary = { ...summary, mismatch: payments.statusMismatch(booking.status, summary.state) };
+    }
     const events = await db.query(
       `SELECT e.from_status, e.to_status, e.note, e.created_at, u.name AS user_name
          FROM booking_events e LEFT JOIN users u ON u.id = e.user_id

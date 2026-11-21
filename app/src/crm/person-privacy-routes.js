@@ -222,7 +222,7 @@ function createPersonPrivacyRoutes(options) {
         person.email ? db.query('SELECT created_at FROM customer_accounts WHERE email = $1', [person.email.toLowerCase()]) : [],
         db.query(
           `SELECT b.reference, 'bedrag' AS line, c.kind AS kind, c.description AS text, c.amount_cents, NULL::date AS received_on, c.created_at
-             FROM booking_charges c JOIN bookings b ON b.id = c.booking_id WHERE b.person_id = $1
+             FROM booking_charges c JOIN bookings b ON b.id = c.booking_id WHERE b.person_id = $1 AND c.removed_at IS NULL
            UNION ALL
            SELECT b.reference, 'betaling', p.method, p.note, p.amount_cents, p.received_on, p.created_at
              FROM payments p JOIN bookings b ON b.id = p.booking_id WHERE b.person_id = $1

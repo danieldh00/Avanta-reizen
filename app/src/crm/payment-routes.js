@@ -2,7 +2,7 @@
  * Betalingen van één aanmelding in het CRM (`/app/betalingen/<aanmelding>/`, recht `betalingen`): de verwachte
  * bedragen, de ontvangen betalingen, het saldo en de vervaldatums (berekend in `crm/payments.js`). Kantoor registreert
  * een betaling (bank, iDEAL, contant of een correctie), voegt een korting, annuleringskosten of een ander bedrag toe en
- * haalt een bedrag weg. Betalingen worden nooit gewijzigd of verwijderd. Na een betaling schuift de aanmelding
+ * haalt een bedrag weg (gemarkeerd, blijft zichtbaar). Betalingen worden nooit gewijzigd of verwijderd. Na een betaling schuift de aanmelding
  * automatisch door naar aanbetaald of betaald (alleen vanaf bevestigd, met een regel in de historie).
  * Elke wijziging komt in het auditlog, zonder bedragen of namen. De reisleider heeft geen recht `betalingen`.
  */
@@ -162,6 +162,7 @@ function createPaymentRoutes(options) {
           <section>
             <h2>Stand</h2>
             <dl class="crm-facts">${due.map(([label, value]) => html`<dt>${label}</dt><dd>${value}</dd>`)}</dl>
+            ${payments.statusMismatch(booking.status, summary.state) ? html`<p class="form-alert" role="status">${payments.statusMismatch(booking.status, summary.state)} Pas de status zo nodig aan bij de aanmelding.</p>` : ''}
             ${booking.status === 'nieuw' && summary.paidCents > 0 ? html`<p class="field__help">Deze aanmelding is nog niet bevestigd; na het bevestigen schuift de status mee met de betalingen.</p>` : ''}
           </section>
           <section>
@@ -181,6 +182,9 @@ function createPaymentRoutes(options) {
           </tr>`)}</tbody>
           <tfoot><tr><th scope="row" colspan="2">Totaal</th><td>${payments.formatAmount(summary.totalCents)}</td><td colspan="2"></td></tr></tfoot>
         </table></div>
+        ${lines.removedCharges.length ? html`<details class="crm-removed"><summary>Weggehaalde bedragen (${lines.removedCharges.length})</summary>
+          <ul>${lines.removedCharges.map((line) => html`<li>${payments.CHARGE_KINDS[line.kind] || line.kind}${line.description ? ` (${line.description})` : ''}: ${payments.formatAmount(line.amount_cents)}, weggehaald ${formatDateTime(line.removed_at)}${line.removed_by_name ? ` door ${line.removed_by_name}` : ''}</li>`)}</ul>
+        </details>` : ''}
         <h2>Ontvangen betalingen</h2>
         ${lines.payments.length ? html`<div class="crm-table-wrap"><table class="crm-table">
           <thead><tr><th scope="col">Ontvangen op</th><th scope="col">Bedrag</th><th scope="col">Wijze</th><th scope="col">Toelichting</th><th scope="col">Geregistreerd</th></tr></thead>
@@ -251,6 +255,9 @@ function createPaymentRoutes(options) {
    */
   const failure = async (req, res, outcome, state = {}) => {
     if (outcome.status === 'weg') return notFound(req, res);
+    if (outcome.status === 'regel-weg') {
+      return res.status(404).send(await renderPage(req, outcome.booking, { error: 'Dit bedrag hoort niet bij deze aanmelding of is al weggehaald.' }));
+    }
     if (outcome.status === 'verouderd') {
       return res.status(409).send(await renderPage(req, outcome.booking, { ...state, error: 'De betalingen van deze aanmelding zijn intussen gewijzigd (of het formulier is twee keer verstuurd). Controleer de stand en probeer het zo nodig opnieuw.' }));
     }
@@ -333,8 +340,12 @@ function createPaymentRoutes(options) {
     try {
       const outcome = await withBooking(req, async (client, booking) => {
         // Alleen een regel van deze aanmelding; een id van een andere aanmelding geeft 404.
-        const removed = await client.query('DELETE FROM booking_charges WHERE id = $1 AND booking_id = $2 RETURNING id', [Number(req.params.chargeId), booking.id]);
-        if (!removed.length) return { status: 'weg' };
+        // Weghalen = markeren: de regel blijft zichtbaar onder "Weggehaalde bedragen" en telt niet meer mee.
+        const removed = await client.query(
+          'UPDATE booking_charges SET removed_at = now(), removed_by = $3 WHERE id = $1 AND booking_id = $2 AND removed_at IS NULL RETURNING id',
+          [Number(req.params.chargeId), booking.id, req.user.id],
+        );
+        if (!removed.length) return { status: 'regel-weg' };
         await auth.audit(req, { userId: req.user.id, action: 'betaling.bedrag-weg', entity: 'bookings', entityId: booking.id }, client);
         return {};
       });

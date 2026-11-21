@@ -847,7 +847,10 @@ const MIGRATIONS = [
         description TEXT NOT NULL DEFAULT '' CHECK (length(description) <= 200),
         amount_cents INTEGER NOT NULL CHECK (amount_cents BETWEEN -100000000 AND 100000000),
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        -- Weghalen is nooit echt verwijderen: de regel blijft zichtbaar als weggehaald en telt niet meer mee.
+        removed_at TIMESTAMPTZ,
+        removed_by INTEGER REFERENCES users(id) ON DELETE SET NULL
       );
       CREATE INDEX booking_charges_booking_idx ON booking_charges (booking_id);
       -- Een betaling wordt nooit gewijzigd of verwijderd; een vergissing herstelt kantoor met een correctie (method
