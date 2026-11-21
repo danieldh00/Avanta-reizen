@@ -243,6 +243,13 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.equal((await db.query('SELECT count(*)::int AS n FROM media'))[0].n, before + 1, 'niets opgeslagen bij te veel bestanden');
     const noCsrf = await request('/app/fotobibliotheek/uploaden/', { cookie: redactie.cookie, body: uploadForm({ files: [{ name: 'a.jpg', data: photo }] }) });
     assert.equal(noCsrf.status, 403);
+    const wrongToken = await request('/app/fotobibliotheek/uploaden/', { cookie: redactie.cookie, body: uploadForm({ csrf: 'fout', files: [{ name: 'a.jpg', data: photo }] }) });
+    assert.equal(wrongToken.status, 403);
+    // Een bestand vóór het token wordt niet gebufferd: meteen 403.
+    const fileFirst = new FormData();
+    fileFirst.append('foto', new Blob([photo], { type: 'image/jpeg' }), 'a.jpg');
+    fileFirst.append('_csrf', redactie.csrf);
+    assert.equal((await request('/app/fotobibliotheek/uploaden/', { cookie: redactie.cookie, body: fileFirst })).status, 403);
     const crossSite = await request('/app/fotobibliotheek/uploaden/', { cookie: redactie.cookie, headers: { origin: 'https://evil.example' }, body: uploadForm({ csrf: redactie.csrf, files: [{ name: 'a.jpg', data: photo }] }) });
     assert.equal(crossSite.status, 403);
     const empty = await request('/app/fotobibliotheek/uploaden/', { cookie: redactie.cookie, body: uploadForm({ csrf: redactie.csrf, files: [] }) });

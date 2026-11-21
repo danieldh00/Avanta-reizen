@@ -339,16 +339,25 @@ function createAuth(options) {
    * @returns {void}
    */
   const checkCsrf = (req, res, next) => {
-    const given = Buffer.from(String(req.body?._csrf || ''));
-    const current = req.session || req.pending;
-    const expected = Buffer.from(current ? current.csrf : '');
-    if (isCrossSite(req) || !expected.length || given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
-      return res.status(403).type('text').send('Verzoek geweigerd. Laad de pagina opnieuw en probeer het nog eens.');
-    }
+    if (!csrfValid(req, req.body?._csrf)) return res.status(403).type('text').send('Verzoek geweigerd. Laad de pagina opnieuw en probeer het nog eens.');
     return next();
   };
 
-  return { audit, startSession, completeMfa, endSession, endSessionsOf, loadSession, requireLogin, requireRight, requireGlobalRight, checkCsrf, mfaRequiredFor, pendingPath };
+  /**
+   * Of een verzoek van deze site komt en het gegeven CSRF-token bij de (volledige of halve) sessie hoort. Voor
+   * formulieren die niet als geheel geparst worden (uploads): daar wordt het token gecontroleerd zodra het binnenkomt.
+   * @param {object} req Express-verzoek.
+   * @param {*} token Het meegestuurde token.
+   * @returns {boolean} Waar als herkomst en token kloppen.
+   */
+  function csrfValid(req, token) {
+    const given = Buffer.from(String(token || ''));
+    const current = req.session || req.pending;
+    const expected = Buffer.from(current ? current.csrf : '');
+    return !isCrossSite(req) && expected.length > 0 && given.length === expected.length && crypto.timingSafeEqual(given, expected);
+  }
+
+  return { audit, startSession, completeMfa, endSession, endSessionsOf, loadSession, requireLogin, requireRight, requireGlobalRight, checkCsrf, csrfValid, mfaRequiredFor, pendingPath };
 }
 
 module.exports = { createAuth, purgeExpired, startCrmMaintenance, hashToken, readCookie, ipPrefix, COOKIE_NAME, IDLE_HOURS, MAX_DAYS, PENDING_MINUTES, AUDIT_RETENTION_MONTHS, AUDIT_IP_RETENTION_DAYS };

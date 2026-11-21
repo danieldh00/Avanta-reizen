@@ -36,11 +36,14 @@ const MEDIA_ACTION_LABELS = {
 
 /**
  * Leest een multipart-formulier met foto's binnen vaste grenzen. Velden komen in `fields` (herhaalde velden als lijst),
- * bestanden als buffer. Een te groot bestand krijgt `truncated: true` en geen inhoud.
+ * bestanden als buffer. Een te groot bestand krijgt `truncated: true` en geen inhoud. Het veld `_csrf` moet vóór de
+ * bestanden komen (zo staat het in het formulier) en wordt meteen gecontroleerd: klopt het niet, of komt er eerder een
+ * bestand, dan stopt het lezen direct met status 403, zonder de rest van de upload te bufferen.
  * @param {object} req Express-verzoek.
+ * @param {(token: string) => boolean} tokenValid Controleert het CSRF-token (en de herkomst).
  * @returns {Promise<{fields: object, files: {filename: string, buffer: (Buffer|null), truncated: boolean}[], tooMany: boolean}>} Inhoud.
  */
-function readMultipart(req) {
+function readMultipart(req, tokenValid) {
   return new Promise((resolve, reject) => {
     let busboy;
     try {
@@ -52,11 +55,30 @@ function readMultipart(req) {
     const fields = {};
     const files = [];
     let tooMany = false;
+    let tokenOk = false;
+    let stopped = false;
+    const refuse = () => {
+      if (stopped) return;
+      stopped = true;
+      req.unpipe(busboy);
+      busboy.removeAllListeners('close');
+      reject(Object.assign(new Error('CSRF-token ontbreekt of klopt niet'), { status: 403 }));
+    };
     busboy.on('field', (name, value) => {
+      if (name === '_csrf' && !tokenOk) {
+        if (!tokenValid(value)) return refuse();
+        tokenOk = true;
+      }
       if (Object.hasOwn(fields, name)) fields[name] = [].concat(fields[name], value);
       else fields[name] = value;
+      return undefined;
     });
     busboy.on('file', (name, stream, info) => {
+      if (!tokenOk) {
+        stream.resume();
+        refuse();
+        return;
+      }
       if (name !== 'foto') {
         stream.resume();
         return;
@@ -73,7 +95,7 @@ function readMultipart(req) {
     busboy.on('error', (error) => reject(Object.assign(error, { status: 400 })));
     // Een afgebroken upload mag de teller van lopende uploads niet laten hangen.
     req.on('close', () => { if (!req.complete) reject(Object.assign(new Error('upload afgebroken'), { status: 400 })); });
-    busboy.on('close', () => resolve({ fields, files: files.filter((file) => file.filename || file.buffer?.length || file.truncated), tooMany }));
+    busboy.on('close', () => (tokenOk ? resolve : refuse)({ fields, files: files.filter((file) => file.filename || file.buffer?.length || file.truncated), tooMany }));
     req.pipe(busboy);
   });
 }
@@ -176,25 +198,24 @@ function createMediaRoutes(options) {
     if (Number(req.get('content-length') || 0) > MAX_FILES * MAX_UPLOAD_BYTES + 64 * 1024) {
       return res.status(413).type('text').send('De upload is te groot.');
     }
+    // Herkomst vooraf (goedkoop); het token zelf wordt gecontroleerd zodra het in de upload binnenkomt.
+    if (!auth.csrfValid(req, req.session?.csrf)) return res.status(403).type('text').send('Verzoek geweigerd. Laad de pagina opnieuw en probeer het nog eens.');
     if (runningUploads >= MAX_PARALLEL_UPLOADS) return res.status(503).set('Retry-After', '10').type('text').send('Er worden al foto\'s verwerkt. Probeer het over een paar seconden opnieuw.');
     runningUploads++;
     try {
-      const form = await readMultipart(req);
+      const form = await readMultipart(req, (token) => auth.csrfValid(req, token));
       req.body = form.fields;
-      // Herkomst en CSRF-token controleren voordat er iets verwerkt wordt.
-      let allowed = false;
-      auth.checkCsrf(req, res, () => { allowed = true; });
-      if (!allowed) return undefined;
       const fail = async (status, error) => res.status(status).send(await renderList(req, { error }));
       if (form.tooMany) return await fail(413, `Upload maximaal ${MAX_FILES} foto's tegelijk.`);
       if (!form.files.length) return await fail(422, 'Kies een of meer foto\'s.');
+      // Alle bestanden van deze upload in één keer (zonder await ertussen) tellen, zodat de grens ook bij gelijktijdige uploads geldt.
       const userKey = `user:${req.user.id}`;
-      if (uploadLimiter.count(userKey) + form.files.length > UPLOADS_PER_HOUR) return await fail(429, `Je kunt maximaal ${UPLOADS_PER_HOUR} foto's per uur uploaden. Probeer het later opnieuw.`);
+      const withinLimit = form.files.map(() => uploadLimiter.hit(userKey)).every(Boolean);
+      if (!withinLimit) return await fail(429, `Je kunt maximaal ${UPLOADS_PER_HOUR} foto's per uur uploaden. Probeer het later opnieuw.`);
       const countryIds = [].concat(form.fields.land || []);
       const problems = [];
       let stored = 0;
       for (const file of form.files) {
-        uploadLimiter.hit(userKey);
         const label = file.filename.split(/[\\/]/).pop().slice(0, 120) || 'zonder naam';
         if (file.truncated || !file.buffer) {
           problems.push(`${label}: het bestand is groter dan ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`);
@@ -220,6 +241,7 @@ function createMediaRoutes(options) {
       }
       return res.redirect(303, `${BASE}?geupload=${stored}`);
     } catch (error) {
+      if (error.status === 403) return res.status(403).set('Connection', 'close').type('text').send('Verzoek geweigerd. Laad de pagina opnieuw en probeer het nog eens.');
       if (error.status === 400) return res.status(400).type('text').send('Het formulier kon niet gelezen worden.');
       return next(error);
     } finally {
