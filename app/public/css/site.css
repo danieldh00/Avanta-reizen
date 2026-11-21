@@ -1017,6 +1017,7 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
 .cms-video__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 15px 30px; margin: 0 0 15px; }
 .cms-video__link, .cms-video__link:hover { color: var(--av-white); text-decoration: underline; }
 .cms-video__remember { font-size: 14px; }
+.cms-video__revoke { margin-top: 7.5px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: var(--av-text); text-decoration: underline; cursor: pointer; }
 @media (max-width: 768px) {
   .cms-media-text, .cms-columns { grid-template-columns: minmax(0, 1fr); gap: 30px; }
   .cms-media-text--links .cms-media-text__image { order: 0; }

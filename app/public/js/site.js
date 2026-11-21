@@ -194,11 +194,34 @@
      */
     const store = (value) => {
       try {
-        if (value) window.localStorage.setItem(KEY, value);
+        if (value === null) window.localStorage.removeItem(KEY);
+        else if (value) window.localStorage.setItem(KEY, value);
         return window.localStorage.getItem(KEY);
       } catch (error) {
         return null;
       }
+    };
+    /** Een onthouden keuze geldt twaalf maanden; daarna vraagt de site het opnieuw. */
+    const YEAR = 365 * 24 * 60 * 60 * 1000;
+    const rememberedUntil = Number(store()) || 0;
+    if (rememberedUntil && rememberedUntil < Date.now()) store(null);
+    /**
+     * Zet onder een geladen video de knop om de keuze in te trekken.
+     * @param {HTMLElement} block Het blok.
+     * @returns {void}
+     */
+    const addRevoke = (block) => {
+      if (block.querySelector('[data-video-revoke]')) return;
+      const revoke = document.createElement('button');
+      revoke.type = 'button';
+      revoke.className = 'cms-video__revoke';
+      revoke.setAttribute('data-video-revoke', '');
+      revoke.textContent = 'Video\'s weer blokkeren';
+      revoke.addEventListener('click', () => {
+        store(null);
+        window.location.reload();
+      });
+      block.appendChild(revoke);
     };
     /**
      * Zet de iframe in een videoblok.
@@ -222,10 +245,11 @@
       frame.style.backgroundImage = '';
       block.classList.add('is-loaded');
     };
-    const remembered = store() === 'ja';
+    const remembered = (Number(store()) || 0) > Date.now();
     blocks.forEach((block) => {
       if (remembered) {
         load(block, false);
+        addRevoke(block);
         return;
       }
       const play = block.querySelector('[data-video-play]');
@@ -233,8 +257,11 @@
       play.addEventListener('click', () => {
         const remember = block.querySelector('[data-video-remember]');
         if (remember && remember.checked) {
-          store('ja');
-          blocks.forEach((other) => { if (other !== block) load(other, false); });
+          store(String(Date.now() + YEAR));
+          blocks.forEach((other) => {
+            if (other !== block) load(other, false);
+            addRevoke(other);
+          });
         }
         load(block, true);
       });

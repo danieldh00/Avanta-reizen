@@ -21,6 +21,9 @@ const { YOUTUBE_ORIGIN } = require('../site/homepage');
 /** Maximaal aantal blokken op één pagina. */
 const MAX_BLOCKS = 60;
 
+/** Maximaal aantal reizenblokken per pagina (elk blok is een query bij elke weergave). */
+const MAX_TRIP_BLOCKS = 5;
+
 /** Vorm van een blok-id. */
 const BLOCK_ID_PATTERN = /^b[0-9a-f]{12}$/;
 
@@ -591,7 +594,7 @@ function renderBlockContent(block, context) {
               <p class="cms-video__text">Deze video staat op YouTube. Speel je hem af, dan maakt je browser verbinding met YouTube (youtube-nocookie.com) en kan YouTube gegevens over je bezoek verwerken.</p>
               <p class="cms-video__actions"><button class="btn" type="button" data-video-play>Video afspelen</button>
                 <a class="cms-video__link" href="${`https://www.youtube.com/watch?v=${data.youtube}`}" rel="noopener" target="_blank">Bekijk op YouTube</a></p>
-              <label class="cms-video__remember"><input type="checkbox" data-video-remember> Video's op deze site voortaan direct laden</label>
+              <label class="cms-video__remember"><input type="checkbox" data-video-remember> Video's op deze site voortaan direct laden (12 maanden, intrekbaar onder elke video)</label>
             </div>
           </div>
         </div>`,
@@ -678,18 +681,30 @@ function chooseCategories(categories, choice) {
 async function loadBlockData(blocks, content) {
   const types = new Set(blocks.map((block) => block.type));
   const tripBlocks = blocks.filter((block) => block.type === 'reizen');
-  const [faqs, typeRows, destinationRows, tripRows] = await Promise.all([
-    types.has('faq') ? content.faqs() : undefined,
-    types.has('reistypes') ? content.categories('type') : undefined,
-    types.has('bestemmingen') ? content.categories('bestemming') : undefined,
-    Promise.all(tripBlocks.map((block) => content.upcomingTrips({
+  // Eén query per verschillend filter, hoogstens MAX_TRIP_BLOCKS; een blok daarboven blijft leeg.
+  const filters = new Map();
+  const keyOfBlock = new Map();
+  for (const block of tripBlocks) {
+    const filter = {
       type: block.data.type || undefined,
       destination: block.data.land || undefined,
       onlyAvailable: block.data.beschikbaar === 'verbergen',
       limit: Number(block.data.aantal) || 6,
-    }))),
+    };
+    const key = [filter.type, filter.destination, filter.onlyAvailable, filter.limit].join('|');
+    if (!filters.has(key) && filters.size < MAX_TRIP_BLOCKS) filters.set(key, filter);
+    keyOfBlock.set(block.id, key);
+  }
+  const filterKeys = [...filters.keys()];
+  const [faqs, typeRows, destinationRows, tripRows] = await Promise.all([
+    types.has('faq') ? content.faqs() : undefined,
+    types.has('reistypes') ? content.categories('type') : undefined,
+    types.has('bestemmingen') ? content.categories('bestemming') : undefined,
+    Promise.all(filterKeys.map((key) => content.upcomingTrips(filters.get(key)))),
   ]);
-  return { faqs, types: typeRows, destinations: destinationRows, trips: new Map(tripBlocks.map((block, index) => [block.id, tripRows[index]])) };
+  const rowsByKey = new Map(filterKeys.map((key, index) => [key, tripRows[index]]));
+  const trips = new Map(tripBlocks.map((block) => [block.id, rowsByKey.get(keyOfBlock.get(block.id)) || []]));
+  return { faqs, types: typeRows, destinations: destinationRows, trips };
 }
 
 /**
@@ -733,6 +748,7 @@ module.exports = {
   STYLE_OPTIONS,
   BUTTON_STYLES,
   MAX_BLOCKS,
+  MAX_TRIP_BLOCKS,
   BLOCK_ID_PATTERN,
   newBlock,
   newBlockId,

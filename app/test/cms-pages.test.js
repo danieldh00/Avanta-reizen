@@ -18,7 +18,7 @@ const { COOKIE_NAME } = require('../src/crm/auth');
 const { sanitizeHtml } = require('../tools/import/sanitize');
 const { toString } = require('../src/site/html');
 const {
-  newBlock, validateBlockForm, normalizeBlocks, renderBlocks, publishedBlocks, blockSummary, mediaIdsOf, youtubeId, loadBlockData,
+  newBlock, validateBlockForm, normalizeBlocks, renderBlocks, publishedBlocks, blockSummary, mediaIdsOf, youtubeId, loadBlockData, MAX_TRIP_BLOCKS,
 } = require('../src/cms/blocks');
 const { validatePageFields } = require('../src/cms/pages');
 
@@ -192,6 +192,16 @@ test('bloktypes H2 met gegevens: reizen, reistypes, bestemmingen en FAQ', async 
   assert.doesNotMatch(output, /Wat kost het\?/, 'alleen de gekozen categorie');
   const none = await loadBlockData(normalizeBlocks([newBlock('kop')]), { faqs: () => assert.fail('niet nodig'), categories: () => assert.fail('niet nodig'), upcomingTrips: () => assert.fail('niet nodig') });
   assert.equal(none.trips.size, 0, 'geen queries zonder datablokken');
+  // Gelijke filters delen één query; meer dan MAX_TRIP_BLOCKS verschillende filters geven lege blokken, geen extra queries.
+  calls.length = 0;
+  const copies = [tripBlock, { ...tripBlock, id: 'b111111111111' }];
+  for (let i = 1; i <= MAX_TRIP_BLOCKS + 1; i += 1) {
+    copies.push(validateBlockForm({ ...newBlock('reizen'), id: `b${String(i).padStart(12, '0')}` }, { f_type: `soort-${i}` }).block);
+  }
+  const many = await loadBlockData(normalizeBlocks(copies), content);
+  assert.equal(calls.length, MAX_TRIP_BLOCKS, 'hoogstens MAX_TRIP_BLOCKS queries');
+  assert.equal(many.trips.get('b111111111111').length, 1, 'kopie met hetzelfde filter deelt de uitkomst');
+  assert.deepEqual(many.trips.get(`b${String(MAX_TRIP_BLOCKS + 1).padStart(12, '0')}`), []);
 });
 
 test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
@@ -443,5 +453,9 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match(preview.text, /Zomer/);
     const editor = await request(pageUrl, { cookie: redactie.cookie });
     assert.match(editor.text, /<option value="">Alle reistypes<\/option>/);
+    for (let i = 1; i < 5; i += 1) assert.equal((await post(`${pageUrl}blokken/nieuw/`, { type: 'reizen' })).status, 303);
+    const tooMany = await post(`${pageUrl}blokken/nieuw/`, { type: 'reizen' });
+    assert.equal(tooMany.status, 422);
+    assert.match(tooMany.text, /hoogstens 5 blokken met reizen/);
   });
 });
