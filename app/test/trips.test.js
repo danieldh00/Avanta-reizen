@@ -236,4 +236,95 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     const [fresh] = await db.query("SELECT t.title, g.slug FROM trips t JOIN trip_guides tg ON tg.trip_id = t.id JOIN guides g ON g.id = tg.guide_id WHERE t.slug = 'nieuwe-import'");
     assert.deepEqual(fresh, { title: 'Nieuw uit de import', slug: 'martijn' });
   });
+
+  /**
+   * Voegt een aanmelding toe voor een reis.
+   * @param {number} id Id van de reis.
+   * @param {string} status Status van de aanmelding.
+   * @returns {Promise<void>}
+   */
+  const addBooking = async (id, status) => {
+    await db.query(
+      `INSERT INTO bookings (reference, trip_id, trip_title, status, gender, first_names, call_name, last_name, email, mobile, street,
+         postal_code, city, earlier_trip, credit_card, driver_interest, driver_before, payment_method, payment_choice, consent_at)
+       VALUES ('AV-T-' || md5(random()::text), $1, 'Reis', $2, 'vrouw', 'A', 'A', 'B', 'a@example.nl', '0600000000', 'Straat 1',
+         '1234 AB', 'Plaats', false, false, false, false, 'handmatig', 'aanbetaling', now())`,
+      [id, status],
+    );
+  };
+
+  await t.test('plaatsen: bezet uit de aanmeldingen, geannuleerd telt niet, vol is automatisch volgeboekt', async () => {
+    for (let i = 0; i < 15; i++) await addBooking(tripId, i % 2 ? 'bevestigd' : 'nieuw');
+    await addBooking(tripId, 'geannuleerd');
+    let edit = await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie });
+    assert.match(edit.text, /15 aanmeldingen \(niet geannuleerd\) van 16 plaatsen, 1 vrij\./);
+    assert.doesNotMatch(edit.text, /<strong>Volgeboekt<\/strong>/);
+    assert.match(edit.text, new RegExp(`href="/app/aanmeldingen/\\?reis=${tripId}"`));
+    assert.doesNotMatch((await request('/reis/namibie-juni/')).text, /Volgeboekt/);
+    await addBooking(tripId, 'betaald');
+    edit = await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie });
+    assert.match(edit.text, /16 aanmeldingen \(niet geannuleerd\) van 16 plaatsen, 0 vrij\.\s*<strong>Volgeboekt<\/strong> \(automatisch/);
+    const list = await request('/app/reizen/', { cookie: kantoor.cookie });
+    assert.match(list.text, /<td>16 van 16<\/td>\s*<td>volgeboekt<\/td>/);
+    assert.match(list.text, /<td>0 aangemeld<\/td>/, 'zonder aantal plaatsen alleen het aantal aanmeldingen');
+    assert.match((await request('/reis/namibie-juni/')).text, /Volgeboekt/);
+    assert.equal((await request('/aanmelden/?reis=namibie-juni')).status, 409);
+    const [row] = await db.query('SELECT fully_booked FROM trips WHERE id = $1', [tripId]);
+    assert.equal(row.fully_booked, false, 'het vinkje zelf blijft uit');
+  });
+
+  await t.test('kopiëren naar nieuw vertrek: concept met alles behalve vertrek en aanmeldingen', async () => {
+    const [photo] = await db.query(
+      "INSERT INTO media (local_name, content_type, bytes, source, title, alt_text, variants) VALUES ('kop.webp', 'image/webp', 10, 'upload', 'Kop', '', '{}') RETURNING id",
+    );
+    await db.query("INSERT INTO trip_media (trip_id, media_id, role, sort_order) VALUES ($1, $2, 'kop', 0)", [tripId, photo.id]);
+    await db.query("UPDATE trips SET hero_image_url = '/media/kop.webp', guaranteed = true, offer_until = '2099-01-01', old_price_cents = 199900, gallery_title = 'Beelden' WHERE id = $1", [tripId]);
+    for (const session of [leider, redactie]) {
+      assert.equal((await request(`/app/reizen/${tripId}/kopieren/`, { cookie: session.cookie, form: { _csrf: session.csrf } })).status, 403);
+    }
+    assert.equal((await request(`/app/reizen/${tripId}/kopieren/`, { cookie: kantoor.cookie, form: { _csrf: 'fout' } })).status, 403);
+    assert.equal((await request('/app/reizen/999999/kopieren/', { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })).status, 404);
+    assert.equal(await audits('reis.gekopieerd'), 0);
+
+    const copied = await request(`/app/reizen/${tripId}/kopieren/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } });
+    assert.equal(copied.status, 303);
+    const copyId = Number(/\/app\/reizen\/(\d+)\/\?opgeslagen=4$/.exec(copied.headers.get('location'))[1]);
+    assert.notEqual(copyId, tripId);
+    const [copy] = await db.query(
+      `SELECT slug, title, trip_code, departure_date, published, guaranteed, fully_booked, offer_until, old_price_cents, price_cents,
+              capacity, hero_image_url, gallery_title, managed_in_crm, legacy_id FROM trips WHERE id = $1`,
+      [copyId],
+    );
+    assert.deepEqual({ ...copy }, {
+      slug: 'namibie-juni-kopie', title: '20 dagen Namibië', trip_code: '27-NAM-1', departure_date: null, published: false, guaranteed: false,
+      fully_booked: false, offer_until: null, old_price_cents: null, price_cents: 184900, capacity: 16, hero_image_url: '/media/kop.webp',
+      gallery_title: 'Beelden', managed_in_crm: true, legacy_id: null,
+    });
+    const linksOf = async (id) => (await db.query('SELECT category_id FROM trip_category_links WHERE trip_id = $1 ORDER BY category_id', [id])).map((row) => row.category_id);
+    assert.deepEqual(await linksOf(copyId), await linksOf(tripId));
+    const guidesOf = async (id) => (await db.query('SELECT guide_id FROM trip_guides WHERE trip_id = $1 ORDER BY sort_order', [id])).map((row) => row.guide_id);
+    assert.deepEqual(await guidesOf(copyId), [eva.id, martijn.id]);
+    assert.deepEqual(await db.query('SELECT media_id, role FROM trip_media WHERE trip_id = $1', [copyId]), [{ media_id: photo.id, role: 'kop' }]);
+    assert.equal((await db.query('SELECT count(*)::int AS count FROM bookings WHERE trip_id = $1', [copyId]))[0].count, 0);
+
+    const edit = await request(`/app/reizen/${copyId}/?opgeslagen=4`, { cookie: kantoor.cookie });
+    assert.equal(edit.status, 200);
+    assert.match(edit.text, /Dit is een kopie als concept/);
+    assert.match(edit.text, /0 aanmeldingen \(niet geannuleerd\) van 16 plaatsen, 16 vrij\./);
+    assert.equal((await request('/reis/namibie-juni-kopie/')).status, 404, 'kopie is een concept');
+
+    // Een tweede kopie krijgt een eigen slug; een oud adres in de doorverwijzingen telt ook als bezet.
+    await db.query("INSERT INTO redirects (from_path, to_url, status) VALUES ('/reis/namibie-juni-kopie-2/', '/reis/', 301)");
+    const second = await request(`/app/reizen/${tripId}/kopieren/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } });
+    const secondId = Number(/\/app\/reizen\/(\d+)\//.exec(second.headers.get('location'))[1]);
+    assert.equal((await db.query('SELECT slug FROM trips WHERE id = $1', [secondId]))[0].slug, 'namibie-juni-kopie-3');
+    assert.equal(await audits('reis.gekopieerd'), 2);
+    const [entry] = await db.query("SELECT entity_id FROM audit_log WHERE action = 'reis.gekopieerd' ORDER BY id LIMIT 1");
+    assert.equal(entry.entity_id, String(copyId));
+
+    // Vertrekdatum invullen en publiceren: dan staat de kopie op de site.
+    const saved = await request(`/app/reizen/${copyId}/`, { cookie: kantoor.cookie, form: tripForm({ slug: 'namibie-augustus', departure_date: '2099-08-01', published: '1' }) });
+    assert.equal(saved.status, 303);
+    assert.equal((await request('/reis/namibie-augustus/')).status, 200);
+  });
 });

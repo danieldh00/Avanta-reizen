@@ -4,6 +4,7 @@
  */
 
 const { postSummary } = require('./format');
+const { fullyBookedSql } = require('../trips/seats');
 
 /**
  * Kolommen voor een blogbericht in een lijst: zonder de HTML, wel het begin van de tekst voor de samenvatting (tags
@@ -28,7 +29,7 @@ function withSummary(row) {
 const TRIP_CARD_COLUMNS = `t.id, t.slug, t.title, t.summary, t.trip_code, t.departure_date, t.duration_label, t.price_cents,
   t.old_price_cents, t.offer_until, t.extra_costs_cents,
   ARRAY(SELECT c.name FROM trip_category_links l JOIN trip_categories c ON c.id = l.category_id
-         WHERE l.trip_id = t.id AND c.kind = 'bestemming' ORDER BY c.sort_order, c.name) AS destinations, t.status_label, t.guaranteed, t.fully_booked,
+         WHERE l.trip_id = t.id AND c.kind = 'bestemming' ORDER BY c.sort_order, c.name) AS destinations, t.status_label, t.guaranteed, ${fullyBookedSql('t')} AS fully_booked,
   t.is_new, t.card_image_url`;
 
 /**
@@ -65,7 +66,7 @@ function createContent(db) {
       }
       if (filter.departure) conditions.push(`t.departure_date = ${param(filter.departure)}`);
       if (filter.before) conditions.push(`t.departure_date <= ${param(filter.before)}`);
-      if (filter.onlyAvailable) conditions.push('NOT t.fully_booked');
+      if (filter.onlyAvailable) conditions.push(`NOT ${fullyBookedSql('t')}`);
       if (filter.search) conditions.push(`(t.title ILIKE ${param(`%${filter.search}%`)} OR t.trip_code ILIKE $${params.length} OR EXISTS (SELECT 1 FROM trip_category_links l JOIN trip_categories c ON c.id = l.category_id WHERE l.trip_id = t.id AND c.kind = 'bestemming' AND c.name ILIKE $${params.length}))`);
       const limit = filter.limit ? ` LIMIT ${param(filter.limit)}` : '';
       const order = filter.newFirst ? 't.is_new DESC, t.departure_date, t.title' : 't.departure_date, t.title';

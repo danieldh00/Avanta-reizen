@@ -19,6 +19,7 @@ const { captchaField } = require('../security/captcha');
 const seo = require('../site/seo');
 const { createSiteContentStore } = require('../site/site-content');
 const { DATA_DIR } = require('../paths');
+const { fullyBookedSql } = require('../trips/seats');
 
 const SGR_CENTS = 500;
 const BOOKING_FEE_CENTS = 1500;
@@ -226,7 +227,8 @@ function createBookingRouter(options) {
       for (let attempt = 1; ; attempt++) {
         const reference = `AV-${year}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
         try {
-          await saveBooking(reference, trip, values);
+          const saved = await saveBooking(reference, trip, values);
+          if (!saved) return send(res, { title: 'Aanmelden', header: header(), body: notice('Deze reis is volgeboekt.'), trip }, 409);
           // De melding wacht niet op de mailserver en gooit nooit.
           if (options.notifications) void options.notifications.booking({ reference, trip, values });
           break;
@@ -247,10 +249,13 @@ function createBookingRouter(options) {
    * @param {string} reference Referentie (AV-jjjj-XXXXXXXX).
    * @param {object} trip De reis.
    * @param {object} values Gecontroleerde velden.
-   * @returns {Promise<void>}
+   * @returns {Promise<boolean>} Of de aanmelding is opgeslagen (false: de reis is intussen volgeboekt).
    */
   const saveBooking = (reference, trip, values) => options.db.transaction(async (client) => {
     const yes = (name) => values[name] === 'ja';
+    // De reis vergrendelen en opnieuw tellen: twee gelijktijdige aanmeldingen voor de laatste plaats gaan na elkaar.
+    const [current] = await client.query(`SELECT ${fullyBookedSql('t')} AS full FROM trips t WHERE t.id = $1 FOR UPDATE`, [trip.id]);
+    if (!current || current.full) return false;
     const { personId } = await persons.savePerson(client, values);
     const [booking] = await client.query(
       `INSERT INTO bookings (reference, trip_id, trip_code, trip_title, departure_date, gender, first_names, call_name, last_name,
@@ -264,6 +269,7 @@ function createBookingRouter(options) {
         yes('driver_before'), values.driver_when, 'handmatig', values.payment_choice, trip.price_cents, personId],
     );
     await persons.recordConsents(client, { personId, bookingId: booking.id, values });
+    return true;
   });
 
   return router;

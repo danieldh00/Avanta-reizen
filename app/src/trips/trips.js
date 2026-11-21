@@ -7,7 +7,8 @@
 const { sanitizeHtml } = require('../../tools/import/sanitize');
 const { tripPath } = require('../site/format');
 const { cleanText } = require('../media/library');
-const { slugify, isValidSlug, recordMove } = require('./slugs');
+const { slugify, isValidSlug, recordMove, MAX_SLUG_LENGTH } = require('./slugs');
+const { bookedSeatsSql } = require('./seats');
 
 /** Maximale lengtes van de tekstvelden. */
 const LIMITS = {
@@ -16,6 +17,9 @@ const LIMITS = {
 
 /** Hoogste bedrag in euro's dat een prijsveld accepteert. */
 const MAX_EUROS = 100_000;
+
+/** Ruimte in de slug voor `-kopie-<n>` bij Kopiëren naar nieuw vertrek. */
+const COPY_SUFFIX_ROOM = 10;
 
 /** Aantal reisleiders dat een reis kan hebben. */
 const MAX_GUIDES = 3;
@@ -171,6 +175,7 @@ function createTrips(options) {
    */
   const list = (filter) => db.query(
     `SELECT t.id, t.slug, t.title, t.trip_code, t.departure_date, t.published, t.fully_booked, t.capacity, t.managed_in_crm,
+            ${bookedSeatsSql('t')} AS booked_seats,
             ARRAY(SELECT c.name FROM trip_category_links l JOIN trip_categories c ON c.id = l.category_id
                    WHERE l.trip_id = t.id AND c.kind = 'bestemming' ORDER BY c.sort_order, c.name) AS countries,
             ARRAY(SELECT g.name FROM trip_guides tg JOIN guides g ON g.id = tg.guide_id WHERE tg.trip_id = t.id ORDER BY tg.sort_order, g.name) AS guides
@@ -197,6 +202,7 @@ function createTrips(options) {
       `SELECT ${TRIP_COLUMNS},
               ARRAY(SELECT l.category_id FROM trip_category_links l WHERE l.trip_id = t.id ORDER BY l.category_id) AS category_ids,
               ARRAY(SELECT tg.guide_id FROM trip_guides tg WHERE tg.trip_id = t.id ORDER BY tg.sort_order, tg.guide_id) AS guide_ids,
+              ${bookedSeatsSql('t')} AS booked_seats,
               u.name AS updated_by_name
          FROM trips t LEFT JOIN users u ON u.id = t.updated_by
         WHERE t.id = $1`,
@@ -305,7 +311,62 @@ function createTrips(options) {
     }
   };
 
-  return { list, get, choices, create, update };
+  /**
+   * Zoekt een vrije slug voor een kopie: `<slug>-kopie`, `<slug>-kopie-2`, … (niet in gebruik door een reis en geen
+   * oud adres in de doorverwijzingen).
+   * @param {{query: Function}} client Transactie-client.
+   * @param {string} slug Slug van de originele reis.
+   * @returns {Promise<string>} Vrije slug.
+   */
+  const freeCopySlug = async (client, slug) => {
+    const base = `${slug.slice(0, MAX_SLUG_LENGTH - COPY_SUFFIX_ROOM).replace(/-+$/, '')}-kopie`;
+    const rows = await client.query(
+      `SELECT slug FROM trips WHERE slug = $1 OR slug LIKE $1 || '-%'
+       UNION SELECT substring(from_path FROM 7 FOR length(from_path) - 7) FROM redirects WHERE from_path = '/reis/' || $1 || '/' OR from_path LIKE '/reis/' || $1 || '-%'`,
+      [base],
+    );
+    const taken = new Set(rows.map((row) => row.slug));
+    for (let number = 1; ; number++) {
+      const candidate = number === 1 ? base : `${base}-${number}`;
+      if (!taken.has(candidate)) return candidate;
+    }
+  };
+
+  /**
+   * Kopieert een reis naar een nieuw vertrek: een concept met dezelfde teksten, prijs, landen, reistypes, reisleiders
+   * en foto's, zonder vertrekdatum, aanbieding, statustekst, *gegarandeerd* en *volgeboekt*; aanmeldingen gaan niet mee.
+   * @param {(number|string)} id Id van de originele reis.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, newId) => Promise`).
+   * @returns {Promise<{status: ('ok'|'weg'), id?: number}>} Uitkomst en het id van de kopie.
+   */
+  const copy = (id, context) => db.transaction(async (client) => {
+    const [original] = await client.query('SELECT id, slug FROM trips WHERE id = $1 FOR SHARE', [Number(id)]);
+    if (!original) return { status: 'weg' };
+    const slug = await freeCopySlug(client, original.slug);
+    const [row] = await client.query(
+      `INSERT INTO trips (slug, title, tagline, summary, body_html, trip_code, departure_date, duration_label, duration_days,
+         price_cents, old_price_cents, offer_until, extra_costs_cents, deposit_cents, price_note, status_label, guaranteed,
+         fully_booked, is_new, capacity, published, hero_image_url, card_image_url, gallery, gallery_title, gallery_subtitle,
+         updated_by, managed_in_crm)
+       SELECT $2, title, tagline, summary, body_html, trip_code, NULL, duration_label, duration_days,
+              price_cents, NULL, NULL, extra_costs_cents, deposit_cents, price_note, '', false,
+              false, is_new, capacity, false, hero_image_url, card_image_url, gallery, gallery_title, gallery_subtitle,
+              $3, true
+         FROM trips WHERE id = $1
+       RETURNING id`,
+      [original.id, slug, context.userId],
+    );
+    await client.query('INSERT INTO trip_category_links (trip_id, category_id) SELECT $2, category_id FROM trip_category_links WHERE trip_id = $1', [original.id, row.id]);
+    await client.query('INSERT INTO trip_guides (trip_id, guide_id, sort_order) SELECT $2, guide_id, sort_order FROM trip_guides WHERE trip_id = $1', [original.id, row.id]);
+    await client.query(
+      'INSERT INTO trip_media (trip_id, media_id, role, sort_order) SELECT $2, media_id, role, sort_order FROM trip_media WHERE trip_id = $1 ORDER BY id',
+      [original.id, row.id],
+    );
+    await context.audit(client, row.id);
+    return { status: 'ok', id: row.id };
+  });
+
+  return { list, get, choices, create, update, copy };
 }
 
 module.exports = { createTrips, validateTrip, parseEuros, eurosText, isDate, LIMITS, MAX_GUIDES };
