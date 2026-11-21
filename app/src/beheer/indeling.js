@@ -41,6 +41,13 @@ const GROUPS = [
         fields: ['contactPhone', 'contactEmail', 'orgStreet', 'orgPostalCode', 'orgCity', 'socialFacebook', 'socialInstagram', 'socialYoutube', 'socialLinkedin'],
         words: 'telefoon e-mail mail voettekst adres postcode plaats organisatie facebook instagram youtube linkedin social sameas json-ld',
       },
+      {
+        id: 'ontwikkeling',
+        label: 'Balk "in ontwikkeling"',
+        intro: 'Een opvallende balk bovenaan de publieke site die bezoekers laat weten dat de website nog in ontwikkeling is. Wijzigingen gelden meteen.',
+        fields: ['devBannerEnabled', 'devBannerText'],
+        words: 'banner balk ontwikkeling in ontwikkeling testsite test concept go-live live melding waarschuwing bezoekers',
+      },
     ],
   },
   {

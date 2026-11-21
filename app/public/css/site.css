@@ -52,6 +52,8 @@ h3 { font-size: 1.25rem; margin: 1.5rem 0 .5rem; }
 .section__footer { text-align: center; margin-top: 2rem; }
 .lead { font-size: 1.15rem; font-weight: 600; }
 .maintenance-banner { padding: .6rem 1rem; background: #fff4d6; color: #5c4400; border-bottom: 1px solid #e8cf86; text-align: center; font-weight: 600; }
+.dev-banner { padding: .5rem 1rem; background: var(--av-accent-dark); color: var(--av-white); text-align: center; font-weight: 600; font-size: .95rem; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .dev-banner { padding: .4rem .75rem; font-size: .8rem; line-height: 1.35; } }
 .notice { padding: 1rem; background: var(--av-soft); border-left: 3px solid var(--av-accent); }
 .result-count { color: var(--av-muted); margin: 1.5rem 0 1rem; }
 

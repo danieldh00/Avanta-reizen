@@ -56,7 +56,7 @@ function renderMenu(currentPath) {
 
 /**
  * Maakt een volledige HTML-pagina.
- * @param {{title: string, description?: string, body: object, path?: string, header?: object, bodyClass?: string, indexable?: boolean, seo?: object, site?: object}} page Gegevens van de pagina; `path` is het menupad, `seo` de canonical-URL, afbeelding, type en JSON-LD (zie `seo.renderSeoHead`), `site` de site-instellingen uit Beheer (`site/site-settings.js`: naam, titels, omschrijving, contact, verificatie; zonder: de standaard).
+ * @param {{title: string, description?: string, body: object, path?: string, header?: object, bodyClass?: string, indexable?: boolean, seo?: object, site?: object}} page Gegevens van de pagina; `path` is het menupad, `seo` de canonical-URL, afbeelding, type en JSON-LD (zie `seo.renderSeoHead`), `site` de site-instellingen uit Beheer (`site/site-settings.js`: naam, titels, omschrijving, contact, verificatie, tekst van de balk "in ontwikkeling"; zonder: de standaard).
  * @returns {string} De HTML.
  */
 function renderPage(page) {
@@ -85,6 +85,7 @@ function renderPage(page) {
 <body class="${page.bodyClass || ''}"${measurementId ? html` data-analytics="${measurementId}" data-privacy-url="/privacy/"` : ''}>
   <a class="skip-link" href="#inhoud">Naar de inhoud</a>
   ${renderMaintenanceBanner()}
+  ${site.devBanner ? html`<div class="dev-banner" role="note">${site.devBanner}</div>` : ''}
   <header class="site-header">
     <div class="container site-header__inner">
       <a class="brand" href="/"><img src="/images/logo.png" alt="${siteName}" width="140" height="82"></a>
