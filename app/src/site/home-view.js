@@ -287,7 +287,7 @@ function renderAbout(about) {
           <h1 class="section__title">${about.title}</h1>
           <div class="section__content">
             <p>${about.text}</p>
-            <a class="readon" href="${about.href}">${about.linkLabel}</a>
+            ${about.href && about.linkLabel ? html`<a class="readon" href="${about.href}">${about.linkLabel}</a>` : ''}
           </div>
         </div>
       </div>
@@ -332,4 +332,7 @@ function withFallbackImages(home, images) {
   };
 }
 
-module.exports = { renderHome, renderFilterBar, tripBox, postTeaser, withFallbackImages, truncate, slashDate };
+module.exports = {
+  renderHome, renderSlides, renderFilterBar, renderLastMinutes, renderTripTypes, renderInspiration, renderDestinations, renderBlog, renderAbout,
+  tripBox, postTeaser, withFallbackImages, truncate, slashDate,
+};

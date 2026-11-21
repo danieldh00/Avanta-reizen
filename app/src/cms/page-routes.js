@@ -20,6 +20,9 @@ const {
 } = require('./blocks');
 const { createPages, validatePageFields, editableState, imageFromMedia, PAGE_LIMITS } = require('./pages');
 const { slugify, MAX_SLUG_LENGTH } = require('../trips/slugs');
+const { createHomepageStore } = require('../site/homepage');
+const { createSiteContentStore } = require('../site/site-content');
+const { DATA_DIR } = require('../paths');
 const { renderPageArticle } = require('./page-render');
 const { createContent } = require('../site/content');
 
@@ -51,6 +54,7 @@ const NOTICES = {
   8: 'Het adres is gewijzigd. Het oude adres verwijst automatisch door (ook voor de pagina\'s eronder) en het menu is bijgewerkt.',
   9: 'De pagina staat offline; bezoekers krijgen een 404.',
   10: 'De pagina staat weer online.',
+  11: 'De homepage staat klaar als blokpagina, met de huidige inhoud. Tot je publiceert toont de site de vaste homepage.',
 };
 
 /** Meldingen op de lijst (`?melding=<n>`). */
@@ -207,8 +211,9 @@ function renderPlacementFields(parents, placement, errors, prefix) {
 
 /**
  * Maakt de routes voor pagina's.
- * @param {{db: object, auth: object, library?: object, mediaDir?: string, redirects?: object, menus?: object}} options
- *   Database, sessie- en rechtenlaag, de fotobibliotheek, doorverwijzingen en menu's (opnieuw laden na verplaatsen).
+ * @param {{db: object, auth: object, library?: object, mediaDir?: string, redirects?: object, menus?: object, homepage?: object, siteContent?: object}} options
+ *   Database, sessie- en rechtenlaag, de fotobibliotheek, doorverwijzingen en menu's (opnieuw laden na verplaatsen) en
+ *   de vaste inhoud van de homepage en `site-content.json` (homepage opzetten, uitgelicht blogbericht).
  * @returns {express.Router} Router.
  */
 function createPageRoutes(options) {
@@ -218,6 +223,14 @@ function createPageRoutes(options) {
   const library = options.library || createMediaLibrary({ db, mediaDir: options.mediaDir || '' });
   const router = express.Router();
   const guard = auth.requireRight('content');
+  const homepageStore = options.homepage || createHomepageStore(DATA_DIR);
+  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
+
+  /**
+   * Het uitgelichte blogbericht uit `site-content.json` (voor het blogblok van de homepage in het voorbeeld).
+   * @returns {string} Slug, of leeg.
+   */
+  const featuredSlug = () => siteContent.load().featuredPost || '';
 
   /**
    * 404-pagina binnen het CRM.
@@ -265,7 +278,8 @@ function createPageRoutes(options) {
         csrf: req.session.csrf,
         path: BASE,
         body: html`${LIST_NOTICES[req.query.melding] ? html`<p class="notice" role="status">${LIST_NOTICES[req.query.melding]}</p>` : ''}
-          <p><a class="btn btn--small" href="${BASE}nieuw/">Nieuwe pagina</a></p>
+          <div class="crm-actions"><a class="btn btn--small" href="${BASE}nieuw/">Nieuwe pagina</a>
+            ${rows.some((row) => row.path === '/') ? '' : html`<form method="post" action="${BASE}homepage/"><input type="hidden" name="_csrf" value="${req.session.csrf}"><button class="btn btn--small btn--outline" type="submit">Homepage als blokpagina opzetten</button></form>`}</div>
           <form class="crm-search" method="get" action="${BASE}" role="search">
             <label for="pagina-q">Zoek op titel of adres</label>
             <input id="pagina-q" name="q" type="search" value="${text}" maxlength="100">
@@ -306,7 +320,13 @@ function createPageRoutes(options) {
     const errors = state.errors || {};
     const openBlock = state.blockErrors ? state.blockErrors.id : (typeof req.query.blok === 'string' ? req.query.blok : '');
     const field = (name, label, control, help) => fieldRow({ id: `pagina-${name}`, label, control, help, error: errors[name] });
-    const typeOptions = Object.entries(BLOCK_TYPES).map(([type, definition]) => html`<option value="${type}">${definition.label}</option>`);
+    const isHomepage = page.path === '/';
+    const option = ([type, definition]) => html`<option value="${type}">${definition.label}</option>`;
+    const entries = Object.entries(BLOCK_TYPES);
+    // Homepage-secties alleen op de homepage, daar in een eigen groep bovenaan.
+    const typeOptions = isHomepage
+      ? html`<optgroup label="Homepage-secties">${entries.filter(([, definition]) => definition.homeOnly).map(option)}</optgroup><optgroup label="Overige blokken">${entries.filter(([, definition]) => !definition.homeOnly).map(option)}</optgroup>`
+      : entries.filter(([, definition]) => !definition.homeOnly).map(option);
     const positionOptions = (selectedAfter) => html`<option value="">Aan het eind</option><option value="begin"${selectedAfter === 'begin' ? raw(' selected') : ''}>Bovenaan</option>${current.blocks.map((block, index) => html`<option value="${block.id}"${selectedAfter === block.id ? raw(' selected') : ''}>Na blok ${index + 1} (${BLOCK_TYPES[block.type].label})</option>`)}`;
     return renderCrmPage({
       title: current.title,
@@ -330,13 +350,13 @@ function createPageRoutes(options) {
         </section>
 
         <section class="crm-block" id="adres">
-          <h2>Adres en zichtbaarheid</h2>
-          <form class="form crm-narrow" method="post" action="${pageUrl}adres/">
+          <h2>${isHomepage ? 'Zichtbaarheid' : 'Adres en zichtbaarheid'}</h2>
+          ${isHomepage ? html`<p class="field__help">Staat de homepage offline (of is hij nog nooit gepubliceerd), dan toont de site de vaste homepage.</p>` : html`<form class="form crm-narrow" method="post" action="${pageUrl}adres/">
             ${hidden(req, page)}
             ${renderPlacementFields(parents, placement, errors, 'adres')}
             <p class="field__help">Wijzig je het adres, dan verwijst het oude adres automatisch door (ook voor de pagina's eronder) en gaan menu-items mee.</p>
             <div><button class="btn btn--small btn--outline" type="submit">Adres wijzigen</button></div>
-          </form>
+          </form>`}
           <div class="crm-actions">
             ${page.published
               ? html`<form method="post" action="${pageUrl}online/">${hidden(req, page)}<input type="hidden" name="stand" value="offline"><button class="btn btn--small btn--outline" type="submit">Offline halen</button></form>`
@@ -352,6 +372,7 @@ function createPageRoutes(options) {
           <h2>Gegevens</h2>
           <form class="form crm-narrow" method="post" action="${pageUrl}gegevens/">
             ${hidden(req, page)}
+            ${isHomepage ? html`<p class="field__help">Op de homepage staan titel, bovenkop, inleiding en kopfoto niet in beeld; de titel is alleen de naam in deze lijst. De hoofdkop (h1) is de titel van het blok "Over Avanta met stempel".</p>` : ''}
             ${field('title', 'Titel', html`<input id="pagina-title" name="title" type="text" value="${values.title}" maxlength="${PAGE_LIMITS.title}" required${invalidAttributes('pagina-title', errors.title)}>`)}
             ${field('pretitle', 'Bovenkop (kleine tekst boven de titel)', html`<input id="pagina-pretitle" name="pretitle" type="text" value="${values.pretitle}" maxlength="${PAGE_LIMITS.pretitle}"${invalidAttributes('pagina-pretitle', errors.pretitle)}>`)}
             ${field('intro', 'Inleiding (grote tekst bovenaan)', html`<textarea id="pagina-intro" name="intro" rows="4" maxlength="${PAGE_LIMITS.intro}"${invalidAttributes('pagina-intro', errors.intro)}>${values.intro}</textarea>`)}
@@ -490,6 +511,11 @@ function createPageRoutes(options) {
   router.post('/paginas/:id(\\d{1,9})/blokken/nieuw/', guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const block = newBlock(typeof req.body.type === 'string' ? req.body.type : '');
+      if (block && BLOCK_TYPES[block.type].homeOnly) {
+        const page = await loadOr404(req, res);
+        if (!page) return undefined;
+        if (page.path !== '/') return await finish(req, res, { status: 'fout', message: 'Dit blok is alleen voor de homepage.' }, { notice: 1 });
+      }
       let addedId = '';
       const outcome = block ? await pages.changeDraft(req.params.id, req.body.versie, async (state) => {
         const after = typeof req.body.na === 'string' ? req.body.na : '';
@@ -705,16 +731,18 @@ function createPageRoutes(options) {
       const page = await loadOr404(req, res);
       if (!page) return undefined;
       const current = editableState(page);
-      const article = await renderPageArticle({ title: current.title, intro: current.intro, blocks: current.blocks }, content);
+      const isHomepage = page.path === '/';
+      const article = await renderPageArticle({ title: current.title, path: page.path, intro: current.intro, blocks: current.blocks }, content, null, { featuredSlug: featuredSlug() });
       if (article.hasVideo) res.set('Content-Security-Policy', addCspSources(res.get('Content-Security-Policy'), { 'frame-src': [YOUTUBE_ORIGIN] }));
+      const bar = html`<div class="cms-preview-bar" role="status">Voorbeeld van ${page.draft ? 'het concept' : 'de gepubliceerde pagina'}, niet zichtbaar voor bezoekers. <a href="${BASE}${page.id}/">Terug naar bewerken</a></div>`;
       return res.send(renderPage({
         title: `Voorbeeld: ${current.title}`,
         path: page.path,
         indexable: false,
         site: res.locals.site,
-        header: html`<div class="cms-preview-bar" role="status">Voorbeeld van ${page.draft ? 'het concept' : 'de gepubliceerde pagina'}, niet zichtbaar voor bezoekers. <a href="${BASE}${page.id}/">Terug naar bewerken</a></div>
-          ${renderPageHeader({ title: current.title, pretitle: current.pretitle, imageUrl: current.imageUrl })}`,
-        body: html`<div class="content-main">${article.body}</div>`,
+        bodyClass: isHomepage ? 'home' : '',
+        header: isHomepage ? bar : html`${bar}${renderPageHeader({ title: current.title, pretitle: current.pretitle, imageUrl: current.imageUrl })}`,
+        body: isHomepage ? article.body : html`<div class="content-main">${article.body}</div>`,
       }));
     } catch (error) {
       return next(error);
@@ -783,6 +811,18 @@ function createPageRoutes(options) {
     });
   };
 
+  router.post('/paginas/homepage/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const outcome = await pages.createHomepage(homepageStore.load(), {
+        userId: req.user.id,
+        audit: (client, id) => auth.audit(req, { userId: req.user.id, action: 'pagina.nieuw', entity: 'pages', entityId: id }, client),
+      });
+      return res.redirect(303, `${BASE}${outcome.id}/${outcome.created ? '?opgeslagen=11' : ''}`);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   router.get('/paginas/nieuw/', guard, async (req, res, next) => {
     try {
       return res.send(await renderNewPage(req, { title: '', slug: '', parentPath: '/' }));
@@ -816,7 +856,7 @@ function createPageRoutes(options) {
       if (outcome.status === 'fout') {
         const page = await loadOr404(req, res);
         if (!page) return undefined;
-        return res.status(422).send(await renderEditor(req, page, { error: 'Het adres is niet gewijzigd.', errors: outcome.errors, placement }));
+        return res.status(422).send(await renderEditor(req, page, { error: `Het adres is niet gewijzigd: ${Object.values(outcome.errors)[0]}`, errors: outcome.errors, placement }));
       }
       await reloadAfterMove();
       return res.redirect(303, `${BASE}${Number(req.params.id)}/?opgeslagen=8#adres`);

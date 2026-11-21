@@ -7,7 +7,7 @@
  * in dezelfde transactie. Alle vragen met gebonden parameters.
  */
 const { cleanText, lockMediaForUse, mediaUrl } = require('../media/library');
-const { normalizeBlocks, normalizeImage, publishedBlocks, mediaIdsOf, MAX_BLOCKS, MAX_TRIP_BLOCKS } = require('./blocks');
+const { normalizeBlocks, normalizeImage, publishedBlocks, mediaIdsOf, newBlock, MAX_BLOCKS, MAX_TRIP_BLOCKS } = require('./blocks');
 const { isValidSlug, recordMove } = require('../trips/slugs');
 
 /** Maximale lengtes van de gegevens van een pagina. */
@@ -107,6 +107,64 @@ function editableState(page) {
  */
 function imageFromMedia(media) {
   return normalizeImage({ mediaId: media.id, url: mediaUrl(media, IMAGE_WIDTH), alt: media.alt_text || '' });
+}
+
+/**
+ * Zoekt de foto in de bibliotheek bij een adres onder `/media/` (het bestand zelf of een van zijn formaten).
+ * @param {object} client Database of transactie-client.
+ * @param {string} url Adres.
+ * @returns {Promise<({id: number, alt_text: string}|null)>} Foto, of null (bijv. een los bestand uit de import).
+ */
+async function mediaByUrl(client, url) {
+  const [media] = await client.query(
+    `SELECT m.id, m.alt_text FROM media m
+      WHERE m.content_type LIKE 'image/%'
+        AND ('/media/' || m.local_name = $1 OR EXISTS (SELECT 1 FROM jsonb_each_text(m.variants) AS variant WHERE '/media/' || variant.value = $1))
+      ORDER BY m.id LIMIT 1`,
+    [url],
+  );
+  return media || null;
+}
+
+/**
+ * Zet de vaste homepage (`site/homepage.js`, uit `homepage.json`) om in blokken (H4), met dezelfde teksten, links en
+ * foto's. Foto's uit de bibliotheek krijgen hun id (zodat publiceren ze controleert); een dia zonder foto en alles
+ * erna gebruikt de reservefoto's van reizen, zodat dia en foto bij elkaar blijven.
+ * @param {object} home Inhoud uit `normalizeHomepage`.
+ * @param {object} client Database of transactie-client.
+ * @returns {Promise<object[]>} Blokken.
+ */
+async function homepageBlocks(home, client) {
+  const images = async (list) => {
+    const result = [];
+    for (const url of list) {
+      if (!url) break;
+      const media = await mediaByUrl(client, url);
+      const image = normalizeImage({ mediaId: media ? media.id : null, url, alt: media ? media.alt_text || '' : '' });
+      if (!image) break;
+      result.push(image);
+    }
+    return result;
+  };
+  const block = (type, data) => ({ ...newBlock(type), data: { ...newBlock(type).data, ...data } });
+  const about = home.about;
+  const aboutImage = about.image ? (await images([about.image]))[0] || null : null;
+  return [
+    block('home-slider', {
+      dias: home.slides.map((slide) => ({ bovenkop: slide.pretitle, titel: slide.title, knoptekst: slide.button, link: slide.href, youtube: slide.videoId })),
+      fotos: await images(home.slides.map((slide) => slide.image)),
+    }),
+    block('home-zoekbalk', {}),
+    block('home-lastminutes', { titel: home.sections.lastMinutes.title, subtitel: home.sections.lastMinutes.subtitle, knoptekst: home.sections.lastMinutes.button }),
+    block('home-reistypes', { titel: home.sections.types.title, subtitel: home.sections.types.subtitle }),
+    block('home-inspiratie', {
+      dias: home.inspiration.map((item) => ({ titel: item.title, tekst: item.text })),
+      fotos: await images(home.inspiration.map((item) => item.image)),
+    }),
+    block('home-bestemmingen', { titel: home.sections.destinations.title, subtitel: home.sections.destinations.subtitle }),
+    block('home-blog', { titel: home.sections.blog.title, subtitel: home.sections.blog.subtitle, knoptekst: home.sections.blog.button }),
+    block('home-over', { titel: about.title, tekst: about.text, linktekst: about.linkLabel, link: about.href, foto: aboutImage }),
+  ];
 }
 
 /**
@@ -271,13 +329,7 @@ function createPages(options) {
     if (!row) return { status: 'versie-weg' };
     // De kopfoto staat in een versie alleen als adres; zoek de foto in de bibliotheek erbij, zodat publiceren hem weer
     // controleert en vergrendelt. Een foto uit de import zonder bibliotheekrij blijft een los adres.
-    const [media] = row.image_url ? await client.query(
-      `SELECT m.id FROM media m
-        WHERE m.content_type LIKE 'image/%'
-          AND ('/media/' || m.local_name = $1 OR EXISTS (SELECT 1 FROM jsonb_each_text(m.variants) AS variant WHERE '/media/' || variant.value = $1))
-        ORDER BY m.id LIMIT 1`,
-      [row.image_url],
-    ) : [];
+    const media = row.image_url ? await mediaByUrl(client, row.image_url) : null;
     Object.assign(state, editableState({ draft: { title: row.title, pretitle: row.pretitle, intro: row.intro, imageUrl: row.image_url, imageMediaId: media ? media.id : null, blocks: row.blocks, seoTitle: row.seo_title, seoDescription: row.seo_description }, title: row.title }));
     return undefined;
   }, context);
@@ -324,7 +376,7 @@ function createPages(options) {
    */
   const parentOptions = (ownPath = null) => db.query(
     `SELECT path, title FROM pages
-      WHERE ($1::text IS NULL OR left(path, length($1)) <> $1)
+      WHERE path <> '/' AND ($1::text IS NULL OR left(path, length($1)) <> $1)
       ORDER BY path LIMIT 500`,
     [ownPath],
   );
@@ -375,6 +427,7 @@ function createPages(options) {
     if (!/^\d{1,9}$/.test(String(id))) return { status: 'weg' };
     const [page] = await client.query('SELECT id, path FROM pages WHERE id = $1 FOR UPDATE', [Number(id)]);
     if (!page) return { status: 'weg' };
+    if (page.path === '/') return { status: 'fout', errors: { slug: 'De homepage blijft op /.' } };
     const built = buildPagePath(values.slug, values.parentPath);
     if (built.error) return { status: 'fout', errors: { slug: built.error } };
     if (built.path === page.path) return { status: 'gelijk' };
@@ -452,7 +505,7 @@ function createPages(options) {
     if (!page) return { status: 'weg' };
     if (page.published) return { status: 'online' };
     if (page.legacy_id !== null) return { status: 'import' };
-    const [child] = await client.query('SELECT id FROM pages WHERE left(path, length($1)) = $1 AND id <> $2 LIMIT 1', [page.path, page.id]);
+    const [child] = page.path === '/' ? [] : await client.query('SELECT id FROM pages WHERE left(path, length($1)) = $1 AND id <> $2 LIMIT 1', [page.path, page.id]);
     if (child) return { status: 'onderliggend' };
     const [menuItem] = await client.query(
       `SELECT id FROM menu_items
@@ -468,7 +521,28 @@ function createPages(options) {
     return { status: 'ok' };
   });
 
-  return { list, get, revisions, changeDraft, publish, discardDraft, restoreRevision, sourceOptions, parentOptions, create, move, setOnline, remove };
+  /**
+   * Zet de homepage op als blokpagina (pad `/`): offline, met een concept met de huidige inhoud van de vaste homepage.
+   * Tot de eerste publicatie toont de site de vaste homepage. Bestaat de pagina al, dan verandert er niets.
+   * @param {object} home Inhoud uit `normalizeHomepage` (`homepage.json`).
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, id) => Promise`).
+   * @returns {Promise<{id: number, created: boolean}>} Id van de homepage.
+   */
+  const createHomepage = (home, context) => db.transaction(async (client) => {
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['pagina:/']);
+    const [existing] = await client.query("SELECT id FROM pages WHERE path = '/'");
+    if (existing) return { id: existing.id, created: false };
+    const draft = { title: 'Homepage', pretitle: '', intro: '', imageUrl: null, imageMediaId: null, blocks: await homepageBlocks(home, client), seoTitle: '', seoDescription: '' };
+    const [row] = await client.query(
+      `INSERT INTO pages (path, title, published, draft, managed_in_crm, updated_by)
+       VALUES ('/', 'Homepage', false, $1, true, $2) RETURNING id`,
+      [JSON.stringify(draft), context.userId],
+    );
+    await context.audit(client, row.id);
+    return { id: row.id, created: true };
+  });
+
+  return { list, get, revisions, changeDraft, publish, discardDraft, restoreRevision, sourceOptions, parentOptions, create, createHomepage, move, setOnline, remove };
 }
 
-module.exports = { createPages, validatePageFields, buildPagePath, editableState, imageFromMedia, PAGE_LIMITS, IMAGE_WIDTH, RESERVED_SEGMENTS };
+module.exports = { createPages, homepageBlocks, validatePageFields, buildPagePath, editableState, imageFromMedia, PAGE_LIMITS, IMAGE_WIDTH, RESERVED_SEGMENTS };

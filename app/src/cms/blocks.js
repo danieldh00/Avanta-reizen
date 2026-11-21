@@ -10,9 +10,11 @@
 const crypto = require('node:crypto');
 const { html, raw } = require('../site/html');
 const { sanitizeHtml, isSafeUrl } = require('../../tools/import/sanitize');
-const { contentBlocks, faqList } = require('../site/page-view');
+const { contentBlocks, faqList, arrangePosts } = require('../site/page-view');
 const { renderGallery, tripList } = require('../site/trip-view');
-const { tripBox } = require('../site/home-view');
+const {
+  tripBox, renderSlides, renderFilterBar, renderLastMinutes, renderTripTypes, renderInspiration, renderDestinations, renderBlog, renderAbout,
+} = require('../site/home-view');
 const { cssImageUrl } = require('../site/layout');
 const { icon, categoryIconName } = require('../site/icons');
 const { categoryPath } = require('../site/format');
@@ -38,6 +40,9 @@ const STYLE_OPTIONS = {
   ruimteBoven: { label: 'Ruimte boven', choices: { geen: 'Geen', klein: 'Klein', normaal: 'Normaal', groot: 'Groot' } },
   ruimteOnder: { label: 'Ruimte onder', choices: { normaal: 'Normaal', geen: 'Geen', klein: 'Klein', groot: 'Groot' } },
 };
+
+/** Maximaal aantal dia's in de slider en de inspiratie op de homepage. */
+const MAX_HOME_SLIDES = 8;
 
 /** Maximaal aantal foto's in een galerijblok. */
 const MAX_GALLERY_IMAGES = 40;
@@ -187,6 +192,103 @@ const BLOCK_TYPES = {
     styleDefaults: { breedte: 'vol' },
     fields: [{ name: 'keuze', label: 'Welke', kind: 'select', choices: { homepage: 'Zoals op de homepage', alle: 'Alle landen met reizen' } }],
   },
+  // Secties van de homepage (CMS-pakket H4): dezelfde opmaak als de vaste homepage (`site/home-view.js`), alleen op
+  // de homepage te gebruiken (`homeOnly`). Ze hebben hun eigen achtergrond en breedte; de stijlopties blijven standaard.
+  'home-slider': {
+    label: 'Slider bovenaan (homepage)',
+    help: 'Grote foto\'s (of een stille YouTube-video) met bovenkop, titel en knop. Dia 1 krijgt foto 1, dia 2 foto 2, enz.; zonder foto een foto van een reis.',
+    homeOnly: true,
+    fields: [
+      {
+        name: 'dias',
+        label: 'Dia',
+        kind: 'repeat',
+        count: MAX_HOME_SLIDES,
+        fields: [
+          { name: 'bovenkop', label: 'Bovenkop', kind: 'text', max: 120 },
+          { name: 'titel', label: 'Titel', kind: 'text', max: 120 },
+          { name: 'knoptekst', label: 'Tekst van de knop', kind: 'text', max: 60 },
+          { name: 'link', label: 'Adres van de knop', kind: 'link', max: 300 },
+          { name: 'youtube', label: 'YouTube-video als achtergrond (optioneel)', kind: 'youtube', max: 300 },
+        ],
+      },
+      { name: 'fotos', label: 'Foto\'s (in de volgorde van de dia\'s)', kind: 'images', max: MAX_HOME_SLIDES },
+    ],
+  },
+  'home-zoekbalk': {
+    label: 'Zoekbalk "Vind jouw reis" (homepage)',
+    help: 'De balk met bestemming, type reis, vertrek en nieuwe reizen. Geen velden: de keuzes komen uit de reizen.',
+    homeOnly: true,
+    fields: [],
+  },
+  'home-lastminutes': {
+    label: 'Last-minutes (homepage)',
+    help: 'De eerstvolgende reizen met plek, in tegels.',
+    homeOnly: true,
+    fields: [
+      { name: 'titel', label: 'Titel', kind: 'text', max: 120, required: true },
+      { name: 'subtitel', label: 'Subtitel', kind: 'text', max: 160 },
+      { name: 'knoptekst', label: 'Tekst van de knop naar alle reizen', kind: 'text', max: 60 },
+    ],
+  },
+  'home-reistypes': {
+    label: 'Reistypes (homepage)',
+    help: 'De reistypes met *tonen op de homepage* (Reistypes en landen); staat er geen aan, dan alle met reizen.',
+    homeOnly: true,
+    fields: [
+      { name: 'titel', label: 'Titel', kind: 'text', max: 120, required: true },
+      { name: 'subtitel', label: 'Subtitel', kind: 'text', max: 160 },
+    ],
+  },
+  'home-inspiratie': {
+    label: 'Inspiratie-slider (homepage)',
+    help: 'Grote foto met een tekstvak, met pijlen. Dia 1 krijgt foto 1, enz.',
+    homeOnly: true,
+    fields: [
+      {
+        name: 'dias',
+        label: 'Dia',
+        kind: 'repeat',
+        count: MAX_HOME_SLIDES,
+        fields: [
+          { name: 'titel', label: 'Titel', kind: 'text', max: 120 },
+          { name: 'tekst', label: 'Tekst', kind: 'textarea', max: 600 },
+        ],
+      },
+      { name: 'fotos', label: 'Foto\'s (in de volgorde van de dia\'s)', kind: 'images', max: MAX_HOME_SLIDES },
+    ],
+  },
+  'home-bestemmingen': {
+    label: 'Bestemmingen (homepage)',
+    help: 'De landen met *tonen op de homepage* als fotobanners; staat er geen aan, dan alle met reizen.',
+    homeOnly: true,
+    fields: [
+      { name: 'titel', label: 'Titel', kind: 'text', max: 120, required: true },
+      { name: 'subtitel', label: 'Subtitel', kind: 'text', max: 160 },
+    ],
+  },
+  'home-blog': {
+    label: 'Blog (homepage)',
+    help: 'De drie nieuwste berichten en het uitgelichte bericht groot.',
+    homeOnly: true,
+    fields: [
+      { name: 'titel', label: 'Titel', kind: 'text', max: 120, required: true },
+      { name: 'subtitel', label: 'Subtitel', kind: 'text', max: 160 },
+      { name: 'knoptekst', label: 'Tekst van de knop naar het weblog', kind: 'text', max: 60 },
+    ],
+  },
+  'home-over': {
+    label: 'Over Avanta met stempel (homepage)',
+    help: 'Foto met stempel en een tekst met link ("Voor Avanta Reizen is geen bestemming te ver"). De titel is de hoofdkop (h1) van de homepage.',
+    homeOnly: true,
+    fields: [
+      { name: 'titel', label: 'Titel', kind: 'text', max: 160, required: true },
+      { name: 'tekst', label: 'Tekst', kind: 'textarea', max: 1200 },
+      { name: 'linktekst', label: 'Tekst van de link', kind: 'text', max: 60 },
+      { name: 'link', label: 'Adres van de link', kind: 'link', max: 300 },
+      { name: 'foto', label: 'Foto', kind: 'image' },
+    ],
+  },
 };
 
 /** Bronnen van keuzelijsten die uit de database komen (`source`): wat de waarde moet zijn. */
@@ -302,6 +404,7 @@ function validateField(field, input) {
     return Object.hasOwn(field.choices, input) ? { value: input } : { value: defaultValue(field) };
   }
   if (field.kind === 'youtube') {
+    if (!field.required && !input.trim()) return { value: '' };
     const id = youtubeId(input);
     if (!id) return { value: '', error: input.trim() ? 'Dit is geen YouTube-adres. Plak het adres van de video (youtube.com/watch?v=… of youtu.be/…).' : 'Vul dit veld in.' };
     return { value: id };
@@ -385,6 +488,17 @@ function validateBlockForm(block, body) {
       if (!row.tekst) errors[`f_knoppen_${index}_tekst`] = 'Vul de tekst van de knop in.';
       if (!row.link) errors[`f_knoppen_${index}_link`] = 'Vul het adres van de knop in.';
     });
+  }
+  if (block.type === 'home-slider' || block.type === 'home-inspiratie') {
+    data.dias.forEach((row, index) => {
+      if (!row.titel) errors[`f_dias_${index}_titel`] = 'Geef de dia een titel.';
+      if (block.type === 'home-slider' && Boolean(row.knoptekst) !== Boolean(row.link)) {
+        errors[`f_dias_${index}_${row.knoptekst ? 'link' : 'knoptekst'}`] = 'Vul zowel de tekst als het adres van de knop in, of geen van beide.';
+      }
+    });
+  }
+  if (block.type === 'home-over' && Boolean(data.linktekst) !== Boolean(data.link)) {
+    errors[data.linktekst ? 'f_link' : 'f_linktekst'] = 'Vul zowel de tekst als het adres van de link in, of geen van beide.';
   }
   const style = {};
   for (const name of Object.keys(STYLE_OPTIONS)) style[name] = formText(body, `s_${name}`);
@@ -492,6 +606,9 @@ function blockSummary(block) {
   else if (block.type === 'faq') text = data.categorie || 'alle categorieën';
   else if (block.type === 'reizen') text = [data.type, data.land].filter(Boolean).join(', ') || 'alle reizen';
   else if (block.type === 'reistypes' || block.type === 'bestemmingen') text = data.keuze === 'alle' ? 'alle met reizen' : 'zoals op de homepage';
+  else if (block.type === 'home-slider' || block.type === 'home-inspiratie') text = data.dias.map((row) => row.titel).filter(Boolean).join(' · ') || 'nog geen dia\'s';
+  else if (block.type === 'home-zoekbalk') text = 'bestemming, type, vertrek';
+  else if (block.type.startsWith('home-')) text = data.titel;
   text = text.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
   return text.length > 80 ? `${text.slice(0, 77)}...` : text;
 }
@@ -643,9 +760,79 @@ function renderBlockContent(block, context) {
         hasVideo: false,
       };
     }
+    case 'home-slider': {
+      const slides = data.dias.filter((row) => row.titel).map((row, index) => ({
+        pretitle: row.bovenkop,
+        title: row.titel,
+        button: row.knoptekst,
+        href: row.link && isSafeLink(row.link) ? row.link : '',
+        videoId: typeof row.youtube === 'string' && YOUTUBE_ID_PATTERN.test(row.youtube) ? row.youtube : '',
+        image: data.fotos[index] ? data.fotos[index].url : '',
+        fallbackImage: data.fotos[index] ? '' : takeFallback(context),
+      }));
+      if (!slides.length) return { markup: '', hasVideo: false };
+      return { markup: renderSlides(slides), hasVideo: slides.some((slide) => slide.videoId) };
+    }
+    case 'home-zoekbalk': {
+      const home = (context.data && context.data.home) || {};
+      if (!home.finder) return { markup: '', hasVideo: false };
+      return { markup: renderFilterBar(home.finder, home.newCount || 0), hasVideo: false };
+    }
+    case 'home-lastminutes': {
+      const home = (context.data && context.data.home) || {};
+      return { markup: renderLastMinutes({ title: data.titel, subtitle: data.subtitel, button: data.knoptekst || 'Alle reizen' }, home.lastMinutes || []), hasVideo: false };
+    }
+    case 'home-reistypes': {
+      const types = chooseCategories((context.data && context.data.types) || [], 'homepage');
+      return { markup: renderTripTypes({ title: data.titel, subtitle: data.subtitel }, types), hasVideo: false };
+    }
+    case 'home-inspiratie': {
+      const items = data.dias.filter((row) => row.titel).map((row, index) => ({
+        title: row.titel,
+        text: row.tekst,
+        image: data.fotos[index] ? data.fotos[index].url : '',
+        fallbackImage: data.fotos[index] ? '' : takeFallback(context),
+      }));
+      if (!items.length) return { markup: '', hasVideo: false };
+      return { markup: renderInspiration(items), hasVideo: false };
+    }
+    case 'home-bestemmingen': {
+      const destinations = chooseCategories((context.data && context.data.destinations) || [], 'homepage');
+      return { markup: renderDestinations({ title: data.titel, subtitle: data.subtitel }, destinations), hasVideo: false };
+    }
+    case 'home-blog': {
+      const home = (context.data && context.data.home) || {};
+      return { markup: renderBlog({ title: data.titel, subtitle: data.subtitel, button: data.knoptekst || 'Meer blogberichten' }, home.posts || []), hasVideo: false };
+    }
+    case 'home-over': {
+      return {
+        markup: renderAbout({
+          title: data.titel,
+          text: data.tekst,
+          linkLabel: data.linktekst,
+          href: data.link && isSafeLink(data.link) ? data.link : '',
+          image: data.foto ? data.foto.url : '',
+          fallbackImage: data.foto ? '' : takeFallback(context),
+        }),
+        hasVideo: false,
+      };
+    }
     default:
       return { markup: '', hasVideo: false };
   }
+}
+
+/**
+ * De volgende reserve-foto (kaartfoto van een reis) voor een dia of blok zonder eigen foto, elke keer een andere.
+ * @param {{data?: {home?: {fallbackImages?: string[]}}, fallbackIndex?: number}} context Context van `renderBlocks`.
+ * @returns {string} Adres, of leeg.
+ */
+function takeFallback(context) {
+  const pool = (context.data && context.data.home && context.data.home.fallbackImages) || [];
+  if (!pool.length) return '';
+  const index = context.fallbackIndex || 0;
+  context.fallbackIndex = index + 1;
+  return pool[index % pool.length];
 }
 
 /**
@@ -675,11 +862,15 @@ function chooseCategories(categories, choice) {
  * Haalt de gegevens op die de blokken nodig hebben (FAQ, reistypes, landen, reizen per reizenblok), alleen wat er in de
  * blokken voorkomt.
  * @param {object[]} blocks Genormaliseerde blokken.
- * @param {{faqs: Function, categories: Function, upcomingTrips: Function}} content Queries uit `site/content.js`.
- * @returns {Promise<{faqs?: object[], types?: object[], destinations?: object[], trips: Map<string, object[]>}>} Gegevens.
+ * @param {{faqs: Function, categories: Function, upcomingTrips: Function, departureDates?: Function, newTripCount?: Function, posts?: Function, postsBySlugs?: Function}} content
+ *   Queries uit `site/content.js`.
+ * @param {{featuredSlug?: string}} [options] Het uitgelichte blogbericht (`site-content.json`) voor het blogblok van de homepage.
+ * @returns {Promise<{faqs?: object[], types?: object[], destinations?: object[], trips: Map<string, object[]>, home?: object}>} Gegevens.
  */
-async function loadBlockData(blocks, content) {
+async function loadBlockData(blocks, content, options = {}) {
   const types = new Set(blocks.map((block) => block.type));
+  const needsTypes = types.has('reistypes') || types.has('home-reistypes') || types.has('home-zoekbalk');
+  const needsDestinations = types.has('bestemmingen') || types.has('home-bestemmingen') || types.has('home-zoekbalk');
   const tripBlocks = blocks.filter((block) => block.type === 'reizen');
   // Eén query per verschillend filter, hoogstens MAX_TRIP_BLOCKS; een blok daarboven blijft leeg.
   const filters = new Map();
@@ -698,13 +889,49 @@ async function loadBlockData(blocks, content) {
   const filterKeys = [...filters.keys()];
   const [faqs, typeRows, destinationRows, tripRows] = await Promise.all([
     types.has('faq') ? content.faqs() : undefined,
-    types.has('reistypes') ? content.categories('type') : undefined,
-    types.has('bestemmingen') ? content.categories('bestemming') : undefined,
+    needsTypes ? content.categories('type') : undefined,
+    needsDestinations ? content.categories('bestemming') : undefined,
     Promise.all(filterKeys.map((key) => content.upcomingTrips(filters.get(key)))),
   ]);
   const rowsByKey = new Map(filterKeys.map((key, index) => [key, tripRows[index]]));
   const trips = new Map(tripBlocks.map((block) => [block.id, rowsByKey.get(keyOfBlock.get(block.id)) || []]));
-  return { faqs, types: typeRows, destinations: destinationRows, trips };
+  const home = await loadHomeData(types, content, options, { types: typeRows, destinations: destinationRows });
+  return { faqs, types: typeRows, destinations: destinationRows, trips, ...(home ? { home } : {}) };
+}
+
+/**
+ * De gegevens van de homepage-secties (H4): keuzes voor de zoekbalk, last-minutes, blogberichten (drie nieuwste en het
+ * uitgelichte groot) en kaartfoto's van reizen als reserve voor dia's zonder foto. Alleen wat de blokken nodig hebben.
+ * @param {Set<string>} types Bloktypes op de pagina.
+ * @param {object} content Queries uit `site/content.js`.
+ * @param {{featuredSlug?: string}} options Uitgelicht blogbericht.
+ * @param {{types?: object[], destinations?: object[]}} categories Al opgehaalde reistypes en landen.
+ * @returns {Promise<(object|null)>} Gegevens, of null zonder homepage-secties.
+ */
+async function loadHomeData(types, content, options, categories) {
+  const needsFallback = types.has('home-slider') || types.has('home-inspiratie') || types.has('home-over');
+  if (![...types].some((type) => type.startsWith('home-'))) return null;
+  const [dates, newCount, lastMinutes, blog, upcoming] = await Promise.all([
+    types.has('home-zoekbalk') ? content.departureDates() : undefined,
+    types.has('home-zoekbalk') ? content.newTripCount() : undefined,
+    types.has('home-lastminutes') ? content.upcomingTrips({ onlyAvailable: true, limit: 6 }) : undefined,
+    types.has('home-blog') ? content.posts({ perPage: 5 }) : undefined,
+    needsFallback ? content.upcomingTrips({ limit: 60 }) : undefined,
+  ]);
+  let posts;
+  if (blog) {
+    const featuredSlug = options.featuredSlug || '';
+    const featured = featuredSlug && !blog.posts.some((post) => post.slug === featuredSlug) ? (await content.postsBySlugs([featuredSlug]))[0] : null;
+    const arranged = arrangePosts(featured ? [...blog.posts, featured] : blog.posts, featuredSlug);
+    posts = [...arranged.list, ...(arranged.featured ? [arranged.featured] : [])];
+  }
+  return {
+    finder: types.has('home-zoekbalk') ? { destinations: categories.destinations || [], types: categories.types || [], dates: dates || [] } : null,
+    newCount: newCount || 0,
+    lastMinutes: lastMinutes || [],
+    posts: posts || [],
+    fallbackImages: [...new Set((upcoming || []).map((trip) => cssImageUrl(trip.card_image_url)).filter(Boolean))],
+  };
 }
 
 /**
@@ -727,20 +954,24 @@ function sectionClasses(style) {
  * HTML van een lijst blokken voor de site, binnen `page-content`. Een blok met de standaardstijl staat er los in (zoals
  * de geïmporteerde pagina's altijd stonden); een blok met een eigen stijl krijgt een omhullende sectie.
  * @param {*} blocks Opgeslagen blokken.
- * @param {{title: string, data?: object}} context Titel van de pagina en de gegevens uit `loadBlockData`.
+ * @param {{title: string, data?: object, homepage?: boolean}} context Titel van de pagina, de gegevens uit `loadBlockData`
+ *   en of het de homepage is (dan omhult `homepage` in plaats van `page-content`, zoals de vaste homepage).
  * @returns {{body: (object|string), hasVideo: boolean}} HTML en of er een video in staat (voor de CSP).
  */
 function renderBlocks(blocks, context) {
   let hasVideo = false;
   const parts = [];
+  // Eigen kopie: de teller van de reservefoto's (`takeFallback`) loopt per weergave.
+  const state = { ...context, fallbackIndex: 0 };
   for (const block of normalizeBlocks(blocks)) {
-    const content = renderBlockContent(block, context);
+    const content = renderBlockContent(block, state);
     hasVideo = hasVideo || content.hasVideo;
     const empty = !content.markup || (Array.isArray(content.markup) && !content.markup.length);
     if (empty) continue;
     parts.push(isDefaultStyle(block.style) ? content.markup : html`<div class="${sectionClasses(block.style)}">${content.markup}</div>`);
   }
-  return { body: parts.length ? html`<div class="page-content">${parts}</div>` : '', hasVideo };
+  if (!parts.length) return { body: '', hasVideo };
+  return { body: context.homepage ? html`<div class="homepage">${parts}</div>` : html`<div class="page-content">${parts}</div>`, hasVideo };
 }
 
 module.exports = {
@@ -749,6 +980,7 @@ module.exports = {
   BUTTON_STYLES,
   MAX_BLOCKS,
   MAX_TRIP_BLOCKS,
+  MAX_HOME_SLIDES,
   BLOCK_ID_PATTERN,
   newBlock,
   newBlockId,
