@@ -20,10 +20,16 @@ const BLOCK_CHOICES = {
   remove: 'De gegevens van het dubbel overnemen',
 };
 
-/** Acties voor het auditlog. */
+/** Korte omschrijving per blokkeuze in het auditlog. */
+const BLOCK_CHOICE_AUDIT = { fill: 'aangevuld', keep: 'bestaande gehouden', remove: 'van het dubbel overgenomen' };
+
+/** Acties voor het auditlog; per blok met gegevens op het dubbel één regel met de keuze (nooit de waarden). */
 const MERGE_ACTION_LABELS = {
   'deelnemer.samengevoegd': 'Deelnemers samengevoegd (dubbel verwijderd)',
   'deelnemer.geen-dubbel': 'Deelnemer: markering mogelijk dubbel weggehaald',
+  ...Object.fromEntries(Object.keys(BLOCKS).flatMap((block) => Object.entries(BLOCK_CHOICE_AUDIT).map(([choice, text]) => [
+    `deelnemer.samengevoegd.${BLOCK_INFO[block].slug}.${choice}`, `Samenvoegen: ${BLOCK_INFO[block].label.toLowerCase()} ${text}`,
+  ]))),
 };
 
 /** Labels van de formuliervelden op naam. */
@@ -181,6 +187,11 @@ function createPersonMergeRoutes(options) {
         if (String(pair.original.id) !== String(req.body.met || '')) return { status: 'gewijzigd', pair };
         await persons.mergePersons(client, pair.original, pair.duplicate, choices);
         await auth.audit(req, { userId: req.user.id, action: 'deelnemer.samengevoegd', entity: 'persons', entityId: pair.original.id }, client);
+        // Blokken van het dubbel worden op de server geopend, ook voor wie geen recht op dat blok heeft (dan alleen
+        // aanvullen): leg per blok met gegevens vast wat ermee gebeurd is.
+        for (const block of Object.keys(BLOCKS).filter((name) => pair.duplicate[name])) {
+          await auth.audit(req, { userId: req.user.id, action: `deelnemer.samengevoegd.${BLOCK_INFO[block].slug}.${choices.blocks[block]}`, entity: 'persons', entityId: pair.original.id }, client);
+        }
         return { status: 'ok', keepId: pair.original.id };
       });
       if (outcome.status === 'weg') return notFound(req, res);

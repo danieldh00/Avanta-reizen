@@ -277,6 +277,8 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal((await db.query("SELECT person_id FROM bookings WHERE reference = 'AV-DUB-1'"))[0].person_id, keep);
     assert.equal((await db.query('SELECT count(*)::int AS total FROM consents WHERE person_id = $1', [keep]))[0].total, 6);
     assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action = 'deelnemer.samengevoegd' AND entity_id = $1", [String(keep)]))[0].total, 1);
+    const blockAudit = await db.query("SELECT action FROM audit_log WHERE action LIKE 'deelnemer.samengevoegd.%' AND entity_id = $1 ORDER BY action", [String(keep)]);
+    assert.deepEqual(blockAudit.map((row) => row.action), ['deelnemer.samengevoegd.gezondheid.remove', 'deelnemer.samengevoegd.identiteit.fill', 'deelnemer.samengevoegd.noodnummer.fill', 'deelnemer.samengevoegd.religie.fill'], 'per blok met gegevens de keuze, zonder recht altijd aanvullen');
     assert.equal((await request(mergePath, { cookie: sessions.kantoor.cookie, form })).status, 404, 'tweede keer');
   });
 
