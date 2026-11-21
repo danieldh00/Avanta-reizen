@@ -15,7 +15,7 @@ const { createPersons } = require('../src/crm/persons');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
 const { buildParticipantWorkbook, participantFileName, NO_CONSENT, UNREADABLE } = require('../src/crm/participant-lists');
-const { EXPORT_LIMIT } = require('../src/crm/participant-list-routes');
+const { EXPORT_LIMIT, MAX_ROWS } = require('../src/crm/participant-list-routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'participant_lists_test';
@@ -292,10 +292,29 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.equal((await request(`/app/deelnemerslijsten/${soon.id}/`, { cookie: relogged.cookie, form: { _csrf: relogged.csrf, gezondheid: 'ja' } })).status, 403);
   });
 
+  await t.test('meer dan MAX_ROWS deelnemers: 422, geen bestand en geen audit', async () => {
+    const [big] = await db.query("INSERT INTO trips (slug, title, trip_code, departure_date) VALUES ('groot', 'Groot', '27-GRO-1', '2027-08-01') RETURNING id");
+    await db.query(
+      `INSERT INTO bookings (reference, trip_id, trip_title, gender, first_names, call_name, last_name, email, mobile, street, postal_code, city,
+         earlier_trip, credit_card, driver_interest, driver_before, payment_method, payment_choice, consent_at)
+       SELECT 'AV-GROOT-' || n, $1, 'Groot', 'man', 'Jan', 'Jan', 'Groot' || n, 'groot@example.nl', '06', 'Straat 1', '1234 AB', 'Goes',
+              false, false, false, false, 'handmatig', 'aanbetaling', now()
+         FROM generate_series(1, $2::int) AS n`,
+      [big.id, MAX_ROWS + 1],
+    );
+    const before = (await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action LIKE 'export.deelnemers%'"))[0].total;
+    const response = await request(`/app/deelnemerslijsten/${big.id}/`, { cookie: beheer.cookie, form: { _csrf: beheer.csrf } });
+    assert.equal(response.status, 422);
+    assert.notEqual(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action LIKE 'export.deelnemers%'"))[0].total, before);
+  });
+
   await t.test('limiet per gebruiker', async () => {
     clock += 60 * 60 * 1000;
     for (let i = 0; i < EXPORT_LIMIT; i++) assert.equal((await request(exportPath, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })).status, 200);
-    assert.equal((await request(exportPath, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })).status, 429);
+    const limited = await request(exportPath, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } });
+    assert.equal(limited.status, 429);
+    assert.match(limited.text, /href="\/app\/deelnemerslijsten\/"/, 'CRM-pagina met link terug');
     assert.equal((await request(exportPath, { cookie: beheer.cookie, form: { _csrf: beheer.csrf } })).status, 200, 'andere gebruiker heeft een eigen teller');
   });
 });

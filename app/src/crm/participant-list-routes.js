@@ -144,7 +144,10 @@ function createParticipantListRoutes(options) {
       const allowed = allowedCategories(req.user, trip);
       if (requested.some((slug) => !allowed.includes(slug))) return res.status(403).type('text').send('Je hebt geen toegang tot deze gegevens.');
       if (!limiter.hit(`gebruiker:${req.user.id}`)) {
-        return res.status(429).type('text').send(`Je hebt het maximum van ${EXPORT_LIMIT} exports per ${EXPORT_WINDOW_MINUTES} minuten bereikt. Probeer het straks opnieuw.`);
+        return res.status(429).send(renderCrmPage({
+          title: 'Even wachten', user: req.user, csrf: req.session.csrf, path: '/app/deelnemerslijsten/',
+          body: html`${renderAlert(`Je hebt het maximum van ${EXPORT_LIMIT} exports per ${EXPORT_WINDOW_MINUTES} minuten bereikt. Probeer het straks opnieuw.`)}<p><a href="/app/deelnemerslijsten/">Naar de deelnemerslijsten</a></p>`,
+        }));
       }
       const rows = await loadParticipants(db, trip.id, MAX_ROWS);
       if (rows.length > MAX_ROWS) return res.status(422).type('text').send(`Deze reis heeft meer dan ${MAX_ROWS} deelnemers; zo'n lijst maakt het CRM niet in één keer.`);
