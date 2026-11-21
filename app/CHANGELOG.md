@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.16.1 — 2026-11-21 — Meer bloktypes voor pagina's, YouTube-video met cookiekeuze en opmaakknoppen
+
+- Nieuwe blokken voor pagina's: tekst met foto, fotogalerij, kolommen, banner, video (YouTube), veelgestelde vragen,
+- Een video laadt pas als de bezoeker op *Video afspelen* klikt; tot dan maakt de browser geen verbinding met YouTube.
+- Boven tekstvakken staan knoppen voor vet, cursief, kopjes, alinea, lijst en link.
+
+- `cms/blocks.js`: bloktypes `tekst-afbeelding`, `galerij` (veldsoort `images`), `kolommen`, `banner`, `video`
+  (veldsoort `youtube`, alleen het id wordt opgeslagen), `faq`, `reizen`, `reistypes`, `bestemmingen` (veldsoort
+  `source` met keuzes uit de database); standaardopmaak per type (`styleDefaults`); `loadBlockData` haalt alleen de
+  gegevens op die de blokken nodig hebben.
+- Fotoscherm van een blok: meer foto's tegelijk voor een galerij (vergrendeld met `lockMediaForUse`), weghalen en
+  volgorde in het blokformulier.
+- `public/js/site.js`: video pas laden na toestemming (onthouden in localStorage); `public/js/crm.js`: opmaakknoppen.
+- CSS `cms-media-text`, `cms-columns`, `cms-banner`, `cms-video`, `cms-embed`.
+
 ## 0.16.0 — 2026-11-21 — Pagina's bewerken in blokken, met concept, voorbeeld en versies
 
 - Nieuw in het CRM onder *Website*: **Pagina's**. Wijzig de titel, bovenkop, inleiding en kopfoto van elke pagina en
