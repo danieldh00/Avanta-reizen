@@ -19,6 +19,9 @@ const MAX_PER_RUN = 200;
 /** Binnen zoveel minuten geen tweede herinnering met de hand voor dezelfde termijn (dubbelklik, twee tabbladen). */
 const MANUAL_GAP_MINUTES = 10;
 
+/** Melding van een poging die nog bezig is (vastgelegd vóór het versturen). */
+const SENDING = 'bezig met versturen';
+
 /** Eerste automatische ronde na het starten, en daarna elke dag. */
 const FIRST_RUN_MS = 10 * 60 * 1000;
 const INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -39,10 +42,11 @@ function reminderKind(summary) {
 
 /**
  * De inhoud van een herinnering voor `renderMail`.
- * @param {{booking: object, summary: object, kind: string, paymentText: string}} input Aanmelding, stand, termijn en betaalinstructie.
+ * @param {{booking: object, summary: object, kind: string, paymentText: string, payLink?: string}} input Aanmelding, stand,
+ *   termijn, betaalinstructie en (bij online betalen) de persoonlijke betaallink.
  * @returns {{subject: string, content: object}} Onderwerp en inhoud.
  */
-function reminderContent({ booking, summary, kind, paymentText }) {
+function reminderContent({ booking, summary, kind, paymentText, payLink }) {
   const amount = kind === 'aanbetaling' ? summary.depositOpenCents : summary.balanceCents;
   const due = kind === 'aanbetaling' ? summary.depositDueOn : summary.balanceDueOn;
   const late = summary.overdue === kind;
@@ -62,14 +66,16 @@ function reminderContent({ booking, summary, kind, paymentText }) {
         [`Nu te betalen (${KIND_LABELS[kind]})`, payments.formatAmount(amount)],
         ['Uiterlijk', due ? formatDate(due) : '–'],
       ],
-      body: `${paymentText}\n\nReferentie voor de omschrijving: ${booking.reference}`,
+      body: `${payLink ? 'Je kunt direct online betalen met de knop hieronder, of het bedrag overmaken:\n\n' : ''}${paymentText}\n\nReferentie voor de omschrijving: ${booking.reference}`,
+      ...(payLink ? { action: { label: `${KIND_LABELS[kind][0].toUpperCase()}${KIND_LABELS[kind].slice(1)} online betalen`, url: payLink } } : {}),
     },
   };
 }
 
 /**
  * Maakt de herinneringen.
- * @param {{db: object, mailer: object, settings: object, now?: () => number}} options Database, mailer, instellingen en klok.
+ * @param {{db: object, mailer: object, settings: object, onlinePayments?: object, now?: () => number}} options Database,
+ *   mailer, instellingen, online betalen (betaallink in de mail) en klok.
  * @returns {{send: Function, runDaily: Function, list: Function, start: Function}} Functies.
  */
 function createPaymentReminders(options) {
@@ -130,14 +136,15 @@ function createPaymentReminders(options) {
       );
       if (recent) return { status: 'te-snel', kind };
       const [row] = await client.query(
-        "INSERT INTO payment_reminders (booking_id, kind, trigger, sent, error, created_by, created_at) VALUES ($1, $2, $3, false, 'bezig met versturen', $4, $5) RETURNING id",
-        [booking.id, kind, input.trigger, input.userId ?? null, new Date(now()).toISOString()],
+        "INSERT INTO payment_reminders (booking_id, kind, trigger, sent, error, created_by, created_at) VALUES ($1, $2, $3, false, $6, $4, $5) RETURNING id",
+        [booking.id, kind, input.trigger, input.userId ?? null, new Date(now()).toISOString(), SENDING],
       );
       return { status: 'klaar', booking, summary, kind, rowId: row.id };
     });
     if (prepared.status !== 'klaar') return prepared;
     const { booking, summary, kind, rowId } = prepared;
-    const mail = reminderContent({ booking, summary, kind, paymentText: settings.get('bookingPaymentText') });
+    const payLink = options.onlinePayments ? options.onlinePayments.linkFor(booking.id) : '';
+    const mail = reminderContent({ booking, summary, kind, paymentText: settings.get('bookingPaymentText'), payLink });
     try {
       const rendered = renderMail({ headerColor: settings.get('mailHeaderColor'), footerText: settings.get('mailFooterText'), siteName: settings.get('siteName'), ...mail.content });
       await mailer.send({ kind: 'herinnering-betaling', to: booking.email, subject: mail.subject, text: rendered.text, html: rendered.html, attachments: rendered.attachments });
@@ -158,6 +165,12 @@ function createPaymentReminders(options) {
    */
   const runDaily = async () => {
     const counts = { sent: 0, failed: 0, skipped: 0 };
+    // Een poging die door een herstart halverwege bleef hangen: blijft meetellen (liever niet dubbel mailen), maar met
+    // een eerlijke melding.
+    await db.query(
+      "UPDATE payment_reminders SET error = $2 WHERE NOT sent AND error = $3 AND created_at < $1::timestamptz - interval '1 hour'",
+      [new Date(now()).toISOString(), 'afgebroken, niet zeker verstuurd', SENDING],
+    );
     if (!settings.get('paymentReminderAuto') || !mailer.configured()) return counts;
     const { rows } = await loadOverview(db, { view: 'te-laat', tripId: null, terms: payments.termsFrom(settings), today: today() });
     if (!rows.length) return counts;

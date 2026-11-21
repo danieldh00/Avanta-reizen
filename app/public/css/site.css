@@ -1108,3 +1108,8 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
 .account-trip dl, .account-details { font-size: 15px; }
 .account__hint { font-size: 14px; color: var(--av-muted); }
 .account__code-send { margin-top: 1rem; }
+
+/* Betaalpagina (online betalen) */
+.pay-summary { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1.5rem; margin: 0 0 1.5rem; }
+.pay-summary dt { font-weight: 700; }
+.pay-summary dd { margin: 0; overflow-wrap: anywhere; }

@@ -223,6 +223,16 @@ const SETTING_FIELDS = {
     type: 'int', label: 'Hoogstens zoveel automatische herinneringen per termijn',
     help: 'Daarna stopt de app voor die termijn; kantoor neemt dan zelf contact op.', default: 3, min: 1, max: 10,
   },
+  mollieEnabled: {
+    type: 'bool', label: 'Online betalen via Mollie',
+    help: 'Reizigers kunnen het openstaande bedrag dan met iDEAL (of een andere methode in je Mollie-account) betalen via een persoonlijke link in de betaalherinnering. Een geslaagde betaling komt vanzelf bij de betalingen van de aanmelding. Werkt pas met een geldige sleutel hieronder en een openbaar basisadres van de site (https).',
+    default: false,
+  },
+  mollieApiKey: {
+    type: 'secret', label: 'Mollie API-sleutel',
+    help: 'Uit het Mollie-dashboard (Ontwikkelaars > API-sleutels): begin met een testsleutel (test_…) en zet pas na een proefbetaling de live-sleutel (live_…) erin. Staat versleuteld opgeslagen en gaat nooit naar de browser.',
+    default: '', max: 70, pattern: /^(test|live)_[A-Za-z0-9]{20,64}$/, patternMessage: 'Een Mollie-sleutel begint met test_ of live_ gevolgd door letters en cijfers.',
+  },
   mailHeaderColor: {
     type: 'text',
     label: 'Kleur van de titelbalk',
