@@ -4,11 +4,14 @@
  * is dan wit, het menu staat open in de kop en de zoekknop gaat naar /zoeken/. Daarnaast de sliders op de homepage
  * (`[data-slider]`: dia's met stippen of pijlen, automatisch doorschuiven tenzij de bezoeker minder beweging wil) en de
  * schuifrij met bestemmingen (`[data-scroller]`). Zonder JavaScript staat de eerste dia er en schuift de rij met de hand.
+ * Videoblokken (`[data-video-consent]`) laden YouTube pas na een klik of een eerder onthouden keuze; zonder JavaScript
+ * blijft de link naar YouTube over.
  */
 (function setupSite() {
   document.documentElement.classList.add('js');
   setupSliders();
   setupScrollers();
+  setupVideoConsent();
   const header = document.querySelector('.header-main');
   if (!header) return;
 
@@ -172,6 +175,69 @@
       const next = scroller.querySelector('[data-scroller-next]');
       if (previous) previous.addEventListener('click', () => move(-1));
       if (next) next.addEventListener('click', () => move(1));
+    });
+  }
+
+  /**
+   * Videoblokken uit het CMS: eerst een startvlak met uitleg. Na "Video afspelen" (of als de bezoeker eerder koos voor
+   * "voortaan direct laden", onthouden in localStorage) komt de iframe van youtube-nocookie.com ervoor in de plaats.
+   * @returns {void}
+   */
+  function setupVideoConsent() {
+    const KEY = 'avanta_video_toestemming';
+    const blocks = document.querySelectorAll('[data-video-consent]');
+    if (!blocks.length) return;
+    /**
+     * Leest of schrijft de onthouden keuze; zonder opslag (privévenster) gebeurt er niets.
+     * @param {string} [value] Nieuwe waarde.
+     * @returns {(string|null)} De opgeslagen waarde.
+     */
+    const store = (value) => {
+      try {
+        if (value) window.localStorage.setItem(KEY, value);
+        return window.localStorage.getItem(KEY);
+      } catch (error) {
+        return null;
+      }
+    };
+    /**
+     * Zet de iframe in een videoblok.
+     * @param {HTMLElement} block Het blok.
+     * @param {boolean} autoplay Direct afspelen (na een klik).
+     * @returns {void}
+     */
+    const load = (block, autoplay) => {
+      const id = block.getAttribute('data-video-id') || '';
+      const origin = block.getAttribute('data-video-origin') || '';
+      if (!/^[A-Za-z0-9_-]{11}$/.test(id) || !/^https:\/\/www\.youtube-nocookie\.com$/.test(origin)) return;
+      const frame = block.querySelector('.cms-video__frame');
+      if (!frame) return;
+      const iframe = document.createElement('iframe');
+      iframe.src = `${origin}/embed/${id}${autoplay ? '?autoplay=1' : ''}`;
+      iframe.title = `Video: ${block.getAttribute('data-video-title') || ''}`;
+      iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+      iframe.allowFullscreen = true;
+      iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+      frame.replaceChildren(iframe);
+      frame.style.backgroundImage = '';
+      block.classList.add('is-loaded');
+    };
+    const remembered = store() === 'ja';
+    blocks.forEach((block) => {
+      if (remembered) {
+        load(block, false);
+        return;
+      }
+      const play = block.querySelector('[data-video-play]');
+      if (!play) return;
+      play.addEventListener('click', () => {
+        const remember = block.querySelector('[data-video-remember]');
+        if (remember && remember.checked) {
+          store('ja');
+          blocks.forEach((other) => { if (other !== block) load(other, false); });
+        }
+        load(block, true);
+      });
     });
   }
 }());

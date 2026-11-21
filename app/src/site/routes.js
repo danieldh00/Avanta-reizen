@@ -385,7 +385,7 @@ function createSiteRouter(options) {
      */
     const sendContactPage = async (res, formHtml, status = 200) => {
       const page = await content.pageByPath('/contact/');
-      const article = page ? renderPageArticle(page) : { body: '', hasVideo: false };
+      const article = page ? await renderPageArticle(page, content) : { body: '', hasVideo: false };
       if (article.hasVideo) allowVideos(res);
       res.set('Cache-Control', 'no-store');
       send(res, {
@@ -421,7 +421,7 @@ function createSiteRouter(options) {
     if (path.length > 300) return next();
     const page = await content.pageByPath(path);
     if (page) {
-      const article = renderPageArticle(page, siteContent.load().galleries.get(page.path));
+      const article = await renderPageArticle(page, content, siteContent.load().galleries.get(page.path));
       if (article.hasVideo) allowVideos(res);
       return send(res, {
         title: page.title,

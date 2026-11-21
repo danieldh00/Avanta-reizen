@@ -10,7 +10,13 @@
 const crypto = require('node:crypto');
 const { html, raw } = require('../site/html');
 const { sanitizeHtml, isSafeUrl } = require('../../tools/import/sanitize');
-const { contentBlocks } = require('../site/page-view');
+const { contentBlocks, faqList } = require('../site/page-view');
+const { renderGallery, tripList } = require('../site/trip-view');
+const { tripBox } = require('../site/home-view');
+const { cssImageUrl } = require('../site/layout');
+const { icon, categoryIconName } = require('../site/icons');
+const { categoryPath } = require('../site/format');
+const { YOUTUBE_ORIGIN } = require('../site/homepage');
 
 /** Maximaal aantal blokken op één pagina. */
 const MAX_BLOCKS = 60;
@@ -29,6 +35,12 @@ const STYLE_OPTIONS = {
   ruimteBoven: { label: 'Ruimte boven', choices: { geen: 'Geen', klein: 'Klein', normaal: 'Normaal', groot: 'Groot' } },
   ruimteOnder: { label: 'Ruimte onder', choices: { normaal: 'Normaal', geen: 'Geen', klein: 'Klein', groot: 'Groot' } },
 };
+
+/** Maximaal aantal foto's in een galerijblok. */
+const MAX_GALLERY_IMAGES = 40;
+
+/** Vorm van een YouTube-id. */
+const YOUTUBE_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 
 /** De keuzes voor de stijl van een knop. */
 const BUTTON_STYLES = { vol: 'Terracotta', omlijnd: 'Omlijnd' };
@@ -85,7 +97,122 @@ const BLOCK_TYPES = {
       { name: 'bron', label: 'Wie (bron)', kind: 'text', max: 120 },
     ],
   },
+  'tekst-afbeelding': {
+    label: 'Tekst met foto',
+    help: 'Tekst naast een foto uit de fotobibliotheek (op mobiel onder elkaar).',
+    styleDefaults: { breedte: 'normaal' },
+    fields: [
+      { name: 'html', label: 'Tekst', kind: 'richtext', max: 50_000 },
+      { name: 'foto', label: 'Foto', kind: 'image' },
+      { name: 'positie', label: 'Foto staat', kind: 'select', choices: { rechts: 'Rechts van de tekst', links: 'Links van de tekst' } },
+    ],
+  },
+  galerij: {
+    label: 'Fotogalerij',
+    help: 'Een strook foto\'s die je opzij schuift, met titel en subtitel (zoals bij een reis).',
+    fields: [
+      { name: 'titel', label: 'Titel', kind: 'text', max: 200 },
+      { name: 'subtitel', label: 'Subtitel', kind: 'text', max: 200 },
+      { name: 'fotos', label: 'Foto\'s', kind: 'images', max: MAX_GALLERY_IMAGES },
+    ],
+  },
+  kolommen: {
+    label: 'Kolommen',
+    help: 'Twee of drie korte teksten naast elkaar, elk met een titel en eventueel een link (bijv. onze manier van reizen).',
+    styleDefaults: { breedte: 'normaal' },
+    fields: [{
+      name: 'kolommen',
+      label: 'Kolom',
+      kind: 'repeat',
+      count: 3,
+      fields: [
+        { name: 'titel', label: 'Titel', kind: 'text', max: 120 },
+        { name: 'tekst', label: 'Tekst', kind: 'textarea', max: 1000 },
+        { name: 'link', label: 'Adres van de link', kind: 'link', max: 500 },
+        { name: 'linktekst', label: 'Tekst van de link', kind: 'text', max: 60 },
+      ],
+    }],
+  },
+  banner: {
+    label: 'Banner',
+    help: 'Een grote foto over de volle breedte met titel, tekst en een knop erop.',
+    styleDefaults: { breedte: 'vol' },
+    fields: [
+      { name: 'foto', label: 'Foto', kind: 'image' },
+      { name: 'titel', label: 'Titel', kind: 'text', max: 200, required: true },
+      { name: 'tekst', label: 'Tekst', kind: 'textarea', max: 500 },
+      { name: 'knoptekst', label: 'Tekst van de knop', kind: 'text', max: 60 },
+      { name: 'link', label: 'Adres van de knop', kind: 'link', max: 500 },
+    ],
+  },
+  video: {
+    label: 'Video (YouTube)',
+    help: 'Een YouTube-video. Bezoekers kiezen eerst zelf of ze hem laden (cookiekeuze); pas dan maakt de browser verbinding met YouTube.',
+    fields: [
+      { name: 'youtube', label: 'YouTube-adres of -id', kind: 'youtube', max: 300, required: true },
+      { name: 'titel', label: 'Titel (voor schermlezers en op het startvlak)', kind: 'text', max: 200 },
+      { name: 'foto', label: 'Startbeeld (optioneel)', kind: 'image' },
+    ],
+  },
+  faq: {
+    label: 'Veelgestelde vragen',
+    help: 'De vragen uit de FAQ, van één categorie of alle, om uit te klappen.',
+    styleDefaults: { breedte: 'normaal' },
+    fields: [{ name: 'categorie', label: 'Categorie', kind: 'source', source: 'faq', empty: 'Alle categorieën' }],
+  },
+  reizen: {
+    label: 'Reizen',
+    help: 'De komende reizen, gefilterd op reistype en/of land, als tegels of als lijst.',
+    styleDefaults: { breedte: 'normaal' },
+    fields: [
+      { name: 'type', label: 'Reistype', kind: 'source', source: 'types', empty: 'Alle reistypes' },
+      { name: 'land', label: 'Land', kind: 'source', source: 'countries', empty: 'Alle landen' },
+      { name: 'aantal', label: 'Hoeveel reizen', kind: 'select', choices: { 6: '6', 3: '3', 9: '9', 12: '12', 24: '24', 60: 'Alle (max. 60)' } },
+      { name: 'weergave', label: 'Weergave', kind: 'select', choices: { tegels: 'Tegels (zoals last-minutes)', lijst: 'Lijst met prijs (zoals het reisoverzicht)' } },
+      { name: 'beschikbaar', label: 'Volgeboekte reizen', kind: 'select', choices: { tonen: 'Ook tonen', verbergen: 'Niet tonen' } },
+    ],
+  },
+  reistypes: {
+    label: 'Reistypes',
+    help: 'De reistypes als tegels met icoon.',
+    styleDefaults: { breedte: 'normaal', achtergrond: 'soil', ruimteBoven: 'normaal' },
+    fields: [{ name: 'keuze', label: 'Welke', kind: 'select', choices: { homepage: 'Zoals op de homepage', alle: 'Alle reistypes met reizen' } }],
+  },
+  bestemmingen: {
+    label: 'Bestemmingen',
+    help: 'De landen als fotobanners in een schuifrij.',
+    styleDefaults: { breedte: 'vol' },
+    fields: [{ name: 'keuze', label: 'Welke', kind: 'select', choices: { homepage: 'Zoals op de homepage', alle: 'Alle landen met reizen' } }],
+  },
 };
+
+/** Bronnen van keuzelijsten die uit de database komen (`source`): wat de waarde moet zijn. */
+const SOURCE_PATTERNS = { types: /^[a-z0-9]+(?:-[a-z0-9]+)*$/, countries: /^[a-z0-9]+(?:-[a-z0-9]+)*$/, faq: /^[^<>]{1,120}$/ };
+
+/**
+ * Haalt het YouTube-id uit een adres of id (watch, youtu.be, embed, shorts, nocookie).
+ * @param {string} input Invoer.
+ * @returns {string} Id, of leeg als het geen YouTube-video is.
+ */
+function youtubeId(input) {
+  const text = String(input || '').trim();
+  if (YOUTUBE_ID_PATTERN.test(text)) return text;
+  let url;
+  try {
+    url = new URL(text);
+  } catch (_) {
+    return '';
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+  const host = url.hostname.replace(/^www\.|^m\./, '');
+  let candidate = '';
+  if (host === 'youtu.be') candidate = url.pathname.slice(1);
+  else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+    const match = /^\/(?:embed|shorts|live)\/([^/]+)/.exec(url.pathname);
+    candidate = match ? match[1] : (url.pathname === '/watch' ? url.searchParams.get('v') || '' : '');
+  }
+  return YOUTUBE_ID_PATTERN.test(candidate) ? candidate : '';
+}
 
 /**
  * Maakt een nieuw, uniek blok-id.
@@ -103,7 +230,7 @@ function newBlockId() {
 function defaultValue(field) {
   if (field.kind === 'select') return Object.keys(field.choices)[0];
   if (field.kind === 'image') return null;
-  if (field.kind === 'repeat') return [];
+  if (field.kind === 'repeat' || field.kind === 'images') return [];
   return '';
 }
 
@@ -116,7 +243,7 @@ function newBlock(type) {
   if (!Object.hasOwn(BLOCK_TYPES, type)) return null;
   const data = {};
   for (const field of BLOCK_TYPES[type].fields) data[field.name] = defaultValue(field);
-  return { id: newBlockId(), type, data, style: defaultStyle() };
+  return { id: newBlockId(), type, data, style: normalizeStyle({ ...defaultStyle(), ...(BLOCK_TYPES[type].styleDefaults || {}) }) };
 }
 
 /**
@@ -171,6 +298,15 @@ function validateField(field, input) {
   if (field.kind === 'select') {
     return Object.hasOwn(field.choices, input) ? { value: input } : { value: defaultValue(field) };
   }
+  if (field.kind === 'youtube') {
+    const id = youtubeId(input);
+    if (!id) return { value: '', error: input.trim() ? 'Dit is geen YouTube-adres. Plak het adres van de video (youtube.com/watch?v=… of youtu.be/…).' : 'Vul dit veld in.' };
+    return { value: id };
+  }
+  if (field.kind === 'source') {
+    const value = input.trim();
+    return !value || SOURCE_PATTERNS[field.source].test(value) ? { value } : { value: '', error: 'Kies een waarde uit de lijst.' };
+  }
   if (field.kind === 'richtext') {
     if (input.length > field.max) return { value: '', error: 'De tekst is te lang.' };
     const value = sanitizeHtml(input);
@@ -201,6 +337,16 @@ function validateBlockForm(block, body) {
   for (const field of definition.fields) {
     if (field.kind === 'image') {
       data[field.name] = block.data[field.name] || null;
+    } else if (field.kind === 'images') {
+      // Foto's komen van het fotoscherm; hier kun je ze alleen weghalen of verplaatsen (vinkje of volgnummer).
+      const removed = new Set([].concat(body[`f_${field.name}_weg`] || []).filter((value) => typeof value === 'string'));
+      const current = (block.data[field.name] || []).map((image, index) => {
+        const position = Number.parseInt(formText(body, `f_${field.name}_${index}_volgorde`), 10);
+        return { image, index, position: Number.isFinite(position) ? position : index + 1 };
+      });
+      data[field.name] = current.filter((item) => !removed.has(String(item.index)))
+        .sort((left, right) => left.position - right.position || left.index - right.index)
+        .map((item) => item.image);
     } else if (field.kind === 'repeat') {
       const rows = [];
       for (let index = 0; index < field.count; index++) {
@@ -221,6 +367,15 @@ function validateBlockForm(block, body) {
       data[field.name] = result.value;
       if (result.error) errors[`f_${field.name}`] = result.error;
     }
+  }
+  if (block.type === 'banner' && Boolean(data.knoptekst) !== Boolean(data.link)) {
+    errors[data.knoptekst ? 'f_link' : 'f_knoptekst'] = 'Vul zowel de tekst als het adres van de knop in, of geen van beide.';
+  }
+  if (block.type === 'kolommen') {
+    data.kolommen.forEach((row, index) => {
+      if (!row.titel && !row.tekst) errors[`f_kolommen_${index}_titel`] = 'Geef de kolom een titel of tekst.';
+      if (row.linktekst && !row.link) errors[`f_kolommen_${index}_link`] = 'Vul het adres van de link in.';
+    });
   }
   if (block.type === 'knoppen') {
     data.knoppen.forEach((row, index) => {
@@ -247,6 +402,9 @@ function normalizeBlock(stored) {
   for (const field of BLOCK_TYPES[stored.type].fields) {
     const value = source[field.name];
     if (field.kind === 'image') data[field.name] = normalizeImage(value);
+    else if (field.kind === 'images') data[field.name] = (Array.isArray(value) ? value : []).map(normalizeImage).filter(Boolean).slice(0, field.max);
+    else if (field.kind === 'youtube') data[field.name] = typeof value === 'string' && YOUTUBE_ID_PATTERN.test(value) ? value : '';
+    else if (field.kind === 'source') data[field.name] = typeof value === 'string' && (!value || SOURCE_PATTERNS[field.source].test(value)) ? value : '';
     else if (field.kind === 'repeat') data[field.name] = Array.isArray(value) ? value.filter((row) => row && typeof row === 'object').slice(0, field.count) : [];
     else if (field.kind === 'select') data[field.name] = typeof value === 'string' && Object.hasOwn(field.choices, value) ? value : defaultValue(field);
     else data[field.name] = typeof value === 'string' ? value : '';
@@ -304,6 +462,7 @@ function mediaIdsOf(blocks) {
   for (const block of blocks) {
     for (const field of BLOCK_TYPES[block.type].fields) {
       if (field.kind === 'image' && block.data[field.name] && block.data[field.name].mediaId) ids.add(block.data[field.name].mediaId);
+      if (field.kind === 'images') for (const image of block.data[field.name]) if (image.mediaId) ids.add(image.mediaId);
     }
   }
   return [...ids];
@@ -322,6 +481,14 @@ function blockSummary(block) {
   else if (block.type === 'afbeelding') text = data.bijschrift || (data.foto ? data.foto.alt || 'foto gekozen' : 'nog geen foto');
   else if (block.type === 'knoppen') text = data.knoppen.map((row) => row.tekst).join(' · ');
   else if (block.type === 'citaat') text = data.tekst;
+  else if (block.type === 'tekst-afbeelding') text = String(data.html).replace(/<[^>]*>/g, ' ');
+  else if (block.type === 'galerij') text = `${data.titel || 'Galerij'} (${data.fotos.length} foto's)`;
+  else if (block.type === 'kolommen') text = data.kolommen.map((row) => row.titel).filter(Boolean).join(' · ');
+  else if (block.type === 'banner') text = data.titel;
+  else if (block.type === 'video') text = data.titel || data.youtube;
+  else if (block.type === 'faq') text = data.categorie || 'alle categorieën';
+  else if (block.type === 'reizen') text = [data.type, data.land].filter(Boolean).join(', ') || 'alle reizen';
+  else if (block.type === 'reistypes' || block.type === 'bestemmingen') text = data.keuze === 'alle' ? 'alle met reizen' : 'zoals op de homepage';
   text = text.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
   return text.length > 80 ? `${text.slice(0, 77)}...` : text;
 }
@@ -329,7 +496,7 @@ function blockSummary(block) {
 /**
  * HTML van de inhoud van één blok (zonder de omhullende sectie).
  * @param {object} block Genormaliseerd blok.
- * @param {{title: string}} context Titel van de pagina (voor video's in een tekstblok).
+ * @param {{title: string, data?: object}} context Titel van de pagina (voor video's) en de gegevens uit `loadBlockData`.
  * @returns {{markup: (object|string), hasVideo: boolean}} HTML en of er een video in staat.
  */
 function renderBlockContent(block, context) {
@@ -354,7 +521,7 @@ function renderBlockContent(block, context) {
       };
     }
     case 'knoppen': {
-      const buttons = data.knoppen.filter((row) => row.tekst && row.link && isSafeUrl(row.link) && !/^http:/i.test(row.link));
+      const buttons = data.knoppen.filter((row) => row.tekst && row.link && isSafeLink(row.link));
       if (!buttons.length) return { markup: '', hasVideo: false };
       return {
         markup: html`<div class="page-content__block cms-buttons">${buttons.map((row) => {
@@ -371,9 +538,158 @@ function renderBlockContent(block, context) {
         hasVideo: false,
       };
     }
+    case 'tekst-afbeelding': {
+      if (!data.html && !data.foto) return { markup: '', hasVideo: false };
+      return {
+        markup: html`<div class="page-content__block cms-media-text cms-media-text--${data.positie === 'links' ? 'links' : 'rechts'}">
+          <div class="cms-media-text__text page-content__text">${raw(data.html)}</div>
+          ${data.foto ? html`<figure class="cms-media-text__image"><img src="${data.foto.url}" alt="${data.foto.alt}" loading="lazy"></figure>` : ''}
+        </div>`,
+        hasVideo: false,
+      };
+    }
+    case 'galerij': {
+      if (!data.fotos.length) return { markup: '', hasVideo: false };
+      return { markup: html`<div class="page-content__gallery">${renderGallery({ title: data.titel, subtitle: data.subtitel, images: data.fotos })}</div>`, hasVideo: false };
+    }
+    case 'kolommen': {
+      const columns = data.kolommen.filter((row) => row.titel || row.tekst);
+      if (!columns.length) return { markup: '', hasVideo: false };
+      return {
+        markup: html`<div class="page-content__block cms-columns cms-columns--${columns.length}">${columns.map((row) => html`<div class="cms-columns__item">
+          ${row.titel ? html`<h3 class="cms-columns__title">${row.titel}</h3>` : ''}
+          ${row.tekst ? html`<p class="cms-columns__text">${row.tekst}</p>` : ''}
+          ${row.link && isSafeLink(row.link) ? html`<a class="cms-columns__link" href="${row.link}">${row.linktekst || 'Lees verder'}</a>` : ''}
+        </div>`)}</div>`,
+        hasVideo: false,
+      };
+    }
+    case 'banner': {
+      if (!data.titel) return { markup: '', hasVideo: false };
+      const image = data.foto ? cssImageUrl(data.foto.url) : '';
+      return {
+        markup: html`<div class="page-content__block cms-banner${image ? '' : ' cms-banner--plain'}"${image ? html` style="background-image: url('${image}')"` : ''}>
+          <div class="cms-banner__inner">
+            <p class="cms-banner__title">${data.titel}</p>
+            ${data.tekst ? html`<p class="cms-banner__text">${data.tekst}</p>` : ''}
+            ${data.knoptekst && data.link && isSafeLink(data.link) ? html`<a class="btn" href="${data.link}">${data.knoptekst}</a>` : ''}
+          </div>
+        </div>`,
+        hasVideo: false,
+      };
+    }
+    case 'video': {
+      if (!data.youtube) return { markup: '', hasVideo: false };
+      const title = data.titel || `Video bij ${context.title}`;
+      const poster = data.foto ? cssImageUrl(data.foto.url) : '';
+      // Eerst een startvlak; pas na een klik (of een eerder onthouden keuze) zet public/js/site.js de iframe neer.
+      return {
+        markup: html`<div class="page-content__video-wrapper cms-video" data-video-consent data-video-id="${data.youtube}" data-video-title="${title}" data-video-origin="${YOUTUBE_ORIGIN}">
+          <div class="page-content__video cms-video__frame"${poster ? html` style="background-image: url('${poster}')"` : ''}>
+            <div class="cms-video__notice">
+              <p class="cms-video__title">${title}</p>
+              <p class="cms-video__text">Deze video staat op YouTube. Speel je hem af, dan maakt je browser verbinding met YouTube (youtube-nocookie.com) en kan YouTube gegevens over je bezoek verwerken.</p>
+              <p class="cms-video__actions"><button class="btn" type="button" data-video-play>Video afspelen</button>
+                <a class="cms-video__link" href="${`https://www.youtube.com/watch?v=${data.youtube}`}" rel="noopener" target="_blank">Bekijk op YouTube</a></p>
+              <label class="cms-video__remember"><input type="checkbox" data-video-remember> Video's op deze site voortaan direct laden</label>
+            </div>
+          </div>
+        </div>`,
+        hasVideo: true,
+      };
+    }
+    case 'faq': {
+      const faqs = (context.data && context.data.faqs) || [];
+      const chosen = data.categorie ? faqs.filter((faq) => faq.category.toLowerCase() === data.categorie.toLowerCase()) : faqs;
+      if (!chosen.length) return { markup: '', hasVideo: false };
+      return { markup: html`<div class="page-content__block cms-embed">${faqList(chosen)}</div>`, hasVideo: false };
+    }
+    case 'reizen': {
+      const trips = (context.data && context.data.trips && context.data.trips.get(block.id)) || [];
+      const list = data.weergave === 'lijst' ? tripList(trips, 'Op dit moment zijn er geen reizen die hierbij passen.')
+        : (trips.length ? html`<div class="grid grid--3col">${trips.map((trip) => html`<div class="grid__item">${tripBox(trip)}</div>`)}</div>` : html`<div class="alert">Op dit moment zijn er geen reizen die hierbij passen.</div>`);
+      return { markup: html`<div class="page-content__block cms-embed cms-trips">${list}</div>`, hasVideo: false };
+    }
+    case 'reistypes': {
+      const types = chooseCategories((context.data && context.data.types) || [], data.keuze);
+      if (!types.length) return { markup: '', hasVideo: false };
+      return {
+        markup: html`<div class="page-content__block cms-embed"><div class="trip-types texture-overlay">${types.map((type) => html`<a class="trip-type" href="${categoryPath(type.slug)}">
+          ${icon(categoryIconName(type), { className: 'trip-type__icon' })}
+          <span class="trip-type__title">${type.name}</span>
+        </a>`)}</div></div>`,
+        hasVideo: false,
+      };
+    }
+    case 'bestemmingen': {
+      const destinations = chooseCategories((context.data && context.data.destinations) || [], data.keuze);
+      if (!destinations.length) return { markup: '', hasVideo: false };
+      return {
+        markup: html`<div class="page-content__block cms-embed"><div class="destinations" data-scroller>
+          <ul class="destinations__track" data-scroller-track>${destinations.map((destination) => {
+            const image = cssImageUrl(destination.image_url);
+            return html`<li class="destinations__item"><a class="banner banner--fullimage" href="${categoryPath(destination.slug)}"${image ? html` style="background-image: url('${image}')"` : ''}>
+              <span class="banner__title">${destination.name}</span>
+            </a></li>`;
+          })}</ul>
+          <div class="destinations__nav">
+            <button class="slider-button" type="button" data-scroller-prev>${icon('chevron-left')}<span class="visually-hidden">Vorige bestemmingen</span></button>
+            <button class="slider-button" type="button" data-scroller-next>${icon('chevron-right')}<span class="visually-hidden">Volgende bestemmingen</span></button>
+          </div>
+        </div></div>`,
+        hasVideo: false,
+      };
+    }
     default:
       return { markup: '', hasVideo: false };
   }
+}
+
+/**
+ * Of een link veilig is voor een knop of kolom (eigen site, https, mailto of tel; geen http of javascript:).
+ * @param {string} link Adres.
+ * @returns {boolean} Waar als het mag.
+ */
+function isSafeLink(link) {
+  return isSafeUrl(link) && !/^http:/i.test(link);
+}
+
+/**
+ * Kiest reistypes of landen voor een blok: "zoals op de homepage" zijn de categorieën met *tonen op de homepage*
+ * (staat er geen aan, dan alle met reizen), "alle" zijn alle categorieën met komende reizen.
+ * @param {{show_on_home: boolean, trip_count: number}[]} categories Categorieën uit `content.categories`.
+ * @param {string} choice `homepage` of `alle`.
+ * @returns {object[]} Gekozen categorieën.
+ */
+function chooseCategories(categories, choice) {
+  const withTrips = categories.filter((category) => category.trip_count > 0);
+  if (choice === 'alle') return withTrips;
+  const chosen = categories.filter((category) => category.show_on_home);
+  return chosen.length ? chosen : withTrips;
+}
+
+/**
+ * Haalt de gegevens op die de blokken nodig hebben (FAQ, reistypes, landen, reizen per reizenblok), alleen wat er in de
+ * blokken voorkomt.
+ * @param {object[]} blocks Genormaliseerde blokken.
+ * @param {{faqs: Function, categories: Function, upcomingTrips: Function}} content Queries uit `site/content.js`.
+ * @returns {Promise<{faqs?: object[], types?: object[], destinations?: object[], trips: Map<string, object[]>}>} Gegevens.
+ */
+async function loadBlockData(blocks, content) {
+  const types = new Set(blocks.map((block) => block.type));
+  const tripBlocks = blocks.filter((block) => block.type === 'reizen');
+  const [faqs, typeRows, destinationRows, tripRows] = await Promise.all([
+    types.has('faq') ? content.faqs() : undefined,
+    types.has('reistypes') ? content.categories('type') : undefined,
+    types.has('bestemmingen') ? content.categories('bestemming') : undefined,
+    Promise.all(tripBlocks.map((block) => content.upcomingTrips({
+      type: block.data.type || undefined,
+      destination: block.data.land || undefined,
+      onlyAvailable: block.data.beschikbaar === 'verbergen',
+      limit: Number(block.data.aantal) || 6,
+    }))),
+  ]);
+  return { faqs, types: typeRows, destinations: destinationRows, trips: new Map(tripBlocks.map((block, index) => [block.id, tripRows[index]])) };
 }
 
 /**
@@ -396,7 +712,7 @@ function sectionClasses(style) {
  * HTML van een lijst blokken voor de site, binnen `page-content`. Een blok met de standaardstijl staat er los in (zoals
  * de geïmporteerde pagina's altijd stonden); een blok met een eigen stijl krijgt een omhullende sectie.
  * @param {*} blocks Opgeslagen blokken.
- * @param {{title: string}} context Titel van de pagina.
+ * @param {{title: string, data?: object}} context Titel van de pagina en de gegevens uit `loadBlockData`.
  * @returns {{body: (object|string), hasVideo: boolean}} HTML en of er een video in staat (voor de CSP).
  */
 function renderBlocks(blocks, context) {
@@ -431,4 +747,7 @@ module.exports = {
   mediaIdsOf,
   blockSummary,
   renderBlocks,
+  loadBlockData,
+  youtubeId,
+  MAX_GALLERY_IMAGES,
 };

@@ -233,7 +233,23 @@ function createPages(options) {
     return undefined;
   }, context);
 
-  return { list, get, revisions, changeDraft, publish, discardDraft, restoreRevision };
+  /**
+   * De keuzes voor velden met een bron in het bewerkscherm: reistypes, landen en FAQ-categorieën.
+   * @returns {Promise<{types: string[][], countries: string[][], faq: string[][]}>} Paren `[waarde, naam]`.
+   */
+  const sourceOptions = async () => {
+    const [categories, faqs] = await Promise.all([
+      db.query("SELECT slug, name, kind FROM trip_categories WHERE kind IN ('type', 'bestemming') ORDER BY kind, sort_order, name"),
+      db.query('SELECT DISTINCT category FROM faqs WHERE category <> $1 ORDER BY category', ['']),
+    ]);
+    return {
+      types: categories.filter((row) => row.kind === 'type').map((row) => [row.slug, row.name]),
+      countries: categories.filter((row) => row.kind === 'bestemming').map((row) => [row.slug, row.name]),
+      faq: faqs.map((row) => [row.category, row.category]),
+    };
+  };
+
+  return { list, get, revisions, changeDraft, publish, discardDraft, restoreRevision, sourceOptions };
 }
 
 module.exports = { createPages, validatePageFields, editableState, imageFromMedia, PAGE_LIMITS, IMAGE_WIDTH };

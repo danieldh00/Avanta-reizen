@@ -990,6 +990,42 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
   .cms-heading__title { font-size: 30px; }
   .cms-quote__text { font-size: 24px; }
 }
+/* Bloktypes uit pakket H2 */
+.cms-embed .layout-container { width: auto; padding: 0; }
+.cms-embed .trip-types { margin: 0; }
+.cms-media-text { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 60px; align-items: center; }
+.cms-media-text--links .cms-media-text__image { order: -1; }
+.cms-media-text__image { margin: 0; }
+.cms-media-text__image img { width: 100%; height: auto; }
+.cms-columns { display: grid; grid-template-columns: repeat(var(--cms-columns, 3), minmax(0, 1fr)); gap: 30px 60px; }
+.cms-columns--1 { --cms-columns: 1; } .cms-columns--2 { --cms-columns: 2; } .cms-columns--3 { --cms-columns: 3; }
+.cms-columns__title { margin: 0 0 15px; font-size: 28px; line-height: 1.2; }
+.cms-columns__text { margin: 0 0 15px; line-height: 1.75; white-space: pre-line; }
+.cms-columns__link { font-weight: 700; text-transform: uppercase; letter-spacing: 1pt; font-size: 14px; color: var(--av-blue); }
+.cms-banner { position: relative; display: flex; align-items: center; justify-content: center; min-height: 480px; padding: 60px 30px; background: var(--av-dark) no-repeat 50% 50% / cover; text-align: center; color: var(--av-white); }
+.cms-banner::before { content: ""; position: absolute; inset: 0; background: rgba(67, 66, 72, .35); }
+.cms-banner--plain::before { display: none; }
+.cms-banner__inner { position: relative; max-width: 850px; }
+.cms-banner__title { margin: 0 0 22.5px; font-family: var(--av-serif); font-size: 60px; font-weight: 900; line-height: 1; color: var(--av-white); }
+.cms-banner__text { margin: 0 0 30px; font-size: 18px; line-height: 1.5; color: rgba(255, 255, 255, .9); white-space: pre-line; }
+.cms-video__frame { padding-bottom: 0; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; background: var(--av-dark) no-repeat 50% 50% / cover; }
+.cms-video__frame::before { content: ""; position: absolute; inset: 0; background: rgba(67, 66, 72, .6); }
+.cms-video.is-loaded .cms-video__frame::before { display: none; }
+.cms-video__notice { position: relative; max-width: 640px; padding: 30px; text-align: center; color: var(--av-white); line-height: 1.5; }
+.cms-video__title { margin: 0 0 15px; font-family: var(--av-serif); font-size: 28px; font-weight: 900; line-height: 1.2; color: var(--av-white); }
+.cms-video__text { margin: 0 0 22.5px; font-size: 14px; }
+.cms-video__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 15px 30px; margin: 0 0 15px; }
+.cms-video__link, .cms-video__link:hover { color: var(--av-white); text-decoration: underline; }
+.cms-video__remember { font-size: 14px; }
+@media (max-width: 768px) {
+  .cms-media-text, .cms-columns { grid-template-columns: minmax(0, 1fr); gap: 30px; }
+  .cms-media-text--links .cms-media-text__image { order: 0; }
+  .cms-banner { min-height: 320px; }
+  .cms-banner__title { font-size: 34px; }
+  .cms-video__notice { padding: 15px; }
+  .cms-video__title { font-size: 20px; margin-bottom: 5px; }
+  .cms-video__text, .cms-video__remember { display: none; }
+}
 /* Bewerkscherm van een pagina in het CRM */
 .cms-block-edit > summary { cursor: pointer; }
 .cms-block-edit__summary { color: var(--av-muted); font-weight: 400; }
@@ -1005,6 +1041,11 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
 .cms-type-help { margin: 1rem 0; padding-left: 1.25rem; font-size: .9rem; line-height: 1.5; }
 .cms-status .crm-actions { margin-bottom: 1rem; }
 .cms-status form { display: inline-block; }
+.cms-toolbar { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .4rem; }
+.cms-photo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: .75rem; margin: 0; padding: 0; list-style: none; }
+.cms-photo-list__item { display: grid; gap: .3rem; font-size: .85rem; }
+.cms-photo-list__item img { width: 100%; height: auto; }
+.cms-photo-list__item input[type="number"] { width: 4.5rem; }
 @media print {
   .crm-nav, .crm-nav-backdrop, .crm-nav-toggle { display: none !important; }
   .crm--nav .crm-page { padding-left: 0 !important; }

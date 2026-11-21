@@ -142,9 +142,17 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     *volgeboekt* en aanmeldingen (audit `reis.gekopieerd`).
   - **Pagina's** op `/app/paginas/` (recht `content`: beheerder, kantoor en *Redacteur*; `app/src/cms/`, migratie 17):
     een pagina bestaat uit **blokken** met vaste velden en vaste stijlopties uit de huisstijl, geen vrije HTML of CSS.
-    Bloktypes nu: *tekst* (opgemaakte tekst, door `sanitizeHtml`), *kop met subtitel*, *afbeelding* (uit de
-    fotobibliotheek, met bijschrift), *knoppen* (1–3, terracotta of omlijnd; alleen adressen op de eigen site, https,
-    mailto of tel) en *citaat*. Stijl per blok: achtergrond (geen, wit, lichtgrijs, textuur, terracotta), breedte
+    Bloktypes: *tekst* (opgemaakte tekst, door `sanitizeHtml`, met opmaakknoppen boven het vak), *kop met subtitel*,
+    *afbeelding* (uit de fotobibliotheek, met bijschrift), *knoppen* (1–3, terracotta of omlijnd; alleen adressen op de
+    eigen site, https, mailto of tel), *citaat*, *tekst met foto* (links of rechts), *fotogalerij* (schuifstrook met
+    titel en subtitel, tot 40 foto's; meer tegelijk kiezen, weghalen en volgorde), *kolommen* (2–3 korte teksten met
+    link), *banner* (grote foto met titel, tekst en knop), *video* (YouTube, zie hieronder), *veelgestelde vragen* (één
+    FAQ-categorie of alle), *reizen* (komende reizen op reistype en/of land, als tegels of lijst, eventueel zonder
+    volgeboekte), *reistypes* (tegels met icoon) en *bestemmingen* (fotobanners per land). Elk type heeft een eigen
+    standaardopmaak (bijv. banner volle breedte, reistypes op textuur). **Video met cookiekeuze**: de pagina toont eerst
+    een startvlak met uitleg; pas na *Video afspelen* zet `public/js/site.js` de iframe van youtube-nocookie.com neer
+    (vinkje *voortaan direct laden* wordt per browser onthouden). Zonder JavaScript blijft een link naar YouTube over.
+    `frame-src` voor youtube-nocookie.com staat alleen in de CSP van een pagina met een video. Stijl per blok: achtergrond (geen, wit, lichtgrijs, textuur, terracotta), breedte
     (smal 850 px, normaal 1280 px, volle breedte), uitlijning en ruimte boven/onder. Bij de migratie is de tekst van elke
     bestaande pagina één tekstblok geworden; de site ziet er daardoor hetzelfde uit. Elke wijziging (gegevens,
     kopfoto, blok toevoegen, wijzigen, verplaatsen, kopiëren, verwijderen) komt eerst in een **concept**
