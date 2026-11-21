@@ -25,6 +25,7 @@ const { createMenuRoutes } = require('../cms/menu-routes');
 const { createPostRoutes } = require('../cms/post-routes');
 const { createPostTermRoutes } = require('../cms/post-term-routes');
 const { createFaqRoutes } = require('../cms/faq-routes');
+const { createGuideRoutes } = require('../trips/guide-routes');
 const { createPersons } = require('./persons');
 const { createTwoFactor, createTwoFactorRoutes, SETUP_ACTIVATION_DAYS } = require('./two-factor');
 const { createVault } = require('../security/vault');
@@ -127,13 +128,13 @@ function createCrmRouter(options) {
   const beheerForms = express.urlencoded({ extended: false, limit: '64kb', parameterLimit: 100 });
   // De fotobibliotheek heeft een keuzelijst met alle landen (één veld per gekozen land).
   const mediaForms = express.urlencoded({ extended: false, limit: '64kb', parameterLimit: 400 });
-  // Pagina's, blogberichten en FAQ-antwoorden: een tekstblok mag lang zijn (100.000 tekens opgemaakte tekst); velden per blok blijven beperkt.
+  // Pagina's, blogberichten, FAQ-antwoorden en reisleiders: een tekstblok mag lang zijn (100.000 tekens opgemaakte tekst); velden per blok blijven beperkt.
   const pageForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 100 });
   // Blog: als pagina's, plus een vinkje per categorie en tag (hoogstens 2 × 200).
   const blogForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 450 });
   router.use((req, res, next) => {
     if (req.path.startsWith('/beheer/')) return beheerForms(req, res, next);
-    if (req.path.startsWith('/paginas/') || req.path.startsWith('/faq/')) return pageForms(req, res, next);
+    if (req.path.startsWith('/paginas/') || req.path.startsWith('/faq/') || req.path.startsWith('/reisleiders/')) return pageForms(req, res, next);
     if (req.path.startsWith('/blog/')) return blogForms(req, res, next);
     if (req.path.startsWith('/fotobibliotheek/')) return mediaForms(req, res, next);
     return smallForms(req, res, next);
@@ -426,6 +427,7 @@ function createCrmRouter(options) {
   router.use(createMediaRoutes({ db, auth, library: options.mediaLibrary, limits: options.mediaLimits, now: options.now }));
   router.use(createTripRoutes({ db, auth, redirects: options.redirects, library: options.mediaLibrary }));
   router.use(createCategoryRoutes({ db, auth, redirects: options.redirects, library: options.mediaLibrary }));
+  router.use(createGuideRoutes({ db, auth, redirects: options.redirects, library: options.mediaLibrary, siteContent: options.siteContent }));
   router.use(createPageRoutes({ db, auth, library: options.mediaLibrary, redirects: options.redirects, menus: options.menus, homepage: options.homepage, siteContent: options.siteContent }));
   router.use(createMenuRoutes({ db, auth, menus: options.menus }));
   router.use(createFaqRoutes({ db, auth }));

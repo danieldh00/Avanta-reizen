@@ -189,4 +189,17 @@ function sortGuides(guides, order) {
   });
 }
 
-module.exports = { SITE_CONTENT_FILE, SITE_CONTENT_VERSION, DEFAULT_ARCHIVES, DEFAULT_BLOG_ARCHIVE_LINK, EMPTY_GUIDE, normalizeSiteContent, createSiteContentStore, sortGuides };
+/**
+ * De extra gegevens van een reisleider voor de site: uit het CRM als hij daar beheerd wordt (`managed_in_crm`; het
+ * portret is dan `photo_url`, de galerij komt nog uit het bestand), anders uit `site-content.json`.
+ * @param {{slug: string, managed_in_crm?: boolean, surname?: string, city?: string, since?: string, quote?: string, image_url?: (string|null)}} guide Reisleider uit de database.
+ * @param {Map<string, object>} guides Gegevens uit `site-content.json` per slug.
+ * @returns {object} Gegevens zoals `normalizeGuide`.
+ */
+function guideExtra(guide, guides) {
+  const fixed = guides.get(guide.slug) || EMPTY_GUIDE;
+  if (!guide.managed_in_crm) return fixed;
+  return { ...fixed, surname: guide.surname || '', city: guide.city || '', since: guide.since || '', quote: guide.quote || '', portrait: '', image: guide.image_url || '' };
+}
+
+module.exports = { SITE_CONTENT_FILE, SITE_CONTENT_VERSION, DEFAULT_ARCHIVES, DEFAULT_BLOG_ARCHIVE_LINK, EMPTY_GUIDE, normalizeSiteContent, createSiteContentStore, sortGuides, guideExtra };

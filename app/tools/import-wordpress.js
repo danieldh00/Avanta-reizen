@@ -496,15 +496,28 @@ async function store(db, data) {
   return db.transaction(async (client) => {
     const guideIds = new Map();
     for (const [index, guide] of data.guides.entries()) {
+      // Een reisleider die in het CRM een ander adres kreeg, wordt op zijn oude id gevonden in plaats van opnieuw
+      // aangemaakt (legacy_id is uniek); de reizen koppelen dan aan hem.
+      const [moved] = guide.legacyId
+        ? await client.query('SELECT id FROM guides WHERE legacy_id = $1 AND slug <> $2 AND managed_in_crm', [guide.legacyId, guide.slug])
+        : [];
+      if (moved) {
+        guideIds.set(guide.slug, moved.id);
+        guideIds.set(String(guide.legacyId), moved.id);
+        continue;
+      }
       const [row] = await client.query(
         `INSERT INTO guides (legacy_id, slug, name, intro, body_html, photo_url, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (slug) DO UPDATE SET legacy_id = EXCLUDED.legacy_id, name = EXCLUDED.name, intro = EXCLUDED.intro,
            body_html = EXCLUDED.body_html, photo_url = EXCLUDED.photo_url, sort_order = EXCLUDED.sort_order
+         WHERE NOT guides.managed_in_crm
          RETURNING id`,
         [guide.legacyId, guide.slug, guide.name, guide.intro, guide.bodyHtml, guide.photoUrl, index],
       );
-      guideIds.set(guide.slug, row.id);
-      if (guide.legacyId) guideIds.set(String(guide.legacyId), row.id);
+      // Een reisleider uit het CRM blijft staan (dan geen RETURNING); de reizen koppelen nog wel aan hem.
+      const [kept] = row ? [row] : await client.query('SELECT id FROM guides WHERE slug = $1', [guide.slug]);
+      guideIds.set(guide.slug, kept.id);
+      if (guide.legacyId) guideIds.set(String(guide.legacyId), kept.id);
     }
 
     const categoryIds = new Map();

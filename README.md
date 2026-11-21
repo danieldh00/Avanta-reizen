@@ -202,6 +202,14 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     `/faq/`, zonder concept. Een categorie hernoemen past de vragen aan (`faqs.category` is een afgeleide kopie, die het
     FAQ-blok gebruikt: kies in zo'n blok de categorie daarna opnieuw); verwijderen kan alleen bij een lege categorie.
     Een vraag uit het CRM laat de WordPress-import staan. Audit `faq.*`.
+  - **Reisleiders** op `/app/reisleiders/` (recht `reizen`, `app/src/trips/guides.js` en `guide-routes.js`, migratie
+    22): voornaam, achternaam, adres (`/reisleider/<slug>/`; wijzigen geeft een 301), woonplaats, sinds, citaat,
+    inleiding en tekst (veilige HTML), portret en tweede foto uit de fotobibliotheek, online/offline, nieuw (offline) en
+    verwijderen (alleen offline, niet uit de import en zonder reizen; het adres verwijst daarna naar `/reisleider/`).
+    Tot de eerste wijziging toont de site de gegevens uit `site-content.json`; het formulier staat dan al op die
+    gegevens en bij opslaan gaan ze mee (`managed_in_crm`). De galerij onderaan komt nog uit het bestand. Een
+    reisleider uit het CRM laat de WordPress-import staan (reizen koppelen nog wel aan hem, ook na een nieuw adres).
+    Audit `reisleider.*`.
   - **Homepage als blokpagina** (CMS-pakket H4, geen migratie): *Homepage als blokpagina opzetten* op `/app/paginas/`
     maakt de pagina `/` aan met de huidige inhoud van de vaste homepage (`homepage.json`) als blokken: slider, zoekbalk
     "Vind jouw reis", last-minutes, reistypes, inspiratie-slider, bestemmingen, blog en "Over Avanta met stempel". Die
