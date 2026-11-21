@@ -168,6 +168,9 @@ function createMenus(options) {
   const update = async (id, values, context) => {
     if (!/^\d{1,9}$/.test(String(id))) return { status: 'weg' };
     const outcome = await db.transaction(async (client) => {
+      // Eerst de sloten per menu (altijd beide, in vaste volgorde), dan pas de rij: zelfde volgorde als `create`
+      // (slot → rijen), zodat gelijktijdig wijzigen en toevoegen nooit op elkaar wachten in een kring.
+      for (const menu of Object.keys(MENUS).sort()) await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`menu:${menu}`]);
       const [existing] = await client.query('SELECT id, menu FROM menu_items WHERE id = $1 FOR UPDATE', [Number(id)]);
       if (!existing) return { status: 'weg' };
       if (existing.menu !== values.menu) {

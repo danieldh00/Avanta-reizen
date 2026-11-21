@@ -637,6 +637,14 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     const [{ count }] = await db.query("SELECT count(*)::int AS count FROM menu_items WHERE menu = 'voet'");
     await db.query("INSERT INTO menu_items (menu, label, href) SELECT 'voet', 'Vul ' || n, '/vul/' FROM generate_series(1, $1::int) AS n", [40 - count]);
     await db.query("DELETE FROM menu_items WHERE id = (SELECT max(id) FROM menu_items WHERE menu = 'voet')");
+    // Gelijktijdig wijzigen en toevoegen op hetzelfde menu: geen deadlock (vaste volgorde van sloten).
+    const [someVoet] = await db.query("SELECT id FROM menu_items WHERE menu = 'voet' ORDER BY id LIMIT 1");
+    const mixed = await Promise.all([
+      ...[1, 2, 3].map((n) => request(`/app/menus/${someVoet.id}/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, menu: 'voet', label: `Gewijzigd ${n}`, href: '/x/' } })),
+      add({ menu: 'voet', label: 'Tegelijk 0', href: '/x/' }),
+    ]);
+    assert.deepEqual(mixed.map((response) => response.status), [303, 303, 303, 303]);
+    await db.query("DELETE FROM menu_items WHERE label = 'Tegelijk 0'");
     const parallel = await Promise.all([1, 2, 3].map((n) => add({ menu: 'voet', label: `Tegelijk ${n}`, href: '/x/' })));
     assert.deepEqual(parallel.map((response) => response.status).sort(), [303, 422, 422], 'gelijktijdig: maar één past');
     assert.equal((await db.query("SELECT count(*)::int AS count FROM menu_items WHERE menu = 'voet'"))[0].count, 40);
