@@ -178,4 +178,64 @@ function overviewView(state) {
   });
 }
 
-module.exports = { loginView, registerView, mailSentView, verifyView, invalidLinkView, forgotView, resetView, overviewView, renderField };
+/**
+ * Code per e-mail aanvragen of invullen, vóór een gevoelige actie.
+ * @param {{csrf: string, next: string, sent: boolean, error?: string, notice?: string}} state CSRF-token, waar het daarna
+ *   heen gaat, of er al een code is verstuurd, foutmelding en melding.
+ * @returns {object} HTML.
+ */
+function codeView(state) {
+  return frame({
+    intro: html`<p>Voor je gegevens downloaden of je wachtwoord wijzigen vragen we een code die we naar je e-mailadres sturen. Zo is je wachtwoord alleen niet genoeg.</p>`,
+    notice: state.notice,
+    alert: state.error,
+    content: html`${state.sent ? html`<form class="form form--theme" method="post" action="/account/code/" novalidate>
+        <input type="hidden" name="_csrf" value="${state.csrf}">
+        <input type="hidden" name="next" value="${state.next}">
+        ${renderField({ name: 'code', label: 'Code uit de mail', type: 'text', autocomplete: 'one-time-code', max: 6 })}
+        <div class="form__footer"><button class="btn" type="submit">Bevestigen</button></div>
+      </form>` : ''}
+      <form method="post" action="/account/code/versturen/" class="account__code-send">
+        <input type="hidden" name="_csrf" value="${state.csrf}">
+        <input type="hidden" name="next" value="${state.next}">
+        <button class="btn" type="submit">${state.sent ? 'Stuur een nieuwe code' : 'Stuur me een code'}</button>
+      </form>`,
+  });
+}
+
+/**
+ * Mijn gegevens met de knop om alles als Excel te downloaden.
+ * @param {{content: object, stepUp: boolean}} state De gegevens en of de code al gegeven is.
+ * @returns {object} HTML.
+ */
+function detailsView(state) {
+  return frame({
+    content: html`${state.content}
+      <p>${state.stepUp
+        ? html`<a class="btn" href="/account/gegevens/export.xlsx">Download mijn gegevens (Excel)</a>`
+        : html`<a class="btn" href="/account/code/?verder=gegevens">Download mijn gegevens (Excel)</a>`}</p>
+      <p class="account__links"><a href="/account/">Terug naar Mijn reizen</a></p>`,
+  });
+}
+
+/**
+ * Wachtwoord wijzigen (na de code per e-mail).
+ * @param {{csrf: string, errors?: object}} state CSRF-token en fouten.
+ * @returns {object} HTML.
+ */
+function passwordView(state) {
+  const errors = state.errors || {};
+  return frame({
+    intro: html`<p>Kies een nieuw wachtwoord. Andere apparaten worden daarna uitgelogd.</p>`,
+    alert: Object.keys(errors).length ? 'Controleer de gemarkeerde velden.' : '',
+    content: html`<form class="form form--theme" method="post" action="/account/wachtwoord/" novalidate>
+      <input type="hidden" name="_csrf" value="${state.csrf}">
+      ${renderField({ name: 'password', label: 'Nieuw wachtwoord', type: 'password', error: errors.password, autocomplete: 'new-password', max: MAX_LENGTH, help: `Minimaal ${MIN_LENGTH} tekens.` })}
+      ${renderField({ name: 'password2', label: 'Wachtwoord herhalen', type: 'password', error: errors.password2, autocomplete: 'new-password', max: MAX_LENGTH })}
+      <div class="form__footer"><button class="btn" type="submit">Wachtwoord opslaan</button></div>
+    </form>
+    <p class="account__links"><a href="/account/">Terug naar Mijn reizen</a></p>`,
+  });
+}
+
+module.exports = { codeView, detailsView, passwordView, loginView, registerView, mailSentView, verifyView, invalidLinkView, forgotView, resetView, overviewView, renderField };
