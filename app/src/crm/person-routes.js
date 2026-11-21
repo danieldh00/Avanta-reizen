@@ -88,11 +88,13 @@ function renderEditField(field, value, error) {
 
 /**
  * Maakt de routes voor deelnemers.
- * @param {{db: object, auth: object, persons: object}} options Database, sessie- en rechtenlaag en de personen (`crm/persons.js`).
+ * @param {{db: object, auth: object, persons: object, now?: () => number}} options Database, sessie- en rechtenlaag, de personen (`crm/persons.js`) en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router.
  */
 function createPersonRoutes(options) {
   const { db, auth, persons } = options;
+  // Pas hier laden: person-privacy-routes gebruikt BLOCK_INFO uit dit bestand.
+  const { createPersonPrivacyRoutes, renderPrivacyPanel } = require('./person-privacy-routes');
   const router = express.Router();
   const canView = auth.requireGlobalRight('deelnemers');
   const canEdit = [canView, auth.requireRight('deelnemers.wijzigen')];
@@ -197,7 +199,7 @@ function createPersonRoutes(options) {
    * De pagina van één deelnemer.
    * @param {object} req Express-verzoek.
    * @param {object} person De persoon.
-   * @param {{values?: object, errors?: object, shown?: string, blockValues?: object, blockErrors?: object, notice?: string}} [state]
+   * @param {{values?: object, errors?: object, shown?: string, blockValues?: object, blockErrors?: object, notice?: string, eraseError?: string}} [state]
    *   Ingevulde NAW-waarden en fouten, het geopende blok met zijn waarden en fouten, en een melding.
    * @returns {Promise<string>} HTML-pagina.
    */
@@ -279,7 +281,8 @@ function createPersonRoutes(options) {
           <thead><tr><th scope="col">Toestemming</th><th scope="col">Tekstversie</th><th scope="col">Gegeven</th><th scope="col">Ingetrokken</th><th scope="col"><span class="visually-hidden">Actie</span></th></tr></thead>
           <tbody>${consents.map((consent) => html`<tr><td>${CONSENT_LABELS[consent.kind] || consent.kind}</td><td>${consent.text_version}</td><td>${consent.text_version === LEGACY_ART9_TEXT_VERSION ? html`niet los gegeven (aanmelding ${formatDateTime(consent.given_at)})` : formatDateTime(consent.given_at)}</td><td>${formatDateTime(consent.withdrawn_at)}</td>
             <td>${canChange && consent.kind !== 'voorwaarden' && !consent.withdrawn_at ? html`<form method="post" action="/app/deelnemers/${person.id}/toestemming/${consent.id}/intrekken/">${hidden}<button class="btn btn--outline btn--small" type="submit">Intrekken en gegevens wissen</button></form>` : ''}</td></tr>`)}</tbody>
-        </table></div>` : html`<p>Geen toestemmingen vastgelegd.</p>`}`,
+        </table></div>` : html`<p>Geen toestemmingen vastgelegd.</p>`}
+        ${renderPrivacyPanel(req, person, state.eraseError)}`,
     });
   };
 
@@ -287,7 +290,7 @@ function createPersonRoutes(options) {
     try {
       const person = await findPerson(req.params.id);
       if (!person) return notFound(req, res);
-      const notices = { '1': 'De gegevens zijn opgeslagen.', samengevoegd: 'De deelnemers zijn samengevoegd; het dubbel is verwijderd.', ingetrokken: 'De toestemming is ingetrokken en de bijbehorende gegevens zijn gewist.' };
+      const notices = { '1': 'De gegevens zijn opgeslagen.', samengevoegd: 'De deelnemers zijn samengevoegd; het dubbel is verwijderd.', ingetrokken: 'De toestemming is ingetrokken en de bijbehorende gegevens zijn gewist.', gewist: 'De persoon is gewist (geanonimiseerd) en een reizigersaccount met hetzelfde e-mailadres is verwijderd.' };
       return res.send(await renderPerson(req, person, { notice: notices[req.query.opgeslagen] || '' }));
     } catch (error) {
       return next(error);
@@ -386,6 +389,8 @@ function createPersonRoutes(options) {
       return next(error);
     }
   });
+
+  router.use(createPersonPrivacyRoutes({ db, auth, persons, renderPerson, now: options.now }));
 
   return router;
 }

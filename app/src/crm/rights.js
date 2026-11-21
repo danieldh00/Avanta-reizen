@@ -18,6 +18,7 @@ const RIGHTS = {
   betalingen: 'Betalingen afboeken',
   facturen: 'Facturen en export naar de boekhouding',
   'export.deelnemers': 'Deelnemerslijsten exporteren (.xlsx)',
+  avg: 'AVG-verzoeken: gegevens van een deelnemer exporteren (inzage) en een deelnemer wissen',
   kpis: 'Dashboard met kengetallen',
   media: 'Fotobibliotheek: foto\'s uploaden, beschrijven en aan landen koppelen',
   content: 'Website: pagina\'s, blog, veelgestelde vragen en menu\'s bewerken en publiceren',
@@ -28,7 +29,7 @@ const ROLES = {
   beheerder: { label: 'Beheerder', rights: Object.keys(RIGHTS) },
   kantoor: {
     label: 'Kantoor',
-    rights: ['reizen', 'aanmeldingen', 'deelnemers', 'deelnemers.wijzigen', 'gegevens.identiteit', 'gegevens.gezondheid', 'betalingen', 'export.deelnemers', 'kpis', 'media', 'content'],
+    rights: ['reizen', 'aanmeldingen', 'deelnemers', 'deelnemers.wijzigen', 'gegevens.identiteit', 'gegevens.gezondheid', 'betalingen', 'export.deelnemers', 'avg', 'kpis', 'media', 'content'],
   },
   reisleider: {
     label: 'Reisleider',

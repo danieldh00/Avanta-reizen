@@ -265,12 +265,16 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.equal(preview.status, 200);
     assert.match(preview.text, /Voorbeeld: wat er nu gewist zou worden/);
 
-    const run = await request('/app/beheer/bewaartermijnen/opschonen/', { cookie: beheer.cookie, form: { _csrf: beheer.csrf } });
+    const unconfirmed = await request('/app/beheer/bewaartermijnen/opschonen/', { cookie: beheer.cookie, form: { _csrf: beheer.csrf } });
+    assert.equal(unconfirmed.status, 422);
+    const run = await request('/app/beheer/bewaartermijnen/opschonen/', { cookie: beheer.cookie, form: { _csrf: beheer.csrf, bevestigen: 'ja' } });
     assert.equal(run.status, 200);
     assert.match(run.text, /Opgeschoond\./);
     assert.match(run.text, /Met de hand \(beheerder\)/);
-    const [audit] = await db.query("SELECT count(*)::int AS n FROM audit_log WHERE action = 'avg.opschonen'");
-    assert.equal(audit.n, 1);
+    const audits = await db.query("SELECT entity, entity_id FROM audit_log WHERE action = 'avg.opschonen'");
+    assert.equal(audits.length, 1);
+    const [latest] = await db.query('SELECT id FROM retention_runs ORDER BY id DESC LIMIT 1');
+    assert.deepEqual(audits[0], { entity: 'retention_runs', entity_id: String(latest.id) });
   });
 
   await t.test('Beheer: limiet', async () => {

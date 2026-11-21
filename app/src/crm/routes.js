@@ -422,7 +422,7 @@ function createCrmRouter(options) {
 
   router.use(createTwoFactorRoutes({ db, auth, twoFactor, now: options.now }));
   router.use(createUserRoutes({ db, auth, twoFactor, normalizeEmail, textField }));
-  router.use(createPersonRoutes({ db, auth, persons }));
+  router.use(createPersonRoutes({ db, auth, persons, now: options.now }));
   router.use(createPersonMergeRoutes({ db, auth, persons }));
   router.use(createBookingRoutes({ db, auth }));
   router.use(createParticipantListRoutes({ db, auth, persons, now: options.now }));
