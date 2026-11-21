@@ -62,7 +62,7 @@ const OVERVIEW_SQL = `SELECT b.id, b.reference, b.trip_id, b.trip_title, b.trip_
  * @param {{view: string, tripId: (number|null), terms: object, today: string, maxRows?: number}} filter Weergave, reis,
  *   termijnen, vandaag en (voor tests) het maximum aantal aanmeldingen.
  * @returns {Promise<{rows: object[], truncated: boolean, scanCapped: boolean}>} Regels met `summary`, of de lijst is
- *   afgekapt, en of dat kwam doordat de voorselectie vol zat (bij *te laat*: te veel openstaande om de te late te bepalen).
+ *   afgekapt, en of dat kwam doordat de voorselectie vol zat (bij *te laat*: te veel openstaande om te bepalen welke te laat zijn).
  */
 async function loadOverview(db, filter) {
   const withCancelled = filter.view === 'teveel' || filter.view === 'alles';
@@ -104,7 +104,7 @@ async function loadOverview(db, filter) {
  */
 function truncationMessage(filter, maxRows, scanCapped, where) {
   if (filter.view === 'te-laat' && scanCapped) {
-    return `Er zijn te veel openstaande aanmeldingen om de te late te bepalen${filter.tripId ? '' : '; kies een reis'}.`;
+    return `Er zijn te veel openstaande aanmeldingen om te bepalen welke te laat zijn${filter.tripId ? '' : '; kies een reis'}.`;
   }
   const lead = where === 'pagina'
     ? `Alleen de eerste ${maxRows} aanmeldingen${filter.tripId ? ' van deze reis' : ''} zijn meegenomen`
