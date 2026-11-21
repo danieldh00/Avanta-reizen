@@ -42,7 +42,9 @@ const PERSON_ACTION_LABELS = {
     [`deelnemer.toon.${info.slug}`, `Deelnemer: ${info.label.toLowerCase()} ingezien`],
     [`deelnemer.blok.${info.slug}`, `Deelnemer: ${info.label.toLowerCase()} gewijzigd`],
   ])),
-  'deelnemer.toestemming.ingetrokken': 'Deelnemer: toestemming ingetrokken (gegevens gewist)',
+  ...Object.fromEntries(Object.keys(BLOCK_CONSENTS).map((block) => [
+    `deelnemer.toestemming.ingetrokken.${BLOCK_INFO[block].slug}`, `Deelnemer: toestemming ${BLOCK_INFO[block].label.toLowerCase()} ingetrokken (gegevens gewist)`,
+  ])),
 };
 
 /** Formuliervelden op naam. */
@@ -339,16 +341,21 @@ function createPersonRoutes(options) {
       const person = await findPerson(req.params.id);
       if (!person) return notFound(req, res);
       const { values, errors } = validateFields(BLOCKS[block].map((name) => FIELD_BY_NAME[name]), req.body, { today: today() });
-      const filled = Object.values(values).some(Boolean);
-      if (!Object.keys(errors).length && filled && !(await hasConsentFor(db, person.id, block))) {
-        errors._form = 'Er is geen (geldige) toestemming van de deelnemer vastgelegd; deze gegevens mogen niet worden opgeslagen.';
-      }
       if (Object.keys(errors).length) return res.status(422).send(await renderPerson(req, person, { shown: block, blockValues: values, blockErrors: errors }));
-      await db.transaction(async (client) => {
+      const filled = Object.values(values).some(Boolean);
+      const saved = await db.transaction(async (client) => {
+        // Persoon vergrendelen: intrekken (dat dezelfde rij vergrendelt) kan niet tussen de controle en het opslaan vallen.
+        await client.query('SELECT id FROM persons WHERE id = $1 FOR UPDATE', [person.id]);
+        if (filled && !(await hasConsentFor(client, person.id, block))) return false;
         await persons.writeBlock(client, person.id, block, values);
         if (block === 'identity_data') await persons.refreshMatchKey(client, person.id);
         await auth.audit(req, { userId: req.user.id, action: `deelnemer.blok.${BLOCK_INFO[block].slug}`, entity: 'persons', entityId: person.id }, client);
+        return true;
       });
+      if (!saved) {
+        const blockErrors = { _form: 'Er is geen (geldige) toestemming van de deelnemer vastgelegd; deze gegevens mogen niet worden opgeslagen.' };
+        return res.status(422).send(await renderPerson(req, person, { shown: block, blockValues: values, blockErrors }));
+      }
       return res.redirect(303, `/app/deelnemers/${person.id}/?opgeslagen=1`);
     } catch (error) {
       return next(error);
@@ -357,21 +364,24 @@ function createPersonRoutes(options) {
 
   router.post('/deelnemers/:id(\\d{1,9})/toestemming/:consentId(\\d{1,9})/intrekken/', ...canEdit, auth.checkCsrf, async (req, res, next) => {
     try {
+      const personId = Number(req.params.id);
       const outcome = await db.transaction(async (client) => {
+        // Eerst de persoon vergrendelen, net als bij het opslaan van een blok (geen opslaan tussen controle en wissen).
+        await client.query('SELECT id FROM persons WHERE id = $1 FOR UPDATE', [personId]);
         // De toestemming alleen samen met de persoon uit de URL opzoeken.
         const [consent] = await client.query(
           "SELECT id, kind FROM consents WHERE id = $1 AND person_id = $2 AND kind <> 'voorwaarden' AND withdrawn_at IS NULL FOR UPDATE",
-          [Number(req.params.consentId), Number(req.params.id)],
+          [Number(req.params.consentId), personId],
         );
         if (!consent) return 'weg';
         const block = Object.keys(BLOCK_CONSENTS).find((name) => BLOCK_CONSENTS[name] === consent.kind);
-        await client.query('UPDATE consents SET withdrawn_at = now() WHERE person_id = $1 AND kind = $2 AND withdrawn_at IS NULL', [Number(req.params.id), consent.kind]);
-        await persons.writeBlock(client, Number(req.params.id), block, {});
-        await auth.audit(req, { userId: req.user.id, action: 'deelnemer.toestemming.ingetrokken', entity: 'persons', entityId: req.params.id }, client);
+        await client.query('UPDATE consents SET withdrawn_at = now() WHERE person_id = $1 AND kind = $2 AND withdrawn_at IS NULL', [personId, consent.kind]);
+        await persons.writeBlock(client, personId, block, {});
+        await auth.audit(req, { userId: req.user.id, action: `deelnemer.toestemming.ingetrokken.${BLOCK_INFO[block].slug}`, entity: 'persons', entityId: personId }, client);
         return 'ok';
       });
       if (outcome === 'weg') return notFound(req, res);
-      return res.redirect(303, `/app/deelnemers/${req.params.id}/?opgeslagen=ingetrokken`);
+      return res.redirect(303, `/app/deelnemers/${personId}/?opgeslagen=ingetrokken`);
     } catch (error) {
       return next(error);
     }

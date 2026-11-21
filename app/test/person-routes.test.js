@@ -116,6 +116,18 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     const edit = await request(path, { cookie: sessions.boek.cookie, form: { _csrf: sessions.boek.csrf, ...plain } });
     assert.equal(edit.status, 403);
     assert.equal((await request(path, { cookie: sessions.kantoor.cookie })).status, 200);
+    // Blok, intrekken en tonen zonder het juiste recht: 403 en niets veranderd.
+    const before = (await db.query('SELECT health_data, updated_at FROM persons WHERE id = $1', [personId]))[0];
+    const [consent] = await db.query("SELECT id FROM consents WHERE person_id = $1 AND kind = 'art9_gezondheid'", [personId]);
+    for (const role of ['boek', 'leider']) {
+      const session = sessions[role];
+      assert.equal((await request(`${path}blok/`, { cookie: session.cookie, form: { _csrf: session.csrf, block: 'health_data', particulars: 'Anders' } })).status, 403, `${role}: blok`);
+      assert.equal((await request(`${path}toestemming/${consent.id}/intrekken/`, { cookie: session.cookie, form: { _csrf: session.csrf } })).status, 403, `${role}: intrekken`);
+      assert.equal((await request(`${path}toon/`, { cookie: session.cookie, form: { _csrf: session.csrf, block: 'health_data' } })).status, 403, `${role}: toon`);
+    }
+    assert.deepEqual((await db.query('SELECT health_data, updated_at FROM persons WHERE id = $1', [personId]))[0], before);
+    assert.equal((await db.query('SELECT withdrawn_at FROM consents WHERE id = $1', [consent.id]))[0].withdrawn_at, null);
+    assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action LIKE 'deelnemer.%'"))[0].total, 0);
   });
 
   await t.test('onbekende deelnemer of toestemming van een ander: 404', async () => {
@@ -193,10 +205,18 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal(person.health_data, null);
     assert.notEqual(person.special_data, null, 'ander blok blijft');
     assert.ok((await db.query('SELECT withdrawn_at FROM consents WHERE id = $1', [consent.id]))[0].withdrawn_at);
+    assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action = 'deelnemer.toestemming.ingetrokken.gezondheid' AND entity_id = $1", [String(personId)]))[0].total, 1);
     assert.equal((await request(`${path}toestemming/${consent.id}/intrekken/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } })).status, 404, 'tweede keer');
     const [terms] = await db.query("SELECT id FROM consents WHERE person_id = $1 AND kind = 'voorwaarden'", [personId]);
     assert.equal((await request(`${path}toestemming/${terms.id}/intrekken/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } })).status, 404, 'voorwaarden niet via dit scherm');
     const again = await request(`${path}blok/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, block: 'health_data', particulars: 'Astma' } });
     assert.equal(again.status, 422, 'na intrekken geen nieuwe gezondheidsgegevens');
+    // Gelijktijdig opslaan en intrekken (religie): welke volgorde ook, er blijft nooit een blok zonder toestemming staan.
+    const [religion] = await db.query("SELECT id FROM consents WHERE person_id = $1 AND kind = 'art9_religie' AND withdrawn_at IS NULL", [personId]);
+    await Promise.all([
+      request(`${path}blok/`, { cookie: sessions.beheer.cookie, form: { _csrf: sessions.beheer.csrf, block: 'special_data', church: 'GKV' } }),
+      request(`${path}toestemming/${religion.id}/intrekken/`, { cookie: sessions.beheer.cookie, form: { _csrf: sessions.beheer.csrf } }),
+    ]);
+    assert.equal((await db.query('SELECT special_data FROM persons WHERE id = $1', [personId]))[0].special_data, null);
   });
 });
