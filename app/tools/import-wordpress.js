@@ -590,7 +590,7 @@ async function store(db, data) {
     await client.query('DELETE FROM faqs WHERE NOT managed_in_crm');
     let faqsKept = 0;
     for (const faq of data.faqs) {
-      const [kept] = await client.query('SELECT 1 AS kept FROM faqs WHERE slug = $1', [faq.slug]);
+      const [kept] = await client.query('SELECT 1 AS kept FROM faqs WHERE slug = $1 AND managed_in_crm', [faq.slug]);
       if (kept) {
         faqsKept += 1;
         continue;
