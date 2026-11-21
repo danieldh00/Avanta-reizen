@@ -28,7 +28,7 @@ function trip(extra = {}) {
     slug: 'namibie', title: '± 20 dagen Namibië', summary: 'Safari', trip_code: '26-NAM-293', departure_date: '2026-12-03',
     price_cents: 184900, old_price_cents: null, offer_until: null, extra_costs_cents: 60000, is_new: false, fully_booked: false,
     card_image_url: '/media/kaart.jpg', legacy_id: 293, tagline: 'Een onvergetelijk safari-avontuur', body_html: '<p>Tekst</p>',
-    duration_label: '20 dagen', guaranteed: true, status_label: '', guide_slug: 'martijn', guide_name: 'Martijn', guide_photo: '/media/m.jpg',
+    duration_label: '20 dagen', guaranteed: true, status_label: '', guides: [{ slug: 'martijn', name: 'Martijn', photo_url: '/media/m.jpg' }],
     gallery: [{ url: '/media/g1.jpg', alt: 'Olifant' }], gallery_title: 'Afrikaans Avantuur', gallery_subtitle: 'wild & wonderful',
     categories: [
       { slug: 'kamperen', name: 'Kampeerreizen', kind: 'type' }, { slug: 'vliegreis', name: 'Vliegreis', kind: 'type' },
@@ -82,14 +82,14 @@ test('reisdetail: reisleider, kenmerken met iconen, inleiding, gegevens, gegaran
   assert.match(toString(views.tripDetail(trip({ fully_booked: true }), { isPast: false })), /btn btn--inactive">Volgeboekt/);
   assert.match(toString(views.tripDetail(trip(), { isPast: true })), /btn btn--inactive">Vertrokken/);
   // Zonder reisleider, kenmerken, garantie en galerij: geen lege blokken.
-  const bare = toString(views.tripDetail(trip({ guide_name: null, categories: [], guaranteed: false, gallery: [], tagline: '' }), { isPast: false }));
+  const bare = toString(views.tripDetail(trip({ guides: [], categories: [], guaranteed: false, gallery: [], tagline: '' }), { isPast: false }));
   assert.doesNotMatch(bare, /trip__content-header|trip__guaranteed|page-gallery|page-introduction|<dt>Reisleider/);
   assert.doesNotMatch(page, /undefined|NaN|\[object/);
 });
 
 test('reisdetail: tekst uit de database wordt ge-escaped (behalve de opgeschoonde body)', () => {
   const evil = '<img src=x onerror=alert(1)>';
-  const page = toString(views.tripDetail(trip({ tagline: evil, trip_code: evil, guide_name: evil, gallery_title: evil, gallery: [{ url: '/media/a.jpg', alt: '"><script>' }], categories: [{ slug: 'x', name: evil, kind: 'type' }] }), { isPast: false }));
+  const page = toString(views.tripDetail(trip({ tagline: evil, trip_code: evil, guides: [{ slug: 'x', name: evil, photo_url: '' }], gallery_title: evil, gallery: [{ url: '/media/a.jpg', alt: '"><script>' }], categories: [{ slug: 'x', name: evil, kind: 'type' }] }), { isPast: false }));
   assert.doesNotMatch(page, /<img src=x|<script>/);
   assert.match(page, /&lt;img src=x onerror=alert\(1\)&gt;/);
   const list = toString(views.tripListItem(trip({ card_image_url: "/media/a.jpg'); background: url(https://evil.example/" })));

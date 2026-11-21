@@ -135,15 +135,16 @@ function tripDetail(trip, state) {
   let action = html`<a class="btn" href="/aanmelden/?id=${trip.legacy_id || ''}&reis=${encodeURIComponent(trip.slug)}">Ik meld me aan!</a>`;
   if (trip.fully_booked) action = html`<span class="btn btn--inactive">Volgeboekt</span>`;
   else if (state.isPast) action = html`<span class="btn btn--inactive">Vertrokken</span>`;
-  const guide = trip.guide_name ? html`<div class="block-ghost block-ghost--guide">
+  const guides = Array.isArray(trip.guides) ? trip.guides : [];
+  const guide = guides.map((item) => html`<div class="block-ghost block-ghost--guide">
     <div class="guide-widget">
-      <figure class="guide-widget__thumb">${trip.guide_photo ? html`<img src="${trip.guide_photo}" alt="" width="70" height="70">` : ''}</figure>
+      <figure class="guide-widget__thumb">${item.photo_url ? html`<img src="${item.photo_url}" alt="" width="70" height="70">` : ''}</figure>
       <div class="guide-widget__inner">
         <span class="block-ghost__label">Reisleider</span>
-        <h2 class="guide-widget__title"><a href="${guidePath(trip.guide_slug)}">${trip.guide_name}</a></h2>
+        <h2 class="guide-widget__title"><a href="${guidePath(item.slug)}">${item.name}</a></h2>
       </div>
     </div>
-  </div>` : '';
+  </div>`);
   const features = types.length ? html`<div class="block-ghost block-ghost--trip">
     <span class="block-ghost__label">Kenmerken</span>
     ${compactTripTypes(types)}
@@ -152,7 +153,7 @@ function tripDetail(trip, state) {
     <div class="layout-container">
       <div class="trip__single">
         <div class="trip__content">
-          ${guide || features ? html`<div class="trip__content-header">${guide}${features}</div>` : ''}
+          ${guides.length || features ? html`<div class="trip__content-header">${guide}${features}</div>` : ''}
           ${trip.tagline ? html`<div class="page-introduction">${trip.tagline}</div>` : ''}
           <div class="page-content"><div class="page-content__text">${raw(trip.body_html)}</div></div>
         </div>
@@ -165,7 +166,7 @@ function tripDetail(trip, state) {
                 <dt>Vertrek</dt><dd>${formatDate(trip.departure_date)}</dd>
                 ${trip.duration_label ? html`<dt>Reisduur</dt><dd>${trip.duration_label}</dd>` : ''}
                 ${destinations.length ? html`<dt>Bestemming</dt><dd>${destinations.map((destination, index) => html`${index ? ', ' : ''}<a href="${categoryPath(destination.slug)}">${destination.name}</a>`)}</dd>` : ''}
-                ${trip.guide_name ? html`<dt>Reisleider</dt><dd><a href="${guidePath(trip.guide_slug)}">${trip.guide_name}</a></dd>` : ''}
+                ${guides.length ? html`<dt>${guides.length > 1 ? 'Reisleiders' : 'Reisleider'}</dt><dd>${guides.map((item, index) => html`${index ? ', ' : ''}<a href="${guidePath(item.slug)}">${item.name}</a>`)}</dd>` : ''}
               </dl>
               ${trip.guaranteed ? html`<div class="trip__guaranteed"><h3>Gegarandeerd vertrek</h3></div>` : ''}
               ${trip.status_label && !trip.fully_booked ? html`<p class="trip__status">${trip.status_label}</p>` : ''}

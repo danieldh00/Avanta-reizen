@@ -833,6 +833,10 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
 .media-grid--pick .media-grid__item:has(input:checked) { border-color: var(--av-accent); box-shadow: 0 0 0 2px var(--av-accent); }
 .crm-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .field--checkbox label { display: flex; gap: .5rem; align-items: center; }
+/* Reis: landen en reistypes als vinkjes in kolommen, met een grens aan de hoogte (er zijn ±70 landen). */
+.crm-checklist { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); gap: .25rem 1rem; max-height: 22rem; overflow-y: auto; margin: 0 0 1rem; padding: .75rem; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); }
+.crm-checklist legend { padding: 0 .25rem; font-weight: 600; }
+.crm-checklist label { display: flex; gap: .4rem; align-items: center; overflow-wrap: anywhere; }
 .crm-icon svg { width: 1.5rem; height: 1.5rem; vertical-align: middle; }
 /* Tweestapsverificatie: QR-code, sleutel om over te typen en herstelcodes. */
 .crm-qr { display: block; width: 220px; max-width: 100%; height: auto; border: 1px solid var(--av-line); }

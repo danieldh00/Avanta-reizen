@@ -520,26 +520,32 @@ async function store(db, data) {
     }
 
     for (const trip of data.trips) {
+      // Een reis die in het CRM is gewijzigd (managed_in_crm) blijft zoals hij is: dan komt er geen rij terug.
       const [row] = await client.query(
         `INSERT INTO trips (legacy_id, slug, title, tagline, summary, body_html, trip_code, departure_date, duration_label,
-           duration_days, price_cents, old_price_cents, offer_until, extra_costs_cents, destinations, status_label,
-           guaranteed, fully_booked, is_new, guide_id, hero_image_url, card_image_url, gallery, gallery_title, gallery_subtitle)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+           duration_days, price_cents, old_price_cents, offer_until, extra_costs_cents, status_label,
+           guaranteed, fully_booked, is_new, hero_image_url, card_image_url, gallery, gallery_title, gallery_subtitle)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
          ON CONFLICT (slug) DO UPDATE SET legacy_id = EXCLUDED.legacy_id, title = EXCLUDED.title, tagline = EXCLUDED.tagline,
            summary = EXCLUDED.summary, body_html = EXCLUDED.body_html, trip_code = EXCLUDED.trip_code,
            departure_date = EXCLUDED.departure_date, duration_label = EXCLUDED.duration_label, duration_days = EXCLUDED.duration_days,
            price_cents = EXCLUDED.price_cents, old_price_cents = EXCLUDED.old_price_cents, offer_until = EXCLUDED.offer_until,
-           extra_costs_cents = EXCLUDED.extra_costs_cents, destinations = EXCLUDED.destinations, status_label = EXCLUDED.status_label,
-           guaranteed = EXCLUDED.guaranteed, fully_booked = EXCLUDED.fully_booked, is_new = EXCLUDED.is_new, guide_id = EXCLUDED.guide_id,
+           extra_costs_cents = EXCLUDED.extra_costs_cents, status_label = EXCLUDED.status_label,
+           guaranteed = EXCLUDED.guaranteed, fully_booked = EXCLUDED.fully_booked, is_new = EXCLUDED.is_new,
            hero_image_url = EXCLUDED.hero_image_url, card_image_url = EXCLUDED.card_image_url, gallery = EXCLUDED.gallery,
            gallery_title = EXCLUDED.gallery_title, gallery_subtitle = EXCLUDED.gallery_subtitle
+         WHERE NOT trips.managed_in_crm
          RETURNING id`,
         [trip.legacyId, trip.slug, trip.title, trip.tagline, trip.summary, trip.bodyHtml, trip.tripCode, trip.departureDate,
           trip.durationLabel, trip.durationDays, trip.priceCents, trip.oldPriceCents, trip.offerUntil, trip.extraCostsCents,
-          trip.destinations.map((destination) => destination.name), trip.statusLabel, trip.guaranteed, trip.fullyBooked, trip.isNew,
-          guideIds.get(String(trip.guideRef)) || null, trip.heroImageUrl, trip.cardImageUrl, JSON.stringify(trip.gallery),
+          trip.statusLabel, trip.guaranteed, trip.fullyBooked, trip.isNew,
+          trip.heroImageUrl, trip.cardImageUrl, JSON.stringify(trip.gallery),
           trip.galleryTitle, trip.gallerySubtitle],
       );
+      if (!row) continue;
+      await client.query('DELETE FROM trip_guides WHERE trip_id = $1', [row.id]);
+      const guideId = guideIds.get(String(trip.guideRef));
+      if (guideId) await client.query('INSERT INTO trip_guides (trip_id, guide_id) VALUES ($1, $2)', [row.id, guideId]);
       await client.query('DELETE FROM trip_category_links WHERE trip_id = $1', [row.id]);
       const linkIds = [...new Set(trip.categorySlugs.map((slug) => categoryIds.get(slug)).filter(Boolean))];
       if (linkIds.length) {
