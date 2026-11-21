@@ -396,6 +396,11 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
 
     // Uitgelicht: hoogstens één bericht.
     const [other] = await db.query("SELECT id FROM posts WHERE slug = 'met-nieuw-adres'");
+    const [{ published: otherPublished }] = await db.query('UPDATE posts SET published = false WHERE id = $1 RETURNING (SELECT published FROM posts WHERE id = $1)', [other.id]);
+    const offlineFeatured = await request(`/app/blog/${other.id}/indeling/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, uitgelicht: 'ja' } });
+    assert.equal(offlineFeatured.status, 422, 'offline bericht niet uitlichten');
+    assert.match(offlineFeatured.text, /Alleen een gepubliceerd bericht/);
+    await db.query('UPDATE posts SET published = $2 WHERE id = $1', [other.id, otherPublished]);
     await request(`/app/blog/${other.id}/indeling/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, uitgelicht: 'ja' } });
     await request(`${postUrl}indeling/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, uitgelicht: 'ja', term: String(category.id) } });
     assert.deepEqual((await db.query('SELECT id FROM posts WHERE featured')).map((row) => row.id), [imported.id]);

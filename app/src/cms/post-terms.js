@@ -79,6 +79,7 @@ function createPostTerms(options) {
    */
   const create = (kind, values, context) => db.transaction(async (client) => {
     if (!Object.hasOwn(TERM_KINDS, kind)) return { errors: { kind: 'Kies categorie of tag.' } };
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['blog-indeling-adres']);
     const [{ count }] = await client.query('SELECT count(*)::int AS count FROM post_terms WHERE kind = $1', [kind]);
     if (count >= TERM_LIMITS.terms) return { errors: { name: `Er zijn hoogstens ${TERM_LIMITS.terms} ${TERM_KINDS[kind].plural.toLowerCase()}.` } };
     const [row] = await client.query(
@@ -100,6 +101,8 @@ function createPostTerms(options) {
    */
   const update = (id, values, context) => db.transaction(async (client) => {
     if (!/^\d{1,9}$/.test(String(id))) return { status: 'weg' };
+    // Gelijktijdige wijzigingen naar dezelfde slug na elkaar, zodat de controle hieronder klopt (geen 500 op de unieke index).
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['blog-indeling-adres']);
     const [term] = await client.query('SELECT id, kind, slug FROM post_terms WHERE id = $1 FOR UPDATE', [Number(id)]);
     if (!term) return { status: 'weg' };
     if (values.slug !== term.slug) {
@@ -141,7 +144,8 @@ function createPostTerms(options) {
 
   /**
    * Zet de categorieën en tags van een bericht en of het uitgelicht is (meteen op de site, geen concept). Onbekende
-   * id's worden genegeerd; uitgelicht maakt een eventueel ander uitgelicht bericht gewoon.
+   * id's worden genegeerd; uitgelicht maakt een eventueel ander uitgelicht bericht gewoon en kan alleen bij een
+   * gepubliceerd (of ingepland) bericht, anders toont de site stil niets.
    * @param {(number|string)} postId Id van het bericht.
    * @param {{termIds: string[], featured: boolean}} values Gekozen id's en uitgelicht.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit.
@@ -151,8 +155,11 @@ function createPostTerms(options) {
     if (!/^\d{1,9}$/.test(String(postId))) return { status: 'weg' };
     const ids = [...new Set(values.termIds)];
     if (ids.length > TERM_LIMITS.terms || !ids.every((id) => typeof id === 'string' && /^\d{1,9}$/.test(id))) return { status: 'fout', message: 'Kies categorieën en tags uit de lijst.' };
-    const [post] = await client.query('SELECT id FROM posts WHERE id = $1 FOR UPDATE', [Number(postId)]);
+    // Uitlichten na elkaar: twee redacteuren die tegelijk een ander bericht uitlichten geven anders een deadlock.
+    if (values.featured) await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['blog-uitgelicht']);
+    const [post] = await client.query('SELECT id, published FROM posts WHERE id = $1 FOR UPDATE', [Number(postId)]);
     if (!post) return { status: 'weg' };
+    if (values.featured && !post.published) return { status: 'fout', message: 'Alleen een gepubliceerd bericht kan uitgelicht worden. Zet het bericht eerst online.' };
     await client.query('DELETE FROM post_term_links WHERE post_id = $1', [post.id]);
     await client.query(
       'INSERT INTO post_term_links (post_id, term_id) SELECT $1, t.id FROM post_terms t WHERE t.id = ANY($2::int[])',
