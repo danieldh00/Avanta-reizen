@@ -435,7 +435,7 @@ function createCrmRouter(options) {
   router.use(createFaqRoutes({ db, auth }));
   router.use(createPostTermRoutes({ db, auth, redirects: options.redirects, siteContent: options.siteContent }));
   router.use(createPostRoutes({ db, auth, library: options.mediaLibrary, redirects: options.redirects, menus: options.menus, siteContent: options.siteContent }));
-  router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, now: options.now }));
+  router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, retention: options.retention, now: options.now }));
 
   router.use((req, res) => {
     res.status(404).send(renderCrmPage({

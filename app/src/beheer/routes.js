@@ -20,6 +20,7 @@ const { createRestoreTestRoutes } = require('./restore-test-routes');
 const { createUpdateRoutes } = require('./update-routes');
 const { createHostTaskRoutes } = require('./host-task-routes');
 const { createLogRoutes } = require('./log-routes');
+const { createRetentionRoutes } = require('./retention-routes');
 
 /** Versie van de app (voor het systeemoverzicht). */
 const APP_VERSION = require('../../package.json').version;
@@ -245,6 +246,11 @@ function createBeheerRoutes(options) {
     const monitorRoutes = createMonitorRoutes({ auth, guard, monitor: options.monitor, renderSettingsSection, now: options.now });
     extraPanels.bewaking = monitorRoutes.renderPanel;
     router.use(monitorRoutes.router);
+  }
+  if (options.retention) {
+    const retentionRoutes = createRetentionRoutes({ auth, guard, retention: options.retention, renderSettingsSection, now: options.now });
+    extraPanels.bewaartermijnen = retentionRoutes.renderPanel;
+    router.use(retentionRoutes.router);
   }
   if (options.captcha) {
     const captchaRoutes = createCaptchaRoutes({ auth, guard, captcha: options.captcha, renderSettingsSection, now: options.now });

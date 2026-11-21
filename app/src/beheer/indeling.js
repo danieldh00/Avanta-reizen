@@ -96,6 +96,14 @@ const GROUPS = [
         words: 'sessie inloggen uitloggen time-out inactiviteit bewaartermijn bewaren auditlog ip ip-adres avg privacy opruimen 404',
       },
       {
+        id: 'bewaartermijnen',
+        label: 'AVG en bewaartermijnen',
+        intro: 'Hoe lang het CRM persoonsgegevens bewaart. Elke dag wist de app bijzondere en paspoortgegevens na terugkomst, anonimiseert personen na de bewaartermijn en verwijdert geannuleerde aanmeldingen zonder betaling, oude aanmeldingen en oude contactberichten. Onder het formulier staat wat er per ronde is gewist (alleen aantallen).',
+        fields: ['retentionEnabled', 'retentionSpecialMonths', 'retentionPersonMonths', 'retentionCancelledMonths', 'retentionBookingYears', 'retentionContactMonths'],
+        extra: 'bewaartermijnen',
+        words: 'avg gdpr privacy bewaartermijn bewaren wissen verwijderen anonimiseren opschonen paspoort medisch gezondheid kerkgenootschap art. 9 geannuleerd contactformulier reizigersaccount',
+      },
+      {
         id: 'tweestaps',
         label: 'Tweestapsverificatie',
         intro: 'Na het wachtwoord vraagt het CRM een code uit een authenticator-app (bijv. Microsoft Authenticator of Google Authenticator). Een geraden of gelekt wachtwoord is dan niet genoeg om in te loggen. Standaard is het optioneel: ieder zet het zelf aan onder Tweestapsverificatie; hier kun je het verplicht maken. Kan iemand niet meer bij de app (toestel kwijt), dan zet een beheerder de tweestapsverificatie van die gebruiker uit onder Gebruikers.',

@@ -366,7 +366,7 @@ function createPersons(options) {
    */
   const findPerson = async (client, id, mode = {}) => {
     const [person] = await client.query(
-      `SELECT ${PERSON_COLUMNS}, duplicate_of, created_at, updated_at, last_activity_at FROM persons WHERE id = $1${mode.lock ? ' FOR UPDATE' : ''}`,
+      `SELECT ${PERSON_COLUMNS}, duplicate_of, created_at, updated_at, last_activity_at, anonymized_at FROM persons WHERE id = $1${mode.lock ? ' FOR UPDATE' : ''}`,
       [Number(id)],
     );
     return person || null;
