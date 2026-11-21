@@ -218,5 +218,99 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
       request(`${path}toestemming/${religion.id}/intrekken/`, { cookie: sessions.beheer.cookie, form: { _csrf: sessions.beheer.csrf } }),
     ]);
     assert.equal((await db.query('SELECT special_data FROM persons WHERE id = $1', [personId]))[0].special_data, null);
+    // Deterministisch: de test houdt zelf de persoonsrij vast en trekt de toestemming in terwijl het opslaan wacht.
+    // Zonder de vergrendeling in de route zou die de (nog geldige) toestemming lezen en het blok alsnog schrijven.
+    await db.query("INSERT INTO consents (person_id, kind, text_version) VALUES ($1, 'art9_religie', 'test')", [personId]);
+    let pending;
+    await db.transaction(async (client) => {
+      await client.query('SELECT id FROM persons WHERE id = $1 FOR UPDATE', [personId]);
+      pending = request(`${path}blok/`, { cookie: sessions.beheer.cookie, form: { _csrf: sessions.beheer.csrf, block: 'special_data', church: 'GKV' } });
+      const settled = await Promise.race([pending.then(() => 'klaar'), new Promise((resolve) => { setTimeout(() => resolve('wacht'), 400); })]);
+      assert.equal(settled, 'wacht', 'opslaan wacht op de vergrendelde persoon');
+      await client.query("UPDATE consents SET withdrawn_at = now() WHERE person_id = $1 AND kind = 'art9_religie' AND withdrawn_at IS NULL", [personId]);
+    });
+    assert.equal((await pending).status, 422);
+    assert.equal((await db.query('SELECT special_data FROM persons WHERE id = $1', [personId]))[0].special_data, null);
+  });
+
+  await t.test('samenvoegen: rechten, 404 zonder markering, keuzes per veld en blok, alles gaat mee', async () => {
+    const base = { ...values, email: 'dubbel@example.nl', church: 'PKN', particulars: 'Astma', consent_religion: 'ja', consent_health: 'ja' };
+    const keep = await db.transaction(async (client) => {
+      const { personId: id } = await persons.savePerson(client, base);
+      await persons.recordConsents(client, { personId: id, bookingId: null, values: base });
+      return id;
+    });
+    const changed = { ...base, street: 'Nieuweweg 5', church: 'GKV', particulars: 'Astma en hooikoorts' };
+    const removeId = await db.transaction(async (client) => {
+      const { personId: id, outcome } = await persons.savePerson(client, changed);
+      assert.equal(outcome, 'mogelijk-dubbel');
+      const [booking] = await client.query(
+        `INSERT INTO bookings (reference, trip_title, gender, first_names, call_name, last_name, email, mobile, street, postal_code, city,
+           earlier_trip, credit_card, driver_interest, driver_before, payment_method, payment_choice, consent_at, person_id)
+         VALUES ('AV-DUB-1', 'Reis', 'vrouw', 'G', 'G', 'B', 'dubbel@example.nl', '06', 's', 'p', 'c', false, false, false, false, 'handmatig', 'aanbetaling', now(), $1)
+         RETURNING id`,
+        [id],
+      );
+      await persons.recordConsents(client, { personId: id, bookingId: booking.id, values: changed });
+      return id;
+    });
+    const mergePath = `/app/deelnemers/${removeId}/samenvoegen/`;
+    assert.equal((await request(`/app/deelnemers/${keep}/samenvoegen/`, { cookie: sessions.kantoor.cookie })).status, 404, 'geen markering');
+    assert.equal((await request(mergePath, { cookie: sessions.boek.cookie })).status, 403);
+    assert.equal((await request(mergePath, { cookie: sessions.leider.cookie })).status, 403);
+    const page = await request(mergePath, { cookie: sessions.kantoor.cookie });
+    assert.equal(page.status, 200);
+    assert.match(page.text, /Nieuweweg 5/);
+    assert.doesNotMatch(page.text, /GKV|hooikoorts|PKN/, 'blokwaarden nooit op dit scherm');
+    assert.match((await request(`/app/deelnemers/${removeId}/`, { cookie: sessions.kantoor.cookie })).text, /Samenvoegen/);
+    const form = { _csrf: sessions.kantoor.csrf, met: String(keep), veld_street: 'remove', blok_health_data: 'remove', blok_special_data: 'remove' };
+    assert.equal((await request(mergePath, { cookie: sessions.kantoor.cookie, form: { ...form, met: String(otherId) } })).status, 409);
+    assert.equal((await request(mergePath, { cookie: sessions.kantoor.cookie, form: { ...form, _csrf: 'fout' } })).status, 403);
+    const merged = await request(mergePath, { cookie: sessions.kantoor.cookie, form });
+    assert.equal(merged.status, 303);
+    assert.equal(merged.headers.get('location'), `/app/deelnemers/${keep}/?opgeslagen=samengevoegd`);
+    assert.equal((await db.query('SELECT count(*)::int AS total FROM persons WHERE id = $1', [removeId]))[0].total, 0);
+    const person = await persons.findPerson(db, keep);
+    assert.equal(person.street, 'Nieuweweg 5');
+    assert.equal(persons.openBlock('health_data', person).particulars, 'Astma en hooikoorts', 'kantoor mag gezondheid kiezen');
+    assert.equal(persons.openBlock('special_data', person).church, 'PKN', 'zonder recht op religie: alleen aanvullen');
+    assert.equal((await db.query("SELECT person_id FROM bookings WHERE reference = 'AV-DUB-1'"))[0].person_id, keep);
+    assert.equal((await db.query('SELECT count(*)::int AS total FROM consents WHERE person_id = $1', [keep]))[0].total, 6);
+    assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action = 'deelnemer.samengevoegd' AND entity_id = $1", [String(keep)]))[0].total, 1);
+    const blockAudit = await db.query("SELECT action FROM audit_log WHERE action LIKE 'deelnemer.samengevoegd.%' AND entity_id = $1 ORDER BY action", [String(keep)]);
+    assert.deepEqual(blockAudit.map((row) => row.action), ['deelnemer.samengevoegd.gezondheid.remove', 'deelnemer.samengevoegd.identiteit.fill', 'deelnemer.samengevoegd.noodnummer.fill', 'deelnemer.samengevoegd.religie.fill'], 'per blok met gegevens de keuze, zonder recht altijd aanvullen');
+    assert.equal((await request(mergePath, { cookie: sessions.kantoor.cookie, form })).status, 404, 'tweede keer');
+  });
+
+  await t.test('geen dubbel: markering weg, alleen bij een gemarkeerde persoon', async () => {
+    const { personId } = await db.transaction((client) => persons.savePerson(client, { ...values, email: 'kees@example.nl', first_names: 'Kees', last_name: 'Zwart', church: '', particulars: '', street: 'Elders 1' }));
+    assert.equal((await persons.findPerson(db, personId)).duplicate_of, otherId);
+    const response = await request(`/app/deelnemers/${personId}/niet-dubbel/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } });
+    assert.equal(response.status, 303);
+    assert.equal((await persons.findPerson(db, personId)).duplicate_of, null);
+    assert.equal((await request(`/app/deelnemers/${personId}/niet-dubbel/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } })).status, 404);
+    assert.equal((await request(`/app/deelnemers/${personId}/niet-dubbel/`, { cookie: sessions.boek.cookie, form: { _csrf: sessions.boek.csrf } })).status, 403);
+  });
+
+  await t.test('samenvoegen: zelfverwijzing 404, wederzijdse verwijzing tegelijk zonder deadlock', async () => {
+    const create = (email) => db.transaction(async (client) => (await persons.savePerson(client, { ...values, email, church: '', particulars: '' })).personId);
+    const self = await create('zelf@example.nl');
+    await db.query('UPDATE persons SET duplicate_of = id WHERE id = $1', [self]);
+    assert.equal((await request(`/app/deelnemers/${self}/samenvoegen/`, { cookie: sessions.kantoor.cookie })).status, 404);
+    assert.equal((await request(`/app/deelnemers/${self}/samenvoegen/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, met: String(self) } })).status, 404);
+    assert.equal((await db.query('SELECT count(*)::int AS total FROM persons WHERE id = $1', [self]))[0].total, 1, 'persoon blijft bestaan');
+
+    const first = await create('wederzijds-a@example.nl');
+    const second = await create('wederzijds-b@example.nl');
+    await db.query('UPDATE persons SET duplicate_of = $2 WHERE id = $1', [first, second]);
+    await db.query('UPDATE persons SET duplicate_of = $1 WHERE id = $2', [first, second]);
+    const results = await Promise.all([
+      request(`/app/deelnemers/${first}/samenvoegen/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, met: String(second) } }),
+      request(`/app/deelnemers/${second}/samenvoegen/`, { cookie: sessions.beheer.cookie, form: { _csrf: sessions.beheer.csrf, met: String(first) } }),
+    ]);
+    const statuses = results.map((response) => response.status).sort();
+    assert.equal(statuses[0], 303, 'één samenvoeging slaagt');
+    assert.ok([404, 409].includes(statuses[1]), `de ander krijgt 404 of 409, geen 500 (kreeg ${statuses[1]})`);
+    assert.equal((await db.query('SELECT count(*)::int AS total FROM persons WHERE id = ANY($1::int[])', [[first, second]]))[0].total, 1);
   });
 });

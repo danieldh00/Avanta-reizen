@@ -15,6 +15,7 @@ const { hashPassword, verifyPassword, needsRehash, passwordProblem, getDummyHash
 const { renderCrmPage, renderInput, renderAlert } = require('./layout');
 const { createUserRoutes } = require('./users');
 const { createPersonRoutes } = require('./person-routes');
+const { createPersonMergeRoutes } = require('./person-merge-routes');
 const { createPersons } = require('./persons');
 const { createTwoFactor, createTwoFactorRoutes, SETUP_ACTIVATION_DAYS } = require('./two-factor');
 const { createVault } = require('../security/vault');
@@ -397,6 +398,7 @@ function createCrmRouter(options) {
   router.use(createTwoFactorRoutes({ db, auth, twoFactor, now: options.now }));
   router.use(createUserRoutes({ db, auth, twoFactor, normalizeEmail, textField }));
   router.use(createPersonRoutes({ db, auth, persons }));
+  router.use(createPersonMergeRoutes({ db, auth, persons }));
   router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, now: options.now }));
 
   router.use((req, res) => {
