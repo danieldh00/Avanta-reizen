@@ -100,4 +100,30 @@ async function processImage(buffer) {
   return { width: largest.width, height: largest.height, variants };
 }
 
-module.exports = { processImage, detectImageType, variantWidthsFor, ImageError, VARIANT_WIDTHS, MAX_UPLOAD_BYTES, MAX_INPUT_PIXELS, MIN_SIDE };
+/**
+ * Maakt een kleinere WebP-variant van een (al verwerkte) foto, bijvoorbeeld bij het herstellen van bestanden uit de
+ * database. Zonder metadata, net als bij het uploaden.
+ * @param {Buffer} buffer WebP van de grootste variant.
+ * @param {number} width Gewenste breedte (nooit groter dan het origineel).
+ * @returns {Promise<Buffer>} WebP.
+ */
+function resizeWebp(buffer, width) {
+  return sharp(buffer, { limitInputPixels: MAX_INPUT_PIXELS, failOn: 'error' }).resize({ width, withoutEnlargement: true }).webp({ quality: WEBP_QUALITY }).toBuffer();
+}
+
+/**
+ * Leest de breedte van een (al verwerkte) WebP, bijvoorbeeld om een bestaand bestand in de database te zetten.
+ * @param {Buffer} buffer Inhoud van het bestand.
+ * @returns {Promise<(number|null)>} Breedte in pixels, of null als het geen leesbare WebP binnen de limieten is.
+ */
+async function webpWidth(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length > MAX_UPLOAD_BYTES || detectImageType(buffer) !== 'webp') return null;
+  try {
+    const metadata = await sharp(buffer, { limitInputPixels: MAX_INPUT_PIXELS, failOn: 'error' }).metadata();
+    return metadata.format === 'webp' && metadata.width ? metadata.width : null;
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { processImage, resizeWebp, webpWidth, detectImageType, variantWidthsFor, ImageError, VARIANT_WIDTHS, MAX_UPLOAD_BYTES, MAX_INPUT_PIXELS, MIN_SIDE };

@@ -110,6 +110,10 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     van de reizen (kop-, kaart-, galerijfoto of tekst) en landpagina's waarin ze staan: na elke import en met de knop
     *Automatisch koppelen via de reizen* bij *Zonder land*; wat daarna nog zonder land is, is de lijst "nog te
     koppelen". Foto's met al een land (ook met de hand gekozen) blijven ongemoeid.
+    **Back-up**: van elke geüploade foto staat de grootste variant ook in de database (`media_files`, migratie 13, met
+    SHA-256), dus in elke back-up, de kopie op Google Drive en de hersteltest. Bij het starten en daarna dagelijks zet de
+    app ontbrekende bestanden terug uit de database (kleinere varianten opnieuw gemaakt) en zet uploads van vóór migratie
+    13 alsnog in de database. Afbeeldingen uit de import zitten niet in de back-up (die haalt de import opnieuw op).
   - **Aanmeldingen** op `/app/aanmeldingen/` (recht `aanmeldingen`; `app/src/crm/booking-routes.js`, migratie 11):
     lijst met filter op status en reis en zoeken op referentie, naam, e-mailadres of reiscode; per aanmelding de
     gegevens zoals ingevuld (zonder bijzondere gegevens, die staan bij de deelnemer), de status met vaste overgangen

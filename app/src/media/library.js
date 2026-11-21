@@ -6,7 +6,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { processImage } = require('./images');
+const { processImage, resizeWebp, webpWidth, MAX_UPLOAD_BYTES } = require('./images');
 
 /** Waar een foto gebruikt kan worden: soort, tabel, titelkolom, sleutelkolom, kolommen met adressen en het publieke pad. */
 const USAGE_SOURCES = [
@@ -100,6 +100,29 @@ async function linkImportedMedia(client) {
 }
 
 /**
+ * SHA-256 van een buffer, als hex.
+ * @param {Buffer} data Inhoud.
+ * @returns {string} Hash.
+ */
+function sha256(data) {
+  return crypto.createHash('sha256').update(data).digest('hex');
+}
+
+/**
+ * Of een pad een bestaand bestand is.
+ * @param {string} file Pad.
+ * @returns {Promise<boolean>} Waar als het bestand bestaat.
+ */
+async function fileExists(file) {
+  try {
+    return (await fs.stat(file)).isFile();
+  } catch (error) {
+    if (error.code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+/**
  * Alle bestandsnamen van een foto: het hoofdbestand en de varianten.
  * @param {{local_name: string, variants?: object}} media Foto.
  * @returns {string[]} Unieke bestandsnamen.
@@ -110,13 +133,18 @@ function fileNamesOf(media) {
 
 /**
  * Maakt de fotobibliotheek.
- * @param {{db: object, mediaDir: string, dataDir?: string}} options Database, map met de bestanden en de datamap met
- *   de vaste-inhoudbestanden (standaard de map boven `mediaDir`).
+ * @param {{db: object, mediaDir: string, dataDir?: string, appLog?: object}} options Database, map met de bestanden,
+ *   de datamap met de vaste-inhoudbestanden (standaard de map boven `mediaDir`) en het logboek van de app
+ *   (`system/app-log.js`, voor de meldingen van het onderhoud; zonder logboek naar de console).
  * @returns {object} Functies van de bibliotheek.
  */
 function createMediaLibrary(options) {
   const { db, mediaDir } = options;
   const dataDir = options.dataDir || path.dirname(mediaDir);
+  const appLog = options.appLog || {
+    info: (source, message) => console.log(`${source}: ${message}`),
+    error: (source, message) => console.error(`${source}: ${message}`),
+  };
 
   /**
    * Alle landen (reiscategorieën van het soort bestemming), op naam.
@@ -167,6 +195,8 @@ function createMediaLibrary(options) {
            VALUES (NULL, $1, 'image/webp', $2, 'upload', $3, $4, $5, $6, $7) RETURNING id, title`,
           [variants[String(largest.width)], largest.data.length, title, processed.width, processed.height, JSON.stringify(variants), upload.userId],
         );
+        // De grootste variant ook in de database: zo zit de foto in elke back-up (M13).
+        await client.query('INSERT INTO media_files (media_id, width, sha256, data) VALUES ($1, $2, $3, $4)', [row.id, largest.width, sha256(largest.data), largest.data]);
         const ids = await validCountryIds(client, upload.countryIds);
         if (ids.length) await client.query('INSERT INTO media_countries (media_id, category_id) SELECT $1, unnest($2::int[])', [row.id, ids]);
         if (upload.audit) await upload.audit(client, row.id);
@@ -349,18 +379,105 @@ function createMediaLibrary(options) {
   };
 
   /**
-   * Start het dagelijks opruimen van losse bestanden (direct bij het starten en daarna elke dag).
-   * @returns {void}
+   * Zet geüploade foto's van vóór migratie 13 (alleen als bestand op schijf) alsnog in de database, zodat ze in de
+   * back-up komen. Een ontbrekend, onleesbaar of beschadigd bestand wordt overgeslagen en geteld; de rest gaat door.
+   * @returns {Promise<{stored: number, missing: number}>} Aantallen.
    */
-  const startCleanupTimer = () => {
-    const run = () => cleanupOrphans()
-      .then((count) => { if (count) console.log(`fotobibliotheek: ${count} los(se) bestand(en) opgeruimd`); })
-      .catch((error) => console.error(`fotobibliotheek: opruimen mislukt (${error.code || error.name})`));
-    run();
-    setInterval(run, 24 * 60 * 60 * 1000).unref();
+  const backfillFiles = async () => {
+    const rows = await db.query(
+      `SELECT m.id, m.local_name FROM media m
+        WHERE m.source = 'upload' AND NOT EXISTS (SELECT 1 FROM media_files f WHERE f.media_id = m.id) ORDER BY m.id`,
+    );
+    let stored = 0;
+    let missing = 0;
+    for (const row of rows) {
+      let data;
+      let width = null;
+      try {
+        const file = path.join(mediaDir, row.local_name);
+        if (/^bib-[0-9a-f]{16}-\d{1,5}\.webp$/.test(row.local_name) && (await fs.stat(file)).size <= MAX_UPLOAD_BYTES) {
+          data = await fs.readFile(file);
+          // De breedte uit het bestand zelf: daarmee herkent het herstel de grootste variant.
+          width = await webpWidth(data);
+        }
+      } catch {
+        // Ontbrekend of onleesbaar (bijv. EACCES): overslaan en tellen, de rest gaat door.
+      }
+      if (!width) {
+        missing++;
+        continue;
+      }
+      await db.query('INSERT INTO media_files (media_id, width, sha256, data) VALUES ($1, $2, $3, $4) ON CONFLICT (media_id) DO NOTHING', [row.id, width, sha256(data), data]);
+      stored++;
+    }
+    return { stored, missing };
   };
 
-  return { countries, storeUpload, list, get, update, usage, remove, folders, cleanupOrphans, startCleanupTimer };
+  /**
+   * Herstelt ontbrekende bestanden van geüploade foto's uit de database (na het terugzetten van een back-up op een
+   * nieuwe server, of als er een bestand weg is): de grootste variant zoals opgeslagen, de kleinere opnieuw gemaakt.
+   * Eén foto tegelijk, zodat het geheugen klein blijft.
+   * @returns {Promise<{restored: number, failed: number}>} Aantal herstelde foto's en mislukte (beschadigde inhoud).
+   */
+  const restoreMissingFiles = async () => {
+    const rows = await db.query(
+      `SELECT m.id, m.local_name, m.variants, f.width, f.sha256 FROM media m JOIN media_files f ON f.media_id = m.id
+        WHERE m.source = 'upload' ORDER BY m.id`,
+    );
+    let restored = 0;
+    let failed = 0;
+    await fs.mkdir(mediaDir, { recursive: true });
+    for (const row of rows) {
+      const names = Object.entries(row.variants || {}).filter(([, name]) => /^bib-[0-9a-f]{16}-\d{1,5}\.webp$/.test(name));
+      const missingNames = [];
+      for (const [width, name] of names) if (!(await fileExists(path.join(mediaDir, name)))) missingNames.push([Number(width), name]);
+      if (!missingNames.length) continue;
+      const [file] = await db.query('SELECT data FROM media_files WHERE media_id = $1', [row.id]);
+      if (!file || sha256(file.data) !== row.sha256) {
+        failed++;
+        continue;
+      }
+      try {
+        for (const [width, name] of missingNames) {
+          const data = width === row.width ? file.data : await resizeWebp(file.data, width);
+          const target = path.join(mediaDir, name);
+          await fs.writeFile(`${target}.tmp`, data);
+          await fs.rename(`${target}.tmp`, target);
+        }
+        restored++;
+      } catch (error) {
+        if (error.code === 'ENOSPC' || error.code === 'EACCES') throw error;
+        failed++;
+      }
+    }
+    return { restored, failed };
+  };
+
+  /**
+   * Start het onderhoud van de bibliotheek: bij het starten en daarna dagelijks foto's van vóór migratie 13 in de
+   * database zetten, ontbrekende bestanden herstellen en losse bestanden opruimen. Meldingen gaan naar het logboek.
+   * @returns {Promise<void>} De eerste ronde (faalt nooit; fouten staan in het logboek).
+   */
+  const startCleanupTimer = () => {
+    const run = async () => {
+      try {
+        const backfill = await backfillFiles();
+        if (backfill.stored) appLog.info('fotobibliotheek', `${backfill.stored} foto('s) in de database gezet voor de back-up`);
+        if (backfill.missing) appLog.error('fotobibliotheek', `${backfill.missing} geüploade foto('s) zonder bruikbaar bestand en zonder kopie in de database`);
+        const restore = await restoreMissingFiles();
+        if (restore.restored) appLog.info('fotobibliotheek', `${restore.restored} foto('s) hersteld uit de database`);
+        if (restore.failed) appLog.error('fotobibliotheek', `${restore.failed} foto('s) niet te herstellen uit de database`);
+        const count = await cleanupOrphans();
+        if (count) appLog.info('fotobibliotheek', `${count} los(se) bestand(en) opgeruimd`);
+      } catch (error) {
+        appLog.error('fotobibliotheek', `onderhoud mislukt (${error.code || error.name})`);
+      }
+    };
+    setInterval(run, 24 * 60 * 60 * 1000).unref();
+    return run();
+  };
+
+  return { countries, storeUpload, list, get, update, usage, remove, folders, cleanupOrphans, backfillFiles, restoreMissingFiles, startCleanupTimer };
 }
 
 module.exports = { createMediaLibrary, linkImportedMedia, mediaUrl, titleFromFilename, cleanText, fileNamesOf, TEXT_LIMITS, USAGE_SOURCES };

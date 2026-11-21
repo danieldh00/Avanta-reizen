@@ -10,8 +10,10 @@ Stand: 20-11-2026 (pakket C). Voor apps01 (testomgeving) en elke volgende server
 | De hoofdsleutel `AVANTA_MASTER_KEY` (64 hex-tekens) | `.env` naast `docker-compose.yml`, en een kopie in de wachtwoordkluis | zonder sleutel zijn de back-ups én de versleutelde aanmeldvelden onleesbaar |
 | Het sleutel-id | Beheer > Back-ups (bijv. `3fa1…`) | controle dat je de juiste hoofdsleutel hebt |
 
-Afbeeldingen (`/data/media`) zitten niet in de back-up; die komen uit de import van de huidige site of uit een kopie van
-het volume (stap 4.5).
+**Geüploade foto's** (fotobibliotheek) zitten wél in de back-up: de grootste variant staat in de database (tabel
+`media_files`). Na het terugzetten zet de app bij het starten de bestanden in `/data/media` vanzelf terug, ook de kleinere
+varianten. **Afbeeldingen uit de import** van de huidige site zitten niet in de back-up; die komen uit de import of uit
+een kopie van het volume (stap 4.5).
 
 **Hoofdsleutel in de kluis zetten** (eenmalig, nu doen): op de server
 `grep '^AVANTA_MASTER_KEY=' /opt/apps/avanta/repo/deploy/apps01/.env` en de waarde in de wachtwoordkluis zetten.
@@ -69,7 +71,8 @@ migraties uit.
 4. **Controleren** (via `curl -s http://127.0.0.1:3400/api/health` en straks in de browser): inloggen met je bestaande
    account, Beheer > Systeemoverzicht (versie, laatste migratie), Beheer > Back-ups (**sleutel-id gelijk aan de oude
    server**), een aanmelding openen in het CRM (versleutelde velden leesbaar), **Nu een back-up maken**.
-5. **Afbeeldingen**: de import uit stap 2 haalt ze opnieuw op. Of kopieer het volume van de oude server:
+5. **Afbeeldingen**: geüploade foto's zet de app bij het starten zelf terug uit de database (Beheer > Logboek, bron
+   *fotobibliotheek*: *foto('s) hersteld uit de database*). Afbeeldingen uit de import haalt de import uit stap 2 opnieuw op. Of kopieer het volume van de oude server:
    ```sh
    # oude server
    docker run --rm -v avanta_app-data:/data -v /root:/uit alpine tar czf /uit/media.tgz -C /data media
