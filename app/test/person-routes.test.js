@@ -218,6 +218,19 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
       request(`${path}toestemming/${religion.id}/intrekken/`, { cookie: sessions.beheer.cookie, form: { _csrf: sessions.beheer.csrf } }),
     ]);
     assert.equal((await db.query('SELECT special_data FROM persons WHERE id = $1', [personId]))[0].special_data, null);
+    // Deterministisch: de test houdt zelf de persoonsrij vast en trekt de toestemming in terwijl het opslaan wacht.
+    // Zonder de vergrendeling in de route zou die de (nog geldige) toestemming lezen en het blok alsnog schrijven.
+    await db.query("INSERT INTO consents (person_id, kind, text_version) VALUES ($1, 'art9_religie', 'test')", [personId]);
+    let pending;
+    await db.transaction(async (client) => {
+      await client.query('SELECT id FROM persons WHERE id = $1 FOR UPDATE', [personId]);
+      pending = request(`${path}blok/`, { cookie: sessions.beheer.cookie, form: { _csrf: sessions.beheer.csrf, block: 'special_data', church: 'GKV' } });
+      const settled = await Promise.race([pending.then(() => 'klaar'), new Promise((resolve) => { setTimeout(() => resolve('wacht'), 400); })]);
+      assert.equal(settled, 'wacht', 'opslaan wacht op de vergrendelde persoon');
+      await client.query("UPDATE consents SET withdrawn_at = now() WHERE person_id = $1 AND kind = 'art9_religie' AND withdrawn_at IS NULL", [personId]);
+    });
+    assert.equal((await pending).status, 422);
+    assert.equal((await db.query('SELECT special_data FROM persons WHERE id = $1', [personId]))[0].special_data, null);
   });
 
   await t.test('samenvoegen: rechten, 404 zonder markering, keuzes per veld en blok, alles gaat mee', async () => {
