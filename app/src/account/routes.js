@@ -1,6 +1,6 @@
 /**
- * Reizigersaccount onder `/account/` (CMS-pakket J2): registreren, bevestigen, inloggen, uitloggen, wachtwoord vergeten
- * en herstellen, en het overzicht. Los van het CRM: eigen tabellen (`account/accounts.js`), eigen cookie met pad
+ * Reizigersaccount onder `/account/` (CMS-pakket J2/J3): registreren, bevestigen, inloggen, uitloggen, wachtwoord
+ * vergeten en herstellen, Mijn reizen (`account/my-trips.js`), Mijn gegevens met Excel-export en wachtwoord wijzigen. Los van het CRM: eigen tabellen (`account/accounts.js`), eigen cookie met pad
  * `/account` en eigen CSRF-sleutel.
  *
  * Beveiliging (zoals het CRM, `crm/routes.js`):
@@ -13,6 +13,8 @@
  * - Registreren en wachtwoord vergeten zijn openbare formulieren: herkomst, limiet, honeypot, ondertekend tijdstempel
  *   en de captcha (`security/form-guard.js`, `security/captcha.js`). Per account hoogstens drie mails per soort per uur.
  * - Links bevatten een eenmalig token (alleen de hash in de database); de pagina's sturen geen `Referer` mee.
+ * - Gevoelige acties (gegevens downloaden, wachtwoord wijzigen) vragen eerst een code per e-mail; die geeft de sessie
+ *   een kwartier toegang. Een gelekt wachtwoord alleen is daarvoor nooit genoeg.
  * - Alles in het auditlog (`customer_accounts`, zonder e-mailadres of andere gegevens).
  */
 const crypto = require('node:crypto');
@@ -25,7 +27,9 @@ const { hashPassword, verifyPassword, needsRehash, passwordProblem, getDummyHash
 const { readCookie, ipPrefix } = require('../crm/auth');
 const { createAccounts, MAX_DAYS } = require('./accounts');
 const { createAccountMails } = require('./mails');
+const { createMyTrips } = require('./my-trips');
 const views = require('./views');
+const { XLSX_TYPE } = require('../export/xlsx');
 
 /** Naam en pad van de sessiecookie (los van de cookie van het CRM). */
 const COOKIE_NAME = 'avanta_reiziger';
@@ -52,7 +56,15 @@ const ACCOUNT_ACTION_LABELS = {
   'reiziger.uitloggen': 'Reiziger uitgelogd',
   'reiziger.herstel-aangevraagd': 'Reiziger: link voor nieuw wachtwoord aangevraagd',
   'reiziger.wachtwoord-hersteld': 'Reiziger: nieuw wachtwoord ingesteld via de link',
+  'reiziger.code-aangevraagd': 'Reiziger: code voor gevoelige acties aangevraagd',
+  'reiziger.code-goed': 'Reiziger: code voor gevoelige acties gegeven',
+  'reiziger.code-fout': 'Reiziger: verkeerde code voor gevoelige acties',
+  'reiziger.export': 'Reiziger: eigen gegevens gedownload (Excel)',
+  'reiziger.wachtwoord-gewijzigd': 'Reiziger: wachtwoord gewijzigd',
 };
+
+/** Waar de reiziger na de code heen kan (vaste lijst, geen vrije adressen). */
+const STEP_UP_TARGETS = { gegevens: '/account/gegevens/', wachtwoord: '/account/wachtwoord/' };
 
 /**
  * Normaliseert een e-mailadres (spaties weg, kleine letters) en controleert het.
@@ -85,10 +97,9 @@ function passwordField(value) {
 
 /**
  * Bouwt de router van het reizigersaccount.
- * @param {{db: object, masterKey: Buffer, formKey: Buffer, mailer: object, settings: object, captcha?: object, accounts?: object, secureCookies?: boolean, now?: () => number, overviewContent?: Function}} options
+ * @param {{db: object, masterKey: Buffer, formKey: Buffer, mailer: object, settings: object, captcha?: object, accounts?: object, secureCookies?: boolean, now?: () => number}} options
  *   Database, hoofdsleutel (CSRF-sleutel), sleutel voor het formuliertoken, mailer en instellingen (mails), captcha,
- *   de accountopslag (anders een nieuwe), of de cookie `Secure` krijgt, (voor tests) de klok van de limieten, en
- *   eventueel een functie die de inhoud van het overzicht levert (`({accountId, email}) => Promise<html>`).
+ *   de accountopslag (anders een nieuwe), of de cookie `Secure` krijgt en (voor tests) de klok van de limieten.
  * @returns {express.Router} De router.
  */
 function createAccountRouter(options) {
@@ -96,12 +107,14 @@ function createAccountRouter(options) {
   const router = express.Router({ strict: true });
   const accounts = options.accounts || createAccounts({ db });
   const mails = createAccountMails({ mailer: options.mailer, settings: options.settings });
+  const myTrips = createMyTrips({ db });
   const csrfKey = crypto.createHmac('sha256', options.masterKey).update('account-csrf').digest();
   const secure = options.secureCookies !== false;
   const now = options.now;
 
   const loginLimiter = createRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000, now });
   const linkLimiter = createRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000, now });
+  const codeLimiter = createRateLimiter({ limit: 20, windowMs: 15 * 60 * 1000, now });
   const failedLoginLimiter = createRateLimiter({ limit: MAX_FAILED_LOGINS, windowMs: LOCK_MINUTES * 60 * 1000, now });
   const accountRangeLimiter = createRateLimiter({ limit: 1, windowMs: ACCOUNT_WINDOW_MINUTES * 60 * 1000, now });
   const accountFailureLimiter = createRateLimiter({ limit: MAX_FAILED_LOGINS_PER_ACCOUNT, windowMs: ACCOUNT_WINDOW_MINUTES * 60 * 1000, now });
@@ -195,11 +208,11 @@ function createAccountRouter(options) {
   };
 
   /**
-   * Middleware-fabriek: limiet per bezoeker.
+   * Middleware-fabriek: limiet per ingelogde reiziger, anders per bezoeker.
    * @param {{hit: Function}} limiter De limiet.
    * @returns {Function} Express-middleware.
    */
-  const limit = (limiter) => (req, res, next) => (limiter.hit(clientKey(req))
+  const limit = (limiter) => (req, res, next) => (limiter.hit(req.customer ? `reiziger:${req.customer.accountId}` : clientKey(req))
     ? next()
     : res.status(429).set('Retry-After', '900').type('text').send('Te veel pogingen. Probeer het over een kwartier opnieuw.'));
 
@@ -257,9 +270,107 @@ function createAccountRouter(options) {
       if (!req.customer) return res.redirect(303, '/account/inloggen/');
       let notice = '';
       if (req.query.welkom === '1') notice = 'Je account is bevestigd. Welkom!';
-      else if (req.query.hersteld === '1') notice = 'Je nieuwe wachtwoord is opgeslagen.';
-      const content = options.overviewContent ? await options.overviewContent(req.customer) : '';
-      return send(res, { title: 'Mijn account', body: views.overviewView({ email: req.customer.email, csrf: req.customer.csrf, notice, content }) });
+      else if (req.query.hersteld === '1' || req.query.gewijzigd === '1') notice = 'Je nieuwe wachtwoord is opgeslagen.';
+      const content = await myTrips.overview(req.customer);
+      return send(res, { title: 'Mijn reizen', body: views.overviewView({ email: req.customer.email, csrf: req.customer.csrf, notice, content }) });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  /**
+   * Middleware voor pagina's van een ingelogde reiziger (GET): zonder sessie naar inloggen.
+   * @param {object} req Express-verzoek.
+   * @param {object} res Express-antwoord.
+   * @param {Function} next Volgende stap.
+   * @returns {void}
+   */
+  const customerPage = (req, res, next) => (req.customer ? next() : res.redirect(303, '/account/inloggen/'));
+
+  /**
+   * Middleware-fabriek voor gevoelige acties: zonder geldige code per e-mail naar de codestap (GET) of 403 (POST).
+   * @param {string} target Sleutel uit `STEP_UP_TARGETS`.
+   * @returns {Function} Express-middleware.
+   */
+  const requireStepUp = (target) => (req, res, next) => {
+    if (req.customer.stepUp) return next();
+    if (req.method === 'GET') return res.redirect(303, `/account/code/?verder=${target}`);
+    return res.status(403).type('text').send('Vraag eerst een code aan.');
+  };
+
+  router.get('/account/code/', customerPage, (req, res) => {
+    const next = Object.hasOwn(STEP_UP_TARGETS, req.query.verder) ? req.query.verder : 'gegevens';
+    if (req.customer.stepUp) return res.redirect(303, STEP_UP_TARGETS[next]);
+    const sent = req.query.verstuurd === '1';
+    return send(res, { title: 'Code per e-mail', body: views.codeView({ csrf: req.customer.csrf, next, sent, notice: sent ? 'We hebben een code naar je e-mailadres gestuurd. Hij is tien minuten geldig.' : '' }) });
+  });
+
+  router.post('/account/code/versturen/', requireCustomer, limit(codeLimiter), async (req, res, next) => {
+    try {
+      const target = Object.hasOwn(STEP_UP_TARGETS, req.body.next) ? req.body.next : 'gegevens';
+      const code = await accounts.createCode(req.customer.accountId);
+      await audit(req, 'reiziger.code-aangevraagd', req.customer.accountId);
+      // Boven de limiet (drie per uur) gaat er geen nieuwe mail; de laatste code blijft geldig.
+      if (code) void mails.code({ to: req.customer.email, code });
+      return res.redirect(303, `/account/code/?verder=${target}&verstuurd=1`);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/account/code/', requireCustomer, limit(codeLimiter), async (req, res, next) => {
+    try {
+      const target = Object.hasOwn(STEP_UP_TARGETS, req.body.next) ? req.body.next : 'gegevens';
+      const result = await accounts.checkCode(req.customer.accountId, req.customer.tokenHash, req.body.code);
+      if (result === 'ok') {
+        await audit(req, 'reiziger.code-goed', req.customer.accountId);
+        return res.redirect(303, STEP_UP_TARGETS[target]);
+      }
+      await audit(req, 'reiziger.code-fout', req.customer.accountId);
+      const error = result === 'op' ? 'Deze code is verlopen of te vaak verkeerd ingevuld. Vraag een nieuwe code aan.' : 'Deze code klopt niet. Controleer de mail en probeer het opnieuw.';
+      return send(res, { title: 'Code per e-mail', body: views.codeView({ csrf: req.customer.csrf, next: target, sent: result !== 'op', error }) }, 422);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.get('/account/gegevens/', customerPage, async (req, res, next) => {
+    try {
+      const [account] = await db.query('SELECT created_at, verified_at FROM customer_accounts WHERE id = $1', [req.customer.accountId]);
+      const content = await myTrips.details(req.customer, account);
+      return send(res, { title: 'Mijn gegevens', body: views.detailsView({ content, stepUp: req.customer.stepUp }) });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.get('/account/gegevens/export.xlsx', customerPage, requireStepUp('gegevens'), async (req, res, next) => {
+    try {
+      const [account] = await db.query('SELECT created_at, verified_at, last_login_at FROM customer_accounts WHERE id = $1', [req.customer.accountId]);
+      const file = await myTrips.exportXlsx(req.customer, account);
+      await audit(req, 'reiziger.export', req.customer.accountId);
+      return res.set({ 'Content-Type': XLSX_TYPE, 'Content-Disposition': 'attachment; filename="mijn-gegevens-avanta.xlsx"' }).send(file);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.get('/account/wachtwoord/', customerPage, requireStepUp('wachtwoord'), (req, res) => send(res, { title: 'Wachtwoord wijzigen', body: views.passwordView({ csrf: req.customer.csrf }) }));
+
+  router.post('/account/wachtwoord/', requireCustomer, requireStepUp('wachtwoord'), async (req, res, next) => {
+    try {
+      const password = passwordField(req.body.password);
+      const errors = {};
+      const problem = passwordProblem(password, { email: req.customer.email });
+      if (problem) errors.password = problem;
+      else if (password !== req.body.password2) errors.password2 = 'De wachtwoorden zijn niet gelijk.';
+      if (Object.keys(errors).length) return send(res, { title: 'Wachtwoord wijzigen', body: views.passwordView({ csrf: req.customer.csrf, errors }) }, 422);
+      const passwordHash = await hashPassword(password);
+      await db.transaction(async (client) => {
+        await accounts.changePassword(req.customer.accountId, passwordHash, req.customer.tokenHash, client);
+        await audit(req, 'reiziger.wachtwoord-gewijzigd', req.customer.accountId, client);
+      });
+      return res.redirect(303, '/account/?gewijzigd=1');
     } catch (error) {
       return next(error);
     }

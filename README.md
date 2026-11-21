@@ -50,6 +50,15 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   cookie (`avanta_reiziger`, pad `/account`) en CSRF-sleutel, los van de medewerkers. Onbevestigde accounts verdwijnen
   na zeven dagen. Acties staan in het auditlog van het CRM (`reiziger.*`, zonder e-mailadres). Werkt alleen met een
   ingestelde mailserver (Beheer > E-mail).
+  **Mijn reizen** (`/account/`, J3, `app/src/account/my-trips.js`): komende en eerdere reizen met referentie, status en
+  betaalstand, gezocht op het bevestigde e-mailadres van het account (aanmeldingen met dat adres). **Mijn gegevens**
+  (`/account/gegevens/`) toont alleen wat bij het account hoort: het aanmeldformulier bevestigt het e-mailadres niet,
+  dus naam, adres en telefoon uit aanmeldingen en bijzondere gegevens (geboortedatum, paspoort, kerkgenootschap,
+  noodnummer, gezondheid) komen nooit in het account; die beheert kantoor. Gegevens downloaden (Excel, blad
+  Account/Reizen via `app/src/export/xlsx.js`, zonder extra pakket) en wachtwoord wijzigen vragen eerst een
+  **code per e-mail** (zes cijfers, 10 minuten, 5 pogingen, 3 per uur); die geeft alleen deze sessie een kwartier
+  toegang. Een gelekt wachtwoord alleen is zo nooit genoeg voor een gevoelige actie. Wijzigen van gegevens loopt via
+  kantoor. Tip: zet *Mijn account* (`/account/`) in het voetmenu via Beheer > Menu's.
 - Afbeeldingen staan in het volume `/data/media` (circa 250 MB na de import).
 - **Ontwerp** gelijk aan www.avantareizen.nl (CMS-pakket E, voorstel in de projectbestanden
   `cms/voorstel-cms-reizen-boekingen.md`): kleuren, maten en breekpunten (1024 en 768 px, container 1280 px) uit het

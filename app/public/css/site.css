@@ -1096,3 +1096,11 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
 .account__logout { margin-top: 30px; }
 .account .notice { margin: 0 0 1rem; }
 .account .form-alert { margin: 0 0 1rem; }
+.account-section { margin: 0 0 30px; }
+.account-section__title { margin: 0 0 1rem; font-size: 24px; }
+.account-trips { margin: 0; padding: 0; list-style: none; display: grid; gap: 1rem; }
+.account-trip { padding: 20px; background: var(--av-white); border: 1px solid #e4e2df; }
+.account-trip__title { margin: 0 0 .5rem; font-size: 20px; }
+.account-trip dl, .account-details { font-size: 15px; }
+.account__hint { font-size: 14px; color: var(--av-muted); }
+.account__code-send { margin-top: 1rem; }

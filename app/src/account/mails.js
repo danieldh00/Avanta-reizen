@@ -1,6 +1,6 @@
 /**
- * Mails van het reizigersaccount (CMS-pakket J2): bevestigen van het e-mailadres, wachtwoord herstellen en de melding
- * dat er al een account is. De link bevat een eenmalig token en gaat naar het basisadres uit de site-instellingen
+ * Mails van het reizigersaccount (CMS-pakket J2/J3): bevestigen van het e-mailadres, wachtwoord herstellen, de melding
+ * dat er al een account is en de code voor gevoelige acties. De link bevat een eenmalig token en gaat naar het basisadres uit de site-instellingen
  * (`res.locals.site.siteUrl`), nooit naar de `Host`-kop van het verzoek. Versturen gooit nooit en wacht niet: een
  * mislukte mail staat in het overzicht van Beheer > E-mail > Mailserver (zonder adressen).
  */
@@ -10,7 +10,7 @@ const { absoluteUrl } = require('../site/seo');
 /**
  * Maakt de mails van het reizigersaccount.
  * @param {{mailer: object, settings: object}} options De mailer (`mail/mailer.js`) en de instellingen (opmaak).
- * @returns {{verify: Function, reset: Function, alreadyRegistered: Function}} Functies die een mail versturen.
+ * @returns {{verify: Function, reset: Function, alreadyRegistered: Function, code: Function}} Functies die een mail versturen.
  */
 function createAccountMails(options) {
   const { mailer, settings } = options;
@@ -75,7 +75,19 @@ function createAccountMails(options) {
     body: absoluteUrl(input.siteUrl, '/account/wachtwoord-vergeten/'),
   });
 
-  return { verify, reset, alreadyRegistered };
+  /**
+   * Mail met de code voor gevoelige acties in het account (export, wachtwoord wijzigen).
+   * @param {{to: string, code: string}} input Ontvanger en code.
+   * @returns {Promise<boolean>} Waar als de mail is verstuurd.
+   */
+  const code = (input) => deliver('account-code', input.to, {
+    subject: `Je code voor je account bij Avanta Reizen: ${input.code}`,
+    title: 'Je code',
+    intro: 'Vul deze code in op de website om je gegevens te downloaden of je wachtwoord te wijzigen. De code is tien minuten geldig.\n\nHeb je dit niet zelf aangevraagd? Dan weet iemand misschien je wachtwoord: stel via "Wachtwoord vergeten" een nieuw wachtwoord in.',
+    body: input.code,
+  });
+
+  return { verify, reset, alreadyRegistered, code };
 }
 
 module.exports = { createAccountMails };
