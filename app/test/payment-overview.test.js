@@ -211,6 +211,13 @@ test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
       assert.doesNotMatch(late.text, /zijn meegenomen/);
       assert.equal((await get(`/app/betalingen/overzicht.xlsx?weergave=te-laat&reis=${albania.id}`)).status, 200);
       assert.equal((await get('/app/betalingen/overzicht.xlsx?weergave=te-laat')).status, 200);
+      // Vijf openstaande bij een voorselectie van 4 × 1: de te late kan buiten de voorselectie vallen, dus 422 met eigen reden.
+      for (const [index, name] of ['Aap', 'Beer', 'Cavia'].entries()) await booking(`AV-2027-EXTRA00${index}`, albania, { lastName: name });
+      const capped = await get('/app/betalingen/?weergave=te-laat');
+      assert.match(capped.text, /Er zijn te veel openstaande aanmeldingen om de te late te bepalen; kies een reis/);
+      const cappedExport = await get('/app/betalingen/overzicht.xlsx?weergave=te-laat');
+      assert.equal(cappedExport.status, 422);
+      assert.match(cappedExport.text, /te veel openstaande aanmeldingen om de te late te bepalen/);
     } finally {
       smallServer.close();
     }
