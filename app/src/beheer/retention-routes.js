@@ -59,7 +59,9 @@ function createRetentionRoutes(options) {
         </table></div>` : ''}
       <div class="beheer-actions">
         <form method="post" action="/app/beheer/bewaartermijnen/voorbeeld/">${csrfField}<button class="btn btn--outline btn--small" type="submit">Voorbeeld berekenen</button></form>
-        <form method="post" action="/app/beheer/bewaartermijnen/opschonen/">${csrfField}<button class="btn btn--outline btn--small" type="submit">Nu opschonen</button></form>
+        <form method="post" action="/app/beheer/bewaartermijnen/opschonen/">${csrfField}
+          <label class="choice"><input type="checkbox" name="bevestigen" value="ja" required> <span>Ik begrijp dat wissen niet terug te draaien is</span></label>
+          <button class="btn btn--outline btn--small" type="submit">Nu opschonen</button></form>
       </div>
       <p class="field__help">Wissen en anonimiseren is niet terug te draaien (alleen nog in oudere back-ups, die volgens hun eigen bewaartermijn verdwijnen).</p>
       <h2>Laatste rondes</h2>
@@ -99,9 +101,13 @@ function createRetentionRoutes(options) {
 
   router.post('/beheer/bewaartermijnen/opschonen/', guard, auth.checkCsrf, async (req, res, next) => {
     try {
+      if (req.body.bevestigen !== 'ja') {
+        return res.status(422).send(options.renderSettingsSection(req, section, { extra: { result: { ok: false, message: 'Vink aan dat je begrijpt dat wissen niet terug te draaien is.' } } }));
+      }
       if (refuseOverLimit(req, res)) return undefined;
-      await auth.audit(req, { userId: req.user.id, action: 'avg.opschonen', entity: 'avg', entityId: null });
       const outcome = await retention.run({ trigger: 'handmatig', userId: req.user.id });
+      // De ronde zelf staat met aantallen in retention_runs; het auditlog verwijst ernaar.
+      if (outcome) await auth.audit(req, { userId: req.user.id, action: 'avg.opschonen', entity: 'retention_runs', entityId: outcome.runId });
       if (!outcome) {
         return res.status(409).send(options.renderSettingsSection(req, section, { extra: { result: { ok: false, message: 'Er loopt al een ronde. Probeer het over een paar minuten opnieuw.' } } }));
       }

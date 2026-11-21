@@ -283,6 +283,13 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     met het recht op dat blok, de waarden zelf staan niet op dat scherm); aanmeldingen en toestemmingen gaan mee en
     het dubbel wordt verwijderd. Of *Geen dubbel* om de markering weg te halen. Boekhouding ziet NAW alleen-lezen. De reisleider krijgt dit scherm pas als zijn toegang tot de
     eigen vertrekken is gebouwd (tot dan 403).
+    **AVG-verzoeken** (recht `avg`, beheerder en kantoor; `app/src/crm/person-privacy-routes.js`): *Gegevens exporteren*
+    geeft een .xlsx (`inzage-deelnemer-<id>-<datum>.xlsx`, zonder naam in de bestandsnaam) met NAW, de blokken waarop de
+    exporteur recht heeft (anders staat er "niet opgenomen"), alle aanmeldingen, de historie, de toestemmingen en of er
+    een reizigersaccount is; audit `deelnemer.inzage` plus één regel per opgenomen blok, limiet 20 per tien minuten.
+    *Persoon wissen* (typ WISSEN) anonimiseert de persoon en de bijbehorende aanmeldingen met dezelfde functie als de
+    dagelijkse opschoning en verwijdert het reizigersaccount met hetzelfde e-mailadres; audit `deelnemer.gewist`. Bij een
+    lopende of toekomstige reis weigert het (422) tenzij *ook wissen bij een lopende reis* is aangevinkt.
   - **Tweestapsverificatie (2FA)** met een authenticator-app (TOTP, RFC 6238; eigen code op `crypto`, zoals AquaTech).
     Na het juiste wachtwoord krijgt wie 2FA heeft of moet hebben eerst een *halve sessie* (15 minuten): daarmee is
     alleen de codestap (`/app/inloggen/code/`) of het instellen (`/app/tweestaps/`) bereikbaar; pas na de code volgt

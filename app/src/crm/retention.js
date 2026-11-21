@@ -244,7 +244,8 @@ function createRetention(options) {
   /**
    * Eén ronde: alle regels na elkaar, met de aantallen in `retention_runs`.
    * @param {{trigger?: ('dagelijks'|'handmatig'), userId?: (number|null)}} [input] Wie of wat de ronde start.
-   * @returns {Promise<({counts: Record<string, number>, failed: number}|null)>} Aantallen, of null als er al een ronde loopt.
+   * @returns {Promise<({runId: number, counts: Record<string, number>, failed: number, error: string}|null)>} Id van de ronde en
+   *   aantallen, of null als er al een ronde loopt.
    */
   const run = async (input = {}) => {
     if (running) return null;
@@ -303,7 +304,7 @@ function createRetention(options) {
     const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
     if (total || failed) console.log(`AVG-opschoning: ${total} gewist of geanonimiseerd, ${failed} mislukt`);
     await refresh().catch(() => {});
-    return { counts, failed, error: errorText };
+    return { runId: record.id, counts, failed, error: errorText };
   };
 
   /**
@@ -361,4 +362,4 @@ function createRetention(options) {
   return { run, preview, view, refresh, start };
 }
 
-module.exports = { createRetention, anonymizePerson, anonymizeBookings, ANONYMIZED_NAME, COUNT_LABELS, CANDIDATES };
+module.exports = { createRetention, anonymizePerson, anonymizeBookings, ANONYMIZED_NAME, COUNT_LABELS, CANDIDATES, BOOKING_END_SQL };
