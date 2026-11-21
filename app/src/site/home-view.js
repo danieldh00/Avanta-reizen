@@ -6,7 +6,7 @@
  * bestemmingen gewoon te scrollen.
  */
 const { html } = require('./html');
-const { icon, typeIconName } = require('./icons');
+const { icon, categoryIconName } = require('./icons');
 const { cssImageUrl } = require('./layout');
 const { formatDate, tripPath, categoryPath, postPath } = require('./format');
 const { YOUTUBE_ORIGIN } = require('./homepage');
@@ -170,7 +170,7 @@ function renderTripTypes(section, types) {
       <h2 class="section__title">${section.title}</h2>
       <p class="section__subtitle">${section.subtitle}</p>
       <div class="trip-types texture-overlay">${types.map((type) => html`<a class="trip-type" href="${categoryPath(type.slug)}">
-        ${icon(typeIconName(type.slug), { className: 'trip-type__icon' })}
+        ${icon(categoryIconName(type), { className: 'trip-type__icon' })}
         <span class="trip-type__title">${type.name}</span>
       </a>`)}</div>
     </div>

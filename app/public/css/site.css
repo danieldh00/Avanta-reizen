@@ -826,6 +826,14 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
 .media-autolink p { margin: 0; }
 .media-usage { margin: 0 0 1rem; padding-left: 1.25rem; }
 .media-preview { display: block; width: 100%; height: auto; margin-bottom: 1rem; background: var(--av-white); border: 1px solid var(--av-line); }
+/* Foto kiezen uit de bibliotheek (reistypes, landen, reizen): het hele vak is klikbaar, het gekozen vak krijgt de accentkleur. */
+.media-preview--small { max-width: 400px; }
+.media-pick { display: grid; gap: .25rem; cursor: pointer; }
+.media-pick input { justify-self: start; margin: 0; }
+.media-grid--pick .media-grid__item:has(input:checked) { border-color: var(--av-accent); box-shadow: 0 0 0 2px var(--av-accent); }
+.crm-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.field--checkbox label { display: flex; gap: .5rem; align-items: center; }
+.crm-icon svg { width: 1.5rem; height: 1.5rem; vertical-align: middle; }
 /* Tweestapsverificatie: QR-code, sleutel om over te typen en herstelcodes. */
 .crm-qr { display: block; width: 220px; max-width: 100%; height: auto; border: 1px solid var(--av-line); }
 .crm-secret { font-size: 1rem; word-break: break-all; }
