@@ -18,6 +18,7 @@ const { TRIP_ACTION_LABELS } = require('../trips/trip-routes');
 const { PAGE_ACTION_LABELS } = require('../cms/page-routes');
 const { POST_ACTION_LABELS } = require('../cms/post-routes');
 const { TERM_ACTION_LABELS } = require('../cms/post-term-routes');
+const { FAQ_ACTION_LABELS } = require('../cms/faq-routes');
 const { MENU_ACTION_LABELS } = require('../cms/menu-routes');
 
 /** Aantal regels per pagina van het auditlog. */
@@ -65,6 +66,7 @@ const ACTION_LABELS = {
   ...PAGE_ACTION_LABELS,
   ...POST_ACTION_LABELS,
   ...TERM_ACTION_LABELS,
+  ...FAQ_ACTION_LABELS,
   ...MENU_ACTION_LABELS,
 };
 

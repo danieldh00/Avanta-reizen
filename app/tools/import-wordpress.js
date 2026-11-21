@@ -585,11 +585,18 @@ async function store(db, data) {
       );
     }
 
-    await client.query('DELETE FROM faqs');
+    // Vragen die in het CRM zijn gemaakt of gewijzigd blijven staan; de categorie komt in `faq_categories` (op naam).
+    await client.query('DELETE FROM faqs WHERE NOT managed_in_crm');
     for (const faq of data.faqs) {
+      const categoryName = String(faq.category || '').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Algemeen';
+      const [category] = await client.query(
+        `INSERT INTO faq_categories (name, sort_order) VALUES ($1, (SELECT COALESCE(max(sort_order), 0) + 10 FROM faq_categories))
+         ON CONFLICT ((lower(name))) DO UPDATE SET name = faq_categories.name RETURNING id, name`,
+        [categoryName],
+      );
       await client.query(
-        'INSERT INTO faqs (slug, question, answer_html, category, sort_order) VALUES ($1,$2,$3,$4,$5)',
-        [faq.slug, faq.question, faq.answerHtml, faq.category, faq.sortOrder],
+        'INSERT INTO faqs (slug, question, answer_html, category, category_id, sort_order) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (slug) DO NOTHING',
+        [faq.slug, faq.question, faq.answerHtml, category.name, category.id, faq.sortOrder],
       );
     }
 

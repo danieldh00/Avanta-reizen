@@ -292,7 +292,10 @@ function createContent(db) {
      * @returns {Promise<object[]>} Vragen.
      */
     async faqs() {
-      return db.query('SELECT slug, question, answer_html, category FROM faqs ORDER BY category, sort_order');
+      return db.query(
+        `SELECT f.slug, f.question, f.answer_html, f.category FROM faqs f LEFT JOIN faq_categories c ON c.id = f.category_id
+          ORDER BY COALESCE(c.sort_order, 0), f.category, f.sort_order, f.question`,
+      );
     },
 
     /**
