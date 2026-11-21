@@ -70,7 +70,7 @@ Regels:
   `captchaField`/`captcha.check` (`security/captcha.js`, actie per formulier) als laatste controle.
 - Nieuwe migratie: achteraan in `MIGRATIONS` met het eerstvolgende nummer; een migratie op `main` verandert nooit meer.
   Volgorde (besluit 20-11-2026): M5 instellingen, M6 doorverwijzingen/404, M7 logboek, M8 bewaking, 2FA M9 (alle gebouwd),
-  persons M10, aanmeldingen M11, fotobibliotheek M12 (gebouwd); volgende vrije migratie M13; reizen komt uit CMS-pakket G. Eén migratie-PR tegelijk.
+  persons M10, aanmeldingen M11, fotobibliotheek M12, foto's in de back-up M13 (gebouwd); volgende vrije migratie M14; reizen komt uit CMS-pakket G. Eén migratie-PR tegelijk.
 - **Instellingen** altijd in `SETTING_FIELDS` (`beheer/settings.js`) met een sectie in `beheer/indeling.js`, nooit een
   eigen tabel of losse env-variabele; geheimen als `type: 'secret'`. Waarden synchroon via `settings.get(key)` (geladen
   door de middleware in `server.js`); wijzigen alleen via `settings.update` met audit in dezelfde transactie.

@@ -443,4 +443,47 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.equal((await request('/app/fotobibliotheek/koppelen/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 303);
     assert.equal((await request('/app/fotobibliotheek/koppelen/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 429);
   });
+
+  await t.test('foto\'s in de database: back-up, herstellen van bestanden en aanvullen van oude uploads', async () => {
+    const library = app.locals.mediaLibrary;
+    const crypto = require('node:crypto');
+    const hash = (data) => crypto.createHash('sha256').update(data).digest('hex');
+    const [item] = await db.query("SELECT m.id, m.local_name, m.variants, f.width, f.sha256 FROM media m JOIN media_files f ON f.media_id = m.id WHERE m.source = 'upload' ORDER BY m.id LIMIT 1");
+    const largest = await fs.readFile(path.join(mediaDir, item.local_name));
+    assert.equal(item.sha256, hash(largest), 'grootste variant staat in de database');
+    assert.equal(String(item.width), Object.keys(item.variants).sort((a, b) => b - a)[0]);
+    // Elke upload heeft een kopie in de database.
+    const [{ missingCopies }] = await db.query("SELECT count(*)::int AS \"missingCopies\" FROM media m WHERE m.source = 'upload' AND NOT EXISTS (SELECT 1 FROM media_files f WHERE f.media_id = m.id)");
+    assert.equal(missingCopies, 0);
+    // Bestanden kwijt (bijv. nieuwe server na het terugzetten van een back-up): de app zet ze terug.
+    for (const name of Object.values(item.variants)) await fs.rm(path.join(mediaDir, name));
+    const restored = await library.restoreMissingFiles();
+    assert.equal(restored.restored, 1);
+    assert.equal(restored.failed, 0);
+    assert.deepEqual(await fs.readFile(path.join(mediaDir, item.local_name)), largest, 'grootste variant byte voor byte gelijk');
+    for (const [width, name] of Object.entries(item.variants)) {
+      const metadata = await sharp(path.join(mediaDir, name)).metadata();
+      assert.equal(metadata.width, Number(width));
+      assert.equal(metadata.format, 'webp');
+      assert.equal(metadata.exif, undefined);
+    }
+    assert.deepEqual(await library.restoreMissingFiles(), { restored: 0, failed: 0 }, 'niets te doen');
+    // Beschadigde kopie in de database: niet herstellen.
+    const smallest = Object.entries(item.variants).sort((a, b) => a[0] - b[0])[0][1];
+    await fs.rm(path.join(mediaDir, smallest));
+    await db.query("UPDATE media_files SET sha256 = 'fout' WHERE media_id = $1", [item.id]);
+    assert.deepEqual(await library.restoreMissingFiles(), { restored: 0, failed: 1 });
+    await db.query('UPDATE media_files SET sha256 = $2 WHERE media_id = $1', [item.id, hash(largest)]);
+    assert.equal((await library.restoreMissingFiles()).restored, 1);
+    // Een upload van vóór migratie 13 (alleen het bestand) komt alsnog in de database; zonder bestand wordt hij geteld.
+    await db.query('DELETE FROM media_files WHERE media_id = $1', [item.id]);
+    await db.query("INSERT INTO media (local_name, content_type, bytes, source, variants) VALUES ('bib-ffffffffffffffff-400.webp', 'image/webp', 1, 'upload', '{\"400\": \"bib-ffffffffffffffff-400.webp\"}')");
+    assert.deepEqual(await library.backfillFiles(), { stored: 1, missing: 1 });
+    const [copy] = await db.query('SELECT sha256 FROM media_files WHERE media_id = $1', [item.id]);
+    assert.equal(copy.sha256, hash(largest));
+    await db.query("DELETE FROM media WHERE local_name = 'bib-ffffffffffffffff-400.webp'");
+    // Verwijderen van de foto haalt ook de kopie in de database weg.
+    await db.query('DELETE FROM media WHERE id = $1', [item.id]);
+    assert.equal((await db.query('SELECT media_id FROM media_files WHERE media_id = $1', [item.id])).length, 0);
+  });
 });

@@ -100,4 +100,15 @@ async function processImage(buffer) {
   return { width: largest.width, height: largest.height, variants };
 }
 
-module.exports = { processImage, detectImageType, variantWidthsFor, ImageError, VARIANT_WIDTHS, MAX_UPLOAD_BYTES, MAX_INPUT_PIXELS, MIN_SIDE };
+/**
+ * Maakt een kleinere WebP-variant van een (al verwerkte) foto, bijvoorbeeld bij het herstellen van bestanden uit de
+ * database. Zonder metadata, net als bij het uploaden.
+ * @param {Buffer} buffer WebP van de grootste variant.
+ * @param {number} width Gewenste breedte (nooit groter dan het origineel).
+ * @returns {Promise<Buffer>} WebP.
+ */
+function resizeWebp(buffer, width) {
+  return sharp(buffer, { limitInputPixels: MAX_INPUT_PIXELS, failOn: 'error' }).resize({ width, withoutEnlargement: true }).webp({ quality: WEBP_QUALITY }).toBuffer();
+}
+
+module.exports = { processImage, resizeWebp, detectImageType, variantWidthsFor, ImageError, VARIANT_WIDTHS, MAX_UPLOAD_BYTES, MAX_INPUT_PIXELS, MIN_SIDE };
