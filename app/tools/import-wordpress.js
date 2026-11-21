@@ -585,15 +585,29 @@ async function store(db, data) {
       );
     }
 
-    await client.query('DELETE FROM faqs');
+    // Vragen die in het CRM zijn gemaakt of gewijzigd blijven staan (ook hun categorie wordt dan niet opnieuw gemaakt,
+    // bijv. na hernoemen); de categorie van de rest komt in `faq_categories` (op naam).
+    await client.query('DELETE FROM faqs WHERE NOT managed_in_crm');
+    let faqsKept = 0;
     for (const faq of data.faqs) {
+      const [kept] = await client.query('SELECT 1 AS kept FROM faqs WHERE slug = $1 AND managed_in_crm', [faq.slug]);
+      if (kept) {
+        faqsKept += 1;
+        continue;
+      }
+      const categoryName = String(faq.category || '').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Algemeen';
+      const [category] = await client.query(
+        `INSERT INTO faq_categories (name, sort_order) VALUES ($1, (SELECT COALESCE(max(sort_order), 0) + 10 FROM faq_categories))
+         ON CONFLICT ((lower(name))) DO UPDATE SET name = faq_categories.name RETURNING id, name`,
+        [categoryName],
+      );
       await client.query(
-        'INSERT INTO faqs (slug, question, answer_html, category, sort_order) VALUES ($1,$2,$3,$4,$5)',
-        [faq.slug, faq.question, faq.answerHtml, faq.category, faq.sortOrder],
+        'INSERT INTO faqs (slug, question, answer_html, category, category_id, sort_order) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (slug) DO NOTHING',
+        [faq.slug, faq.question, faq.answerHtml, category.name, category.id, faq.sortOrder],
       );
     }
 
-    return { reisleiders: data.guides.length, categorieen: data.categories.length, reizen: data.trips.length, blog: data.posts.length, paginas: data.pages.length, faq: data.faqs.length };
+    return { reisleiders: data.guides.length, categorieen: data.categories.length, reizen: data.trips.length, blog: data.posts.length, paginas: data.pages.length, faq: data.faqs.length - faqsKept, faqUitCrm: faqsKept };
   });
 }
 

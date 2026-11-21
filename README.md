@@ -196,6 +196,12 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     foto, berichten en het uitgelichte bericht) in de database; tot dan toont de site die tags. Op het bewerkscherm van
     een bericht vink je categorieën en tags aan en kies je het uitgelichte bericht (hoogstens één); dat geldt meteen,
     zonder concept. De site toont `/category/<slug>/` en `/tag/<slug>/` met de zichtbare berichten.
+  - **Veelgestelde vragen** op `/app/faq/` (recht `content`, `app/src/cms/faqs.js` en `faq-routes.js`, migratie 21):
+    categorieën met naam en volgorde (`faq_categories`; de bestaande categorieën zijn alfabetisch overgenomen) en vragen
+    met categorie, opgemaakt antwoord (veilige HTML, zoals een tekstblok) en volgorde. Wijzigingen staan meteen op
+    `/faq/`, zonder concept. Een categorie hernoemen past de vragen aan (`faqs.category` is een afgeleide kopie, die het
+    FAQ-blok gebruikt: kies in zo'n blok de categorie daarna opnieuw); verwijderen kan alleen bij een lege categorie.
+    Een vraag uit het CRM laat de WordPress-import staan. Audit `faq.*`.
   - **Homepage als blokpagina** (CMS-pakket H4, geen migratie): *Homepage als blokpagina opzetten* op `/app/paginas/`
     maakt de pagina `/` aan met de huidige inhoud van de vaste homepage (`homepage.json`) als blokken: slider, zoekbalk
     "Vind jouw reis", last-minutes, reistypes, inspiratie-slider, bestemmingen, blog en "Over Avanta met stempel". Die

@@ -20,7 +20,7 @@ const RIGHTS = {
   'export.deelnemers': 'Deelnemerslijsten exporteren (.xlsx)',
   kpis: 'Dashboard met kengetallen',
   media: 'Fotobibliotheek: foto\'s uploaden, beschrijven en aan landen koppelen',
-  content: 'Website: pagina\'s, blog en menu\'s (en later de FAQ) bewerken en publiceren',
+  content: 'Website: pagina\'s, blog, veelgestelde vragen en menu\'s bewerken en publiceren',
 };
 
 /** De rollen: naam voor het scherm en de rechten die erbij horen. */

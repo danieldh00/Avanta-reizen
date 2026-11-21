@@ -157,7 +157,7 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.deepEqual(await db.migrate(), [20]);
     const rows = await db.query('SELECT t.kind, t.slug, t.name FROM post_terms t JOIN post_term_links l ON l.term_id = t.id WHERE l.post_id = $1 ORDER BY t.slug', [old.id]);
     assert.deepEqual(rows.map((row) => [row.kind, row.slug, row.name]), [['categorie', 'cafe-kerk', 'Café & Kerk'], ['categorie', 'jongerenreizen', 'Jongerenreizen']]);
-    assert.equal(MIGRATIONS[MIGRATIONS.length - 1].id, 20);
+    assert.ok(MIGRATIONS.some((migration) => migration.id === 20));
     await db.query('DELETE FROM posts WHERE id = $1', [old.id]);
   });
 
