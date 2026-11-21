@@ -22,10 +22,10 @@ const SITE_KEY_PATTERN = /^6L[A-Za-z0-9_-]{38}$/;
 const VERIFY_TIMEOUT_MS = 4000;
 
 /** De acties van de formulieren (Google geeft de actienaam terug; die moet kloppen). */
-const ACTIONS = ['contact', 'aanmelden'];
+const ACTIONS = ['contact', 'aanmelden', 'registreren', 'wachtwoord'];
 
 /** Paden met een formulier met captcha (alleen daar wordt de CSP uitgebreid). */
-const FORM_PATHS = ['/contact/', '/aanmelden/'];
+const FORM_PATHS = ['/contact/', '/aanmelden/', '/account/registreren/', '/account/wachtwoord-vergeten/'];
 
 /** Foutcodes van Google die aan onze kant liggen (verkeerd of ontbrekend geheim). */
 const CONFIGURATION_ERRORS = ['missing-input-secret', 'invalid-input-secret'];

@@ -9,6 +9,8 @@ const net = require('node:net');
 const { createDatabase } = require('./database/db');
 const { createSiteRouter } = require('./site/routes');
 const { createBookingRouter } = require('./booking/routes');
+const { createAccountRouter, startAccountMaintenance } = require('./account/routes');
+const { createAccounts } = require('./account/accounts');
 const { createSiteContentStore } = require('./site/site-content');
 const { createHomepageStore } = require('./site/homepage');
 const { createContactForm } = require('./contact/routes');
@@ -243,6 +245,10 @@ function createApp(options) {
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).
   app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now, siteContent }));
+  // Reizigersaccount onder /account/ (CMS-pakket J2): eigen sessies en cookie, los van het CRM.
+  const accounts = createAccounts({ db: options.db });
+  app.locals.accounts = accounts;
+  app.use(createAccountRouter({ db: options.db, masterKey: options.masterKey, formKey, mailer, settings, captcha, accounts, secureCookies: options.secureCookies, now: options.now }));
   const contactForm = createContactForm({ db: options.db, formKey, notifications, captcha, now: options.now });
   app.use(createSiteRouter({ db: options.db, contactForm, homepage, siteContent }));
 
@@ -330,6 +336,7 @@ async function start() {
     app.locals.appLog.flush().catch(() => {}).finally(() => process.exit(1));
   });
   startCrmMaintenance(db, app.locals.settings);
+  startAccountMaintenance(app.locals.accounts);
   app.locals.redirects.startTimers();
   app.locals.backups.startTimer();
   app.locals.drive.startTimer();

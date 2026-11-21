@@ -39,6 +39,17 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   starten zelf om (alleen aantallen in het logboek); hun art. 9-gegevens gaan mee, met een toestemmingsregel met tekstversie
   `oud-formulier, geen losse art. 9-toestemming` (het oude formulier vroeg die niet los). **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.
+- **Reizigersaccount** onder `/account/` (CMS-pakket J2, `app/src/account/`, migratie 23): een reiziger maakt een
+  account met e-mailadres en wachtwoord (minimaal 12 tekens, scrypt zoals het CRM) en bevestigt het via de link in de
+  mail **plus** het wachtwoord (wie andermans adres registreert, kan het account zo nooit overnemen; opnieuw registreren
+  verandert een bestaand account nooit, de eigenaar gebruikt dan *wachtwoord vergeten*). Inloggen heeft
+  dezelfde limieten als het CRM (per bezoeker, per account + IP-reeks, per account over 30 reeksen per uur); wachtwoord
+  vergeten gaat via een eenmalige link (een uur geldig) en beëindigt alle andere sessies. Registreren en wachtwoord
+  vergeten zijn openbare formulieren met limiet, honeypot, ondertekend tijdstempel en captcha; meldingen verraden nooit
+  of een adres een account heeft en per account gaan er hoogstens drie mails per soort per uur. Eigen tabellen,
+  cookie (`avanta_reiziger`, pad `/account`) en CSRF-sleutel, los van de medewerkers. Onbevestigde accounts verdwijnen
+  na zeven dagen. Acties staan in het auditlog van het CRM (`reiziger.*`, zonder e-mailadres). Werkt alleen met een
+  ingestelde mailserver (Beheer > E-mail).
 - Afbeeldingen staan in het volume `/data/media` (circa 250 MB na de import).
 - **Ontwerp** gelijk aan www.avantareizen.nl (CMS-pakket E, voorstel in de projectbestanden
   `cms/voorstel-cms-reizen-boekingen.md`): kleuren, maten en breekpunten (1024 en 768 px, container 1280 px) uit het
