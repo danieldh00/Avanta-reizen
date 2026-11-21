@@ -13,3 +13,4 @@ titel: Foto's bij een reis uit de fotobibliotheek
   `reis.fotos`); de afgeleide fotokolommen van de reis worden bij elke wijziging opnieuw geschreven.
 - Fotobibliotheek: *gebruikt in* kijkt ook naar `trip_media`; uploaden met `terug` stuurt terug naar de reis (alleen
   `/app/reizen/<id>/`).
+- Reizen: een gewijzigde slug van een concept (niet gepubliceerd, ook niet na opslaan) maakt geen 301 meer.
