@@ -318,7 +318,12 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     const second = await request(`/app/reizen/${tripId}/kopieren/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } });
     const secondId = Number(/\/app\/reizen\/(\d+)\//.exec(second.headers.get('location'))[1]);
     assert.equal((await db.query('SELECT slug FROM trips WHERE id = $1', [secondId]))[0].slug, 'namibie-juni-kopie-3');
-    assert.equal(await audits('reis.gekopieerd'), 2);
+    // Twee kopieën tegelijk (dubbelklik): beide lukken, elk met een eigen slug.
+    const both = await Promise.all([1, 2].map(() => request(`/app/reizen/${tripId}/kopieren/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })));
+    assert.deepEqual(both.map((response) => response.status), [303, 303]);
+    const slugs = await db.query("SELECT slug FROM trips WHERE slug IN ('namibie-juni-kopie-4', 'namibie-juni-kopie-5') ORDER BY slug");
+    assert.equal(slugs.length, 2);
+    assert.equal(await audits('reis.gekopieerd'), 4);
     const [entry] = await db.query("SELECT entity_id FROM audit_log WHERE action = 'reis.gekopieerd' ORDER BY id LIMIT 1");
     assert.equal(entry.entity_id, String(copyId));
 

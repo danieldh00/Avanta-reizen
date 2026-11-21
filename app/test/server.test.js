@@ -616,6 +616,13 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     // Eén aanmelding geannuleerd: er is weer een plaats vrij.
     await db.query("UPDATE bookings SET status = 'geannuleerd' WHERE id = (SELECT min(id) FROM bookings WHERE trip_id = (SELECT id FROM trips WHERE legacy_id = 1001))");
     assert.equal((await get('/aanmelden/?id=1001')).status, 200);
+    // Twee aanmeldingen tegelijk voor de laatste plaats: precies één lukt.
+    const first = await formFor(1001);
+    const second = await formFor(1001);
+    clock += 5000;
+    const statuses = (await Promise.all([post(first, { 'x-forwarded-for': '203.0.113.31' }), post(second, { 'x-forwarded-for': '203.0.113.32' })])).map((response) => response.status).sort();
+    assert.deepEqual(statuses, [303, 409]);
+    assert.equal((await db.query("SELECT COUNT(*)::int AS total FROM bookings WHERE trip_id = (SELECT id FROM trips WHERE legacy_id = 1001) AND status <> 'geannuleerd'"))[0].total, total);
     await db.query('UPDATE trips SET capacity = NULL WHERE legacy_id = 1001');
   });
 });

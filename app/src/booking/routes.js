@@ -253,9 +253,12 @@ function createBookingRouter(options) {
    */
   const saveBooking = (reference, trip, values) => options.db.transaction(async (client) => {
     const yes = (name) => values[name] === 'ja';
-    // De reis vergrendelen en opnieuw tellen: twee gelijktijdige aanmeldingen voor de laatste plaats gaan na elkaar.
-    const [current] = await client.query(`SELECT ${fullyBookedSql('t')} AS full FROM trips t WHERE t.id = $1 FOR UPDATE`, [trip.id]);
-    if (!current || current.full) return false;
+    // Eerst de reis vergrendelen, dan in een nieuw statement (met een nieuwe snapshot) tellen: twee gelijktijdige
+    // aanmeldingen voor de laatste plaats gaan zo na elkaar en de tweede ziet de eerste.
+    const [locked] = await client.query('SELECT id FROM trips WHERE id = $1 FOR UPDATE', [trip.id]);
+    if (!locked) return false;
+    const [current] = await client.query(`SELECT ${fullyBookedSql('t')} AS full FROM trips t WHERE t.id = $1`, [trip.id]);
+    if (current.full) return false;
     const { personId } = await persons.savePerson(client, values);
     const [booking] = await client.query(
       `INSERT INTO bookings (reference, trip_id, trip_code, trip_title, departure_date, gender, first_names, call_name, last_name,

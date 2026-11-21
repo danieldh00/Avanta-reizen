@@ -339,8 +339,26 @@ function createTrips(options) {
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, newId) => Promise`).
    * @returns {Promise<{status: ('ok'|'weg'), id?: number}>} Uitkomst en het id van de kopie.
    */
-  const copy = (id, context) => db.transaction(async (client) => {
-    const [original] = await client.query('SELECT id, slug FROM trips WHERE id = $1 FOR SHARE', [Number(id)]);
+  const copy = async (id, context) => {
+    // Gelijktijdige kopieën van verschillende reizen kunnen toch dezelfde slug kiezen: dan opnieuw proberen.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await copyOnce(id, context);
+      } catch (error) {
+        if (!isDuplicateSlug(error) || attempt >= 3) throw error;
+      }
+    }
+  };
+
+  /**
+   * Eén poging van `copy`, in één transactie.
+   * @param {(number|string)} id Id van de originele reis.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
+   * @returns {Promise<{status: ('ok'|'weg'), id?: number}>} Uitkomst.
+   */
+  const copyOnce = (id, context) => db.transaction(async (client) => {
+    // FOR UPDATE: twee kopieën van dezelfde reis lopen na elkaar, zodat de tweede de slug van de eerste al ziet.
+    const [original] = await client.query('SELECT id, slug FROM trips WHERE id = $1 FOR UPDATE', [Number(id)]);
     if (!original) return { status: 'weg' };
     const slug = await freeCopySlug(client, original.slug);
     const [row] = await client.query(
