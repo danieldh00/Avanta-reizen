@@ -252,7 +252,7 @@ function createContent(db) {
         db.query('SELECT slug FROM trip_categories ORDER BY slug'),
         db.query('SELECT slug FROM guides WHERE published = $1 ORDER BY slug', [true]),
         db.query('SELECT slug, published_at FROM posts WHERE published = $1 ORDER BY published_at DESC NULLS LAST, slug', [true]),
-        db.query('SELECT path FROM pages WHERE published = $1 ORDER BY path', [true]),
+        db.query("SELECT path FROM pages WHERE published = $1 AND path <> '/' ORDER BY path", [true]),
       ]);
       return { trips, categories, guides, posts, pages };
     },
@@ -267,7 +267,7 @@ function createContent(db) {
       const [trips, posts, pages] = await Promise.all([
         this.upcomingTrips({ search: term, limit: 30 }),
         db.query(`SELECT ${POST_TEASER_COLUMNS} FROM posts WHERE published AND (title ILIKE $1 OR excerpt ILIKE $1) ORDER BY published_at DESC LIMIT 20`, [pattern]).then((rows) => rows.map(withSummary)),
-        db.query('SELECT path, title, intro FROM pages WHERE published AND (title ILIKE $1 OR intro ILIKE $1) ORDER BY title LIMIT 20', [pattern]),
+        db.query("SELECT path, title, intro FROM pages WHERE published AND path <> '/' AND (title ILIKE $1 OR intro ILIKE $1) ORDER BY title LIMIT 20", [pattern]),
       ]);
       return { trips, posts, pages };
     },

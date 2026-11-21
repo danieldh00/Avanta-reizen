@@ -10,6 +10,7 @@ const { createDatabase } = require('./database/db');
 const { createSiteRouter } = require('./site/routes');
 const { createBookingRouter } = require('./booking/routes');
 const { createSiteContentStore } = require('./site/site-content');
+const { createHomepageStore } = require('./site/homepage');
 const { createContactForm } = require('./contact/routes');
 const { createCrmRouter, generateSetupCode } = require('./crm/routes');
 const { startCrmMaintenance } = require('./crm/auth');
@@ -234,14 +235,16 @@ function createApp(options) {
   });
   app.locals.monitor = monitor;
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, mediaLibrary, menus, mediaLimits: options.mediaLimits, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  // Vaste inhoud van de homepage en lijstkoppen (DATA_DIR); ook het CRM gebruikt ze (homepage als blokpagina opzetten).
+  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
+  const homepage = options.homepage || createHomepageStore(DATA_DIR);
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).
-  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
   app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now, siteContent }));
   const contactForm = createContactForm({ db: options.db, formKey, notifications, captcha, now: options.now });
-  app.use(createSiteRouter({ db: options.db, contactForm, homepage: options.homepage, siteContent }));
+  app.use(createSiteRouter({ db: options.db, contactForm, homepage, siteContent }));
 
   // 404: telt mee in de 404-lijst van Beheer; altijd noindex (kop en renderPage zonder indexable), met een canonical
   // naar het gevraagde pad.

@@ -420,7 +420,7 @@ function createCrmRouter(options) {
   router.use(createMediaRoutes({ db, auth, library: options.mediaLibrary, limits: options.mediaLimits, now: options.now }));
   router.use(createTripRoutes({ db, auth, redirects: options.redirects, library: options.mediaLibrary }));
   router.use(createCategoryRoutes({ db, auth, redirects: options.redirects, library: options.mediaLibrary }));
-  router.use(createPageRoutes({ db, auth, library: options.mediaLibrary, redirects: options.redirects, menus: options.menus }));
+  router.use(createPageRoutes({ db, auth, library: options.mediaLibrary, redirects: options.redirects, menus: options.menus, homepage: options.homepage, siteContent: options.siteContent }));
   router.use(createMenuRoutes({ db, auth, menus: options.menus }));
   router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, now: options.now }));
 

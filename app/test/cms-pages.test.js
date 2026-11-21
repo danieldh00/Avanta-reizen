@@ -243,6 +243,66 @@ test('H3: adres van een pagina, SEO-velden en menu\'s (zonder database)', () => 
   });
 });
 
+test('H4: homepage-secties als blokken (zonder database)', async () => {
+  const { BLOCK_TYPES } = require('../src/cms/blocks');
+  const homeTypes = Object.keys(BLOCK_TYPES).filter((type) => BLOCK_TYPES[type].homeOnly);
+  assert.deepEqual(homeTypes, ['home-slider', 'home-zoekbalk', 'home-lastminutes', 'home-reistypes', 'home-inspiratie', 'home-bestemmingen', 'home-blog', 'home-over']);
+  const slider = validateBlockForm(newBlock('home-slider'), {
+    f_dias_0_bovenkop: 'chase the snow!', f_dias_0_titel: 'Winters <avontuur>', f_dias_0_knoptekst: 'Kijk', f_dias_0_link: '/reis/',
+    f_dias_1_titel: 'Met video', f_dias_1_youtube: 'https://youtu.be/Cs45NTbOzqg',
+  });
+  assert.deepEqual(slider.errors, {});
+  assert.equal(slider.block.data.dias[1].youtube, 'Cs45NTbOzqg', 'video optioneel, als id opgeslagen');
+  assert.ok(validateBlockForm(newBlock('home-slider'), { f_dias_0_titel: 'X', f_dias_0_knoptekst: 'Zonder adres' }).errors.f_dias_0_link);
+  assert.ok(validateBlockForm(newBlock('home-slider'), { f_dias_0_bovenkop: 'Zonder titel' }).errors.f_dias_0_titel);
+  assert.ok(validateBlockForm(newBlock('home-slider'), { f_dias_0_titel: 'X', f_dias_0_youtube: 'https://example.com/v' }).errors.f_dias_0_youtube);
+  assert.ok(validateBlockForm(newBlock('home-over'), { f_titel: 'Over', f_linktekst: 'Lees' }).errors.f_link);
+  slider.block.data.fotos = [{ mediaId: 1, url: '/media/een.webp', alt: '' }];
+  const calls = [];
+  const content = {
+    faqs: async () => [],
+    categories: async (kind) => (kind === 'type' ? [{ slug: 'jeugd', name: 'Jeugdreizen', icon: '', show_on_home: true, trip_count: 2 }] : [{ slug: 'peru', name: 'Peru', image_url: '/media/peru.webp', show_on_home: false, trip_count: 3 }]),
+    upcomingTrips: async (filter) => { calls.push(filter); return [{ slug: 'reis-a', title: 'Reis A', departure_date: '2099-06-01', trip_code: '99-A', card_image_url: '/media/reis-a.webp', fully_booked: false, is_new: true }]; },
+    departureDates: async () => ['2099-06-01'],
+    newTripCount: async () => 4,
+    posts: async () => ({ posts: [{ slug: 'p1', title: 'Bericht 1', published_at: '2026-05-01', image_url: null, summary: 'Kort' }] }),
+    postsBySlugs: async () => [{ slug: 'uitgelicht', title: 'Uitgelicht bericht', published_at: '2026-01-01', image_url: null, summary: '' }],
+  };
+  const blocks = normalizeBlocks([
+    slider.block,
+    newBlock('home-zoekbalk'),
+    validateBlockForm(newBlock('home-lastminutes'), { f_titel: 'Inpakken en wegwezen!', f_subtitel: 'last-minutes', f_knoptekst: 'Meer' }).block,
+    validateBlockForm(newBlock('home-reistypes'), { f_titel: 'Reistypes' }).block,
+    validateBlockForm(newBlock('home-inspiratie'), { f_dias_0_titel: 'Back to the basics', f_dias_0_tekst: 'Een tentje.' }).block,
+    validateBlockForm(newBlock('home-bestemmingen'), { f_titel: 'Onze bestemmingen' }).block,
+    validateBlockForm(newBlock('home-blog'), { f_titel: 'Blog', f_knoptekst: 'Meer blog' }).block,
+    validateBlockForm(newBlock('home-over'), { f_titel: 'Geen bestemming te ver', f_tekst: 'Wij gaan ver.', f_linktekst: 'Lees meer', f_link: '/avanta-reizen/' }).block,
+  ]);
+  const data = await loadBlockData(blocks, content, { featuredSlug: 'uitgelicht' });
+  assert.deepEqual(calls, [{ onlyAvailable: true, limit: 6 }, { limit: 60 }]);
+  const { body, hasVideo } = renderBlocks(blocks, { title: 'Homepage', data, homepage: true });
+  const output = toString(body);
+  assert.equal(hasVideo, true, 'videodia: frame-src nodig');
+  assert.match(output, /^<div class="homepage">/);
+  assert.match(output, /homepage__slides/);
+  assert.match(output, /Winters &lt;avontuur&gt;/);
+  assert.match(output, /background-image: url\('\/media\/een.webp'\)/, 'dia 1 krijgt foto 1');
+  assert.match(output, /background-image: url\('\/media\/reis-a.webp'\)/, 'reservefoto van een reis');
+  assert.match(output, /youtube-nocookie.com\/embed\/Cs45NTbOzqg/);
+  assert.match(output, /name="bestemming"[^]*Peru/);
+  assert.match(output, /Nieuwe reizen \(4\)/);
+  assert.match(output, /id="last-minutes"[^]*Reis A/);
+  assert.match(output, /trip-type__title">Jeugdreizen/);
+  assert.match(output, /Back to the basics/);
+  assert.match(output, /banner__title">Peru/);
+  assert.match(output, /Bericht 1[^]*Uitgelicht bericht/, 'uitgelicht bericht groot rechts');
+  assert.match(output, /<h1 class="section__title">Geen bestemming te ver<\/h1>/);
+  assert.match(output, /<a class="readon" href="\/avanta-reizen\/">Lees meer<\/a>/);
+  const plain = toString(renderBlocks(normalizeBlocks([validateBlockForm(newBlock('home-over'), { f_titel: 'Zonder link' }).block]), { title: 'H', data: {} }).body);
+  assert.doesNotMatch(plain, /class="readon"/, 'geen lege link');
+  assert.equal((await loadBlockData(normalizeBlocks([newBlock('kop')]), { faqs: () => assert.fail(), categories: () => assert.fail(), upcomingTrips: () => assert.fail() })).home, undefined);
+});
+
 test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
@@ -655,5 +715,52 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     await db.query("DELETE FROM menu_items WHERE menu = 'voet'");
     await app.locals.menus.reload();
     assert.match((await request('/over-ons/')).text, /<nav aria-label="Voettekst"><ul class="nav"><li><a href="\/avanta-reizen\/">Het Avantateam<\/a>/);
+  });
+
+  await t.test('H4: homepage als blokpagina opzetten, publiceren en offline halen', async () => {
+    assert.equal((await request('/app/paginas/homepage/', { cookie: leider.cookie, form: { _csrf: leider.csrf } })).status, 403);
+    assert.equal((await request('/app/paginas/homepage/', { cookie: redactie.cookie, form: { _csrf: 'fout' } })).status, 403);
+    assert.match((await request('/app/paginas/', { cookie: redactie.cookie })).text, /Homepage als blokpagina opzetten/);
+    const fixed = await request('/');
+    assert.match(fixed.text, /Inpakken en wegwezen!/, 'vaste homepage');
+    const created = await request('/app/paginas/homepage/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } });
+    assert.equal(created.status, 303);
+    const [home] = await db.query("SELECT id, published, draft FROM pages WHERE path = '/'");
+    assert.equal(created.headers.get('location'), `/app/paginas/${home.id}/?opgeslagen=11`);
+    assert.equal(home.published, false);
+    assert.deepEqual(home.draft.blocks.map((block) => block.type), ['home-slider', 'home-zoekbalk', 'home-lastminutes', 'home-reistypes', 'home-inspiratie', 'home-bestemmingen', 'home-blog', 'home-over']);
+    assert.equal(home.draft.blocks[0].data.dias[0].bovenkop, 'chase the snow!', 'teksten van de vaste homepage');
+    const again = await request('/app/paginas/homepage/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } });
+    assert.equal(again.headers.get('location'), `/app/paginas/${home.id}/`, 'bestaat al: geen tweede');
+    assert.doesNotMatch((await request('/app/paginas/', { cookie: redactie.cookie })).text, /Homepage als blokpagina opzetten/);
+
+    const homeUrl = `/app/paginas/${home.id}/`;
+    const homeVersion = async () => (await db.query('SELECT draft_version FROM pages WHERE id = $1', [home.id]))[0].draft_version;
+    const editor = await request(homeUrl, { cookie: redactie.cookie });
+    assert.match(editor.text, /<optgroup label="Homepage-secties">/);
+    assert.doesNotMatch(editor.text, /action="[^"]*\/adres\/"/, 'homepage blijft op /');
+    assert.match((await request(`${homeUrl}adres/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, versie: '0', slug: 'thuis', parent: '/' } })).text, /blijft op \//);
+    assert.doesNotMatch((await request(pageUrl, { cookie: redactie.cookie })).text, /Homepage-secties|home-slider/, 'geen homepage-secties op een gewone pagina');
+    assert.match((await post(`${pageUrl}blokken/nieuw/`, { type: 'home-slider' })).text, /alleen voor de homepage/);
+    const lastMinutes = home.draft.blocks[2];
+    assert.equal((await request(`${homeUrl}blokken/${lastMinutes.id}/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, versie: String(await homeVersion()), f_titel: 'Snel weg!', f_subtitel: 'last-minutes', f_knoptekst: 'Alle reizen' } })).status, 303);
+    const preview = await request(`${homeUrl}voorbeeld/`, { cookie: redactie.cookie });
+    assert.equal(preview.status, 200);
+    assert.match(preview.text, /<body class="home"/);
+    assert.match(preview.text, /Snel weg!/);
+    assert.doesNotMatch((await request('/')).text, /Snel weg!/, 'site ongewijzigd tot publiceren');
+    assert.equal((await request(`${homeUrl}publiceren/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, versie: String(await homeVersion()) } })).status, 303);
+    const site = await request('/');
+    assert.equal(site.status, 200);
+    assert.match(site.text, /<body class="home"/);
+    assert.match(site.text, /Snel weg!/);
+    assert.match(site.text, /homepage__slides[^]*filter__form[^]*id="last-minutes"/, 'volgorde van de blokken');
+    assert.match(site.headers.get('content-security-policy'), /frame-src[^;]*youtube-nocookie/, 'videodia');
+    assert.equal(((await request('/sitemap.xml')).text.match(/<loc>http:\/\/[^/<]+\/<\/loc>/g) || []).length <= 1, true, 'homepage één keer in de sitemap');
+    // Offline: de vaste homepage komt terug.
+    assert.equal((await request(`${homeUrl}online/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, versie: '0', stand: 'offline' } })).status, 303);
+    assert.match((await request('/')).text, /Inpakken en wegwezen!/);
+    await request(`${homeUrl}online/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, versie: '0', stand: 'online' } });
+    assert.match((await request('/')).text, /Snel weg!/);
   });
 });

@@ -9,6 +9,7 @@ const { isExcluded } = require('./site-settings');
 const { createContent, today } = require('./content');
 const pageViews = require('./page-view');
 const { renderPageArticle } = require('../cms/page-render');
+const { publishedBlocks } = require('../cms/blocks');
 const homeViews = require('./home-view');
 const { createHomepageStore, YOUTUBE_ORIGIN } = require('./homepage');
 const { addCspSources } = require('../security/csp');
@@ -125,6 +126,25 @@ function createSiteRouter(options) {
 
   router.get('/', asyncRoute(async (req, res) => {
     if (typeof req.query.s === 'string') return res.redirect(302, `/zoeken/?s=${encodeURIComponent(req.query.s)}`);
+    // De homepage als blokpagina (CMS-pakket H4), zodra die in het CRM is gepubliceerd en online staat; anders de vaste.
+    const blockHome = await content.pageByPath('/');
+    if (blockHome && blockHome.managed_in_crm) {
+      const article = await renderPageArticle(blockHome, content, null, { featuredSlug: siteContent.load().featuredPost });
+      if (article.body) {
+        if (article.hasVideo) allowVideos(res);
+        // Foto voor delen (og:image): de eerste foto van de slider, als die er is.
+        const slider = publishedBlocks(blockHome).find((block) => block.type === 'home-slider');
+        const heroImage = slider && slider.data.fotos[0] ? slider.data.fotos[0].url : '';
+        return send(res, {
+          title: blockHome.seo_title || undefined,
+          description: blockHome.seo_description || undefined,
+          path: '/',
+          seo: seoFor('/', { imageUrl: heroImage, structuredData: [(site) => seo.travelAgencyData(site.siteUrl, site.contact, { ...site.organisation, name: site.siteName, imageUrl: site.imageUrl })] }),
+          bodyClass: 'home',
+          body: article.body,
+        });
+      }
+    }
     const home = homepage.load();
     const [finder, lastMinutes, upcoming, types, blog, newCount] = await Promise.all([
       finderOptions(),
