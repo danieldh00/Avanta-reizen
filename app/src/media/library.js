@@ -219,8 +219,11 @@ function createMediaLibrary(options) {
       let text = '';
       try {
         text = await fs.readFile(path.join(dataDir, entry.file), 'utf8');
-      } catch {
-        continue;
+      } catch (error) {
+        // Alleen een ontbrekend bestand betekent "niet gebruikt"; elke andere leesfout gaat door, zodat verwijderen
+        // dan veilig mislukt in plaats van een gebruikte foto weg te halen.
+        if (error.code === 'ENOENT') continue;
+        throw error;
       }
       if (names.some((name) => text.includes(`/media/${name}`))) places.push({ kind: entry.kind, title: entry.file, href: entry.href });
     }
@@ -230,6 +233,9 @@ function createMediaLibrary(options) {
   /**
    * Verwijdert een geüploade foto als die nergens gebruikt wordt: rij (met landen) in een transactie, daarna de bestanden.
    * Een foto uit de import wordt niet verwijderd (de import zou hem opnieuw ophalen).
+   * Bewuste afweging: het slot ligt alleen op de `media`-rij. Tot pakket G/H bestaan er geen schermen die een foto aan een
+   * reis of pagina koppelen, dus er is niets om mee te racen. Die editors moeten bij het opslaan van een verwijzing
+   * dezelfde rij met `SELECT … FOR SHARE` vergrendelen (en een verdwenen foto weigeren); dan sluit dit venster.
    * @param {(number|string)} id Id.
    * @param {Function} [audit] Schrijft in dezelfde transactie de audit (`(client) => Promise`).
    * @returns {Promise<{status: ('weg'|'import'|'gebruikt'|'ok'), places?: object[]}>} Uitkomst.

@@ -365,6 +365,11 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     await fs.writeFile(path.join(dataDir, 'homepage.json'), JSON.stringify({ slides: [{ image: `/media/${item.local_name}` }] }));
     assert.equal((await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 409);
     await fs.rm(path.join(dataDir, 'homepage.json'));
+    // Een onleesbaar bestand (hier een map) telt niet als "niet gebruikt": verwijderen mislukt veilig.
+    await fs.mkdir(path.join(dataDir, 'homepage.json'));
+    assert.equal((await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 500);
+    assert.equal((await db.query('SELECT id FROM media WHERE id = $1', [item.id])).length, 1, 'foto blijft staan');
+    await fs.rm(path.join(dataDir, 'homepage.json'), { recursive: true });
     assert.equal((await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: boek.cookie, form: { _csrf: boek.csrf } })).status, 403);
     assert.equal((await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: {} })).status, 403);
     const removed = await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } });
