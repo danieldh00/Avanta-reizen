@@ -726,7 +726,7 @@ const MIGRATIONS = [
       SELECT category_name, (row_number() OVER (ORDER BY category_name)) * 10
         FROM (SELECT DISTINCT ON (lower(category_name)) category_name
                 FROM (SELECT left(COALESCE(NULLIF(trim(regexp_replace(category, '[<>]', '', 'g')), ''), 'Algemeen'), 120) AS category_name FROM faqs) named
-               ORDER BY lower(category_name), category_name) unique_names;
+               ORDER BY lower(category_name), category_name COLLATE "C") unique_names;
       UPDATE faqs SET category = c.name, category_id = c.id
         FROM faq_categories c
        WHERE lower(c.name) = lower(left(COALESCE(NULLIF(trim(regexp_replace(faqs.category, '[<>]', '', 'g')), ''), 'Algemeen'), 120));
