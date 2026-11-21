@@ -8,6 +8,21 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { processImage } = require('./images');
 
+/** Waar een foto gebruikt kan worden: soort, tabel, titelkolom, sleutelkolom, kolommen met adressen en het publieke pad. */
+const USAGE_SOURCES = [
+  { kind: 'Reis', table: 'trips', title: 'title', key: 'slug', columns: ['hero_image_url', 'card_image_url', 'gallery::text', 'body_html'], href: (key) => `/reis/${key}/` },
+  { kind: 'Blogbericht', table: 'posts', title: 'title', key: 'slug', columns: ['image_url', 'body_html'], href: (key) => `/${key}/` },
+  { kind: 'Pagina', table: 'pages', title: 'title', key: 'path', columns: ['image_url', 'body_html'], href: (key) => key },
+  { kind: 'Reisleider', table: 'guides', title: 'name', key: 'slug', columns: ['photo_url', 'body_html'], href: (key) => `/reisleider/${key}/` },
+  { kind: 'Reistype of land', table: 'trip_categories', title: 'name', key: 'slug', columns: ['image_url', 'body_html'], href: (key) => `/reis-categorie/${key}/` },
+];
+
+/** Bestanden in DATA_DIR met vaste inhoud die naar foto's kan verwijzen (tot pakket G/H dit overneemt). */
+const USAGE_FILES = [{ file: 'homepage.json', kind: 'Homepage', href: '/' }, { file: 'site-content.json', kind: 'Vaste inhoud van de site', href: '' }];
+
+/** Maximaal aantal plekken dat "gebruikt in" toont. */
+const USAGE_LIMIT = 50;
+
 /** Maximale lengte van de tekstvelden van een foto. */
 const TEXT_LIMITS = { title: 200, alt_text: 300, caption: 500, photographer: 120 };
 
@@ -50,12 +65,23 @@ function mediaUrl(media, minWidth = 0) {
 }
 
 /**
+ * Alle bestandsnamen van een foto: het hoofdbestand en de varianten.
+ * @param {{local_name: string, variants?: object}} media Foto.
+ * @returns {string[]} Unieke bestandsnamen.
+ */
+function fileNamesOf(media) {
+  return [...new Set([media.local_name, ...Object.values(media.variants || {})].filter((name) => typeof name === 'string' && name))];
+}
+
+/**
  * Maakt de fotobibliotheek.
- * @param {{db: object, mediaDir: string}} options Database en map met de bestanden.
+ * @param {{db: object, mediaDir: string, dataDir?: string}} options Database, map met de bestanden en de datamap met
+ *   de vaste-inhoudbestanden (standaard de map boven `mediaDir`).
  * @returns {object} Functies van de bibliotheek.
  */
 function createMediaLibrary(options) {
   const { db, mediaDir } = options;
+  const dataDir = options.dataDir || path.dirname(mediaDir);
 
   /**
    * Alle landen (reiscategorieën van het soort bestemming), op naam.
@@ -176,7 +202,130 @@ function createMediaLibrary(options) {
     return true;
   });
 
-  return { countries, storeUpload, list, get, update };
+  /**
+   * Waar een foto gebruikt wordt: reizen, berichten, pagina's, reisleiders, reiscategorieën en de vaste inhoud.
+   * @param {{query: Function}} client Database of transactie-client.
+   * @param {{local_name: string, variants?: object}} media Foto.
+   * @returns {Promise<{kind: string, title: string, href: string}[]>} Plekken (hoogstens `USAGE_LIMIT`).
+   */
+  const usage = async (client, media) => {
+    const names = fileNamesOf(media);
+    const patterns = names.map((name) => `%/media/${name.replace(/[\\%_]/g, '\\$&')}%`);
+    const union = USAGE_SOURCES.map((source, index) => `SELECT ${index} AS source, ${source.title} AS title, ${source.key} AS key FROM ${source.table}
+       WHERE concat_ws(' ', ${source.columns.join(', ')}) LIKE ANY($1::text[])`).join(' UNION ALL ');
+    const rows = await client.query(`SELECT source, title, key FROM (${union}) AS found ORDER BY source, title LIMIT ${USAGE_LIMIT}`, [patterns]);
+    const places = rows.map((row) => ({ kind: USAGE_SOURCES[row.source].kind, title: row.title, href: USAGE_SOURCES[row.source].href(row.key) }));
+    for (const entry of USAGE_FILES) {
+      let text = '';
+      try {
+        text = await fs.readFile(path.join(dataDir, entry.file), 'utf8');
+      } catch (error) {
+        // Alleen een ontbrekend bestand betekent "niet gebruikt"; elke andere leesfout gaat door, zodat verwijderen
+        // dan veilig mislukt in plaats van een gebruikte foto weg te halen.
+        if (error.code === 'ENOENT') continue;
+        throw error;
+      }
+      if (names.some((name) => text.includes(`/media/${name}`))) places.push({ kind: entry.kind, title: entry.file, href: entry.href });
+    }
+    return places;
+  };
+
+  /**
+   * Verwijdert een geüploade foto als die nergens gebruikt wordt: rij (met landen) in een transactie, daarna de bestanden.
+   * Een foto uit de import wordt niet verwijderd (de import zou hem opnieuw ophalen).
+   * Bewuste afweging: het slot ligt alleen op de `media`-rij. Tot pakket G/H bestaan er geen schermen die een foto aan een
+   * reis of pagina koppelen, dus er is niets om mee te racen. Die editors moeten bij het opslaan van een verwijzing
+   * dezelfde rij met `SELECT … FOR SHARE` vergrendelen (en een verdwenen foto weigeren); dan sluit dit venster.
+   * @param {(number|string)} id Id.
+   * @param {Function} [audit] Schrijft in dezelfde transactie de audit (`(client) => Promise`).
+   * @returns {Promise<{status: ('weg'|'import'|'gebruikt'|'ok'), places?: object[]}>} Uitkomst.
+   */
+  const remove = async (id, audit) => {
+    const outcome = await db.transaction(async (client) => {
+      const [row] = await client.query("SELECT id, local_name, variants, source FROM media WHERE id = $1 AND content_type LIKE 'image/%' FOR UPDATE", [Number(id)]);
+      if (!row) return { status: 'weg' };
+      if (row.source !== 'upload') return { status: 'import' };
+      const places = await usage(client, row);
+      if (places.length) return { status: 'gebruikt', places };
+      await client.query('DELETE FROM media WHERE id = $1', [row.id]);
+      if (audit) await audit(client);
+      return { status: 'ok', files: fileNamesOf(row) };
+    });
+    if (outcome.status === 'ok') {
+      // Alleen eigen bestandsnamen (bib-…webp), nooit een pad uit de database blind volgen.
+      await Promise.all(outcome.files.filter((name) => /^bib-[0-9a-f]{16}-\d{1,5}\.webp$/.test(name)).map((name) => fs.rm(path.join(mediaDir, name), { force: true })));
+      return { status: 'ok' };
+    }
+    return outcome;
+  };
+
+  /**
+   * Aantal foto's per land (alle landen, ook zonder foto's) en het aantal foto's zonder land.
+   * @returns {Promise<{countries: {id: number, name: string, count: number}[], without: number}>} Tellingen.
+   */
+  const folders = async () => {
+    const [countryRows, [without]] = await Promise.all([
+      db.query(
+        `SELECT c.id, c.name, count(m.id)::int AS count
+           FROM trip_categories c
+           LEFT JOIN media_countries mc ON mc.category_id = c.id
+           LEFT JOIN media m ON m.id = mc.media_id AND m.content_type LIKE 'image/%'
+          WHERE c.kind = 'bestemming'
+          GROUP BY c.id ORDER BY c.name, c.id`,
+      ),
+      db.query("SELECT count(*)::int AS count FROM media m WHERE m.content_type LIKE 'image/%' AND NOT EXISTS (SELECT 1 FROM media_countries mc WHERE mc.media_id = m.id)"),
+    ]);
+    return { countries: countryRows, without: without.count };
+  };
+
+  /**
+   * Ruimt bestanden van de bibliotheek op (`bib-…webp`, ook `.tmp`) waar geen rij in `media` naar verwijst, bijvoorbeeld
+   * na een crash tussen wegschrijven en opslaan. Alleen bestanden ouder dan `minAgeMs`, zodat een lopende upload blijft.
+   * @param {{minAgeMs?: number, now?: number}} [cleanupOptions] Minimale leeftijd (standaard een dag) en het huidige moment.
+   * @returns {Promise<number>} Aantal verwijderde bestanden.
+   */
+  const cleanupOrphans = async (cleanupOptions = {}) => {
+    const minAgeMs = cleanupOptions.minAgeMs ?? 24 * 60 * 60 * 1000;
+    const now = cleanupOptions.now ?? Date.now();
+    let entries;
+    try {
+      entries = await fs.readdir(mediaDir);
+    } catch {
+      return 0;
+    }
+    const candidates = entries.filter((name) => /^bib-[0-9a-f]{16}-\d{1,5}\.webp(\.tmp)?$/.test(name));
+    if (!candidates.length) return 0;
+    const rows = await db.query("SELECT local_name, variants FROM media WHERE source = 'upload'");
+    const known = new Set(rows.flatMap(fileNamesOf));
+    let removed = 0;
+    for (const name of candidates) {
+      if (known.has(name)) continue;
+      const file = path.join(mediaDir, name);
+      try {
+        const stats = await fs.stat(file);
+        if (now - stats.mtimeMs < minAgeMs) continue;
+        await fs.rm(file, { force: true });
+        removed++;
+      } catch {
+        // Intussen weg of niet leesbaar: overslaan.
+      }
+    }
+    return removed;
+  };
+
+  /**
+   * Start het dagelijks opruimen van losse bestanden (direct bij het starten en daarna elke dag).
+   * @returns {void}
+   */
+  const startCleanupTimer = () => {
+    const run = () => cleanupOrphans()
+      .then((count) => { if (count) console.log(`fotobibliotheek: ${count} los(se) bestand(en) opgeruimd`); })
+      .catch((error) => console.error(`fotobibliotheek: opruimen mislukt (${error.code || error.name})`));
+    run();
+    setInterval(run, 24 * 60 * 60 * 1000).unref();
+  };
+
+  return { countries, storeUpload, list, get, update, usage, remove, folders, cleanupOrphans, startCleanupTimer };
 }
 
-module.exports = { createMediaLibrary, mediaUrl, titleFromFilename, cleanText, TEXT_LIMITS };
+module.exports = { createMediaLibrary, mediaUrl, titleFromFilename, cleanText, fileNamesOf, TEXT_LIMITS, USAGE_SOURCES };

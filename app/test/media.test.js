@@ -111,11 +111,13 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
   await admin.close();
   const db = createDatabase(withSchema(DATABASE_URL));
   await db.migrate();
-  const mediaDir = await fs.mkdtemp(path.join(os.tmpdir(), 'avanta-media-'));
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'avanta-media-'));
+  const mediaDir = path.join(dataDir, 'media');
+  await fs.mkdir(mediaDir);
   const app = createApp({ db, masterKey: MASTER_KEY, mediaDir });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); await fs.rm(mediaDir, { recursive: true, force: true }); });
+  t.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
 
   const hash = await hashPassword(PASSWORD);
   for (const [email, role] of [['redactie@example.nl', 'redacteur'], ['kantoor@example.nl', 'kantoor'], ['boek@example.nl', 'boekhouding']]) {
@@ -326,6 +328,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
       const post = (count) => send('/app/fotobibliotheek/uploaden/', {
         method: 'POST', headers: { cookie: `${COOKIE_NAME}=${loggedIn.cookie}` }, body: uploadForm({ csrf, files: Array.from({ length: count }, (_, i) => ({ name: `grens-${i}.jpg`, data: photo })) }),
       });
+      t.after(() => other.close());
       return { post, close: () => other.close() };
     };
     const count = async () => (await db.query('SELECT count(*)::int AS n FROM media'))[0].n;
@@ -342,5 +345,60 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.equal((await busy.post(1)).status, 503);
     busy.close();
     assert.equal(await count(), before + 2);
+  });
+
+  await t.test('mappen per land, gebruikt in en verwijderen', async () => {
+    const list = await request('/app/fotobibliotheek/', { cookie: redactie.cookie });
+    assert.match(list.text, new RegExp(`href="/app/fotobibliotheek/\\?land=${botswana.id}">Botswana <span class="media-folders__count">1</span>`));
+    assert.match(list.text, /Zonder land <span class="media-folders__count">\d+<\/span>/);
+    const [item] = await db.query("SELECT id, local_name, variants FROM media WHERE source = 'upload' ORDER BY id LIMIT 1");
+    const files = Object.values(item.variants);
+    await db.query("INSERT INTO trips (slug, title, hero_image_url) VALUES ('namibie-reis', 'Afrikaans Avantuur', $1)", [`/media/${item.variants['400']}`]);
+    const page = await request(`/app/fotobibliotheek/${item.id}/`, { cookie: redactie.cookie });
+    assert.match(page.text, /Reis: <a href="\/reis\/namibie-reis\/">Afrikaans Avantuur<\/a>/);
+    assert.doesNotMatch(page.text, /Foto verwijderen/);
+    const blocked = await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } });
+    assert.equal(blocked.status, 409);
+    assert.match(blocked.text, /wordt nog gebruikt/);
+    // Ook gebruik in de vaste inhoud (homepage.json) telt.
+    await db.query("UPDATE trips SET hero_image_url = NULL WHERE slug = 'namibie-reis'");
+    await fs.writeFile(path.join(dataDir, 'homepage.json'), JSON.stringify({ slides: [{ image: `/media/${item.local_name}` }] }));
+    assert.equal((await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 409);
+    await fs.rm(path.join(dataDir, 'homepage.json'));
+    // Een onleesbaar bestand (hier een map) telt niet als "niet gebruikt": verwijderen mislukt veilig.
+    await fs.mkdir(path.join(dataDir, 'homepage.json'));
+    assert.equal((await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 500);
+    assert.equal((await db.query('SELECT id FROM media WHERE id = $1', [item.id])).length, 1, 'foto blijft staan');
+    await fs.rm(path.join(dataDir, 'homepage.json'), { recursive: true });
+    assert.equal((await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: boek.cookie, form: { _csrf: boek.csrf } })).status, 403);
+    assert.equal((await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: {} })).status, 403);
+    const removed = await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } });
+    assert.equal(removed.status, 303);
+    assert.equal((await db.query('SELECT id FROM media WHERE id = $1', [item.id])).length, 0);
+    assert.equal((await db.query('SELECT media_id FROM media_countries WHERE media_id = $1', [item.id])).length, 0);
+    const left = await fs.readdir(mediaDir);
+    for (const name of files) assert.ok(!left.includes(name), `${name} verwijderd`);
+    const [audit] = await db.query("SELECT entity_id FROM audit_log WHERE action = 'media.verwijderd'");
+    assert.equal(audit.entity_id, String(item.id));
+    assert.equal((await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 404);
+    const [imported] = await db.query("SELECT id FROM media WHERE local_name = 'import-a.jpg'");
+    const importPage = await request(`/app/fotobibliotheek/${imported.id}/`, { cookie: redactie.cookie });
+    assert.match(importPage.text, /komt uit de import/);
+    assert.equal((await request(`/app/fotobibliotheek/${imported.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 409);
+  });
+
+  await t.test('losse bestanden opruimen: alleen bib-bestanden zonder rij en ouder dan de grens', async () => {
+    const [item] = await db.query("SELECT local_name FROM media WHERE source = 'upload' ORDER BY id LIMIT 1");
+    const orphan = 'bib-0123456789abcdef-400.webp';
+    await fs.writeFile(path.join(mediaDir, orphan), 'x');
+    await fs.writeFile(path.join(mediaDir, 'bib-0123456789abcdef-800.webp.tmp'), 'x');
+    await fs.writeFile(path.join(mediaDir, 'import-c.jpg'), 'x');
+    const library = app.locals.mediaLibrary;
+    assert.equal(await library.cleanupOrphans(), 0, 'te nieuw');
+    assert.equal(await library.cleanupOrphans({ now: Date.now() + 2 * 86400000 }), 2);
+    const left = await fs.readdir(mediaDir);
+    assert.ok(!left.includes(orphan));
+    assert.ok(left.includes('import-c.jpg'), 'importbestanden blijven');
+    assert.ok(left.includes(item.local_name), 'bestanden met een rij blijven');
   });
 });

@@ -24,6 +24,7 @@ const { createWanIp } = require('./mail/wan-ip');
 const { createNotifications } = require('./mail/notifications');
 const { createCaptcha, cspWith: captchaCspWith, isFormPath } = require('./security/captcha');
 const crypto = require('node:crypto');
+const { createMediaLibrary } = require('./media/library');
 const { PUBLIC_DIR, MEDIA_DIR, DATA_DIR } = require('./paths');
 const { createBackupService } = require('./backup/backups');
 const { createDrive } = require('./backup/drive');
@@ -182,6 +183,8 @@ function createApp(options) {
   app.use(express.static(PUBLIC_DIR, { maxAge: '7d', index: false, redirect: false }));
   // Afbeeldingen: import en fotobibliotheek (tests geven een eigen map mee).
   const mediaDir = options.mediaDir || MEDIA_DIR;
+  const mediaLibrary = createMediaLibrary({ db: options.db, mediaDir });
+  app.locals.mediaLibrary = mediaLibrary;
   app.use('/media', express.static(mediaDir, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
 
   // E-mail via de mailserver uit Beheer (tests geven een eigen mailer en WAN-IP-opzoeker mee).
@@ -217,7 +220,7 @@ function createApp(options) {
   });
   app.locals.monitor = monitor;
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, mediaDir, mediaLimits: options.mediaLimits, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, mediaLibrary, mediaLimits: options.mediaLimits, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).
@@ -315,6 +318,7 @@ async function start() {
   app.locals.drive.startTimer();
   app.locals.restoreTests.startTimer(() => app.locals.settings.get('driveEnabled'));
   app.locals.monitor.start();
+  app.locals.mediaLibrary.startCleanupTimer();
   // Updates: de stand van "automatisch bijwerken" naar het hostscript en een afgeronde uitrol in het auditlog (elke minuut).
   startUpdateSync({ db, settings: app.locals.settings, systemUpdate: app.locals.systemUpdate });
   const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');

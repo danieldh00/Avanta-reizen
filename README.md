@@ -101,7 +101,12 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     megapixel). Het soort bestand wordt op de inhoud gecontroleerd; `sharp` zet de foto rechtop, verwijdert EXIF/GPS en
     slaat hem op als WebP in vaste breedtes (400, 800, 1600, 2400 px, nooit vergroot) in `DATA_DIR/media` als
     `bib-<willekeurig>-<breedte>.webp`. Per foto titel, alt-tekst, bijschrift, fotograaf en landen wijzigen; uploads
-    en wijzigingen staan in de auditlog. Landen zijn de reiscategorieën van het soort *bestemming*.
+    en wijzigingen staan in de auditlog. Landen zijn de reiscategorieën van het soort *bestemming*. Bovenaan staan
+    de landen met foto's als mappen (met aantal) en *Zonder land*. Per foto staat waar hij gebruikt wordt (reizen,
+    blog, pagina's, reisleiders, reiscategorieën, `homepage.json` en `site-content.json`); een geüploade foto die
+    nergens gebruikt wordt kan verwijderd worden (rij, landen en bestanden, met audit), een foto uit de import niet.
+    Losse `bib-*`-bestanden zonder rij (bijv. na een crash midden in een upload) worden bij het starten en daarna
+    dagelijks opgeruimd als ze ouder zijn dan een dag.
   - **Aanmeldingen** op `/app/aanmeldingen/` (recht `aanmeldingen`; `app/src/crm/booking-routes.js`, migratie 11):
     lijst met filter op status en reis en zoeken op referentie, naam, e-mailadres of reiscode; per aanmelding de
     gegevens zoals ingevuld (zonder bijzondere gegevens, die staan bij de deelnemer), de status met vaste overgangen
