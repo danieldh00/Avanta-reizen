@@ -230,10 +230,15 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.equal(row.draft, null);
     assert.match(row.excerpt, /^Onvergetelijk <script> Oude tekst over Zweden \.\.\.$/, 'lege samenvatting wordt het begin van de tekst');
     assert.equal(new Date(row.published_at).toISOString(), '2025-08-01T10:00:00.000Z');
+    // Opnieuw publiceren zonder de datum aan te raken houdt het exacte tijdstip (met seconden).
+    await db.query("UPDATE posts SET published_at = '2025-08-01T10:00:37Z' WHERE id = $1", [imported.id]);
+    assert.equal((await send(`${postUrl}gegevens/`, { title: 'Kamp in Zweden 2025', intro: 'Nieuwe inleiding', post_date: '2025-08-01T12:00' })).status, 303);
+    assert.equal((await send(`${postUrl}publiceren/`, {})).status, 303);
+    assert.equal(new Date((await db.query('SELECT published_at FROM posts WHERE id = $1', [imported.id]))[0].published_at).toISOString(), '2025-08-01T10:00:37.000Z');
     const revisions = await db.query('SELECT version, note, title FROM post_revisions WHERE post_id = $1 ORDER BY version', [imported.id]);
-    assert.deepEqual(revisions.map((revision) => [revision.version, revision.note, revision.title]), [[1, 'Stand uit de import', 'Kamp in Zweden'], [2, '', 'Kamp in Zweden 2025']]);
+    assert.deepEqual(revisions.map((revision) => [revision.version, revision.note, revision.title]), [[1, 'Stand uit de import', 'Kamp in Zweden'], [2, '', 'Kamp in Zweden 2025'], [3, '', 'Kamp in Zweden 2025']]);
     assert.match((await request('/blog/')).text, /Onvergetelijk &lt;script&gt; Oude tekst/, 'samenvatting in de lijst');
-    assert.equal(await audits('blog.gepubliceerd'), 1);
+    assert.equal(await audits('blog.gepubliceerd'), 2);
     assert.ok(await audits('blog.concept') >= 4);
 
     // Versie 1 terugzetten en weggooien.

@@ -285,10 +285,12 @@ function createPosts(options) {
     const plain = blocksText(state.blocks).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const excerpt = state.excerpt || postSummary(plain).slice(0, POST_LIMITS.excerpt);
     const blocks = JSON.stringify(state.blocks);
-    // De datum uit het formulier is een tijd in Nederland; zonder datum de bestaande, anders nu.
+    // De datum uit het formulier is een tijd in Nederland (op de minuut); zonder datum, of dezelfde minuut als nu
+    // gepubliceerd, blijft het bestaande tijdstip exact staan (seconden en het dubbele uur bij de wintertijd); anders nu.
+    const changedDate = state.postDate && state.postDate !== toLocalDateTime(post.published_at) ? state.postDate : null;
     const [{ post_date: postDate }] = await client.query(
       "SELECT coalesce(($1::text)::timestamp AT TIME ZONE 'Europe/Amsterdam', $2::timestamptz, now()) AS post_date",
-      [state.postDate || null, post.published_at],
+      [changedDate, post.published_at],
     );
     await client.query(
       `INSERT INTO post_revisions (post_id, version, title, intro, excerpt, image_url, blocks, seo_title, seo_description, post_date, published_by)
