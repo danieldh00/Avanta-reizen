@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.23.1 — 2026-11-21 — Mijn reizen en Mijn gegevens in het reizigersaccount
+
+- In je account onder /account/ zie je je komende en eerdere reizen met status en betaalstand. Onder Mijn gegevens download je je gegevens als Excel en wijzig je je wachtwoord; daarvoor vragen we eerst een code per e-mail.
+
+- `account/my-trips.js`: Mijn reizen (aanmeldingen op het bevestigde e-mailadres, komend/eerder, link naar de reis als die online staat) en Mijn gegevens (alleen accountgegevens: naam, adres en telefoon uit aanmeldingen niet, omdat het aanmeldformulier het e-mailadres niet bevestigt; nooit bijzondere gegevens).
+- Code per e-mail (`customer_tokens` met soort `code`: zes cijfers, 10 minuten, 5 pogingen, 3 per uur) zet `customer_sessions.step_up_until` op een kwartier; vereist voor `/account/gegevens/export.xlsx` en `/account/wachtwoord/`.
+- `export/xlsx.js`: .xlsx-schrijver zonder extra pakket (inline strings, getallen, vette kop, formule-injectie onschadelijk).
+- Auditacties `reiziger.code-*`, `reiziger.export`, `reiziger.wachtwoord-gewijzigd`.
+
 ## 0.23.0 — 2026-11-21 — Reizigersaccount: registreren, bevestigen, inloggen en wachtwoord herstellen
 
 - Reizigers kunnen op de website een account aanmaken onder /account/: registreren met e-mailadres en wachtwoord, bevestigen via de mail, inloggen en een vergeten wachtwoord opnieuw instellen. In een volgende versie zie je daar je komende en eerdere reizen.
