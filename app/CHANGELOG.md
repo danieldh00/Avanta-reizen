@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.26.2 — 2026-11-21 — Betaalherinneringen aan de reiziger
+
+- Op de betaalpagina van een aanmelding stuur je met één knop een herinnering met het openstaande bedrag en de
+
+- Migratie 27: `payment_reminders` (termijn, handmatig/automatisch, gelukt of foutmelding zonder adres, wie, wanneer).
+- `crm/payment-reminders.js`: herinnering voor de aanbetaling of het restant (te laat of de eerstvolgende), adres van
+  de persoon of anders van het formulier, poging eerst vastgelegd onder slot van de aanmelding; dagelijkse ronde met
+  `paymentReminderAuto` (standaard uit), `paymentReminderEveryDays` en `paymentReminderMax`.
+- Betaalpagina: knop *Herinnering sturen* en lijst met herinneringen; geen mailserver 503, dubbel 409, geannuleerd of
+  niets open 422, mislukt 502; audit `betaling.herinnering`; limiet 30 per medewerker per 10 minuten.
+- Betaaloverzicht en Excel-export: kolom *Laatste herinnering*.
+
 ## 0.26.1 — 2026-11-21 — Overzicht openstaande betalingen met Excel-export
 
 - Onder Reizigers > Betalingen zie je in één lijst wie nog moet betalen, wie te laat is en waar te veel is betaald,
