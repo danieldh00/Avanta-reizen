@@ -109,7 +109,7 @@ function createPageRoutes(options) {
    * Het uitgelichte blogbericht uit `site-content.json` (voor het blogblok van de homepage in het voorbeeld).
    * @returns {string} Slug, of leeg.
    */
-  const featuredSlug = () => siteContent.load().featuredPost || '';
+  const featuredSlug = async () => (await content.blogHighlights(siteContent.load())).featuredSlug || '';
 
   /**
    * 404-pagina binnen het CRM.
@@ -377,7 +377,7 @@ function createPageRoutes(options) {
       if (!page) return undefined;
       const current = editableState(page);
       const isHomepage = page.path === '/';
-      const article = await renderPageArticle({ title: current.title, path: page.path, intro: current.intro, blocks: current.blocks }, content, null, { featuredSlug: featuredSlug() });
+      const article = await renderPageArticle({ title: current.title, path: page.path, intro: current.intro, blocks: current.blocks }, content, null, { featuredSlug: await featuredSlug() });
       if (article.hasVideo) res.set('Content-Security-Policy', addCspSources(res.get('Content-Security-Policy'), { 'frame-src': [YOUTUBE_ORIGIN] }));
       const bar = html`<div class="cms-preview-bar" role="status">Voorbeeld van ${page.draft ? 'het concept' : 'de gepubliceerde pagina'}, niet zichtbaar voor bezoekers. <a href="${BASE}${page.id}/">Terug naar bewerken</a></div>`;
       return res.send(renderPage({

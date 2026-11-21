@@ -19,6 +19,11 @@ const { COOKIE_NAME } = require('../src/crm/auth');
 const { newBlock, validateBlockForm } = require('../src/cms/blocks');
 const { validatePostFields, blocksText, isLocalDateTime, toLocalDateTime, fromLocalDateTime, editablePostState, postStatus } = require('../src/cms/posts');
 const { store } = require('../tools/import-wordpress');
+const { normalizeSiteContent } = require('../src/site/site-content');
+const { validateTermFields } = require('../src/cms/post-terms');
+const { MIGRATIONS } = require('../src/database/migrations');
+const { createContent } = require('../src/site/content');
+const { sitemapUrls } = require('../src/site/seo');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'cms_blog_test';
@@ -82,7 +87,8 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'avanta-blog-'));
   const mediaDir = path.join(dataDir, 'media');
   await fs.mkdir(mediaDir);
-  const app = createApp({ db, masterKey: MASTER_KEY, mediaDir });
+  const siteContent = { load: () => normalizeSiteContent({ blogTags: [{ slug: 'jongeren', name: 'Jongeren', image: '/media/tag-jongeren.jpg', posts: ['kamp-in-zweden'] }], featuredPost: 'kamp-in-zweden' }) };
+  const app = createApp({ db, masterKey: MASTER_KEY, mediaDir, siteContent });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
@@ -144,6 +150,16 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     return request(url, { cookie: session.cookie, form: { _csrf: session.csrf, versie: String(await version(options.id)), ...form } });
   };
   const draftBlocks = async (id = imported.id) => ((await db.query("SELECT draft -> 'blocks' AS blocks FROM posts WHERE id = $1", [id]))[0].blocks || []);
+
+  await t.test('migratie 20: categorieën uit de import worden categorieën met koppelingen', async () => {
+    const [old] = await db.query("INSERT INTO posts (slug, title, categories, published_at) VALUES ('oude-categorieen', 'Oud', $1, now()) RETURNING id", [['Jongerenreizen', 'Café & Kerk', ' ']]);
+    await db.query('DROP TABLE post_term_links; DROP TABLE post_terms; DROP INDEX posts_featured_idx; ALTER TABLE posts DROP COLUMN featured; DELETE FROM schema_migrations WHERE id = 20');
+    assert.deepEqual(await db.migrate(), [20]);
+    const rows = await db.query('SELECT t.kind, t.slug, t.name FROM post_terms t JOIN post_term_links l ON l.term_id = t.id WHERE l.post_id = $1 ORDER BY t.slug', [old.id]);
+    assert.deepEqual(rows.map((row) => [row.kind, row.slug, row.name]), [['categorie', 'cafe-kerk', 'Café & Kerk'], ['categorie', 'jongerenreizen', 'Jongerenreizen']]);
+    assert.equal(MIGRATIONS[MIGRATIONS.length - 1].id, 20);
+    await db.query('DELETE FROM posts WHERE id = $1', [old.id]);
+  });
 
   await t.test('rechten: zonder sessie naar inloggen, reisleider en boekhouding 403, redacteur en kantoor wel; menu', async () => {
     assert.equal((await request('/app/blog/')).status, 303);
@@ -313,6 +329,8 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.equal((await db.query('SELECT count(*)::int AS count FROM posts WHERE id = $1', [id]))[0].count, 0);
     assert.equal((await db.query('SELECT count(*)::int AS count FROM post_revisions WHERE post_id = $1', [id]))[0].count, 0);
     assert.equal(await audits('blog.verwijderd'), 1);
+    assert.equal((await db.query("SELECT count(*)::int AS count FROM redirects WHERE to_url = '/winterkamp-noorwegen/'"))[0].count, 0, 'doorverwijzing naar het verwijderde bericht vervalt');
+    assert.equal((await request('/winterkamp-in-noorwegen/')).status, 404);
     assert.equal((await send(`${postUrl}online/`, { stand: 'offline' })).status, 303);
     assert.equal((await send(`${postUrl}verwijderen/`, { zeker: 'ja' })).status, 422, 'bericht uit de import blijft');
     assert.equal((await send(`${postUrl}online/`, { stand: 'online' })).status, 303);
@@ -326,6 +344,83 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.equal((await send(`/app/blog/${plain.id}/adres/`, { slug: 'met-nieuw-adres' }, { id: plain.id })).status, 303);
     assert.equal((await db.query('SELECT managed_in_crm FROM posts WHERE id = $1', [plain.id]))[0].managed_in_crm, true);
     assert.match((await request('/blog/')).text, /Tekst uit WordPress over kano/);
+  });
+
+  await t.test('categorieën en tags: beheren, koppelen, uitgelicht, pagina\'s op de site en tags overnemen', async () => {
+    const termsUrl = '/app/blog/categorieen-en-tags/';
+    for (const session of [leider, boekhouding]) {
+      assert.equal((await request(termsUrl, { cookie: session.cookie })).status, 403);
+      assert.equal((await request(`${termsUrl}nieuw/`, { cookie: session.cookie, form: { _csrf: session.csrf, kind: 'tag', name: 'X' } })).status, 403);
+      assert.equal((await request(`${postUrl}indeling/`, { cookie: session.cookie, form: { _csrf: session.csrf } })).status, 403);
+    }
+    assert.equal((await request(`${termsUrl}nieuw/`, { cookie: redactie.cookie, form: { _csrf: 'fout', kind: 'tag', name: 'X' } })).status, 403);
+    assert.equal((await request(`${termsUrl}999999/`, { cookie: redactie.cookie })).status, 404);
+
+    // Voor het overnemen: de site toont de tag uit site-content.json.
+    let tagPage = await request('/tag/jongeren/');
+    assert.equal(tagPage.status, 200);
+    assert.match(tagPage.text, /Kamp in Zweden/);
+    const list = await request(termsUrl, { cookie: redactie.cookie });
+    assert.match(list.text, /Tags van de huidige site overnemen/);
+    assert.equal((await request(`${termsUrl}overnemen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).headers.get('location'), `${termsUrl}?melding=4`);
+    assert.equal((await request(`${termsUrl}overnemen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).headers.get('location'), `${termsUrl}?melding=5`, 'tweede keer niets');
+    const [tag] = await db.query("SELECT id, image_url FROM post_terms WHERE kind = 'tag' AND slug = 'jongeren'");
+    assert.equal(tag.image_url, '/media/tag-jongeren.jpg');
+    assert.equal((await db.query('SELECT featured FROM posts WHERE id = $1', [imported.id]))[0].featured, true, 'uitgelicht overgenomen');
+    tagPage = await request('/tag/jongeren/');
+    assert.match(tagPage.text, /Kamp in Zweden/);
+
+    // Categorie maken (adres uit de naam), dubbel adres geweigerd, ongeldige velden.
+    const created = await request(`${termsUrl}nieuw/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, kind: 'categorie', name: 'Reisverslagen', intro: 'Verhalen van onderweg' } });
+    assert.equal(created.status, 303);
+    assert.equal((await request(`${termsUrl}nieuw/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, kind: 'categorie', name: 'Reisverslagen' } })).status, 422);
+    assert.equal((await request(`${termsUrl}nieuw/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, kind: 'categorie', name: '' } })).status, 422);
+    const [category] = await db.query("SELECT id FROM post_terms WHERE kind = 'categorie' AND slug = 'reisverslagen'");
+    assert.equal((await request('/category/reisverslagen/')).status, 200);
+    assert.equal((await request('/category/bestaat-niet/')).status, 301);
+
+    // Bericht koppelen en uitgelicht weghalen; onbekende id's worden genegeerd, onzin geweigerd.
+    assert.equal((await request(`${postUrl}indeling/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, term: 'x' } })).status, 422);
+    const linked = await request(`${postUrl}indeling/`, { cookie: redactie.cookie, form: new URLSearchParams([['_csrf', redactie.csrf], ['term', String(category.id)], ['term', '999999']]) });
+    assert.equal(linked.status, 303);
+    assert.deepEqual((await db.query('SELECT term_id FROM post_term_links WHERE post_id = $1', [imported.id])).map((row) => row.term_id), [category.id], 'tag weg, categorie erbij');
+    assert.equal((await db.query('SELECT featured FROM posts WHERE id = $1', [imported.id]))[0].featured, false);
+    const categoryPage = await request('/category/reisverslagen/');
+    assert.match(categoryPage.text, /Verhalen van onderweg/);
+    assert.match(categoryPage.text, /Kamp in Zweden/);
+    const entries = await createContent(db).sitemapEntries();
+    assert.deepEqual(entries.postTerms.map((term) => [term.kind, term.slug]), [['categorie', 'reisverslagen']], 'alleen met een zichtbaar bericht');
+    assert.ok(sitemapUrls(entries).some((url) => url.path === '/category/reisverslagen/'));
+    assert.doesNotMatch((await request('/tag/jongeren/')).text, /Kamp in Zweden/);
+    assert.match((await request('/blog/')).text, /href="\/tag\/jongeren\/"/, 'tagbalk uit de database');
+
+    // Uitgelicht: hoogstens één bericht.
+    const [other] = await db.query("SELECT id FROM posts WHERE slug = 'met-nieuw-adres'");
+    const [{ published: otherPublished }] = await db.query('UPDATE posts SET published = false WHERE id = $1 RETURNING (SELECT published FROM posts WHERE id = $1)', [other.id]);
+    const offlineFeatured = await request(`/app/blog/${other.id}/indeling/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, uitgelicht: 'ja' } });
+    assert.equal(offlineFeatured.status, 422, 'offline bericht niet uitlichten');
+    assert.match(offlineFeatured.text, /Alleen een gepubliceerd bericht/);
+    await db.query('UPDATE posts SET published = $2 WHERE id = $1', [other.id, otherPublished]);
+    await request(`/app/blog/${other.id}/indeling/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, uitgelicht: 'ja' } });
+    await request(`${postUrl}indeling/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, uitgelicht: 'ja', term: String(category.id) } });
+    assert.deepEqual((await db.query('SELECT id FROM posts WHERE featured')).map((row) => row.id), [imported.id]);
+    assert.equal((await request(`${postUrl}online/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, stand: 'offline' } })).status, 303);
+    assert.equal((await db.query('SELECT featured FROM posts WHERE id = $1', [imported.id]))[0].featured, false, 'offline is niet meer uitgelicht');
+    assert.equal((await request(`${postUrl}online/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, stand: 'online' } })).status, 303);
+    assert.equal((await db.query('SELECT featured FROM posts WHERE id = $1', [imported.id]))[0].featured, false, 'weer online blijft gewoon');
+
+    // Adres wijzigen geeft een 301; verwijderen laat het bericht staan.
+    assert.equal((await request(`${termsUrl}${category.id}/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, name: 'Reisverslagen', slug: 'verslagen', sort_order: 'x' } })).status, 422);
+    assert.equal((await request(`${termsUrl}${category.id}/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, name: 'Reisverslagen', slug: 'verslagen' } })).headers.get('location'), `${termsUrl}?melding=3#categorie`);
+    const moved = await request('/category/reisverslagen/');
+    assert.equal(moved.status, 301);
+    assert.equal(moved.headers.get('location'), '/category/verslagen/');
+    assert.equal((await request(`${termsUrl}${category.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 422, 'vinkje nodig');
+    assert.equal((await request(`${termsUrl}${category.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, zeker: 'ja' } })).status, 303);
+    assert.equal((await db.query('SELECT count(*)::int AS count FROM post_term_links WHERE term_id = $1', [category.id]))[0].count, 0);
+    assert.equal((await db.query('SELECT count(*)::int AS count FROM posts WHERE id = $1', [imported.id]))[0].count, 1);
+    for (const action of ['blog-indeling.nieuw', 'blog-indeling.gewijzigd', 'blog-indeling.verwijderd', 'blog-indeling.overgenomen', 'blog.indeling']) assert.ok(await audits(action) >= 1, action);
+    assert.deepEqual(validateTermFields({ name: ' Café ', sort_order: '-3' }).values, { name: 'Café', slug: 'cafe', intro: '', sortOrder: -3 });
   });
 
   await t.test('de WordPress-import laat een bericht uit het CRM staan', async () => {

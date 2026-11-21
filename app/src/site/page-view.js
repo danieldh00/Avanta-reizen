@@ -154,10 +154,10 @@ function blogArchive(blog) {
   return html`<div class="layout-container blog-archive">
     ${introduction(blog.introduction)}
     ${tagBar(blog.tags, blog.archiveLink)}
-    ${list.length ? html`<div class="grid">
-      <div class="grid__item"><div class="list archive archive--post"><div class="list__item">
+    ${list.length || featured ? html`<div class="grid">
+      ${list.length ? html`<div class="grid__item"><div class="list archive archive--post"><div class="list__item">
         ${list.map((post) => html`<div class="post-wrapper">${teaser(post)}</div>`)}
-      </div></div></div>
+      </div></div></div>` : ''}
       ${featured ? html`<div class="grid__item"><div class="post-wrapper featured-post">${teaser(featured)}</div></div>` : ''}
     </div>` : html`<div class="alert">Er zijn nog geen berichten.</div>`}
     ${rest.length ? html`<div class="grid archive archive--post">

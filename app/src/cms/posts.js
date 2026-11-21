@@ -26,7 +26,7 @@ const LOCAL_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 /** Kolommen van een bericht (nooit `SELECT *`). */
 const POST_COLUMNS = `p.id, p.slug, p.title, p.intro, p.excerpt, p.image_url, p.blocks, p.body_html, p.published, p.published_at,
   (p.published AND p.published_at > now()) AS scheduled, p.draft, p.draft_version, p.managed_in_crm, p.created_at, p.updated_at,
-  p.legacy_id, p.seo_title, p.seo_description`;
+  p.legacy_id, p.seo_title, p.seo_description, p.featured`;
 
 /**
  * Of een tekst een geldige datum en tijd uit het formulier is (bestaande dag, jaar 2000–2099).
@@ -458,14 +458,15 @@ function createPosts(options) {
     );
     if (!post) return { status: 'weg' };
     if (online && !post.has_revisions && post.legacy_id === null) return { status: 'nooit-gepubliceerd' };
-    await client.query('UPDATE posts SET published = $2, updated_at = now(), updated_by = $3 WHERE id = $1', [post.id, online, context.userId]);
+    // Offline is ook niet meer uitgelicht: anders blijft het vinkje aan terwijl de site stil niets uitlicht.
+    await client.query('UPDATE posts SET published = $2, featured = featured AND $2, updated_at = now(), updated_by = $3 WHERE id = $1', [post.id, online, context.userId]);
     await context.audit(client);
     return { status: 'ok' };
   });
 
   /**
    * Verwijdert een bericht dat offline staat en niet uit de import komt (dat zou bij een nieuwe import terugkomen; zet
-   * het offline) en niet in een menu staat. Versies gaan mee (ON DELETE CASCADE).
+   * het offline) en niet in een menu staat. Versies gaan mee, doorverwijzingen naar het bericht vervallen (ON DELETE CASCADE).
    * @param {(number|string)} id Id.
    * @param {{audit: Function}} context Audit.
    * @returns {Promise<{status: ('ok'|'weg'|'online'|'import'|'in-menu')}>} Uitkomst (`in-menu`: een menu-item wijst nog
@@ -487,6 +488,8 @@ function createPosts(options) {
     );
     if (menuItem) return { status: 'in-menu' };
     await client.query('DELETE FROM posts WHERE id = $1', [post.id]);
+    // Doorverwijzingen naar het verwijderde adres (van eerdere adreswijzigingen) zouden op een 404 uitkomen.
+    await client.query('DELETE FROM redirects WHERE to_url = $1', [`/${post.slug}/`]);
     await context.audit(client);
     return { status: 'ok' };
   });

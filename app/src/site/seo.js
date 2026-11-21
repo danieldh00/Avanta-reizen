@@ -248,7 +248,7 @@ function escapeXml(value) {
 
 /**
  * Zet de inhoud van de site om naar sitemap-regels (pad en eventueel wijzigingsdatum).
- * @param {{trips: object[], categories: object[], guides: object[], posts: object[], pages: object[]}} entries Rijen uit `sitemapEntries`.
+ * @param {{trips: object[], categories: object[], guides: object[], posts: object[], pages: object[], postTerms?: object[]}} entries Rijen uit `sitemapEntries`.
  * @returns {Array<{path: string, lastmod?: string}>} Regels, zonder dubbele paden.
  */
 function sitemapUrls(entries) {
@@ -260,6 +260,7 @@ function sitemapUrls(entries) {
     ...entries.guides.map((guide) => ({ path: guidePath(guide.slug) })),
     ...entries.posts.map((post) => ({ path: postPath(post.slug), lastmod: isoTimestamp(post.published_at) })),
     ...entries.pages.map((page) => ({ path: encodePagePath(page.path) })),
+    ...(entries.postTerms || []).map((term) => ({ path: `${term.kind === 'tag' ? '/tag/' : '/category/'}${term.slug}/` })),
   ];
   const seen = new Set();
   return urls.filter((url) => (seen.has(url.path) ? false : seen.add(url.path)));
