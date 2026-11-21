@@ -76,6 +76,7 @@ function createMenus(options) {
   const { db } = options;
   let menus = null;
   let loading = null;
+  let reloadCounter = 0;
 
   /**
    * Alle items op menu, ouder en volgorde.
@@ -88,11 +89,15 @@ function createMenus(options) {
   );
 
   /**
-   * Leest de menu's opnieuw in het geheugen.
+   * Leest de menu's opnieuw in het geheugen (alleen de nieuwste aanroep schrijft het resultaat weg).
    * @returns {Promise<void>}
    */
   const reload = async () => {
-    menus = buildMenus(await list());
+    // Volgnummer: bij twee gelijktijdige herlaadacties wint de laatst gestarte, ook als een oudere later klaar is.
+    reloadCounter += 1;
+    const ticket = reloadCounter;
+    const rows = await list();
+    if (ticket === reloadCounter) menus = buildMenus(rows);
   };
 
   /**
@@ -120,7 +125,8 @@ function createMenus(options) {
    */
   const checkPlacement = async (client, values, selfId) => {
     const rows = await client.query('SELECT id, parent_id FROM menu_items WHERE menu = $1 ORDER BY id FOR UPDATE', [values.menu]);
-    if (selfId === null && rows.length >= MAX_ITEMS) return { label: `Een menu heeft hoogstens ${MAX_ITEMS} items.` };
+    // Tel de andere items van dit menu: zo telt ook een item dat uit een ander menu hierheen verhuist mee.
+    if (rows.filter((row) => row.id !== selfId).length >= MAX_ITEMS) return { label: `Een menu heeft hoogstens ${MAX_ITEMS} items.` };
     if (values.parentId === null) return null;
     const parent = rows.find((row) => row.id === values.parentId);
     if (!parent || parent.parent_id !== null || parent.id === selfId) return { parent_id: 'Kies een hoofditem uit het hoofdmenu.' };

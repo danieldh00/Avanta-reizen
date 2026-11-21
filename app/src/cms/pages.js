@@ -400,7 +400,12 @@ function createPages(options) {
       const target = built.path + row.path.slice(page.path.length);
       await client.query('UPDATE pages SET path = $2, managed_in_crm = true, updated_at = now(), updated_by = $3 WHERE id = $1', [row.id, target, context.userId]);
       await recordMove(client, { fromPath: row.path, toPath: target, userId: context.userId, note: 'Pagina verplaatst' });
-      await client.query('UPDATE menu_items SET href = $2, updated_at = now() WHERE href = $1', [row.path, target]);
+      await client.query(
+        `UPDATE menu_items SET href = $2 || substr(href, length($1) + 1), updated_at = now()
+          WHERE href = $1 OR left(href, length($1) + 1) IN ($1 || '#', $1 || '?')`,
+        [row.path, target],
+      );
+      await client.query('UPDATE menu_items SET href = $2, updated_at = now() WHERE href = rtrim($1, \'/\')', [row.path, target]);
     }
     await context.audit(client);
     return { status: 'ok', path: built.path };
@@ -430,10 +435,11 @@ function createPages(options) {
 
   /**
    * Verwijdert een pagina die offline staat, niet uit de import komt (die zou bij een nieuwe import terugkomen; zet hem
-   * offline) en geen pagina's onder zich heeft. Versies gaan mee (ON DELETE CASCADE).
+   * offline), geen pagina's onder zich heeft en niet in een menu staat. Versies gaan mee (ON DELETE CASCADE).
    * @param {(number|string)} id Id.
    * @param {{audit: Function}} context Audit.
-   * @returns {Promise<{status: ('ok'|'weg'|'online'|'import'|'onderliggend')}>} Uitkomst.
+   * @returns {Promise<{status: ('ok'|'weg'|'online'|'import'|'onderliggend'|'in-menu')}>} Uitkomst (`in-menu`: een menu-item wijst
+   *   nog naar de pagina).
    */
   const remove = (id, context) => db.transaction(async (client) => {
     if (!/^\d{1,9}$/.test(String(id))) return { status: 'weg' };
@@ -443,6 +449,11 @@ function createPages(options) {
     if (page.legacy_id !== null) return { status: 'import' };
     const [child] = await client.query('SELECT id FROM pages WHERE left(path, length($1)) = $1 AND id <> $2 LIMIT 1', [page.path, page.id]);
     if (child) return { status: 'onderliggend' };
+    const [menuItem] = await client.query(
+      `SELECT id FROM menu_items WHERE href = $1 OR href = rtrim($1, '/') OR left(href, length($1) + 1) IN ($1 || '#', $1 || '?') LIMIT 1`,
+      [page.path],
+    );
+    if (menuItem) return { status: 'in-menu' };
     await client.query('DELETE FROM pages WHERE id = $1', [page.id]);
     await context.audit(client);
     return { status: 'ok' };

@@ -847,6 +847,7 @@ function createPageRoutes(options) {
         online: 'Haal de pagina eerst offline.',
         import: 'Een pagina van de oude site kun je alleen offline halen.',
         onderliggend: 'Er staan nog pagina\'s onder deze pagina; verplaats of verwijder die eerst.',
+        'in-menu': 'Deze pagina staat nog in een menu; haal hem eerst uit het menu (Menu\'s).',
       };
       if (messages[outcome.status]) return await finish(req, res, { status: 'fout', message: messages[outcome.status] }, { notice: 1 });
       if (outcome.status === 'weg') return notFound(req, res);
