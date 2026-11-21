@@ -48,11 +48,11 @@ test('zijbalk: rollen zien alleen hun eigen modules', () => {
   for (const hidden of ['/app/aanmeldingen/', '/app/deelnemers/', '/app/gebruikers/', '/app/beheer/']) assert.doesNotMatch(editor, new RegExp(`href="${hidden}`), hidden);
   assert.doesNotMatch(editor, /crm-nav-search/, 'zoeken in Beheer alleen met recht systeem');
   assert.doesNotMatch(editor, /crm-nav-divider/);
-  // Reisleider: aanmeldingen en deelnemers zijn dicht tot eigen vertrekken bestaan (TRIP_SCOPED_ROLES).
+  // Reisleider: aanmeldingen en deelnemers dicht (TRIP_SCOPED_ROLES); deelnemerslijsten alleen van eigen vertrekken.
   const guide = pageFor('reisleider');
   assert.doesNotMatch(guide, /href="\/app\/aanmeldingen\/"/);
   assert.doesNotMatch(guide, /href="\/app\/deelnemers\/"/);
-  assert.doesNotMatch(guide, /data-group="reizigers"/, 'lege groep verdwijnt');
+  assert.match(guide, /href="\/app\/deelnemerslijsten\/"/, 'deelnemerslijsten van de eigen vertrekken');
   const office = pageFor('kantoor');
   assert.match(office, /href="\/app\/aanmeldingen\/"/);
   assert.doesNotMatch(office, /href="\/app\/beheer\//);

@@ -80,6 +80,12 @@ const BASE_COLUMNS = [
   { label: 'Betaalkeuze', value: (row) => optionLabel('payment_choice', row.payment_choice) },
 ];
 
+/** Kolommen van de beperkte lijst voor de reisleider (`docs/OPZET-CRM.md` §4: naam, mobiel en e-mail). */
+const LIMITED_LABELS = ['Nr.', 'Achternaam', 'Roepnaam', 'Voornamen', 'Mobiel', 'E-mailadres'];
+
+/** Dagen vóór vertrek waarop de reisleider bijzondere en identiteitsgegevens mag exporteren. */
+const GUIDE_WINDOW_DAYS = 14;
+
 /**
  * De kolommen per categorie met bijzondere of identiteitsgegevens: blok en veld in dat blok.
  * @type {Record<string, Array<{label: string, block: string, field: string, date?: boolean, options?: boolean}>>}
@@ -147,16 +153,17 @@ function consentAllows(row, block) {
 /**
  * Bouwt de werkmap: blad *Deelnemers* met de gekozen kolommen en blad *Over deze lijst* met reis, moment, maker en
  * de opgenomen categorieën.
- * @param {{trip: object, rows: object[], categories: string[], openBlock: Function, userName: string, now?: Date}} input
+ * @param {{trip: object, rows: object[], categories: string[], openBlock: Function, userName: string, limited?: boolean, now?: Date}} input
  *   De reis, de rijen, de gekozen categorieën (sleutels van CATEGORIES, al op rechten gecontroleerd), de functie
- *   `persons.openBlock`, de naam van de maker en (voor tests) het moment.
+ *   `persons.openBlock`, de naam van de maker, of het de beperkte lijst van de reisleider is en (voor tests) het moment.
  * @returns {Buffer} Het .xlsx-bestand.
  */
 function buildParticipantWorkbook(input) {
   const { trip, rows, categories, openBlock, userName } = input;
   const now = input.now || new Date();
+  const baseColumns = input.limited ? BASE_COLUMNS.filter((column) => LIMITED_LABELS.includes(column.label)) : BASE_COLUMNS;
   const extra = categories.flatMap((category) => CATEGORY_COLUMNS[category]);
-  const header = [...BASE_COLUMNS.map((column) => column.label), ...extra.map((column) => column.label)];
+  const header = [...baseColumns.map((column) => column.label), ...extra.map((column) => column.label)];
   const body = rows.map((row) => {
     const opened = {};
     /**
@@ -185,7 +192,7 @@ function buildParticipantWorkbook(input) {
       if (column.date) return formatDate(value) || value;
       return column.options ? optionLabel(column.field, value) : value;
     });
-    return [...BASE_COLUMNS.map((column) => column.value(row)), ...cells];
+    return [...baseColumns.map((column) => column.value(row)), ...cells];
   });
   const made = now.toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const about = [
@@ -196,6 +203,7 @@ function buildParticipantWorkbook(input) {
     ['Aantal deelnemers', rows.length],
     ['Gemaakt op', made],
     ['Gemaakt door', userName],
+    ['Soort lijst', input.limited ? 'Reisleider (naam, mobiel en e-mail)' : 'Volledig'],
     ['Bijzondere gegevens', categories.length ? categories.map((category) => CATEGORIES[category].label).join('; ') : 'geen'],
     ['Let op', categories.length
       ? 'Vertrouwelijk: deze lijst bevat bijzondere of identiteitsgegevens. Niet doorsturen en na de reis verwijderen.'
@@ -218,4 +226,4 @@ function participantFileName(trip, now = new Date()) {
   return `deelnemerslijst-${base}-${day}.xlsx`;
 }
 
-module.exports = { CATEGORIES, CATEGORY_COLUMNS, BASE_COLUMNS, loadParticipants, buildParticipantWorkbook, participantFileName, consentAllows, NO_CONSENT, UNREADABLE };
+module.exports = { CATEGORIES, CATEGORY_COLUMNS, BASE_COLUMNS, LIMITED_LABELS, GUIDE_WINDOW_DAYS, loadParticipants, buildParticipantWorkbook, participantFileName, consentAllows, NO_CONSENT, UNREADABLE };

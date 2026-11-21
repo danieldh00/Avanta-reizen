@@ -6,7 +6,7 @@
  */
 const express = require('express');
 const { html, raw } = require('../site/html');
-const { ROLES, roleLabel } = require('./rights');
+const { ROLES, TRIP_SCOPED_ROLES, roleLabel } = require('./rights');
 const { hashPassword, passwordProblem, MAX_LENGTH } = require('./passwords');
 const { renderCrmPage, renderInput, renderAlert, formatDateTime } = require('./layout');
 const { PERSON_ACTION_LABELS } = require('./person-routes');
@@ -51,6 +51,7 @@ const ACTION_LABELS = {
   'gebruiker.aangemaakt': 'Gebruiker aangemaakt',
   'gebruiker.gewijzigd': 'Gebruiker gewijzigd',
   'gebruiker.rol': 'Rol gewijzigd',
+  'gebruiker.reisleidersprofiel': 'Reisleidersprofiel van een gebruiker gewijzigd',
   'gebruiker.uitgeschakeld': 'Gebruiker uitgeschakeld',
   'gebruiker.ingeschakeld': 'Gebruiker ingeschakeld',
   'doorverwijzing.aangemaakt': 'Doorverwijzing toegevoegd',
@@ -99,6 +100,8 @@ function createUserRoutes(options) {
       email: textField(body.email, 200),
       role: Object.hasOwn(ROLES, body.role) ? body.role : '',
       active: body.active === 'ja',
+      // Alleen een reisleider hangt aan een reisleidersprofiel (eigen vertrekken via trip_guides).
+      guide_id: TRIP_SCOPED_ROLES.includes(body.role) && /^\d{1,9}$/.test(String(body.guide_id || '')) ? Number(body.guide_id) : null,
     };
     const errors = {};
     if (!values.name) errors.name = 'Vul een naam in.';
@@ -129,13 +132,43 @@ function createUserRoutes(options) {
   </div>`;
 
   /**
+   * De reisleidersprofielen voor de keuzelijst.
+   * @returns {Promise<Array<{id: number, name: string}>>} Profielen op naam.
+   */
+  const loadGuides = () => db.query('SELECT id, name FROM guides ORDER BY lower(name), id');
+
+  /**
+   * Keuzelijst voor het reisleidersprofiel (alleen voor de rol reisleider van belang).
+   * @param {(number|null)} selected Gekozen profiel.
+   * @param {Array<{id: number, name: string}>} guides Profielen.
+   * @param {string} [error] Foutmelding.
+   * @returns {object} HTML.
+   */
+  const renderGuideSelect = (selected, guides, error) => html`<div class="field">
+    <span class="field__label"><label for="veld-guide">Reisleidersprofiel (alleen bij rol Reisleider)</label></span>
+    <select id="veld-guide" name="guide_id">
+      <option value="">Geen</option>
+      ${guides.map((guide) => html`<option value="${guide.id}"${guide.id === selected ? raw(' selected') : ''}>${guide.name}</option>`)}
+    </select>
+    <span class="field__help">De reisleider ziet alleen de deelnemerslijsten van vertrekken waar dit profiel aan hangt.</span>
+    ${error ? html`<span class="field__error">${error}</span>` : ''}
+  </div>`;
+
+  /**
+   * Of een gekozen reisleidersprofiel bestaat (leeg mag altijd).
+   * @param {(number|null)} guideId Gekozen profiel.
+   * @returns {Promise<boolean>} Waar als leeg of bestaand.
+   */
+  const guideExists = async (guideId) => guideId === null || (await db.query('SELECT 1 FROM guides WHERE id = $1', [guideId])).length > 0;
+
+  /**
    * Zoekt een gebruiker op id.
    * @param {string} id Id uit de URL (alleen cijfers, zie de route).
    * @returns {Promise<(object|null)>} Gebruiker, of null.
    */
   const findUser = async (id) => {
     const [user] = await db.query(
-      'SELECT id, email, name, role, active, last_login_at, (totp_enabled_at IS NOT NULL) AS mfa_enabled FROM users WHERE id = $1',
+      'SELECT id, email, name, role, active, guide_id, last_login_at, (totp_enabled_at IS NOT NULL) AS mfa_enabled FROM users WHERE id = $1',
       [Number(id)],
     );
     return user || null;
@@ -197,11 +230,12 @@ function createUserRoutes(options) {
    * Het formulier voor een nieuwe gebruiker.
    * @param {object} req Express-verzoek.
    * @param {{values?: object, errors?: object}} state Waarden en fouten.
-   * @returns {string} HTML-pagina.
+   * @returns {Promise<string>} HTML-pagina.
    */
-  const renderNewUser = (req, state = {}) => {
+  const renderNewUser = async (req, state = {}) => {
     const values = state.values || {};
     const errors = state.errors || {};
+    const guides = await loadGuides();
     return renderCrmPage({
       title: 'Nieuwe gebruiker',
       user: req.user,
@@ -213,6 +247,7 @@ function createUserRoutes(options) {
           ${renderInput({ name: 'name', label: 'Naam', value: values.name, error: errors.name, max: 100, autocomplete: 'off' })}
           ${renderInput({ name: 'email', label: 'E-mailadres', type: 'email', value: values.email, error: errors.email, max: 200, autocomplete: 'off' })}
           ${renderRoleSelect(values.role, errors.role)}
+          ${renderGuideSelect(values.guide_id ?? null, guides, errors.guide_id)}
           ${renderInput({ name: 'password', label: 'Startwachtwoord (minimaal 12 tekens)', type: 'password', error: errors.password, max: MAX_LENGTH, autocomplete: 'new-password' })}
           <p class="field__help">Geef het startwachtwoord persoonlijk door; de gebruiker kan het daarna zelf wijzigen.</p>
           <div><button class="btn" type="submit">Gebruiker aanmaken</button> <a href="/app/gebruikers/">Annuleren</a></div>
@@ -221,24 +256,32 @@ function createUserRoutes(options) {
     });
   };
 
-  router.get('/gebruikers/nieuw/', guard, (req, res) => res.send(renderNewUser(req)));
+  router.get('/gebruikers/nieuw/', guard, async (req, res, next) => {
+    try {
+      return res.send(await renderNewUser(req));
+    } catch (error) {
+      return next(error);
+    }
+  });
 
   router.post('/gebruikers/nieuw/', guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const { values, errors } = readUserForm(req.body, { withPassword: true });
-      if (Object.keys(errors).length) return res.status(422).send(renderNewUser(req, { values, errors }));
+      if (!(await guideExists(values.guide_id))) errors.guide_id = 'Dit reisleidersprofiel bestaat niet.';
+      if (Object.keys(errors).length) return res.status(422).send(await renderNewUser(req, { values, errors }));
       const passwordHash = await hashPassword(req.body.password);
       try {
         await db.transaction(async (client) => {
           const [user] = await client.query(
-            'INSERT INTO users (email, name, role, password_hash) VALUES ($1, $2, $3, $4) RETURNING id',
-            [values.email, values.name, values.role, passwordHash],
+            'INSERT INTO users (email, name, role, password_hash, guide_id) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            [values.email, values.name, values.role, passwordHash, values.guide_id],
           );
           await auth.audit(req, { userId: req.user.id, action: 'gebruiker.aangemaakt', entity: 'users', entityId: user.id }, client);
         });
       } catch (error) {
+        if (error.code === '23503') return res.status(422).send(await renderNewUser(req, { values, errors: { guide_id: 'Dit reisleidersprofiel bestaat niet.' } }));
         if (error.code !== '23505') throw error;
-        return res.status(422).send(renderNewUser(req, { values, errors: { email: 'Er is al een gebruiker met dit e-mailadres.' } }));
+        return res.status(422).send(await renderNewUser(req, { values, errors: { email: 'Er is al een gebruiker met dit e-mailadres.' } }));
       }
       return res.redirect(303, '/app/gebruikers/?opgeslagen=1');
     } catch (error) {
@@ -252,10 +295,11 @@ function createUserRoutes(options) {
    * @param {object} target De gebruiker.
    * @param {{values?: object, errors?: object, passwordErrors?: object, notice?: string, activationCode?: string, activationUntil?: (Date|null)}} state
  *   Waarden, fouten, melding, een zojuist gemaakte activatiecode (één keer tonen) en tot wanneer een bestaande code geldt.
-   * @returns {string} HTML-pagina.
+   * @returns {Promise<string>} HTML-pagina.
    */
-  const renderEditUser = (req, target, state = {}) => {
+  const renderEditUser = async (req, target, state = {}) => {
     const values = state.values || target;
+    const guides = await loadGuides();
     const errors = state.errors || {};
     const passwordErrors = state.passwordErrors || {};
     return renderCrmPage({
@@ -271,6 +315,7 @@ function createUserRoutes(options) {
           ${renderInput({ name: 'name', label: 'Naam', value: values.name, error: errors.name, max: 100, autocomplete: 'off' })}
           ${renderInput({ name: 'email', label: 'E-mailadres', type: 'email', value: values.email, error: errors.email, max: 200, autocomplete: 'off' })}
           ${renderRoleSelect(values.role, errors.role)}
+          ${renderGuideSelect(values.guide_id ?? null, guides, errors.guide_id)}
           <label class="choice"><input type="checkbox" name="active" value="ja"${values.active ? raw(' checked') : ''}> <span>Account actief (uitzetten logt de gebruiker overal uit)</span></label>
           <div><button class="btn" type="submit">Opslaan</button></div>
         </form>
@@ -312,7 +357,7 @@ function createUserRoutes(options) {
       let notice = '';
       if (req.query.wachtwoord === '1') notice = 'Het nieuwe wachtwoord is ingesteld.';
       else if (req.query.tweestaps === '1') notice = 'De tweestapsverificatie is uitgezet en de gebruiker is overal uitgelogd.';
-      return res.send(renderEditUser(req, target, { notice, activationUntil: target.mfa_enabled ? null : await twoFactor.activationUntil(target.id) }));
+      return res.send(await renderEditUser(req, target, { notice, activationUntil: target.mfa_enabled ? null : await twoFactor.activationUntil(target.id) }));
     } catch (error) {
       return next(error);
     }
@@ -323,21 +368,23 @@ function createUserRoutes(options) {
       const { values, errors } = readUserForm(req.body, { withPassword: false });
       const target = await findUser(req.params.id);
       if (!target) return notFound(req, res);
-      if (Object.keys(errors).length) return res.status(422).send(renderEditUser(req, target, { values, errors }));
+      if (!(await guideExists(values.guide_id))) errors.guide_id = 'Dit reisleidersprofiel bestaat niet.';
+      if (Object.keys(errors).length) return res.status(422).send(await renderEditUser(req, target, { values, errors }));
       let outcome;
       try {
         outcome = await db.transaction(async (client) => {
           // Slot zodat twee beheerders niet tegelijk de laatste beheerder kunnen weghalen.
           await client.query('SELECT pg_advisory_xact_lock(727003)');
-          const [current] = await client.query('SELECT id, role, active FROM users WHERE id = $1 FOR UPDATE', [target.id]);
+          const [current] = await client.query('SELECT id, role, active, guide_id FROM users WHERE id = $1 FOR UPDATE', [target.id]);
           if (!current) return 'weg';
           if (await removesLastAdmin(client, current, values)) return 'laatste-beheerder';
           await client.query(
-            'UPDATE users SET name = $2, email = $3, role = $4, active = $5, updated_at = now() WHERE id = $1',
-            [target.id, values.name, values.email, values.role, values.active],
+            'UPDATE users SET name = $2, email = $3, role = $4, active = $5, guide_id = $6, updated_at = now() WHERE id = $1',
+            [target.id, values.name, values.email, values.role, values.active, values.guide_id],
           );
           const actions = ['gebruiker.gewijzigd'];
           if (current.role !== values.role) actions.push('gebruiker.rol');
+          if (current.guide_id !== values.guide_id) actions.push('gebruiker.reisleidersprofiel');
           if (current.active !== values.active) actions.push(values.active ? 'gebruiker.ingeschakeld' : 'gebruiker.uitgeschakeld');
           if (!values.active || current.role !== values.role) {
             await auth.endSessionsOf(target.id, target.id === req.user.id ? req.session.tokenHash : '', client);
@@ -346,12 +393,13 @@ function createUserRoutes(options) {
           return 'ok';
         });
       } catch (error) {
+        if (error.code === '23503') return res.status(422).send(await renderEditUser(req, target, { values, errors: { guide_id: 'Dit reisleidersprofiel bestaat niet.' } }));
         if (error.code !== '23505') throw error;
-        return res.status(422).send(renderEditUser(req, target, { values, errors: { email: 'Er is al een gebruiker met dit e-mailadres.' } }));
+        return res.status(422).send(await renderEditUser(req, target, { values, errors: { email: 'Er is al een gebruiker met dit e-mailadres.' } }));
       }
       if (outcome === 'weg') return notFound(req, res);
       if (outcome === 'laatste-beheerder') {
-        return res.status(422).send(renderEditUser(req, target, { values, errors: { _form: 'Er moet minstens één actieve beheerder blijven. Maak eerst iemand anders beheerder.' } }));
+        return res.status(422).send(await renderEditUser(req, target, { values, errors: { _form: 'Er moet minstens één actieve beheerder blijven. Maak eerst iemand anders beheerder.' } }));
       }
       return res.redirect(303, '/app/gebruikers/?opgeslagen=1');
     } catch (error) {
@@ -364,7 +412,7 @@ function createUserRoutes(options) {
       const target = await findUser(req.params.id);
       if (!target) return notFound(req, res);
       const problem = passwordProblem(req.body.password, { email: target.email });
-      if (problem) return res.status(422).send(renderEditUser(req, target, { passwordErrors: { password: problem } }));
+      if (problem) return res.status(422).send(await renderEditUser(req, target, { passwordErrors: { password: problem } }));
       const passwordHash = await hashPassword(req.body.password);
       await db.transaction(async (client) => {
         await client.query('UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1', [target.id, passwordHash]);
@@ -403,7 +451,7 @@ function createUserRoutes(options) {
         await auth.audit(req, { userId: req.user.id, action: 'gebruiker.activatiecode', entity: 'users', entityId: target.id }, client);
         return created;
       });
-      return res.send(renderEditUser(req, target, { activationCode: code, activationUntil: await twoFactor.activationUntil(target.id) }));
+      return res.send(await renderEditUser(req, target, { activationCode: code, activationUntil: await twoFactor.activationUntil(target.id) }));
     } catch (error) {
       return next(error);
     }
