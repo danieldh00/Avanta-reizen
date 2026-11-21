@@ -13,7 +13,7 @@ const { createRateLimiter } = require('../security/rate-limit');
 const { roleHasRight } = require('./rights');
 const { PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS } = require('./persons');
 const { BLOCK_INFO } = require('./person-routes');
-const { anonymizePerson } = require('./retention');
+const { anonymizePerson, BOOKING_END_SQL } = require('./retention');
 const { renderCrmPage, renderAlert } = require('./layout');
 
 /** Hoogstens zoveel inzage-exports per gebruiker per tien minuten. */
@@ -236,11 +236,12 @@ function createPersonPrivacyRoutes(options) {
       const outcome = await db.transaction(async (client) => {
         const [locked] = await client.query('SELECT id, email FROM persons WHERE id = $1 AND anonymized_at IS NULL FOR UPDATE', [person.id]);
         if (!locked) return 'al-gewist';
+        // Zelfde einddatum als de opschoning (BOOKING_END_SQL; zonder vertrekdatum de dag van aanmelden).
         // Een reis die nog moet komen of loopt: kantoor kan de reiziger daarna niet meer bereiken, dus alleen bewust.
         const [active] = await client.query(
           `SELECT count(*)::int AS n FROM bookings b LEFT JOIN trips t ON t.id = b.trip_id
             WHERE b.person_id = $1 AND b.status <> 'geannuleerd'
-              AND coalesce(t.departure_date, b.departure_date) + (GREATEST(coalesce(t.duration_days, 1), 1) - 1) >= (now() AT TIME ZONE 'Europe/Amsterdam')::date`,
+              AND ${BOOKING_END_SQL} >= (now() AT TIME ZONE 'Europe/Amsterdam')::date`,
           [person.id],
         );
         if (active.n && req.body.lopend !== 'ja') return 'lopend';

@@ -167,6 +167,10 @@ test('AVG-verzoeken bij een deelnemer', { skip: !DATABASE_URL && 'TEST_DATABASE_
     assert.match(refused.text, /Typ WISSEN/);
     assert.equal((await db.query('SELECT anonymized_at FROM persons WHERE id = $1', [personId]))[0].anonymized_at, null);
 
+    // Zonder reis en vertrekdatum, vandaag aangemeld: telt als lopend (zelfde einddatum als de opschoning).
+    const undated = await request(wissen, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, bevestiging: 'WISSEN' } });
+    assert.equal(undated.status, 422);
+    assert.match(undated.text, /lopende of toekomstige aanmelding/);
     await db.query("UPDATE bookings SET departure_date = '2099-07-01' WHERE id = $1", [booking.id]);
     const upcoming = await request(wissen, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, bevestiging: 'WISSEN' } });
     assert.equal(upcoming.status, 422);

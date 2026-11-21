@@ -362,4 +362,4 @@ function createRetention(options) {
   return { run, preview, view, refresh, start };
 }
 
-module.exports = { createRetention, anonymizePerson, anonymizeBookings, ANONYMIZED_NAME, COUNT_LABELS, CANDIDATES };
+module.exports = { createRetention, anonymizePerson, anonymizeBookings, ANONYMIZED_NAME, COUNT_LABELS, CANDIDATES, BOOKING_END_SQL };
