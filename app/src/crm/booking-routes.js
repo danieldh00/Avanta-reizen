@@ -146,6 +146,7 @@ function createBookingRoutes(options) {
             <select id="veld-reis" name="reis"><option value="">Alle reizen</option>${trips.map((trip) => html`<option value="${trip.id}"${trip.id === tripId ? raw(' selected') : ''}>${trip.title}${trip.trip_code ? ` (${trip.trip_code})` : ''}</option>`)}</select>
             <button class="btn btn--small" type="submit">Zoeken</button>
           </form>
+          ${tripId && roleHasGlobalRight(req.user.role, 'export.deelnemers') ? html`<p><a href="/app/deelnemerslijsten/#reis-${tripId}">Deelnemerslijst van deze reis (.xlsx)</a></p>` : ''}
           ${list.length ? html`<div class="crm-table-wrap"><table class="crm-table">
             <thead><tr><th scope="col">Referentie</th><th scope="col">Naam</th><th scope="col">Reis</th><th scope="col">Vertrek</th><th scope="col">Status</th><th scope="col">Aangemeld</th></tr></thead>
             <tbody>${list.map((booking) => html`<tr>

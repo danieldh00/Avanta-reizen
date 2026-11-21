@@ -263,6 +263,12 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     (`nieuw → bevestigd → aanbetaald → betaald`, en `geannuleerd` met verplichte reden; daarna niet meer te wijzigen),
     notities en de historie (`booking_events`). Een formulier met een verouderde status geeft 409. Geen wachtlijst
     (komt later, met automatisch doorschuiven).
+  - **Deelnemerslijsten** op `/app/deelnemerslijsten/` (recht `export.deelnemers`; `app/src/crm/participant-list-routes.js`
+    en `participant-lists.js`): per vertrek een Excel-bestand (.xlsx, nooit CSV) met alle aanmeldingen die niet
+    geannuleerd zijn, met de actuele NAW van de persoon (anders het formulier). Bijzondere gegevens alleen als je ze
+    per categorie aanvinkt én het recht hebt (identiteit, gezondheid + noodnummer, kerkgenootschap alleen beheerder;
+    anders 403); art. 9 alleen bij een niet ingetrokken toestemming. Elke export staat in het auditlog (plus een regel
+    per categorie), hoogstens 30 per gebruiker per 10 minuten. Blad *Over deze lijst* noemt reis, maker en moment.
   - **Deelnemers** op `/app/deelnemers/` (recht `deelnemers`; `app/src/crm/person-routes.js`): lijst met zoeken op
     naam, e-mailadres of woonplaats (elk woord moet voorkomen) en een filter *mogelijk dubbel*; per persoon NAW,
     aanmeldingen, toestemmingen en de bijzondere gegevens per blok. Een blok staat nooit in de lijst en op de pagina pas
