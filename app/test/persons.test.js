@@ -107,6 +107,25 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal((await db.query('SELECT street FROM persons WHERE id = $1', [firstId]))[0].street, 'Kerkstraat 2', 'origineel onaangetast');
   });
 
+  await t.test('nog een aanmelding met hetzelfde afwijkende adres: hetzelfde dubbel, geen nieuwe persoon', async () => {
+    const before = await count();
+    const [duplicate] = await db.query('SELECT id FROM persons WHERE duplicate_of = $1 ORDER BY id', [firstId]);
+    const result = await save(bookingValues({ street: 'Andere straat 9', mobile: '0611111111' }));
+    assert.deepEqual(result, { personId: duplicate.id, outcome: 'mogelijk-dubbel' });
+    assert.equal(await count(), before);
+    const third = await save(bookingValues({ street: 'Derde straat 3' }));
+    assert.equal((await personById(third.personId)).duplicate_of, firstId, 'nieuw afwijkend adres: dubbel van het origineel');
+  });
+
+  await t.test('blok van de bestaande persoon niet te openen: aanmelding gaat door als mogelijk dubbel', async () => {
+    const values = bookingValues({ email: 'kapotblok@example.nl' });
+    const { personId } = await save(values);
+    await db.query('UPDATE persons SET identity_data = $2 WHERE id = $1', [personId, createVault(Buffer.alloc(32, 98)).seal({ birth_date: '1980-02-03' })]);
+    const result = await save(values);
+    assert.equal(result.outcome, 'mogelijk-dubbel');
+    assert.equal((await personById(result.personId)).duplicate_of, personId);
+  });
+
   await t.test('zelfde e-mailadres, andere geboortedatum: mogelijk dubbel', async () => {
     const result = await save(bookingValues({ birth_date: '1981-02-03', first_names: 'Partner' }));
     assert.equal(result.outcome, 'mogelijk-dubbel');
@@ -146,20 +165,27 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
       [reference, email, sealed],
     );
     const sensitive = { birth_date: '1970-01-01', church: 'GKV', nationality: 'NL', document_type: 'paspoort', document_number: '', document_valid_until: '', particulars: 'Diabetes', emergency_phone: '0644444444' };
+    const [broken] = await insertOld('AV-OUD-0', 'fout@example.nl', vault.seal(sensitive));
     const [good] = await insertOld('AV-OUD-1', 'oud@example.nl', vault.seal(sensitive));
     const [bad] = await insertOld('AV-OUD-2', 'kapot@example.nl', createVault(Buffer.alloc(32, 99)).seal(sensitive));
-    assert.deepEqual(await persons.backfillPersons(db, { batchSize: 1 }), { converted: 1, failed: 1 });
+    // De eerste transactie (die van AV-OUD-0) mislukt; de rest gaat gewoon door.
+    let calls = 0;
+    const flakyDb = { ...db, transaction: (work) => (calls++ === 0 ? Promise.reject(new Error('slot verlopen')) : db.transaction(work)) };
+    assert.deepEqual(await persons.backfillPersons(flakyDb, { batchSize: 1 }), { converted: 1, failed: 2 });
+    assert.equal((await db.query('SELECT person_id FROM bookings WHERE id = $1', [broken.id]))[0].person_id, null, 'mislukte blijft staan');
     const [row] = await db.query('SELECT person_id, sensitive_data FROM bookings WHERE id = $1', [good.id]);
     assert.equal(row.sensitive_data, null);
     const person = await personById(row.person_id);
     assert.equal(person.email, 'oud@example.nl');
-    assert.equal(persons.openBlock('health_data', person).particulars, 'Diabetes');
-    assert.equal(persons.openBlock('special_data', person).church, 'GKV');
+    assert.equal(persons.openBlock('emergency_data', person).emergency_phone, '0644444444');
+    assert.equal(persons.openBlock('identity_data', person).birth_date, '1970-01-01');
+    assert.equal(person.health_data, null, 'art. 9 zonder losse toestemming gaat niet mee');
+    assert.equal(person.special_data, null);
     const consents = await db.query('SELECT kind, text_version, given_at FROM consents WHERE booking_id = $1 ORDER BY kind', [good.id]);
-    assert.deepEqual(consents.map((consent) => consent.kind), ['art9_gezondheid', 'art9_religie', 'voorwaarden']);
-    assert.ok(consents.every((consent) => consent.text_version === LEGACY_TEXT_VERSION));
+    assert.deepEqual(consents.map((consent) => consent.kind), ['voorwaarden']);
+    assert.equal(consents[0].text_version, LEGACY_TEXT_VERSION);
     assert.equal(consents[0].given_at.toISOString(), '2026-01-02T10:00:00.000Z');
     assert.equal((await db.query('SELECT person_id FROM bookings WHERE id = $1', [bad.id]))[0].person_id, null);
-    assert.deepEqual(await persons.backfillPersons(db), { converted: 0, failed: 1 }, 'tweede keer: niets nieuws');
+    assert.deepEqual(await persons.backfillPersons(db), { converted: 1, failed: 1 }, 'volgende start: de eerder mislukte lukt nu, de kapotte blijft');
   });
 });

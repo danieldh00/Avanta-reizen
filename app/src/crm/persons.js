@@ -36,6 +36,9 @@ const BLOCK_CONSENTS = { special_data: 'art9_religie', health_data: 'art9_gezond
 /** Advisory lock (eerste sleutel) rond het zoeken en aanmaken van een persoon, tegen dubbel aanmaken bij gelijktijdige aanmeldingen. */
 const PERSON_LOCK = 727010;
 
+/** Hoogstens zoveel personen met dezelfde match_key vergelijken bij een aanmelding. */
+const MAX_CANDIDATES = 20;
+
 /** Tekstversie voor toestemmingen die uit een aanmelding van vóór de losse vinkjes komen (één vinkje voor alles). */
 const LEGACY_TEXT_VERSION = 'oud-formulier';
 
@@ -115,9 +118,18 @@ function createPersons(options) {
    * Voegt nieuwe gegevens samen met een bestaande persoon, maar alleen als niets wat al is ingevuld wordt overschreven.
    * @param {object} existing Bestaande persoon (met versleutelde blokken).
    * @param {{plain: object, blocks: object}} incoming Nieuwe gegevens.
-   * @returns {({plain: object, blocks: object}|null)} De aangevulde gegevens, of null als er een ingevuld veld afwijkt.
+   * @returns {({plain: object, blocks: object}|null)} De aangevulde gegevens, of null als er een ingevuld veld afwijkt of
+   *   een blok van de bestaande persoon niet te openen is.
    */
   const mergeInto = (existing, incoming) => {
+    let opened;
+    try {
+      opened = Object.fromEntries(Object.keys(BLOCKS).map((block) => [block, openBlock(block, existing)]));
+    } catch {
+      // Een blok dat niet te openen is (andere hoofdsleutel, beschadigd): niet samenvoegen, de aanmelding gaat gewoon door.
+      console.error(`personen: blok van persoon ${existing.id} niet te openen; nieuwe aanmelding als mogelijk dubbel opgeslagen`);
+      return null;
+    }
     const plain = {};
     for (const name of PLAIN_FIELDS) {
       const current = existing[name] || '';
@@ -127,7 +139,7 @@ function createPersons(options) {
     }
     const blocks = {};
     for (const block of Object.keys(BLOCKS)) {
-      const current = openBlock(block, existing);
+      const current = opened[block];
       const merged = {};
       for (const name of BLOCKS[block]) {
         const before = current[name] || '';
@@ -199,17 +211,23 @@ function createPersons(options) {
     const key = matchKey(incoming.plain.email, incoming.blocks.identity_data.birth_date);
     // Slot per e-mailadres: twee gelijktijdige aanmeldingen van dezelfde persoon maken niet elk een eigen persoon.
     await client.query('SELECT pg_advisory_xact_lock($1, hashtext($2))', [PERSON_LOCK, incoming.plain.email]);
-    const [match] = await client.query(
-      `SELECT ${PERSON_COLUMNS} FROM persons WHERE match_key = $1 AND duplicate_of IS NULL ORDER BY id LIMIT 1 FOR UPDATE`,
-      [key],
+    // Eerst de oorspronkelijke persoon, daarna de al bestaande mogelijke dubbelen met dezelfde sleutel: wie twee keer
+    // met hetzelfde nieuwe adres boekt, komt zo bij dat ene dubbel uit in plaats van steeds een nieuwe persoon te maken.
+    const candidates = await client.query(
+      `SELECT ${PERSON_COLUMNS}, duplicate_of FROM persons WHERE match_key = $1
+        ORDER BY (duplicate_of IS NOT NULL), id LIMIT $2 FOR UPDATE`,
+      [key, MAX_CANDIDATES],
     );
-    if (match) {
-      const merged = mergeInto(match, incoming);
+    for (const candidate of candidates) {
+      const merged = mergeInto(candidate, incoming);
       if (merged) {
-        await updatePerson(client, match.id, merged);
-        return { personId: match.id, outcome: 'bestaand' };
+        await updatePerson(client, candidate.id, merged);
+        return { personId: candidate.id, outcome: candidate.duplicate_of ? 'mogelijk-dubbel' : 'bestaand' };
       }
-      return { personId: await insertPerson(client, incoming, key, match.id), outcome: 'mogelijk-dubbel' };
+    }
+    if (candidates.length) {
+      const original = candidates[0].duplicate_of || candidates[0].id;
+      return { personId: await insertPerson(client, incoming, key, original), outcome: 'mogelijk-dubbel' };
     }
     const [sameEmail] = await client.query(
       'SELECT id FROM persons WHERE lower(email) = $1 AND duplicate_of IS NULL ORDER BY id LIMIT 1',
@@ -242,9 +260,10 @@ function createPersons(options) {
 
   /**
    * Zet aanmeldingen van vóór de personen-tabel om: per aanmelding de persoon zoeken of maken, de bijzondere gegevens
-   * naar de blokken van de persoon en `bookings.sensitive_data` leeg. Draait bij het starten; elke aanmelding in een
-   * eigen transactie, dus een onderbreking is veilig. Een aanmelding die niet te ontsleutelen is (andere hoofdsleutel)
-   * blijft staan en wordt geteld.
+   * naar de blokken van de persoon en `bookings.sensitive_data` leeg. Art. 9-gegevens (kerkgenootschap,
+   * bijzonderheden) gaan niet mee: daarvoor was geen losse toestemming. Draait bij het starten; elke aanmelding in een
+   * eigen transactie, dus een onderbreking is veilig. Een aanmelding die niet te ontsleutelen of op te slaan is blijft
+   * staan en wordt geteld.
    * @param {{query: Function, transaction: Function}} db Database.
    * @param {{batchSize?: number}} [settings] Aantal per ronde.
    * @returns {Promise<{converted: number, failed: number}>} Aantallen (nooit persoonsgegevens).
@@ -271,15 +290,23 @@ function createPersons(options) {
           failed++;
           continue;
         }
-        // Het oude formulier had één vinkje voor alles; dat geldt hier als toestemming voor wat er toen is ingevuld.
-        const values = { ...row, ...sensitive, consent_religion: 'ja', consent_health: 'ja' };
-        await db.transaction(async (client) => {
-          const [current] = await client.query('SELECT id FROM bookings WHERE id = $1 AND person_id IS NULL AND sensitive_data IS NOT NULL FOR UPDATE', [row.id]);
-          if (!current) return;
-          const { personId } = await savePerson(client, values);
-          await client.query('UPDATE bookings SET person_id = $2, sensitive_data = NULL WHERE id = $1', [row.id, personId]);
-          await recordConsents(client, { personId, bookingId: row.id, values, textVersion: LEGACY_TEXT_VERSION, givenAt: row.consent_at });
-        });
+        // Het oude formulier had één vinkje voor alles en geen uitdrukkelijke toestemming voor art. 9. Kerkgenootschap en
+        // bijzonderheden gaan daarom niet mee naar de persoon (en verdwijnen met sensitive_data); kantoor vraagt ze zo
+        // nodig opnieuw, met toestemming. Alleen de voorwaarden worden vastgelegd, met tekstversie 'oud-formulier'.
+        const values = { ...row, ...sensitive, church: '', particulars: '', consent_religion: '', consent_health: '' };
+        try {
+          await db.transaction(async (client) => {
+            const [current] = await client.query('SELECT id FROM bookings WHERE id = $1 AND person_id IS NULL AND sensitive_data IS NOT NULL FOR UPDATE', [row.id]);
+            if (!current) return;
+            const { personId } = await savePerson(client, values);
+            await client.query('UPDATE bookings SET person_id = $2, sensitive_data = NULL WHERE id = $1', [row.id, personId]);
+            await recordConsents(client, { personId, bookingId: row.id, values, textVersion: LEGACY_TEXT_VERSION, givenAt: row.consent_at });
+          });
+        } catch {
+          // Eén onbruikbare aanmelding houdt de rest niet tegen; hij blijft staan en wordt bij de volgende start opnieuw geprobeerd.
+          failed++;
+          continue;
+        }
         converted++;
       }
     }

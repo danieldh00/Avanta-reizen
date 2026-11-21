@@ -16,8 +16,10 @@ bump: minor
   HKDF afgeleide sleutel; `duplicate_of`) en `consents` (`voorwaarden`, `art9_religie`, `art9_gezondheid`, met
   `text_version`); `bookings.person_id`, `bookings.sensitive_data` mag leeg.
 - `crm/persons.js`: zoeken of aanmaken in de transactie van de aanmelding (advisory lock per e-mailadres), alleen lege
-  velden aanvullen, anders nieuwe persoon met `duplicate_of`; toestemmingen vastleggen; `backfillPersons` zet bij het
-  starten oude aanmeldingen om (per aanmelding een transactie, alleen aantallen in het log).
+  velden aanvullen, anders eerst een bestaand dubbel met dezelfde `match_key` hergebruiken en pas dan een nieuwe
+  persoon met `duplicate_of`; een niet te openen blok geeft geen 500 maar een mogelijk dubbel; toestemmingen
+  vastleggen; `backfillPersons` zet bij het starten oude aanmeldingen om (per aanmelding een transactie, een fout per
+  rij telt als mislukt en houdt de rest niet tegen; art. 9-gegevens zonder losse toestemming gaan niet mee).
 - `vault.deriveKey(doel)` (HKDF-SHA256) voor afgeleide sleutels.
 - Aanmeldformulier: kerkgenootschap niet meer verplicht; vinkjes `consent_religion` en `consent_health` (`consentFor`),
   verplicht zodra het bijbehorende veld is ingevuld.

@@ -193,7 +193,9 @@ Al open (zie `docs/OPZET-WEBSITE.md`): betaalprovider, hosting, regel voor de aa
 - **Kerkgenootschap**: blijft erin. Vrijwillig veld met een eigen toestemmingsvinkje (art. 9.2a), versleuteld in
   `special_data`, alleen zichtbaar met `gegevens.religie` (beheerder).
 - **Bestaand klantenbestand / WordPress-import (vraag 8)**: niet importeren; het CRM begint blanco. Aanmeldingen die
-  het nieuwe formulier al in `bookings` heeft gezet, zet de app bij het starten om naar personen.
+  het nieuwe formulier al in `bookings` heeft gezet, zet de app bij het starten om naar personen. Kerkgenootschap en
+  bijzonderheden uit die oude aanmeldingen gaan daarbij **niet** mee (het oude formulier had geen losse art. 9-toestemming);
+  alleen de voorwaarden worden vastgelegd, met tekstversie `oud-formulier`.
 - **Wachtlijst (vraag 6)**: nu niet bouwen. Komt hij later, dan schuift hij automatisch door bij een vrijgekomen plaats.
 - **2FA**: optioneel, aanzetten altijd met een activatiecode van de beheerder (gebouwd, M9).
 
