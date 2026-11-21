@@ -175,4 +175,38 @@ test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.equal(last.status, 200);
     assert.equal((await request('/app/betalingen/overzicht.xlsx', { cookie: boek })).status, 429);
   });
+
+  await t.test('afgekapte lijst: waarschuwing op de pagina, export geweigerd; het maximum telt alleen de juiste kant', async () => {
+    const small = createApp({ db, masterKey: MASTER_KEY, now: () => Date.parse('2027-03-01T10:00:00Z'), paymentOverviewMaxRows: 1 });
+    const smallServer = small.listen(0);
+    const smallBase = `http://127.0.0.1:${smallServer.address().port}`;
+    try {
+      const cookie = `${COOKIE_NAME}=${kantoor}`;
+      const get = async (url) => {
+        const response = await fetch(smallBase + url, { headers: { cookie }, redirect: 'manual' });
+        return { status: response.status, text: await response.text() };
+      };
+      // Twee openstaande aanmeldingen bij een maximum van 1: afgekapt.
+      const page = await get('/app/betalingen/');
+      assert.equal(page.status, 200);
+      assert.match(page.text, /Alleen de eerste 1 aanmeldingen zijn meegenomen; kies een reis/);
+      const refused = await get('/app/betalingen/overzicht.xlsx');
+      assert.equal(refused.status, 422);
+      assert.match(refused.text, /kies een reis en exporteer per reis/);
+      const perTrip = await get(`/app/betalingen/overzicht.xlsx?reis=${albania.id}`);
+      assert.equal(perTrip.status, 422);
+      assert.match(perTrip.text, /Deze reis heeft in deze weergave meer dan 1 aanmeldingen; kies een smallere weergave/);
+      // Te veel betaald: één aanmelding aan die kant; de openstaande tellen niet mee voor het maximum.
+      const tooMuch = await get('/app/betalingen/?weergave=teveel');
+      assert.match(tooMuch.text, /AV-2027-TEVEEL04/);
+      assert.doesNotMatch(tooMuch.text, /zijn meegenomen/);
+      assert.equal((await get('/app/betalingen/overzicht.xlsx?weergave=teveel')).status, 200);
+      // Te laat: de te veel betaalde komt niet uit de database en duwt de te late er dus niet uit.
+      const late = await get(`/app/betalingen/?weergave=te-laat&reis=${albania.id}`);
+      assert.match(late.text, /AV-2027-LAAT0002/);
+      assert.match(late.text, /van deze reis zijn meegenomen; kies een smallere weergave/);
+    } finally {
+      smallServer.close();
+    }
+  });
 });

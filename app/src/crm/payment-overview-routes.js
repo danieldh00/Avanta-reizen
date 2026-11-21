@@ -46,21 +46,25 @@ const OVERVIEW_SQL = `SELECT b.id, b.reference, b.trip_id, b.trip_title, b.trip_
   LEFT JOIN (SELECT booking_id, sum(amount_cents) AS paid FROM payments GROUP BY booking_id) p ON p.booking_id = b.id
   WHERE ($1::int IS NULL OR b.trip_id = $1)
     AND ($2 OR b.status <> 'geannuleerd')
-    AND ($3 OR coalesce(c.total, 0) <> coalesce(p.paid, 0))
+    AND ($3 = 'alles' OR ($3 = 'teveel' AND coalesce(c.total, 0) < coalesce(p.paid, 0))
+         OR ($3 IN ('open', 'te-laat') AND coalesce(c.total, 0) > coalesce(p.paid, 0)))
   ORDER BY b.departure_date NULLS LAST, b.trip_title, b.last_name, b.id
   LIMIT $4`;
 
 /**
  * Leest de aanmeldingen voor het overzicht en rekent per aanmelding de stand uit.
  * @param {{query: Function}} db Database.
- * @param {{view: string, tripId: (number|null), terms: object, today: string}} filter Weergave, reis, termijnen en vandaag.
+ * @param {{view: string, tripId: (number|null), terms: object, today: string, maxRows?: number}} filter Weergave, reis,
+ *   termijnen, vandaag en (voor tests) het maximum aantal aanmeldingen.
  * @returns {Promise<{rows: object[], truncated: boolean}>} Regels met `summary`, en of de lijst is afgekapt.
  */
 async function loadOverview(db, filter) {
   const withCancelled = filter.view === 'teveel' || filter.view === 'alles';
-  const rows = await db.query(OVERVIEW_SQL, [filter.tripId, withCancelled, filter.view === 'alles', MAX_ROWS + 1]);
-  const truncated = rows.length > MAX_ROWS;
-  const list = rows.slice(0, MAX_ROWS).map((row) => ({
+  const maxRows = filter.maxRows || MAX_ROWS;
+  // De saldo-voorwaarde per weergave staat al in de SQL, zodat het maximum alleen de juiste kant telt.
+  const rows = await db.query(OVERVIEW_SQL, [filter.tripId, withCancelled, filter.view, maxRows + 1]);
+  const truncated = rows.length > maxRows;
+  const list = rows.slice(0, maxRows).map((row) => ({
     ...row,
     // Zelfde berekening als op de pagina van de aanmelding: de totalen als twee regels en één betaling.
     summary: payments.summarize({
@@ -109,13 +113,14 @@ function buildOverviewWorkbook(input) {
 
 /**
  * Maakt de routes voor het betaaloverzicht.
- * @param {{db: object, auth: object, settings: object, now?: () => number}} options Database, sessie- en rechtenlaag,
- *   instellingen (termijnen) en de klok (tests).
+ * @param {{db: object, auth: object, settings: object, now?: () => number, maxRows?: number}} options Database, sessie-
+ *   en rechtenlaag, instellingen (termijnen), en voor tests de klok en het maximum aantal aanmeldingen.
  * @returns {express.Router} Router.
  */
 function createPaymentOverviewRoutes(options) {
   const { db, auth, settings } = options;
   const now = options.now || Date.now;
+  const maxRows = options.maxRows || MAX_ROWS;
   const router = express.Router();
   const guard = auth.requireGlobalRight('betalingen');
   const limiter = createRateLimiter({ limit: EXPORT_LIMIT, windowMs: EXPORT_WINDOW_MINUTES * 60 * 1000, now: options.now });
@@ -144,7 +149,7 @@ function createPaymentOverviewRoutes(options) {
     try {
       const filter = readFilter(req.query);
       const [{ rows, truncated }, trips] = await Promise.all([
-        loadOverview(db, { ...filter, terms: payments.termsFrom(settings), today: payments.localDay(now()) }),
+        loadOverview(db, { ...filter, maxRows, terms: payments.termsFrom(settings), today: payments.localDay(now()) }),
         tripsWithBookings(),
       ]);
       const open = rows.reduce((sum, row) => sum + Math.max(row.summary.balanceCents, 0), 0);
@@ -164,7 +169,9 @@ function createPaymentOverviewRoutes(options) {
             <a class="btn btn--small btn--outline" href="/app/betalingen/overzicht.xlsx?${query}">Excel (.xlsx)</a>
           </form>
           <p>${rows.length} aanmelding${rows.length === 1 ? '' : 'en'} · openstaand ${payments.formatAmount(open)}${late ? ` · ${late} te laat` : ''}</p>
-          ${truncated ? renderAlert(`Alleen de eerste ${MAX_ROWS} aanmeldingen zijn meegenomen; kies een reis.`) : ''}
+          ${truncated ? renderAlert(filter.tripId
+            ? `Alleen de eerste ${maxRows} aanmeldingen van deze reis zijn meegenomen; kies een smallere weergave.`
+            : `Alleen de eerste ${maxRows} aanmeldingen zijn meegenomen; kies een reis.`) : ''}
           ${rows.length ? html`<div class="crm-table-wrap"><table class="crm-table">
             <thead><tr><th scope="col">Referentie</th><th scope="col">Naam</th><th scope="col">Reis</th><th scope="col">Vertrek</th><th scope="col">Status</th>
               <th scope="col">Totaal</th><th scope="col">Betaald</th><th scope="col">Openstaand</th><th scope="col">Aanbetaling uiterlijk</th><th scope="col">Restant uiterlijk</th></tr></thead>
@@ -197,12 +204,14 @@ function createPaymentOverviewRoutes(options) {
       }
       const filter = readFilter(req.query);
       const clock = new Date(now());
-      const { rows, truncated } = await loadOverview(db, { ...filter, terms: payments.termsFrom(settings), today: payments.localDay(clock) });
+      const { rows, truncated } = await loadOverview(db, { ...filter, maxRows, terms: payments.termsFrom(settings), today: payments.localDay(clock) });
       // Nooit stilletjes een onvolledig bestand: boven het maximum eerst op reis filteren.
       if (truncated) {
         return res.status(422).send(renderCrmPage({
           title: 'Te veel aanmeldingen', user: req.user, csrf: req.session.csrf, path: '/app/betalingen/',
-          body: html`${renderAlert(`Er zijn meer dan ${MAX_ROWS} aanmeldingen; kies een reis en exporteer per reis.`)}<p><a href="/app/betalingen/">Naar de betalingen</a></p>`,
+          body: html`${renderAlert(filter.tripId
+            ? `Deze reis heeft in deze weergave meer dan ${maxRows} aanmeldingen; kies een smallere weergave (bijvoorbeeld Te laat).`
+            : `Er zijn meer dan ${maxRows} aanmeldingen; kies een reis en exporteer per reis.`)}<p><a href="/app/betalingen/">Naar de betalingen</a></p>`,
         }));
       }
       let tripLabel = 'Alle reizen';

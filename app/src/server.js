@@ -244,7 +244,7 @@ function createApp(options) {
   // Vaste inhoud van de homepage en lijstkoppen (DATA_DIR); ook het CRM gebruikt ze (homepage als blokpagina opzetten).
   const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
   const homepage = options.homepage || createHomepageStore(DATA_DIR);
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).

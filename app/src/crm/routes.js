@@ -428,7 +428,7 @@ function createCrmRouter(options) {
   router.use(createPersonMergeRoutes({ db, auth, persons }));
   router.use(createBookingRoutes({ db, auth, settings: options.settings, now: options.now }));
   router.use(createPaymentRoutes({ db, auth, settings: options.settings, now: options.now }));
-  router.use(createPaymentOverviewRoutes({ db, auth, settings: options.settings, now: options.now }));
+  router.use(createPaymentOverviewRoutes({ db, auth, settings: options.settings, now: options.now, maxRows: options.paymentOverviewMaxRows }));
   router.use(createParticipantListRoutes({ db, auth, persons, now: options.now }));
   router.use(createMediaRoutes({ db, auth, library: options.mediaLibrary, limits: options.mediaLimits, now: options.now }));
   router.use(createTripRoutes({ db, auth, redirects: options.redirects, library: options.mediaLibrary }));
