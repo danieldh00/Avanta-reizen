@@ -11,7 +11,7 @@ const { processImage, resizeWebp, webpWidth, MAX_UPLOAD_BYTES } = require('./ima
 /** Waar een foto gebruikt kan worden: soort, tabel, titelkolom, sleutelkolom, kolommen met adressen en het publieke pad. */
 const USAGE_SOURCES = [
   { kind: 'Reis', table: 'trips', title: 'title', key: 'slug', columns: ['hero_image_url', 'card_image_url', 'gallery::text', 'body_html'], href: (key) => `/reis/${key}/` },
-  { kind: 'Blogbericht', table: 'posts', title: 'title', key: 'slug', columns: ['image_url', 'body_html'], href: (key) => `/${key}/` },
+  { kind: 'Blogbericht', table: 'posts', title: 'title', key: 'slug', columns: ['image_url', 'body_html', 'blocks::text', 'draft::text'], href: (key) => `/${key}/` },
   { kind: 'Pagina', table: 'pages', title: 'title', key: 'path', columns: ['image_url', 'body_html', 'blocks::text', 'draft::text'], href: (key) => key },
   { kind: 'Reisleider', table: 'guides', title: 'name', key: 'slug', columns: ['photo_url', 'body_html'], href: (key) => `/reisleider/${key}/` },
   { kind: 'Reistype of land', table: 'trip_categories', title: 'name', key: 'slug', columns: ['image_url', 'body_html'], href: (key) => `/reis-categorie/${key}/` },

@@ -178,6 +178,18 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     op de eigen site of https), plaats en volgorde; hoogstens 40 items per menu. De site leest de menu's uit het geheugen
     en laadt ze na elke wijziging opnieuw; een leeg menu (of een databasefout) toont het vaste standaardmenu uit
     `site/layout.js`. Audit `menu.*`.
+  - **Blog** op `/app/blog/` (recht `content`, `app/src/cms/posts.js` + `post-routes.js`, migratie 19): alle
+    blogberichten met zoeken en een filter op status (online, ingepland, offline, met concept). Een bericht bewerk je
+    zoals een pagina: titel, publicatiedatum, inleiding, samenvatting (leeg = bij publiceren het begin van de tekst),
+    SEO-velden, uitgelichte afbeelding uit de fotobibliotheek en dezelfde blokken als pagina's (zonder de
+    homepage-secties; de blokeditor staat in `cms/block-editor.js`). Eerst een concept, dan een voorbeeld, dan
+    *Publiceren*; elke publicatie is een versie (bij een bericht uit de import is versie 1 de stand van de import).
+    **Inplannen**: een publicatiedatum (tijd in Nederland) in de toekomst houdt het bericht van de site, uit het blog,
+    de homepage, de zoekresultaten en de sitemap tot die datum (`VISIBLE_POST_SQL` in `site/content.js`). *Nieuw bericht*
+    maakt een offline bericht; het adres (`/<slug>/`) mag geen pagina, ander bericht, gereserveerd adres of (bij nieuw)
+    doorverwijzing zijn. Adres wijzigen geeft een 301 vanaf het oude adres en past menu-items aan. Offline halen kan
+    altijd, verwijderen alleen bij een offline bericht dat niet uit de import komt en niet in een menu staat. Een bericht
+    uit het CRM (of met een open concept) laat de WordPress-import staan. Audit `blog.*`.
   - **Homepage als blokpagina** (CMS-pakket H4, geen migratie): *Homepage als blokpagina opzetten* op `/app/paginas/`
     maakt de pagina `/` aan met de huidige inhoud van de vaste homepage (`homepage.json`) als blokken: slider, zoekbalk
     "Vind jouw reis", last-minutes, reistypes, inspiratie-slider, bestemmingen, blog en "Over Avanta met stempel". Die
@@ -368,7 +380,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `app/src/backup/` | `backups.js` (versleutelde back-ups, planner), `drive.js` (kopie naar Google Drive), `restore-test.js` (hersteltests), `cli.js` (maken, tonen, ontsleutelen op de opdrachtregel) |
 | `app/src/media/` | fotobibliotheek: `images.js` (soort op inhoud, sharp: rechtzetten, EXIF weg, WebP-varianten), `library.js` (opslag en queries, `media_countries`), `routes.js` (`/app/fotobibliotheek/`) |
 | `app/src/trips/` | reizen beheren: `slugs.js` (slug maken, 301 bij een nieuwe slug), `categories.js` en `category-routes.js` (`/app/reistypes-en-landen/`), `trips.js` en `trip-routes.js` (`/app/reizen/`), `trip-media.js` (foto's bij een reis), `seats.js` (plaatsen, volgeboekt) |
-| `app/src/cms/` | pagina's in blokken: `blocks.js` (bloktypes, stijlopties, controle en HTML), `pages.js` (concept, publiceren, versies), `page-routes.js` (`/app/paginas/`), `page-render.js` (inhoud voor site en voorbeeld), `menus.js` + `menu-routes.js` (`/app/menus/`); homepage als blokpagina (`home-*`-blokken) |
+| `app/src/cms/` | pagina's in blokken: `blocks.js` (bloktypes, stijlopties, controle en HTML), `pages.js` (concept, publiceren, versies), `page-routes.js` (`/app/paginas/`), `page-render.js` (inhoud voor site en voorbeeld), `menus.js` + `menu-routes.js` (`/app/menus/`); homepage als blokpagina (`home-*`-blokken); `block-editor.js` (blokeditor, gedeeld); `posts.js` + `post-routes.js` (blog, `/app/blog/`) |
 | `app/src/mail/` | `mailer.js` (versturen via SMTP of Exchange-connector), `wan-ip.js` (WAN-IP van de server), `layout.js` (opmaak), `notifications.js` (meldingen aan kantoor) |
 | `docs/OPZET-WEBSITE.md` | opzet, inventaris van de huidige site, fasering en open vragen |
 | `changes/` | releasenotes-fragmenten, zie `changes/README.md` |
