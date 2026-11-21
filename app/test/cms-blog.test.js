@@ -404,6 +404,10 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     await request(`/app/blog/${other.id}/indeling/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, uitgelicht: 'ja' } });
     await request(`${postUrl}indeling/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, uitgelicht: 'ja', term: String(category.id) } });
     assert.deepEqual((await db.query('SELECT id FROM posts WHERE featured')).map((row) => row.id), [imported.id]);
+    assert.equal((await request(`${postUrl}online/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, stand: 'offline' } })).status, 303);
+    assert.equal((await db.query('SELECT featured FROM posts WHERE id = $1', [imported.id]))[0].featured, false, 'offline is niet meer uitgelicht');
+    assert.equal((await request(`${postUrl}online/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, stand: 'online' } })).status, 303);
+    assert.equal((await db.query('SELECT featured FROM posts WHERE id = $1', [imported.id]))[0].featured, false, 'weer online blijft gewoon');
 
     // Adres wijzigen geeft een 301; verwijderen laat het bericht staan.
     assert.equal((await request(`${termsUrl}${category.id}/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, name: 'Reisverslagen', slug: 'verslagen', sort_order: 'x' } })).status, 422);

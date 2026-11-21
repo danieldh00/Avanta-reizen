@@ -458,7 +458,8 @@ function createPosts(options) {
     );
     if (!post) return { status: 'weg' };
     if (online && !post.has_revisions && post.legacy_id === null) return { status: 'nooit-gepubliceerd' };
-    await client.query('UPDATE posts SET published = $2, updated_at = now(), updated_by = $3 WHERE id = $1', [post.id, online, context.userId]);
+    // Offline is ook niet meer uitgelicht: anders blijft het vinkje aan terwijl de site stil niets uitlicht.
+    await client.query('UPDATE posts SET published = $2, featured = featured AND $2, updated_at = now(), updated_by = $3 WHERE id = $1', [post.id, online, context.userId]);
     await context.audit(client);
     return { status: 'ok' };
   });
