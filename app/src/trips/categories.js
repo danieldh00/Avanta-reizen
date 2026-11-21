@@ -150,8 +150,15 @@ function createCategories(options) {
   const update = async (id, values, context) => {
     try {
       return await db.transaction(async (client) => {
-        const [current] = await client.query('SELECT id, slug FROM trip_categories WHERE id = $1 FOR UPDATE', [Number(id)]);
+        const [current] = await client.query(
+          'SELECT id, slug, kind, EXISTS (SELECT 1 FROM media_countries mc WHERE mc.category_id = trip_categories.id) AS has_photos FROM trip_categories WHERE id = $1 FOR UPDATE',
+          [Number(id)],
+        );
         if (!current) return { status: 'weg' };
+        // Foto's hangen aan landen: een land met foto's een andere soort geven zou die foto's uit de bibliotheek laten vallen.
+        if (current.kind !== values.kind && current.has_photos) {
+          return { status: 'fout', errors: { kind: 'Er hangen foto\'s aan dit land. Koppel die eerst los in de fotobibliotheek, of voeg samen met een ander land.' } };
+        }
         await client.query(
           `UPDATE trip_categories SET slug = $2, name = $3, kind = $4, icon = $5, intro = $6, body_html = $7, sort_order = $8,
              show_on_home = $9, updated_at = now() WHERE id = $1`,
@@ -193,22 +200,24 @@ function createCategories(options) {
   });
 
   /**
-   * Voegt een categorie samen met een andere (dubbelingen opruimen): de reizen en foto's van de bron horen voortaan bij
-   * het doel, de bron verdwijnt en zijn adres krijgt een 301 naar het doel.
+   * Voegt een categorie samen met een andere van dezelfde soort (dubbelingen opruimen): de reizen en foto's van de bron
+   * horen voortaan bij het doel, de bron verdwijnt en zijn adres krijgt een 301 naar het doel. Een andere soort wordt
+   * geweigerd, zodat foto's van een land nooit aan een reistype komen te hangen.
    * @param {(number|string)} sourceId Categorie die verdwijnt.
    * @param {(number|string)} targetId Categorie die blijft.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client) => Promise`).
-   * @returns {Promise<{status: ('ok'|'weg'|'doel-weg'|'zelfde'), trips?: number, target?: object}>} Uitkomst.
+   * @returns {Promise<{status: ('ok'|'weg'|'doel-weg'|'zelfde'|'andere-soort'), trips?: number, target?: object}>} Uitkomst.
    */
   const merge = (sourceId, targetId, context) => {
     if (Number(sourceId) === Number(targetId)) return Promise.resolve({ status: 'zelfde' });
     return db.transaction(async (client) => {
       // Beide rijen op volgorde van id vergrendelen, zodat twee gelijktijdige samenvoegingen niet op elkaar wachten.
-      const rows = await client.query('SELECT id, slug, name FROM trip_categories WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE', [[Number(sourceId), Number(targetId)]]);
+      const rows = await client.query('SELECT id, slug, name, kind FROM trip_categories WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE', [[Number(sourceId), Number(targetId)]]);
       const source = rows.find((row) => row.id === Number(sourceId));
       const target = rows.find((row) => row.id === Number(targetId));
       if (!source) return { status: 'weg' };
       if (!target) return { status: 'doel-weg' };
+      if (source.kind !== target.kind) return { status: 'andere-soort' };
       const moved = await client.query(
         `INSERT INTO trip_category_links (trip_id, category_id)
            SELECT trip_id, $2 FROM trip_category_links WHERE category_id = $1

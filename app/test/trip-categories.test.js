@@ -232,6 +232,16 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
   await t.test('samenvoegen: reizen en foto\'s naar het doel, bron weg, 301', async () => {
     assert.equal((await request(`/app/reistypes-en-landen/${double.id}/samenvoegen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, doel: String(double.id) } })).status, 422);
     assert.equal((await request(`/app/reistypes-en-landen/${double.id}/samenvoegen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, doel: '999999' } })).status, 409);
+    // Een land samenvoegen met een reistype mag niet (de foto's zouden aan een reistype gaan hangen).
+    const otherKind = await request(`/app/reistypes-en-landen/${double.id}/samenvoegen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, doel: String(hostel.id) } });
+    assert.equal(otherKind.status, 422);
+    assert.match(otherKind.text, /dezelfde soort/);
+    assert.doesNotMatch(otherKind.text, new RegExp(`<option value="${hostel.id}">`), 'alleen dezelfde soort in de keuzelijst');
+    assert.equal((await db.query('SELECT count(*)::int AS count FROM media_countries WHERE category_id = $1', [hostel.id]))[0].count, 0);
+    // De soort van een land met foto's wijzigen mag ook niet.
+    const kindChange = await request(`/app/reistypes-en-landen/${double.id}/`, { cookie: kantoor.cookie, form: fields({ name: 'Namibie', slug: 'namibie-2', kind: 'type' }) });
+    assert.equal(kindChange.status, 422);
+    assert.equal((await db.query('SELECT kind FROM trip_categories WHERE id = $1', [double.id]))[0].kind, 'bestemming');
     const merged = await request(`/app/reistypes-en-landen/${double.id}/samenvoegen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, doel: String(namibia.id) } });
     assert.equal(merged.status, 303);
     assert.equal(merged.headers.get('location'), `/app/reistypes-en-landen/${namibia.id}/?opgeslagen=4`);

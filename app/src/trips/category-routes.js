@@ -193,9 +193,9 @@ function createCategoryRoutes(options) {
             <h2>Samenvoegen</h2>
             <form class="form crm-block" method="post" action="${pageUrl}samenvoegen/">
               <input type="hidden" name="_csrf" value="${req.session.csrf}">
-              <p>Is dit een dubbeling? Dan gaan de reizen en foto's naar de gekozen categorie, verdwijnt deze en verwijst het adres <code>${categoryPath(category.slug)}</code> door.</p>
+              <p>Is dit een dubbeling? Dan gaan de reizen en foto's naar de gekozen ${KINDS[category.kind] ? KINDS[category.kind].toLowerCase() : 'categorie'} (alleen dezelfde soort), verdwijnt deze en verwijst het adres <code>${categoryPath(category.slug)}</code> door.</p>
               <div class="field"><span class="field__label"><label for="veld-doel">Samenvoegen met</label></span>
-                <select id="veld-doel" name="doel" required><option value="">Kies…</option>${Object.keys(KINDS).map((kind) => html`<optgroup label="${KIND_TITLES[kind]}">${others.filter((row) => row.kind === kind).map((row) => html`<option value="${row.id}">${row.name} (${row.slug})</option>`)}</optgroup>`)}</select></div>
+                <select id="veld-doel" name="doel" required><option value="">Kies…</option>${others.filter((row) => row.kind === category.kind).map((row) => html`<option value="${row.id}">${row.name} (${row.slug})</option>`)}</select></div>
               <div><button class="btn btn--small btn--outline" type="submit">Samenvoegen</button></div>
             </form>
             <h2>Verwijderen</h2>
@@ -304,6 +304,7 @@ function createCategoryRoutes(options) {
       if (outcome.status === 'weg') return notFound(req, res);
       if (outcome.status === 'zelfde') return await showError(422, 'Kies een andere categorie dan deze.');
       if (outcome.status === 'doel-weg') return await showError(409, 'De gekozen categorie bestaat niet meer.');
+      if (outcome.status === 'andere-soort') return await showError(422, 'Samenvoegen kan alleen met een categorie van dezelfde soort. Wijzig eerst de soort.');
       await reloadRedirects();
       return res.redirect(303, `${BASE}${outcome.target.id}/?opgeslagen=4`);
     } catch (error) {

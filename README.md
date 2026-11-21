@@ -123,7 +123,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     fotobibliotheek (bij een land standaard de foto's van dat land; zoeken en filteren op land); de foto wordt bij het
     opslaan vergrendeld (`FOR SHARE`), zodat hij niet tegelijk verwijderd kan worden, en staat daarna bij *gebruikt in*.
     Een gewijzigde slug geeft automatisch een 301 van het oude adres (doorverwijzingen naar het oude adres gaan mee,
-    zonder lus). Dubbelingen uit de import samenvoegen: reizen en foto's gaan naar de gekozen categorie, de dubbeling
+    zonder lus). Dubbelingen uit de import samenvoegen (alleen binnen dezelfde soort; de soort van een land met foto's
+    wijzigen kan niet): reizen en foto's gaan naar de gekozen categorie, de dubbeling
     verdwijnt en zijn adres verwijst door. Verwijderen kan alleen als er geen reizen en foto's aan hangen. Alles in de
     auditlog.
   - **Aanmeldingen** op `/app/aanmeldingen/` (recht `aanmeldingen`; `app/src/crm/booking-routes.js`, migratie 11):
