@@ -343,7 +343,60 @@ function createPersons(options) {
     await client.query('UPDATE persons SET match_key = $2 WHERE id = $1', [personId, key]);
   };
 
-  return { matchKey, openBlock, savePerson, recordConsents, backfillPersons, splitValues, writeBlock, refreshMatchKey };
+  /**
+   * Zoekt een persoon op id, met de versleutelde blokken (die pas na *Toon* worden geopend).
+   * @param {{query: Function}} client Database of transactie-client.
+   * @param {(number|string)} id Id (alleen cijfers, zie de routes).
+   * @param {{lock?: boolean}} [mode] Met `lock` de rij vergrendelen (in een transactie).
+   * @returns {Promise<(object|null)>} Persoon, of null.
+   */
+  const findPerson = async (client, id, mode = {}) => {
+    const [person] = await client.query(
+      `SELECT ${PERSON_COLUMNS}, duplicate_of, created_at, updated_at, last_activity_at FROM persons WHERE id = $1${mode.lock ? ' FOR UPDATE' : ''}`,
+      [Number(id)],
+    );
+    return person || null;
+  };
+
+  /**
+   * Voegt een mogelijk dubbel samen met de persoon die blijft: gekozen NAW-waarden, blokken per keuze, aanmeldingen
+   * en toestemmingen gaan mee, verwijzingen van andere dubbels wijzen daarna naar de blijvende persoon en het dubbel
+   * wordt verwijderd. Draait in de transactie van de route, met beide rijen vergrendeld.
+   * @param {{query: Function}} client Transactie-client.
+   * @param {object} keep Persoon die blijft (met blokken).
+   * @param {object} remove Persoon die verdwijnt (met blokken).
+   * @param {{plain: Record<string, ('keep'|'remove')>, blocks: Record<string, ('fill'|'keep'|'remove')>}} choices Keuze
+   *   per NAW-veld (standaard: de ingevulde waarde van wie blijft) en per blok (standaard `fill`: lege velden aanvullen).
+   * @returns {Promise<void>}
+   */
+  const mergePersons = async (client, keep, remove, choices) => {
+    const plain = Object.fromEntries(PLAIN_FIELDS.map((name) => [name, choices.plain[name] === 'remove' ? (remove[name] || '') : (keep[name] || remove[name] || '')]));
+    const blocks = {};
+    for (const block of Object.keys(BLOCKS)) {
+      const kept = openBlock(block, keep);
+      const removed = openBlock(block, remove);
+      const choice = choices.blocks[block] || 'fill';
+      blocks[block] = choice === 'remove' ? removed : choice === 'keep' ? kept
+        : Object.fromEntries(BLOCKS[block].map((name) => [name, kept[name] || removed[name] || '']));
+    }
+    await client.query(
+      `UPDATE persons SET gender = $2, first_names = $3, call_name = $4, last_name = $5, email = $6, mobile = $7, phone = $8,
+         street = $9, postal_code = $10, city = $11, occupation = $12, identity_data = $13, special_data = $14,
+         health_data = $15, emergency_data = $16, updated_at = now(), last_activity_at = GREATEST(last_activity_at, $17::timestamptz)
+       WHERE id = $1`,
+      [keep.id, plain.gender, plain.first_names, plain.call_name, plain.last_name, plain.email, plain.mobile, plain.phone,
+        plain.street, plain.postal_code, plain.city, plain.occupation,
+        sealBlock('identity_data', keep.id, blocks.identity_data), sealBlock('special_data', keep.id, blocks.special_data),
+        sealBlock('health_data', keep.id, blocks.health_data), sealBlock('emergency_data', keep.id, blocks.emergency_data), remove.last_activity_at],
+    );
+    await client.query('UPDATE bookings SET person_id = $1 WHERE person_id = $2', [keep.id, remove.id]);
+    await client.query('UPDATE consents SET person_id = $1 WHERE person_id = $2', [keep.id, remove.id]);
+    await client.query('UPDATE persons SET duplicate_of = $1 WHERE duplicate_of = $2 AND id <> $1', [keep.id, remove.id]);
+    await client.query('DELETE FROM persons WHERE id = $1', [remove.id]);
+    await refreshMatchKey(client, keep.id);
+  };
+
+  return { matchKey, openBlock, savePerson, recordConsents, backfillPersons, splitValues, writeBlock, refreshMatchKey, findPerson, mergePersons };
 }
 
 module.exports = { createPersons, PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, LEGACY_TEXT_VERSION };

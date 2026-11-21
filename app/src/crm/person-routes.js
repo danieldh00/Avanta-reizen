@@ -98,19 +98,11 @@ function createPersonRoutes(options) {
   const canEdit = [canView, auth.requireRight('deelnemers.wijzigen')];
 
   /**
-   * Zoekt een persoon op id (met de versleutelde blokken, die pas na *Toon* worden geopend).
-   * @param {string} id Id uit de URL (alleen cijfers, zie de route).
-   * @param {{query: Function}} [client] Database of transactie-client.
+   * Zoekt een persoon op id (zie `persons.findPerson`).
+   * @param {string} id Id uit de URL.
    * @returns {Promise<(object|null)>} Persoon, of null.
    */
-  const findPerson = async (id, client = db) => {
-    const [person] = await client.query(
-      `SELECT id, ${PLAIN_FIELDS.join(', ')}, ${Object.keys(BLOCKS).join(', ')}, duplicate_of, created_at, updated_at, last_activity_at
-         FROM persons WHERE id = $1`,
-      [Number(id)],
-    );
-    return person || null;
-  };
+  const findPerson = (id) => persons.findPerson(db, id);
 
   /**
    * 404-pagina binnen het CRM.
@@ -256,7 +248,9 @@ function createPersonRoutes(options) {
       path: '/app/deelnemers/',
       body: html`<p><a href="/app/deelnemers/">Naar de deelnemers</a> · Aangemaakt ${formatDateTime(person.created_at)} · Laatste activiteit ${formatDateTime(person.last_activity_at)}</p>
         ${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
-        ${original ? html`<p class="notice">Mogelijk dezelfde persoon als <a href="/app/deelnemers/${original.id}/">${original.first_names} ${original.last_name}</a> (#${original.id}).</p>` : ''}
+        ${original ? html`<div class="notice"><p>Mogelijk dezelfde persoon als <a href="/app/deelnemers/${original.id}/">${original.first_names} ${original.last_name}</a> (#${original.id}).</p>
+          ${canChange ? html`<p><a class="btn btn--small" href="/app/deelnemers/${person.id}/samenvoegen/">Samenvoegen</a></p>
+          <form method="post" action="/app/deelnemers/${person.id}/niet-dubbel/">${hidden}<button class="btn btn--outline btn--small" type="submit">Geen dubbel, markering weghalen</button></form>` : ''}</div>` : ''}
         ${duplicates.length ? html`<p class="notice">Mogelijk dubbel: ${duplicates.map((item, index) => html`${index ? ', ' : ''}<a href="/app/deelnemers/${item.id}/">${item.first_names} ${item.last_name}</a> (#${item.id})`)}.</p>` : ''}
         <div class="crm-columns">
           <section>
@@ -290,7 +284,7 @@ function createPersonRoutes(options) {
     try {
       const person = await findPerson(req.params.id);
       if (!person) return notFound(req, res);
-      const notices = { '1': 'De gegevens zijn opgeslagen.', ingetrokken: 'De toestemming is ingetrokken en de bijbehorende gegevens zijn gewist.' };
+      const notices = { '1': 'De gegevens zijn opgeslagen.', samengevoegd: 'De deelnemers zijn samengevoegd; het dubbel is verwijderd.', ingetrokken: 'De toestemming is ingetrokken en de bijbehorende gegevens zijn gewist.' };
       return res.send(await renderPerson(req, person, { notice: notices[req.query.opgeslagen] || '' }));
     } catch (error) {
       return next(error);

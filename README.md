@@ -66,7 +66,10 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     na **Toon** (een POST, vastgelegd in het auditlog); elk blok vraagt zijn eigen recht (`gegevens.identiteit`,
     `gegevens.gezondheid`, `gegevens.religie`). Wijzigen, blokken bewerken en een art. 9-toestemming intrekken (dat
     wist het blok) vragen `deelnemers.wijzigen` (beheerder, kantoor); art. 9-gegevens opslaan kan alleen met een
-    geldige toestemming. Boekhouding ziet NAW alleen-lezen. De reisleider krijgt dit scherm pas als zijn toegang tot de
+    geldige toestemming. **Mogelijke dubbelen** (`app/src/crm/person-merge-routes.js`): *Samenvoegen* met de
+    oorspronkelijke persoon (per afwijkend NAW-veld kiezen; per bijzonder blok aanvullen, houden of overnemen, alleen
+    met het recht op dat blok, de waarden zelf staan niet op dat scherm); aanmeldingen en toestemmingen gaan mee en
+    het dubbel wordt verwijderd. Of *Geen dubbel* om de markering weg te halen. Boekhouding ziet NAW alleen-lezen. De reisleider krijgt dit scherm pas als zijn toegang tot de
     eigen vertrekken is gebouwd (tot dan 403).
   - **Tweestapsverificatie (2FA)** met een authenticator-app (TOTP, RFC 6238; eigen code op `crypto`, zoals AquaTech).
     Na het juiste wachtwoord krijgt wie 2FA heeft of moet hebben eerst een *halve sessie* (15 minuten): daarmee is
