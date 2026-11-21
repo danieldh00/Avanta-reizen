@@ -42,7 +42,7 @@ const OVERVIEW_SQL = `SELECT b.id, b.reference, b.trip_id, b.trip_title, b.trip_
   FROM bookings b
   LEFT JOIN (SELECT booking_id, sum(amount_cents) AS total,
                     sum(amount_cents) FILTER (WHERE kind IN ('boekingskosten', 'sgr')) AS fees
-               FROM booking_charges GROUP BY booking_id) c ON c.booking_id = b.id
+               FROM booking_charges WHERE removed_at IS NULL GROUP BY booking_id) c ON c.booking_id = b.id
   LEFT JOIN (SELECT booking_id, sum(amount_cents) AS paid FROM payments GROUP BY booking_id) p ON p.booking_id = b.id
   WHERE ($1::int IS NULL OR b.trip_id = $1)
     AND ($2 OR b.status <> 'geannuleerd')
