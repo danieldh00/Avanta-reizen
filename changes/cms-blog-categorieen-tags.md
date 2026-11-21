@@ -14,4 +14,4 @@ bump: minor
 - Site: `content.blogHighlights` levert tagbalk en uitgelicht bericht uit de database, tot de overname nog uit `site-content.json`; `/category/<slug>/` en `/tag/<slug>/` tonen de zichtbare berichten; sitemap met categorieën en tags die een zichtbaar bericht hebben.
 - Verwijderen van een bericht haalt doorverwijzingen naar dat bericht weg. Het blogoverzicht toont het uitgelichte bericht ook als het het enige bericht is.
 - Uitlichten en adreswijzigingen van categorieën en tags lopen met een advisory lock na elkaar, zodat gelijktijdig werken geen foutpagina geeft.
-- Een bericht offline zetten haalt ook het uitgelicht-vinkje weg.
+- Een bericht offline zetten haalt ook het uitgelicht-vinkje weg. Een ingepland bericht blijft bewust uitgelicht: het wordt op de geplande datum vanzelf zichtbaar als uitgelicht bericht (tot dan toont de site geen uitgelicht bericht).
