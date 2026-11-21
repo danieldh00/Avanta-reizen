@@ -269,6 +269,9 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     per categorie aanvinkt én het recht hebt (identiteit, gezondheid + noodnummer, kerkgenootschap alleen beheerder;
     anders 403); art. 9 alleen bij een niet ingetrokken toestemming. Elke export staat in het auditlog (plus een regel
     per categorie), hoogstens 30 per gebruiker per 10 minuten. Blad *Over deze lijst* noemt reis, maker en moment.
+    De **reisleider** ziet alleen de vertrekken van het reisleidersprofiel dat bij *Gebruikers* aan zijn account hangt
+    (`users.guide_id` naar `trip_guides`; andere reis geeft 404), met naam, mobiel en e-mail. Identiteit en gezondheid
+    alleen van 14 dagen vóór vertrek tot en met de terugkomst (vertrek + duur - 1).
   - **Deelnemers** op `/app/deelnemers/` (recht `deelnemers`; `app/src/crm/person-routes.js`): lijst met zoeken op
     naam, e-mailadres of woonplaats (elk woord moet voorkomen) en een filter *mogelijk dubbel*; per persoon NAW,
     aanmeldingen, toestemmingen en de bijzondere gegevens per blok. Een blok staat nooit in de lijst en op de pagina pas

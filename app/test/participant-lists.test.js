@@ -1,6 +1,7 @@
 /**
- * Tests voor de deelnemerslijst per vertrek (`/app/deelnemerslijsten/`, .xlsx): rechten (zonder recht 403, reisleider
- * dicht tot zijn eigen vertrekken er zijn, categorie zonder recht 403), onbekende reis → 404, CSRF, geannuleerde
+ * Tests voor de deelnemerslijst per vertrek (`/app/deelnemerslijsten/`, .xlsx): rechten (zonder recht 403, categorie
+ * zonder recht 403, reisleider alleen eigen vertrekken via het gekoppelde profiel, andere reis 404, beperkte kolommen,
+ * bijzondere gegevens alleen in het venster rond vertrek, profiel koppelen in Gebruikers), onbekende reis → 404, CSRF, geannuleerde
  * aanmeldingen niet in de lijst, bijzondere gegevens alleen op verzoek en met recht, art. 9 alleen met een niet
  * ingetrokken toestemming, audit per export en per categorie, en de limiet. Draait in een eigen schema.
  */
@@ -14,7 +15,7 @@ const { createPersons } = require('../src/crm/persons');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
 const { buildParticipantWorkbook, participantFileName, NO_CONSENT, UNREADABLE } = require('../src/crm/participant-lists');
-const { EXPORT_LIMIT } = require('../src/crm/participant-list-routes');
+const { EXPORT_LIMIT, MAX_ROWS } = require('../src/crm/participant-list-routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'participant_lists_test';
@@ -179,7 +180,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
   await t.test('rechten, 404 en CSRF', async () => {
     assert.equal((await request('/app/deelnemerslijsten/')).status, 303);
     assert.equal((await request(exportPath, { form: { _csrf: 'x' } })).status, 401);
-    for (const session of [leider, boek, redacteur]) {
+    for (const session of [boek, redacteur]) {
       assert.equal((await request('/app/deelnemerslijsten/', { cookie: session.cookie })).status, 403);
       assert.equal((await request(exportPath, { cookie: session.cookie, form: { _csrf: session.csrf } })).status, 403);
     }
@@ -199,7 +200,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.match((await request('/app/deelnemerslijsten/', { cookie: beheer.cookie })).text, /name="religie"/);
     assert.match((await request(`/app/aanmeldingen/?reis=${trip.id}`, { cookie: kantoor.cookie })).text, new RegExp(`href="/app/deelnemerslijsten/#reis-${trip.id}"`));
     assert.match((await request('/app/', { cookie: kantoor.cookie })).text, /href="\/app\/deelnemerslijsten\/"/);
-    assert.doesNotMatch((await request('/app/', { cookie: leider.cookie })).text, /href="\/app\/deelnemerslijsten\/"/);
+    assert.match((await request('/app/', { cookie: leider.cookie })).text, /href="\/app\/deelnemerslijsten\/"/);
     assert.equal(empty.id > 0, true);
   });
 
@@ -241,10 +242,79 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.match(sheet, />0687654321</, 'noodnummer is geen art. 9 en blijft');
   });
 
+  await t.test('reisleider: alleen eigen vertrekken, beperkt, bijzondere gegevens alleen in het venster', async () => {
+    // Zonder gekoppeld profiel: niets te zien, elke reis 404.
+    assert.match((await request('/app/deelnemerslijsten/', { cookie: leider.cookie })).text, /nog geen vertrekken met aanmeldingen waar jij reisleider van bent/);
+    assert.equal((await request(exportPath, { cookie: leider.cookie, form: { _csrf: leider.csrf } })).status, 404);
+
+    const [guide] = await db.query("INSERT INTO guides (slug, name) VALUES ('henk', 'Henk') RETURNING id");
+    const [otherGuide] = await db.query("INSERT INTO guides (slug, name) VALUES ('piet', 'Piet') RETURNING id");
+    const [leiderUser] = await db.query("SELECT id FROM users WHERE email = 'leider@example.nl'");
+    // Koppelen via Gebruikers (beheerder); een onbekend profiel geeft 422, een andere rol slaat geen profiel op.
+    const form = { _csrf: beheer.csrf, name: 'Leider', email: 'leider@example.nl', role: 'reisleider', active: 'ja' };
+    assert.equal((await request(`/app/gebruikers/${leiderUser.id}/`, { cookie: beheer.cookie, form: { ...form, guide_id: '999999' } })).status, 422);
+    assert.match((await request(`/app/gebruikers/${leiderUser.id}/`, { cookie: beheer.cookie })).text, /name="guide_id"/);
+    assert.equal((await request(`/app/gebruikers/${leiderUser.id}/`, { cookie: beheer.cookie, form: { ...form, guide_id: String(guide.id) } })).status, 303);
+    assert.equal((await db.query('SELECT guide_id FROM users WHERE id = $1', [leiderUser.id]))[0].guide_id, guide.id);
+    assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action = 'gebruiker.reisleidersprofiel'"))[0].total, 1);
+    const relogged = await login('leider@example.nl');
+
+    // Reis van een ander profiel: 404. Eigen reis buiten het venster: beperkt, zonder categorieën.
+    await db.query('INSERT INTO trip_guides (trip_id, guide_id) VALUES ($1, $2)', [trip.id, otherGuide.id]);
+    assert.equal((await request(exportPath, { cookie: relogged.cookie, form: { _csrf: relogged.csrf } })).status, 404);
+    await db.query('INSERT INTO trip_guides (trip_id, guide_id) VALUES ($1, $2)', [trip.id, guide.id]);
+    const overview = await request('/app/deelnemerslijsten/', { cookie: relogged.cookie });
+    assert.match(overview.text, /Albanië/);
+    assert.doesNotMatch(overview.text, /name="gezondheid"/, 'buiten het venster geen categorieën');
+    assert.equal((await request(exportPath, { cookie: relogged.cookie, form: { _csrf: relogged.csrf, gezondheid: 'ja' } })).status, 403);
+    const limited = await download(relogged);
+    assert.match(limited.sheet, />Bakker</);
+    assert.match(limited.sheet, />0612121212</);
+    assert.match(limited.sheet, />griet@example\.nl</);
+    assert.doesNotMatch(limited.sheet, /Markt 1|Middelburg|AV-2027-GRIET001|Betaalkeuze/, 'geen adres, referentie of betaalgegevens');
+    assert.match(limited.about, /Reisleider/);
+
+    // Eigen reis binnen het venster (vertrek over 5 dagen): identiteit en gezondheid mogen, kerkgenootschap nooit.
+    const [soon] = await db.query("INSERT INTO trips (slug, title, trip_code, departure_date, duration_days) VALUES ('binnenkort', 'Binnenkort', '26-BIN-1', current_date + 5, 8) RETURNING id");
+    await db.query('INSERT INTO trip_guides (trip_id, guide_id) VALUES ($1, $2)', [soon.id, guide.id]);
+    await db.query("UPDATE consents SET withdrawn_at = NULL WHERE person_id = $1 AND kind = 'art9_gezondheid'", [personId]);
+    await db.query('UPDATE bookings SET trip_id = $1 WHERE reference = $2', [soon.id, 'AV-2027-GRIET001']);
+    assert.match((await request('/app/deelnemerslijsten/', { cookie: relogged.cookie })).text, /name="gezondheid"/);
+    const response = await request(`/app/deelnemerslijsten/${soon.id}/`, { cookie: relogged.cookie, form: { _csrf: relogged.csrf, identiteit: 'ja', gezondheid: 'ja' } });
+    assert.equal(response.status, 200);
+    const sheet = unzip(response.buffer)['xl/worksheets/sheet1.xml'];
+    assert.match(sheet, />Astma</);
+    assert.match(sheet, /04-03-1990/);
+    assert.doesNotMatch(sheet, /Markt 1/);
+    assert.equal((await request(`/app/deelnemerslijsten/${soon.id}/`, { cookie: relogged.cookie, form: { _csrf: relogged.csrf, religie: 'ja' } })).status, 403);
+    // Na de terugkomst (vertrek 20 dagen geleden, 8 dagen): weer dicht.
+    await db.query('UPDATE trips SET departure_date = current_date - 20 WHERE id = $1', [soon.id]);
+    assert.equal((await request(`/app/deelnemerslijsten/${soon.id}/`, { cookie: relogged.cookie, form: { _csrf: relogged.csrf, gezondheid: 'ja' } })).status, 403);
+  });
+
+  await t.test('meer dan MAX_ROWS deelnemers: 422, geen bestand en geen audit', async () => {
+    const [big] = await db.query("INSERT INTO trips (slug, title, trip_code, departure_date) VALUES ('groot', 'Groot', '27-GRO-1', '2027-08-01') RETURNING id");
+    await db.query(
+      `INSERT INTO bookings (reference, trip_id, trip_title, gender, first_names, call_name, last_name, email, mobile, street, postal_code, city,
+         earlier_trip, credit_card, driver_interest, driver_before, payment_method, payment_choice, consent_at)
+       SELECT 'AV-GROOT-' || n, $1, 'Groot', 'man', 'Jan', 'Jan', 'Groot' || n, 'groot@example.nl', '06', 'Straat 1', '1234 AB', 'Goes',
+              false, false, false, false, 'handmatig', 'aanbetaling', now()
+         FROM generate_series(1, $2::int) AS n`,
+      [big.id, MAX_ROWS + 1],
+    );
+    const before = (await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action LIKE 'export.deelnemers%'"))[0].total;
+    const response = await request(`/app/deelnemerslijsten/${big.id}/`, { cookie: beheer.cookie, form: { _csrf: beheer.csrf } });
+    assert.equal(response.status, 422);
+    assert.notEqual(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action LIKE 'export.deelnemers%'"))[0].total, before);
+  });
+
   await t.test('limiet per gebruiker', async () => {
     clock += 60 * 60 * 1000;
     for (let i = 0; i < EXPORT_LIMIT; i++) assert.equal((await request(exportPath, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })).status, 200);
-    assert.equal((await request(exportPath, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })).status, 429);
+    const limited = await request(exportPath, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } });
+    assert.equal(limited.status, 429);
+    assert.match(limited.text, /href="\/app\/deelnemerslijsten\/"/, 'CRM-pagina met link terug');
     assert.equal((await request(exportPath, { cookie: beheer.cookie, form: { _csrf: beheer.csrf } })).status, 200, 'andere gebruiker heeft een eigen teller');
   });
 });
