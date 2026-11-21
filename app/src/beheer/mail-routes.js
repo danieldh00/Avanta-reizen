@@ -13,7 +13,7 @@ const { renderMail, LOGO_CID } = require('../mail/layout');
 const { createRateLimiter } = require('../security/rate-limit');
 
 /** Omschrijving van de soorten mail in het overzicht. */
-const KIND_LABELS = { testmail: 'Testmail', 'melding-contact': 'Melding contactbericht', 'melding-aanmelding': 'Melding aanmelding' };
+const KIND_LABELS = { testmail: 'Testmail', 'melding-contact': 'Melding contactbericht', 'melding-aanmelding': 'Melding aanmelding', 'bevestiging-aanmelding': 'Bevestiging aan reiziger' };
 
 /**
  * Maakt de routes en het paneel van de mailserver.

@@ -56,7 +56,7 @@ function fakeMailer(behaviour = {}) {
  * @returns {{get: Function}} Nep-instellingen.
  */
 function fakeSettings(values) {
-  const all = { notifyEmail: 'kantoor@example.nl', notifyContact: true, notifyBooking: true, mailHeaderColor: '#a95c4c', mailFooterText: 'Avanta Reizen', siteName: 'Avanta reizen', ...values };
+  const all = { notifyEmail: 'kantoor@example.nl', notifyContact: true, notifyBooking: true, bookingConfirmEnabled: true, bookingPaymentText: 'Maak het over naar NL94 RABO 0385 3731 55.', mailHeaderColor: '#a95c4c', mailFooterText: 'Avanta Reizen', siteName: 'Avanta reizen', ...values };
   return { get: (key) => all[key] };
 }
 
@@ -119,6 +119,40 @@ test('meldingen: alleen als ze aan staan, met adres en server; aanmelding zonder
   assert.equal(await notifications.contactMessage({ name: 'Jan', email: 'jan@example.nl', phone: '', subject: 'Vraag', message: 'Hoi' }, null), true);
   assert.equal(mailer.sent[1].subject, 'Nieuw bericht via de website: Vraag');
   assert.equal(mailer.sent[1].replyTo, 'jan@example.nl');
+});
+
+test('bevestiging aan de reiziger: bedragen, betaalinstructie, alleen als hij aan staat en nooit bijzondere gegevens', async () => {
+  const trip = { title: '8 dagen Albanië', trip_code: '27-AKO-56', departure_date: '2027-07-01', price_cents: 109900, extra_costs_cents: 15000 };
+  const values = { call_name: 'Anna', first_names: 'Anna Maria', last_name: 'Jansen', email: 'anna@example.nl', payment_choice: 'aanbetaling', church: 'PKN', particulars: 'Notenallergie', birth_date: '1999-05-04', document_number: 'NX1234567', emergency_phone: '0687654321' };
+  const booking = { reference: 'AV-2027-0000000A', trip, values, depositCents: 30000 };
+
+  for (const [settings, mailer, reason] of [
+    [fakeSettings({ bookingConfirmEnabled: false }), fakeMailer(), 'bevestiging uit'],
+    [fakeSettings({}), fakeMailer({ configured: false }), 'geen mailserver'],
+  ]) {
+    assert.equal(await createNotifications({ mailer, settings }).bookingConfirmation(booking), false, reason);
+    assert.equal(mailer.sent.length, 0, reason);
+  }
+  assert.equal(await createNotifications({ mailer: fakeMailer({ fail: true }), settings: fakeSettings({}) }).bookingConfirmation(booking), false, 'een fout wordt niet gegooid');
+  // Zonder kantooradres gaat de bevestiging gewoon: die hangt niet aan de meldingen.
+  const mailer = fakeMailer();
+  assert.equal(await createNotifications({ mailer, settings: fakeSettings({ notifyEmail: '' }) }).bookingConfirmation(booking), true);
+  const [message] = mailer.sent;
+  assert.equal(message.to, 'anna@example.nl');
+  assert.equal(message.kind, 'bevestiging-aanmelding');
+  assert.equal(message.subject, 'Bevestiging van je aanmelding AV-2027-0000000A: 8 dagen Albanië');
+  assert.match(message.text, /Beste Anna,/);
+  assert.match(message.text, /Reissom: €1\.099,-\nSGR-garantie: €5,-\nBoekingskosten: €15,-\nTotaal: €1\.119,-\nNu te betalen \(aanbetaling\): €300,-\nBijkomende kosten \(ter plaatse\): €150,-/);
+  assert.match(message.text, /NL94 RABO 0385 3731 55\.\n\nReferentie voor de omschrijving: AV-2027-0000000A/);
+  assert.doesNotMatch(message.text + message.html, /PKN|Notenallergie|1999|NX1234567|0687654321|Anna Maria/, 'nooit bijzondere gegevens of paspoortnaam');
+
+  // Totaalbedrag: geen boekingskosten en geen regel voor de aanbetaling.
+  const total = fakeMailer();
+  await createNotifications({ mailer: total, settings: fakeSettings({}) }).bookingConfirmation({ ...booking, values: { ...values, payment_choice: 'totaal' } });
+  assert.match(total.sent[0].text, /Betaling: Totaalbedrag/);
+  assert.match(total.sent[0].text, /Totaal: €1\.104,-/);
+  assert.doesNotMatch(total.sent[0].text, /Boekingskosten|aanbetaling\)/);
+  assert.throws(() => validateValue('bookingPaymentText', SETTING_FIELDS.bookingPaymentText, '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11'), /10 regels/);
 });
 
 test('meldingen vanuit het contact- en aanmeldformulier, en Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
@@ -225,10 +259,15 @@ test('meldingen vanuit het contact- en aanmeldformulier, en Beheer', { skip: !DA
     const form = await fill();
     clock += 5000;
     assert.equal((await request('/aanmelden/', { form })).status, 303);
-    await waitFor(() => sent.length >= 2);
-    const message = sent[1];
+    await waitFor(() => sent.length >= 3);
     const [booking] = await db.query('SELECT reference FROM bookings');
+    const message = sent.find((item) => item.subject.startsWith('Nieuwe aanmelding'));
     assert.equal(message.subject, `Nieuwe aanmelding ${booking.reference}: 8 dagen Albanië`);
+    const confirmation = sent.find((item) => item.subject.startsWith('Bevestiging'));
+    assert.deepEqual(confirmation.to, ['anna@example.nl']);
+    assert.equal(confirmation.subject, `Bevestiging van je aanmelding ${booking.reference}: 8 dagen Albanië`);
+    assert.match(confirmation.text, new RegExp(`Referentie voor de omschrijving: ${booking.reference}`));
+    assert.doesNotMatch(confirmation.text + confirmation.html, /PKN|Notenallergie|1999|NX1234567|Anna Maria/);
     assert.match(message.text, /Naam: Anna Jansen/);
     assert.match(message.text, /Betaling: Totaalbedrag/);
     assert.doesNotMatch(message.text + message.html, /PKN|Notenallergie|1999|NX1234567|Anna Maria/);

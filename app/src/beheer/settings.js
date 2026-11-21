@@ -186,6 +186,20 @@ const SETTING_FIELDS = {
   notifyEmail: { type: 'email', label: 'E-mailadres van kantoor', help: 'Hier komen de meldingen binnen. Leeg = geen meldingen.', default: '', max: 200 },
   notifyContact: { type: 'bool', label: 'Melding bij een nieuw bericht via het contactformulier', default: true },
   notifyBooking: { type: 'bool', label: 'Melding bij een nieuwe aanmelding', help: 'Zonder bijzondere gegevens (geboortedatum, kerk, paspoort, noodnummer, bijzonderheden); die staan alleen versleuteld in het CRM.', default: true },
+  bookingConfirmEnabled: {
+    type: 'bool', label: 'Bevestiging naar de reiziger na een aanmelding',
+    help: 'Een mail aan het opgegeven e-mailadres met de referentie, de reisgegevens, de bedragen en de betaalinstructie. Nooit met bijzondere gegevens.',
+    default: true,
+  },
+  bookingPaymentText: {
+    type: 'textarea',
+    label: 'Betaalinstructie in de bevestiging',
+    help: 'Staat onder de bedragen in de bevestiging. Noem rekeningnummer, termijn en dat de referentie in de omschrijving moet. Hoogstens 10 regels.',
+    default: 'Maak het bedrag binnen 24 uur over naar rekening NL94 RABO 0385 3731 55 t.n.v. Avanta Reizen en vermeld je referentie als omschrijving.\nKies je voor de aanbetaling, dan ontvang je later bericht over het restant.',
+    max: 1500,
+    required: true,
+    validate: (value) => (value.split('\n').length > 10 ? 'Gebruik hoogstens 10 regels.' : ''),
+  },
   mailHeaderColor: {
     type: 'text',
     label: 'Kleur van de titelbalk',

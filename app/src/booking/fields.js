@@ -8,6 +8,10 @@
 /** Versie van de toestemmingsteksten; komt bij elke toestemming in `consents.text_version`. Verhogen bij een nieuwe tekst. */
 const CONSENT_TEXT_VERSION = '2026-11-21';
 
+/** Vaste bedragen bij elke aanmelding (in centen): SGR-garantie en boekingskosten (vervallen bij het totaalbedrag). */
+const SGR_CENTS = 500;
+const BOOKING_FEE_CENTS = 1500;
+
 const YES_NO = [{ value: 'ja', label: 'ja' }, { value: 'nee', label: 'nee' }];
 
 /** Alle velden, per groep, in de volgorde van het formulier. */
@@ -138,4 +142,4 @@ function validateBooking(body, context) {
   return { values, errors };
 }
 
-module.exports = { FIELD_GROUPS, FIELDS, validateBooking, validateFields, isValidDate, CONSENT_TEXT_VERSION };
+module.exports = { FIELD_GROUPS, FIELDS, validateBooking, validateFields, isValidDate, CONSENT_TEXT_VERSION, SGR_CENTS, BOOKING_FEE_CENTS };

@@ -316,6 +316,10 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     een nieuwe aanmelding (antwoordadres = de afzender). De melding gaat na het opslaan op de achtergrond; mislukt die,
     dan blijft de inzending gewoon bewaard en staat de fout in het overzicht van de mailserver. Een aanmelding gaat
     zonder bijzondere gegevens (geboortedatum, kerk, paspoort, noodnummer, bijzonderheden) de deur uit.
+  - *E-mail > Bevestiging aan de reiziger* (CMS-pakket J1): na een aanmelding krijgt de reiziger een mail met de
+    referentie, de reisgegevens, de bedragen (reissom, SGR-garantie, boekingskosten bij de aanbetaling, totaal, de
+    aanbetaling van de reis en de bijkomende kosten) en de instelbare betaalinstructie. Aan/uit en de tekst staan hier;
+    net als de melding nooit met bijzondere gegevens, op de achtergrond, en een mislukte mail laat de aanmelding staan.
   - *E-mail > Mail-opmaak*: kleur van de titelbalk (contrast met wit minimaal 4,5) en voettekst; het logo van de site
     staat bovenaan elke mail (ingebed). Met een voorbeeld in een nieuw tabblad.
   - *Toegang en beveiliging > Sessies en bewaartermijnen*: uitloggen na inactiviteit (1–24 uur, standaard 8), maximale
