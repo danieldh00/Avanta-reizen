@@ -1,6 +1,7 @@
 /**
  * Router van het CRM onder `/app/`: inloggen, uitloggen, eerste beheerder (installatiecode), overzicht en het eigen
- * wachtwoord wijzigen. Gebruikersbeheer en auditlog staan in `crm/users.js`.
+ * wachtwoord wijzigen. Gebruikersbeheer en auditlog staan in `crm/users.js`, de tweestapsverificatie (codestap na het
+ * wachtwoord en het eigen 2FA-scherm) in `crm/two-factor.js`.
  * Alles onder `/app/` krijgt `Cache-Control: no-store` en `noindex`.
  */
 const crypto = require('node:crypto');
@@ -13,6 +14,8 @@ const { RIGHTS, ROLES, roleHasRight, roleLabel } = require('./rights');
 const { hashPassword, verifyPassword, needsRehash, passwordProblem, getDummyHash, MAX_LENGTH } = require('./passwords');
 const { renderCrmPage, renderInput, renderAlert } = require('./layout');
 const { createUserRoutes } = require('./users');
+const { createTwoFactor, createTwoFactorRoutes, SETUP_ACTIVATION_DAYS } = require('./two-factor');
+const { createVault } = require('../security/vault');
 const { createBeheerRoutes } = require('../beheer/routes');
 
 /**
@@ -86,6 +89,7 @@ function textField(value, max) {
 function createCrmRouter(options) {
   const { db } = options;
   const auth = createAuth(options);
+  const twoFactor = createTwoFactor({ db, vault: createVault(options.masterKey), now: options.now });
   const router = express.Router();
   const setupCodeHash = options.setupCode ? crypto.createHash('sha256').update(normalizeSetupCode(options.setupCode)).digest() : null;
   const loginLimiter = createRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000, now: options.now });
@@ -155,6 +159,7 @@ function createCrmRouter(options) {
   router.get('/inloggen/', async (req, res, next) => {
     try {
       if (req.user) return res.redirect(303, '/app/');
+      if (req.pending) return res.redirect(303, auth.pendingPath(req));
       return res.send(renderLogin({ setupOpen: Boolean(setupCodeHash) && !(await hasUsers()) }));
     } catch (error) {
       return next(error);
@@ -166,7 +171,7 @@ function createCrmRouter(options) {
       const email = normalizeEmail(req.body.email);
       const password = typeof req.body.password === 'string' ? req.body.password : '';
       const [user] = email
-        ? await db.query('SELECT id, password_hash, active FROM users WHERE lower(email) = $1', [email])
+        ? await db.query('SELECT id, role, password_hash, active, (totp_enabled_at IS NOT NULL) AS mfa_enabled FROM users WHERE lower(email) = $1', [email])
         : [];
       const failureKey = `${user ? user.id : 'onbekend'}:${ipPrefix(req)}`;
       const accountKey = user ? `account:${user.id}` : '';
@@ -191,6 +196,16 @@ function createCrmRouter(options) {
       failedLoginLimiter.clear(failureKey);
       accountFailureLimiter.clear(accountKey);
       const newHash = needsRehash(user.password_hash) ? await hashPassword(password) : null;
+      // Tweede stap nodig (2FA staat aan, of is verplicht maar nog niet ingesteld): eerst een halve sessie, waarmee
+      // alleen de codestap of het instellen bereikbaar is. Een geraden wachtwoord alleen geeft zo geen toegang.
+      if (user.mfa_enabled || auth.mfaRequiredFor(user.role)) {
+        await db.transaction(async (client) => {
+          if (newHash) await client.query('UPDATE users SET password_hash = $2 WHERE id = $1', [user.id, newHash]);
+          await auth.startSession(res, user.id, client, { mfaOk: false });
+          await auth.audit(req, { userId: user.id, action: 'inloggen.wachtwoord', entity: 'users', entityId: user.id }, client);
+        });
+        return res.redirect(303, user.mfa_enabled ? '/app/inloggen/code/' : '/app/tweestaps/');
+      }
       await db.transaction(async (client) => {
         await client.query(
           'UPDATE users SET last_login_at = now(), password_hash = COALESCE($2, password_hash) WHERE id = $1',
@@ -205,9 +220,11 @@ function createCrmRouter(options) {
     }
   });
 
-  router.post('/uitloggen/', auth.requireLogin, auth.checkCsrf, async (req, res, next) => {
+  // Uitloggen kan ook met een halve sessie (annuleren bij de codestap of het instellen van 2FA).
+  router.post('/uitloggen/', (req, res, next) => (req.pending ? next() : auth.requireLogin(req, res, next)), auth.checkCsrf, async (req, res, next) => {
     try {
-      await auth.audit(req, { userId: req.user.id, action: 'uitloggen', entity: 'users', entityId: req.user.id });
+      const userId = (req.user || req.pending).id;
+      await auth.audit(req, { userId, action: 'uitloggen', entity: 'users', entityId: userId });
       await auth.endSession(req, res);
       return res.redirect(303, '/app/inloggen/');
     } catch (error) {
@@ -284,6 +301,8 @@ function createCrmRouter(options) {
           [email, values.name, passwordHash],
         );
         await auth.audit(req, { userId: user.id, action: 'installatie', entity: 'users', entityId: user.id }, client);
+        // De installatiecode is ook de activatiecode voor de 2FA van de eerste beheerder (er is nog geen andere beheerder).
+        await twoFactor.issueActivation(user.id, client, { code: options.setupCode, days: SETUP_ACTIVATION_DAYS });
         await auth.startSession(res, user.id, client);
         return user;
       });
@@ -294,20 +313,28 @@ function createCrmRouter(options) {
     }
   });
 
-  router.get('/', auth.requireLogin, (req, res) => {
-    const rights = ROLES[req.user.role] ? ROLES[req.user.role].rights : [];
-    res.send(renderCrmPage({
-      title: 'Overzicht',
-      user: req.user,
-      csrf: req.session.csrf,
-      path: '/app/',
-      body: html`<p>Welkom, ${req.user.name}. Je bent ingelogd als <strong>${roleLabel(req.user.role)}</strong>.</p>
-        <p>Het CRM wordt in stappen gebouwd. De modules voor aanmeldingen, deelnemers en reizen volgen.</p>
-        ${roleHasRight(req.user.role, 'gebruikers') ? html`<p><a class="btn" href="/app/gebruikers/">Gebruikers beheren</a></p>` : ''}
-        ${roleHasRight(req.user.role, 'systeem') ? html`<p><a class="btn btn--outline" href="/app/beheer/">Naar Beheer</a></p>` : ''}
-        <h2>Jouw rechten</h2>
-        <ul class="crm-rights">${rights.map((right) => html`<li>${RIGHTS[right]}</li>`)}</ul>`,
-    }));
+  router.get('/', auth.requireLogin, async (req, res, next) => {
+    try {
+      const rights = ROLES[req.user.role] ? ROLES[req.user.role].rights : [];
+      const mfa = await twoFactor.stateOf(req.user.id);
+      return res.send(renderCrmPage({
+        title: 'Overzicht',
+        user: req.user,
+        csrf: req.session.csrf,
+        path: '/app/',
+        body: html`<p>Welkom, ${req.user.name}. Je bent ingelogd als <strong>${roleLabel(req.user.role)}</strong>.</p>
+          <p>Het CRM wordt in stappen gebouwd. De modules voor aanmeldingen, deelnemers en reizen volgen.</p>
+          ${mfa.enabled ? '' : html`<p class="notice">Tweestapsverificatie staat nog uit voor je account${auth.mfaRequiredFor(req.user.role) ? ' en is verplicht vanaf de volgende keer dat je inlogt' : ''}. <a href="/app/tweestaps/">Nu instellen</a></p>`}
+          ${roleHasRight(req.user.role, 'gebruikers') ? html`<p><a class="btn" href="/app/gebruikers/">Gebruikers beheren</a></p>` : ''}
+          ${roleHasRight(req.user.role, 'systeem') ? html`<p><a class="btn btn--outline" href="/app/beheer/">Naar Beheer</a></p>` : ''}
+          <h2>Jouw account</h2>
+          <ul><li><a href="/app/wachtwoord/">Wachtwoord wijzigen</a></li><li><a href="/app/tweestaps/">Tweestapsverificatie</a> (${mfa.enabled ? 'aan' : 'uit'})</li></ul>
+          <h2>Jouw rechten</h2>
+          <ul class="crm-rights">${rights.map((right) => html`<li>${RIGHTS[right]}</li>`)}</ul>`,
+      }));
+    } catch (error) {
+      return next(error);
+    }
   });
 
   /**
@@ -362,7 +389,8 @@ function createCrmRouter(options) {
     }
   });
 
-  router.use(createUserRoutes({ db, auth, normalizeEmail, textField }));
+  router.use(createTwoFactorRoutes({ db, auth, twoFactor, now: options.now }));
+  router.use(createUserRoutes({ db, auth, twoFactor, normalizeEmail, textField }));
   router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, now: options.now }));
 
   router.use((req, res) => {

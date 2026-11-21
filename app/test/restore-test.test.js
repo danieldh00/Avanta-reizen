@@ -15,6 +15,7 @@ const { createApp } = require('../src/server');
 const backups = require('../src/backup/backups');
 const { createRestoreTests, evaluateRun, parseCounts, recordHostRun, readRuns, HOST_FILE, DRIVE_FILE, REQUEST_FILE } = require('../src/backup/restore-test');
 const { COOKIE_NAME } = require('../src/crm/auth');
+const { loginWithTwoFactor } = require('./helpers/two-factor');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'restore_test';
@@ -216,7 +217,7 @@ test('hersteltest in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
   const cookie = installed.cookie;
   const csrf = csrfFrom((await request('/app/', { cookie })).text);
   await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
-  const office = await request('/app/inloggen/', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } });
+  const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: { cookie, csrf } });
   const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
 
   recordHostRun(dir, { trigger: 'schema', startedAt: '2026-11-22T03:30:00Z', backup: 'avanta-20261122-020000.dump.enc', restored: 'pages=10', live: 'pages=50', appOk: true });

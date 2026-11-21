@@ -188,6 +188,11 @@ const SETTING_FIELDS = {
     max: 500,
     validate: (value) => (value.split('\n').length > 6 ? 'Gebruik hoogstens 6 regels.' : ''),
   },
+  mfaRequiredFor: {
+    type: 'enum', label: 'Tweestapsverificatie verplicht voor', default: 'niemand', values: ['niemand', 'gegevens', 'iedereen'],
+    labels: { niemand: 'Niemand (optioneel: ieder zet het zelf aan)', gegevens: 'Rollen met toegang tot bijzondere gegevens (beheerder, kantoor, reisleider)', iedereen: 'Iedereen' },
+    help: 'Wie het verplicht heeft, stelt het in bij de eerstvolgende keer inloggen, met een activatiecode van de beheerder. Wie het zelf heeft aangezet, geeft bij het inloggen altijd de code.',
+  },
   sessionIdleHours: { type: 'int', label: 'Uitloggen na inactiviteit (uren)', help: 'Een sessie zonder activiteit vervalt na zoveel uur. Geldt meteen, ook voor wie al is ingelogd.', default: 8, min: 1, max: 24 },
   sessionMaxDays: { type: 'int', label: 'Maximale duur van een sessie (dagen)', help: 'Daarna moet iedereen opnieuw inloggen, ook bij activiteit. Korter geldt meteen, ook voor wie al is ingelogd; langer alleen voor nieuwe sessies.', default: 7, min: 1, max: 30 },
   auditRetentionMonths: { type: 'int', label: 'Bewaartermijn auditlog (maanden)', help: 'Oudere regels worden dagelijks verwijderd. Advies: 24 maanden.', default: 24, min: 6, max: 120 },

@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { purgeExpired, hashToken, COOKIE_NAME } = require('../src/crm/auth');
+const { loginWithTwoFactor } = require('./helpers/two-factor');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'toegang_test';
@@ -62,9 +63,13 @@ test('toegang: sessieduur en bewaartermijnen', { skip: !DATABASE_URL && 'TEST_DA
    * Logt in als beheerder.
    * @returns {Promise<{cookie: string, csrf: string, setCookie: string}>} Sessie.
    */
+  let adminSecret = '';
   const login = async () => {
-    const response = await request('/app/inloggen/', { form: { email: 'beheer@example.nl', password: ADMIN_PASSWORD } });
-    return { cookie: response.cookie, setCookie: response.setCookie, csrf: csrfFrom((await request('/app/', { cookie: response.cookie })).text) };
+    // Elke code werkt één keer; deze test logt vaker in binnen 30 seconden, dus de laatst gebruikte stap gaat terug.
+    if (adminSecret) await db.query("UPDATE users SET totp_last_step = NULL WHERE email = 'beheer@example.nl'");
+    const session = await loginWithTwoFactor(request, 'beheer@example.nl', ADMIN_PASSWORD, { secret: adminSecret, activation: SETUP_CODE });
+    adminSecret = session.secret;
+    return session;
   };
 
   await request('/app/installatie/', { form: { code: SETUP_CODE, name: 'Daniël', email: 'beheer@example.nl', password: ADMIN_PASSWORD, password2: ADMIN_PASSWORD } });
@@ -74,7 +79,7 @@ test('toegang: sessieduur en bewaartermijnen', { skip: !DATABASE_URL && 'TEST_DA
   await t.test('rechten: zonder recht systeem 403, ongeldige waarden 422', async () => {
     const created = await request('/app/gebruikers/nieuw/', { cookie: session.cookie, form: { _csrf: session.csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
     assert.equal(created.status, 303);
-    const office = await request('/app/inloggen/', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } });
+    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: session });
     const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
     assert.equal((await request('/app/beheer/sessies/', { cookie: office.cookie })).status, 403);
     assert.equal((await request('/app/beheer/sessies/', { cookie: office.cookie, form: { ...form, _csrf: officeCsrf, sessionIdleHours: '24' } })).status, 403);

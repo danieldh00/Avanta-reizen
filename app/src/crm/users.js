@@ -1,6 +1,7 @@
 /**
  * Gebruikersbeheer en auditlog van het CRM (recht `gebruikers`): lijst, nieuwe gebruiker, rol/naam/e-mail wijzigen,
- * blokkeren en een nieuw wachtwoord instellen. De laatste actieve beheerder kan niet worden gedegradeerd of
+ * blokkeren, een nieuw wachtwoord instellen, de tweestapsverificatie uitzetten (toestel kwijt) en een activatiecode
+ * maken waarmee de gebruiker 2FA kan instellen. De laatste actieve beheerder kan niet worden gedegradeerd of
  * geblokkeerd. Elke wijziging komt in het auditlog, zonder de waarden zelf.
  */
 const express = require('express');
@@ -18,6 +19,16 @@ const ACTION_LABELS = {
   'inloggen.mislukt': 'Inloggen mislukt',
   'inloggen.geblokkeerd': 'Inloggen geweigerd (te veel pogingen vanaf deze IP-reeks)',
   'inloggen.inactief': 'Inloggen geweigerd (account uitgeschakeld)',
+  'inloggen.wachtwoord': 'Wachtwoord goed, wacht op tweede stap',
+  'inloggen.code-mislukt': 'Inloggen: verkeerde code (tweede stap)',
+  'inloggen.code-geblokkeerd': 'Inloggen geweigerd (te veel verkeerde codes)',
+  'tweestaps.aan': 'Tweestapsverificatie aangezet',
+  'tweestaps.uit': 'Tweestapsverificatie uitgezet',
+  'tweestaps.herstelcode': 'Ingelogd met een herstelcode',
+  'tweestaps.herstelcodes': 'Nieuwe herstelcodes gemaakt',
+  'gebruiker.tweestaps': 'Tweestapsverificatie uitgezet door beheerder',
+  'gebruiker.activatiecode': 'Activatiecode voor tweestapsverificatie gemaakt',
+  'tweestaps.activatie-mislukt': 'Tweestapsverificatie: onjuiste activatiecode',
   uitloggen: 'Uitgelogd',
   installatie: 'Eerste beheerder aangemaakt',
   'installatie.mislukt': 'Installatie: onjuiste code',
@@ -39,12 +50,12 @@ const ACTION_LABELS = {
 
 /**
  * Maakt de routes voor gebruikersbeheer en het auditlog.
- * @param {{db: object, auth: object, normalizeEmail: Function, textField: Function}} options Database, sessie- en
- *   rechtenlaag en de invoerhulpen uit `crm/routes.js`.
+ * @param {{db: object, auth: object, twoFactor: object, normalizeEmail: Function, textField: Function}} options Database,
+ *   sessie- en rechtenlaag, de 2FA-opslag (`crm/two-factor.js`) en de invoerhulpen uit `crm/routes.js`.
  * @returns {express.Router} Router.
  */
 function createUserRoutes(options) {
-  const { db, auth, normalizeEmail, textField } = options;
+  const { db, auth, twoFactor, normalizeEmail, textField } = options;
   const router = express.Router();
   const guard = auth.requireRight('gebruikers');
 
@@ -96,7 +107,7 @@ function createUserRoutes(options) {
    */
   const findUser = async (id) => {
     const [user] = await db.query(
-      'SELECT id, email, name, role, active, last_login_at FROM users WHERE id = $1',
+      'SELECT id, email, name, role, active, last_login_at, (totp_enabled_at IS NOT NULL) AS mfa_enabled FROM users WHERE id = $1',
       [Number(id)],
     );
     return user || null;
@@ -128,7 +139,7 @@ function createUserRoutes(options) {
   router.get('/gebruikers/', guard, async (req, res, next) => {
     try {
       const users = await db.query(
-        'SELECT id, email, name, role, active, last_login_at FROM users ORDER BY active DESC, lower(name), id',
+        'SELECT id, email, name, role, active, last_login_at, (totp_enabled_at IS NOT NULL) AS mfa_enabled FROM users ORDER BY active DESC, lower(name), id',
       );
       return res.send(renderCrmPage({
         title: 'Gebruikers',
@@ -138,12 +149,13 @@ function createUserRoutes(options) {
         body: html`${req.query.opgeslagen === '1' ? html`<p class="notice" role="status">De gebruiker is opgeslagen.</p>` : ''}
           <p><a class="btn" href="/app/gebruikers/nieuw/">Nieuwe gebruiker</a></p>
           <div class="crm-table-wrap"><table class="crm-table">
-            <thead><tr><th scope="col">Naam</th><th scope="col">E-mailadres</th><th scope="col">Rol</th><th scope="col">Status</th><th scope="col">Laatst ingelogd</th></tr></thead>
+            <thead><tr><th scope="col">Naam</th><th scope="col">E-mailadres</th><th scope="col">Rol</th><th scope="col">Status</th><th scope="col">Tweestaps</th><th scope="col">Laatst ingelogd</th></tr></thead>
             <tbody>${users.map((user) => html`<tr>
               <td><a href="/app/gebruikers/${user.id}/">${user.name}</a></td>
               <td>${user.email}</td>
               <td>${roleLabel(user.role)}</td>
               <td>${user.active ? 'Actief' : 'Uitgeschakeld'}</td>
+              <td>${user.mfa_enabled ? 'Aan' : 'Uit'}</td>
               <td>${formatDateTime(user.last_login_at)}</td>
             </tr>`)}</tbody>
           </table></div>`,
@@ -210,7 +222,8 @@ function createUserRoutes(options) {
    * De pagina van één gebruiker: gegevens wijzigen en een nieuw wachtwoord instellen.
    * @param {object} req Express-verzoek.
    * @param {object} target De gebruiker.
-   * @param {{values?: object, errors?: object, passwordErrors?: object, notice?: string}} state Waarden, fouten en melding.
+   * @param {{values?: object, errors?: object, passwordErrors?: object, notice?: string, activationCode?: string, activationUntil?: (Date|null)}} state
+ *   Waarden, fouten, melding, een zojuist gemaakte activatiecode (één keer tonen) en tot wanneer een bestaande code geldt.
    * @returns {string} HTML-pagina.
    */
   const renderEditUser = (req, target, state = {}) => {
@@ -241,6 +254,25 @@ function createUserRoutes(options) {
           <p class="field__help">Logt de gebruiker overal uit.</p>
           <div><button class="btn btn--outline" type="submit">Wachtwoord instellen</button></div>
         </form>
+        <h2>Tweestapsverificatie</h2>
+        ${target.mfa_enabled
+    ? html`<p>Staat aan. Is de gebruiker zijn telefoon én herstelcodes kwijt, zet het dan hier uit. De gebruiker wordt overal
+          uitgelogd en stelt het bij de volgende keer inloggen opnieuw in (als het verplicht is).</p>
+        <form method="post" action="/app/gebruikers/${target.id}/tweestaps/">
+          <input type="hidden" name="_csrf" value="${req.session.csrf}">
+          <button class="btn btn--outline" type="submit">Tweestapsverificatie uitzetten</button>
+        </form>`
+    : html`<p>Staat uit${auth.mfaRequiredFor(target.role) ? '; de gebruiker stelt het in bij de volgende keer inloggen' : ' (optioneel voor deze gebruiker)'}.
+          Daarvoor is een activatiecode nodig: maak die hier en geef hem persoonlijk door (niet in dezelfde mail als het
+          wachtwoord). Zo is het wachtwoord alleen nooit genoeg om een eigen app te koppelen.</p>
+        ${state.activationCode
+    ? html`<p class="notice" role="status">Activatiecode: <code class="crm-secret">${state.activationCode}</code><br>Geldig tot
+          ${formatDateTime(state.activationUntil)}. Deze code wordt niet nog eens getoond.</p>`
+    : html`${state.activationUntil ? html`<p>Er staat een activatiecode klaar, geldig tot ${formatDateTime(state.activationUntil)}. Een nieuwe code vervangt die.</p>` : ''}`}
+        <form method="post" action="/app/gebruikers/${target.id}/activatiecode/">
+          <input type="hidden" name="_csrf" value="${req.session.csrf}">
+          <button class="btn btn--outline" type="submit">Activatiecode maken</button>
+        </form>`}
       </div>`,
     });
   };
@@ -249,8 +281,10 @@ function createUserRoutes(options) {
     try {
       const target = await findUser(req.params.id);
       if (!target) return notFound(req, res);
-      const notice = req.query.wachtwoord === '1' ? 'Het nieuwe wachtwoord is ingesteld.' : '';
-      return res.send(renderEditUser(req, target, { notice }));
+      let notice = '';
+      if (req.query.wachtwoord === '1') notice = 'Het nieuwe wachtwoord is ingesteld.';
+      else if (req.query.tweestaps === '1') notice = 'De tweestapsverificatie is uitgezet en de gebruiker is overal uitgelogd.';
+      return res.send(renderEditUser(req, target, { notice, activationUntil: target.mfa_enabled ? null : await twoFactor.activationUntil(target.id) }));
     } catch (error) {
       return next(error);
     }
@@ -310,6 +344,38 @@ function createUserRoutes(options) {
         await auth.audit(req, { userId: req.user.id, action: 'gebruiker.wachtwoord', entity: 'users', entityId: target.id }, client);
       });
       return res.redirect(303, `/app/gebruikers/${target.id}/?wachtwoord=1`);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/gebruikers/:id(\\d{1,9})/tweestaps/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const target = await findUser(req.params.id);
+      if (!target) return notFound(req, res);
+      await db.transaction(async (client) => {
+        if (!(await twoFactor.disable(target.id, client))) return;
+        // Ook de eigen andere sessies: wie zijn eigen 2FA zo uitzet, houdt alleen de huidige sessie.
+        await auth.endSessionsOf(target.id, target.id === req.user.id ? req.session.tokenHash : '', client);
+        await auth.audit(req, { userId: req.user.id, action: 'gebruiker.tweestaps', entity: 'users', entityId: target.id }, client);
+      });
+      return res.redirect(303, `/app/gebruikers/${target.id}/?tweestaps=1`);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/gebruikers/:id(\\d{1,9})/activatiecode/', guard, auth.checkCsrf, async (req, res, next) => {
+    try {
+      const target = await findUser(req.params.id);
+      if (!target) return notFound(req, res);
+      if (target.mfa_enabled) return res.redirect(303, `/app/gebruikers/${target.id}/`);
+      const code = await db.transaction(async (client) => {
+        const created = await twoFactor.issueActivation(target.id, client);
+        await auth.audit(req, { userId: req.user.id, action: 'gebruiker.activatiecode', entity: 'users', entityId: target.id }, client);
+        return created;
+      });
+      return res.send(renderEditUser(req, target, { activationCode: code, activationUntil: await twoFactor.activationUntil(target.id) }));
     } catch (error) {
       return next(error);
     }

@@ -39,7 +39,9 @@ function loadMasterKey(options = {}) {
 /**
  * Maakt een kluis met een vaste sleutel.
  * @param {Buffer} key Sleutel van 32 bytes.
- * @returns {{seal: (value: *) => string, open: (sealed: string) => *}} Versleutelen en ontsleutelen (JSON-waarden).
+ * @returns {{seal: (value: *, context?: string) => string, open: (sealed: string, context?: string) => *}} Versleutelen en
+ *   ontsleutelen (JSON-waarden). Met `context` (AAD, bijv. `users:totp:<id>`) hoort de versleutelde tekst bij dat ene
+ *   record: naar een ander record gekopieerd, lukt het ontsleutelen niet.
  */
 function createVault(key) {
   if (!Buffer.isBuffer(key) || key.length !== 32) throw new Error('sleutel moet 32 bytes zijn');
@@ -47,25 +49,29 @@ function createVault(key) {
     /**
      * Versleutelt een JSON-waarde.
      * @param {*} value De waarde.
+     * @param {string} [context] Extra gegevens die meetellen in de controle (AAD); leeg = geen.
      * @returns {string} "v1.<iv>.<tag>.<data>" in base64url.
      */
-    seal(value) {
+    seal(value, context = '') {
       const iv = crypto.randomBytes(12);
       const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+      if (context) cipher.setAAD(Buffer.from(String(context), 'utf8'));
       const data = Buffer.concat([cipher.update(JSON.stringify(value), 'utf8'), cipher.final()]);
       return [VERSION, iv.toString('base64url'), cipher.getAuthTag().toString('base64url'), data.toString('base64url')].join('.');
     },
     /**
      * Ontsleutelt een waarde van seal().
      * @param {string} sealed Versleutelde tekst.
+     * @param {string} [context] Dezelfde AAD als bij seal().
      * @returns {*} De oorspronkelijke waarde.
-     * @throws {Error} Bij een verkeerde sleutel of gewijzigde gegevens.
+     * @throws {Error} Bij een verkeerde sleutel, een andere context of gewijzigde gegevens.
      */
-    open(sealed) {
+    open(sealed, context = '') {
       const [version, iv, tag, data] = String(sealed).split('.');
       if (version !== VERSION || !iv || !tag || data === undefined) throw new Error('onbekend formaat');
       const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url'));
       decipher.setAuthTag(Buffer.from(tag, 'base64url'));
+      if (context) decipher.setAAD(Buffer.from(String(context), 'utf8'));
       return JSON.parse(Buffer.concat([decipher.update(Buffer.from(data, 'base64url')), decipher.final()]).toString('utf8'));
     },
   };

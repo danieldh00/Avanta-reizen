@@ -13,6 +13,7 @@ const { normalizePath, isReservedPath, isNoisePath, validateRedirect, referrerHo
 const { likePattern, readablePath } = require('../src/beheer/redirect-routes');
 const { filterGroups } = require('../src/beheer/indeling');
 const { SETTING_FIELDS } = require('../src/beheer/settings');
+const { loginWithTwoFactor } = require('./helpers/two-factor');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'beheer_redirects_test';
@@ -128,7 +129,7 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
 
   await t.test('toegang: zonder recht 403, zonder CSRF 403', async () => {
     await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
-    const office = await request('/app/inloggen/', { form: { email: 'kantoor@example.nl', password: 'kantoor wachtwoord 1' } });
+    const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: { cookie, csrf } });
     const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
     assert.equal((await request('/app/beheer/doorverwijzingen/', { cookie: office.cookie })).status, 403);
     assert.equal((await request('/app/beheer/niet-gevonden/', { cookie: office.cookie })).status, 403);

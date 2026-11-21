@@ -48,7 +48,22 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     en een ingekort IP-adres (/24 of /48), nooit e-mailadressen, wachtwoorden of andere waarden; regels ouder dan de
     bewaartermijn (standaard 2 jaar) en IP-voorvoegsels ouder dan hun termijn (standaard 90 dagen) worden bij het starten
     en daarna dagelijks opgeruimd, net als verlopen sessies (instelbaar in Beheer).
-  - 2FA (verplicht voor rollen met toegang tot bijzondere gegevens) volgt in een latere CRM-PR (na het beheergedeelte).
+  - **Tweestapsverificatie (2FA)** met een authenticator-app (TOTP, RFC 6238; eigen code op `crypto`, zoals AquaTech).
+    Na het juiste wachtwoord krijgt wie 2FA heeft of moet hebben eerst een *halve sessie* (15 minuten): daarmee is
+    alleen de codestap (`/app/inloggen/code/`) of het instellen (`/app/tweestaps/`) bereikbaar; pas na de code volgt
+    een volledige sessie met een nieuw token. Standaard optioneel (ieder zet het zelf aan onder *Tweestapsverificatie*);
+    in Beheer > Toegang en beveiliging > Tweestapsverificatie verplicht te maken voor rollen met toegang tot bijzondere
+    gegevens of voor iedereen. Instellen met QR-code of sleutel, altijd pas na een **activatiecode** die een beheerder
+    onder *Gebruikers* maakt (eenmalig, 7 dagen geldig, alleen als SHA-256 bewaard, bij gebruik meteen gewist,
+    daarna mag alleen die sessie instellen). Een gelekt of tijdelijk wachtwoord is dus nooit genoeg om een eigen app te koppelen; de eerste beheerder
+    gebruikt de installatiecode als activatiecode (30 dagen). Daarna tien herstelcodes (één keer getoond, alleen als SHA-256 bewaard). Elke code werkt één
+    keer; na 5 verkeerde codes binnen een kwartier is de codestap voor dat account dicht, ongeacht vanaf hoeveel
+    IP-adressen. Zo levert wachtwoorden raden vanuit veel netwerken tegelijk hoogstens een halve sessie op. Het geheim
+    staat versleuteld in `users.totp_secret` (AES-256-GCM, gebonden aan de gebruiker). Een beheerder zet de 2FA van een
+    collega uit onder *Gebruikers* (toestel kwijt) en maakt een nieuwe activatiecode; die stelt het bij de volgende keer
+    inloggen opnieuw in. De sessie na
+    de installatie (installatiecode) is volledig; de eerste beheerder stelt 2FA daarna in. Na de update naar deze
+    versie logt iedereen opnieuw in.
 - **Beheer** op `/app/beheer/` (alleen de rol beheerder, recht `systeem`; opzet zoals in AquaTech): zijbalk met groepen
   en een zoekveld, een systeemoverzicht (versie, Node.js, PostgreSQL, laatste migratie, looptijd en de bron van elke
   instelling) en instellingenformulieren. Instellingen staan in de tabel `settings` (`app/src/beheer/settings.js`):
