@@ -186,8 +186,11 @@ test('betaalherinneringen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreek
     await db.query('UPDATE bookings SET person_id = $2 WHERE id = $1', [linkedId, personId]);
     assert.deepEqual(await paymentReminders.runDaily(), { sent: 0, failed: 0, skipped: 0 }, 'schakelaar staat uit');
     await settings.update({ values: { paymentReminderAuto: true, paymentReminderEveryDays: '7', paymentReminderMax: '2' } });
+    const newId = await booking('AV-2027-NIEUW005', { status: 'nieuw', email: 'derde@example.nl' });
     const first = await paymentReminders.runDaily();
     assert.equal(first.sent, 2);
+    assert.ok(mailer.sent.every((mail) => mail.to !== 'derde@example.nl'), 'nieuwe (niet bevestigde) aanmelding krijgt geen automatische herinnering');
+    await db.query("UPDATE bookings SET status = 'geannuleerd' WHERE id = $1", [newId]);
     assert.deepEqual(mailer.sent.map((mail) => mail.to).sort(), ['jan@example.nl', 'nieuw@example.nl'], 'adres van de persoon gaat voor');
     assert.equal((await paymentReminders.runDaily()).sent, 0, 'binnen het interval niets');
     clock += 7 * 24 * 60 * 60 * 1000;

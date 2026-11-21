@@ -173,6 +173,12 @@ function createPaymentReminders(options) {
     for (const row of rows) {
       if (counts.sent + counts.failed >= MAX_PER_RUN) break;
       const kind = row.summary.overdue;
+      // Alleen aanmeldingen die kantoor heeft bevestigd: een nieuwe aanmelding uit het openbare formulier heeft een
+      // adres dat niemand heeft gecontroleerd, en mag geen reeks automatische mails naar een derde opleveren.
+      if (row.status === 'nieuw') {
+        counts.skipped++;
+        continue;
+      }
       const past = byKey.get(`${row.id}:${kind}`);
       if (past && (past.total >= settings.get('paymentReminderMax') || now() - new Date(past.last_at).getTime() < gapMs)) {
         counts.skipped++;

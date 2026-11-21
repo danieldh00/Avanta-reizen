@@ -212,7 +212,7 @@ const SETTING_FIELDS = {
   },
   paymentReminderAuto: {
     type: 'bool', label: 'Automatisch herinneren bij een te late betaling',
-    help: 'Elke dag krijgt een reiziger van wie de aanbetaling of het restant te laat is een herinnering per mail, met het openstaande bedrag en de betaalinstructie uit de bevestiging. Werkt alleen met een ingestelde mailserver. Herinneren met de hand kan altijd op de betaalpagina.',
+    help: 'Elke dag krijgt een reiziger van wie de aanbetaling of het restant te laat is een herinnering per mail (alleen bij aanmeldingen die kantoor heeft bevestigd; de mail gaat naar het opgegeven adres), met het openstaande bedrag en de betaalinstructie uit de bevestiging. Werkt alleen met een ingestelde mailserver. Herinneren met de hand kan altijd op de betaalpagina.',
     default: false,
   },
   paymentReminderEveryDays: {
