@@ -16,3 +16,5 @@ bump: minor
   slugwijziging → 301 via `recordMove`.
 - Site: reisdetail toont alle reisleiders; zoeken op land via de koppeltabel; reisleiderpagina via `trip_guides`.
 - Import (`tools/import-wordpress.js`): schrijft reisleiders naar `trip_guides` en slaat reizen met `managed_in_crm` over.
+- Fotobibliotheek: de controle op landen (`validCountryIds`) neemt `FOR SHARE`, zodat een foto niet aan een categorie
+  komt te hangen waarvan de soort tegelijk verandert. Tekst bij samenvoegen verbeterd.
