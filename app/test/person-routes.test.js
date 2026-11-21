@@ -312,5 +312,9 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal(statuses[0], 303, 'één samenvoeging slaagt');
     assert.ok([404, 409].includes(statuses[1]), `de ander krijgt 404 of 409, geen 500 (kreeg ${statuses[1]})`);
     assert.equal((await db.query('SELECT count(*)::int AS total FROM persons WHERE id = ANY($1::int[])', [[first, second]]))[0].total, 1);
+    const winner = results.find((response) => response.status === 303).headers.get('location').match(/deelnemers\/(\d+)\//)[1];
+    const blockAudit = await db.query("SELECT action FROM audit_log WHERE action LIKE 'deelnemer.samengevoegd.%' AND entity_id = $1", [winner]);
+    assert.ok(blockAudit.some((row) => row.action.startsWith('deelnemer.samengevoegd.identiteit.')), 'ingevuld blok wel');
+    assert.ok(blockAudit.every((row) => !/\.(religie|gezondheid)\./.test(row.action)), 'lege blokken op het dubbel geven geen auditregel');
   });
 });
