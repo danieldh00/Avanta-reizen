@@ -277,6 +277,11 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     als de status voorloopt op de betaalstand (bijv. betaald terwijl er na annuleringskosten weer iets openstaat). Een dubbel of verouderd formulier geeft 409. De aanmelding toont de betaalstand.
     Bij anonimiseren verdwijnen de toelichtingen; bedragen blijven voor de boekhouding. De inzage-export heeft een blad
     *Betalingen*.
+    **Overzicht** op `/app/betalingen/` (`app/src/crm/payment-overview-routes.js`): weergaven *nog te betalen*
+    (standaard), *te laat* (vervallen aanbetaling of restant), *te veel betaald* (ook geannuleerd) en *alle
+    aanmeldingen*, filter op reis, aantal en totaal openstaand. Dezelfde lijst als Excel (`/app/betalingen/overzicht.xlsx`,
+    nooit CSV; audit `export.betalingen`, hoogstens 30 exports per 10 minuten per gebruiker). Totalen in één query,
+    berekening met dezelfde `summarize` als de pagina van een aanmelding.
   - **Deelnemerslijsten** op `/app/deelnemerslijsten/` (recht `export.deelnemers`; `app/src/crm/participant-list-routes.js`
     en `participant-lists.js`): per vertrek een Excel-bestand (.xlsx, nooit CSV) met alle aanmeldingen die niet
     geannuleerd zijn, met de actuele NAW van de persoon (anders het formulier). Bijzondere gegevens alleen als je ze
