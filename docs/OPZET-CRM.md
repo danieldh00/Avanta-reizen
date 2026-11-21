@@ -170,8 +170,8 @@ met eigen migraties na de CRM-kern.
 | 1 | Gebruikers, sessies, inloggen, rollen/rechten-module, `requireRight`, auditlog, eerste beheerder | **M3** |
 | 2 | 2FA (TOTP + herstelcodes) | **M4** (kolommen op `users`); gebouwd als **M9** |
 | 3 | `persons` + `consents` + versleuteling per blok + `match_key`; formulier schrijft naar persoon; bestaande aanmeldingen omzetten (bij het starten) | **M5**; gebouwd als **M10** |
-| 3b | Deelnemers in het CRM: lijst, zoeken, detail met *Toon* per blok, wijzigen; mogelijke dubbelen samenvoegen | – |
-| 4 | Aanmeldingen: lijst, detail, statusovergangen, `booking_events` (wachtlijst nu niet, zie §8) | **M6**; wordt **M11** |
+| 3b | Deelnemers in het CRM: lijst, zoeken, detail met *Toon* per blok, wijzigen; mogelijke dubbelen samenvoegen (gebouwd) | – |
+| 4 | Aanmeldingen: lijst, detail, statusovergangen, `booking_events` (wachtlijst nu niet, zie §8) | **M6**; gebouwd als **M11** |
 | 5 | ~~Reizen beheren: CRUD, `capacity`, berekende plaatsen-teller op de site, `trip_guides`, `managed_in_crm` in de import~~ vervalt: CMS-pakket G | ~~M7~~ |
 | 6 | Deelnemerslijst per vertrek als .xlsx (kantoor + reisleider-variant) | – |
 | 7 | Betalingen handmatig: `booking_charges`, `payments`, saldo | **M8** |

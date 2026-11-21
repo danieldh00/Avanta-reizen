@@ -16,6 +16,7 @@ const { renderCrmPage, renderInput, renderAlert } = require('./layout');
 const { createUserRoutes } = require('./users');
 const { createPersonRoutes } = require('./person-routes');
 const { createPersonMergeRoutes } = require('./person-merge-routes');
+const { createBookingRoutes } = require('./booking-routes');
 const { createPersons } = require('./persons');
 const { createTwoFactor, createTwoFactorRoutes, SETUP_ACTIVATION_DAYS } = require('./two-factor');
 const { createVault } = require('../security/vault');
@@ -328,7 +329,8 @@ function createCrmRouter(options) {
         csrf: req.session.csrf,
         path: '/app/',
         body: html`<p>Welkom, ${req.user.name}. Je bent ingelogd als <strong>${roleLabel(req.user.role)}</strong>.</p>
-          <p>Het CRM wordt in stappen gebouwd. De modules voor aanmeldingen en reizen volgen.</p>
+          <p>Het CRM wordt in stappen gebouwd. Reizen, betalingen en deelnemerslijsten volgen.</p>
+          ${roleHasGlobalRight(req.user.role, 'aanmeldingen') ? html`<p><a class="btn" href="/app/aanmeldingen/">Aanmeldingen</a></p>` : ''}
           ${roleHasGlobalRight(req.user.role, 'deelnemers') ? html`<p><a class="btn" href="/app/deelnemers/">Deelnemers</a></p>` : ''}
           ${mfa.enabled ? '' : html`<p class="notice">Tweestapsverificatie staat nog uit voor je account${auth.mfaRequiredFor(req.user.role) ? ' en is verplicht vanaf de volgende keer dat je inlogt' : ''}. <a href="/app/tweestaps/">Nu instellen</a></p>`}
           ${roleHasRight(req.user.role, 'gebruikers') ? html`<p><a class="btn" href="/app/gebruikers/">Gebruikers beheren</a></p>` : ''}
@@ -399,6 +401,7 @@ function createCrmRouter(options) {
   router.use(createUserRoutes({ db, auth, twoFactor, normalizeEmail, textField }));
   router.use(createPersonRoutes({ db, auth, persons }));
   router.use(createPersonMergeRoutes({ db, auth, persons }));
+  router.use(createBookingRoutes({ db, auth }));
   router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, now: options.now }));
 
   router.use((req, res) => {
