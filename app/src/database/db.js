@@ -4,6 +4,38 @@
 const { Pool } = require('pg');
 const { MIGRATIONS } = require('./migrations');
 
+/** Standaard wachttijd (ms) op een verbinding uit de pool of een nieuwe verbinding met PostgreSQL. */
+const DEFAULT_CONNECT_TIMEOUT_MS = 5000;
+/** Na zoveel ms zonder gebruik wordt een verbinding in de pool gesloten. */
+const IDLE_TIMEOUT_MS = 30000;
+
+/**
+ * Leest een positief geheel getal uit een omgevingsvariabele.
+ * @param {string|undefined} value Waarde uit de omgeving.
+ * @param {number} fallback Standaardwaarde bij een lege of ongeldige waarde.
+ * @returns {number} Het getal.
+ */
+const positiveInteger = (value, fallback) => {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : fallback;
+};
+
+/**
+ * Instellingen voor de pool. Zonder `connectionTimeoutMillis` wacht een verzoek eindeloos als de database weg is of de
+ * pool vol zit; nu faalt het na enkele seconden met een fout (500) en blijft de app bereikbaar.
+ * @param {string} connectionString Verbindings-URL.
+ * @param {object} [env] Omgeving (standaard `process.env`): `DATABASE_POOL_SIZE`, `DATABASE_CONNECT_TIMEOUT_MS`.
+ * @returns {object} Opties voor `new Pool()`.
+ */
+function poolOptions(connectionString, env = process.env) {
+  return {
+    connectionString,
+    max: positiveInteger(env.DATABASE_POOL_SIZE, 10),
+    connectionTimeoutMillis: positiveInteger(env.DATABASE_CONNECT_TIMEOUT_MS, DEFAULT_CONNECT_TIMEOUT_MS),
+    idleTimeoutMillis: IDLE_TIMEOUT_MS,
+  };
+}
+
 /**
  * Maakt een verbinding met PostgreSQL.
  * @param {string} connectionString Verbindings-URL (DATABASE_URL).
@@ -11,7 +43,10 @@ const { MIGRATIONS } = require('./migrations');
  */
 function createDatabase(connectionString) {
   if (!connectionString) throw new Error('DATABASE_URL ontbreekt');
-  const pool = new Pool({ connectionString, max: Number(process.env.DATABASE_POOL_SIZE) || 10 });
+  const pool = new Pool(poolOptions(connectionString));
+  // Een verbinding die in rust wegvalt (herstart van PostgreSQL) mag het proces niet laten crashen; de pool maakt bij
+  // het volgende verzoek een nieuwe. Alleen de foutcode loggen, nooit de verbindings-URL.
+  pool.on('error', (error) => console.error(`database: verbinding in rust weggevallen (${error.code || 'onbekend'})`));
 
   /**
    * Voert één query uit met gebonden parameters.
@@ -81,4 +116,4 @@ function createDatabase(connectionString) {
   return { query, transaction, migrate, close, pool };
 }
 
-module.exports = { createDatabase };
+module.exports = { createDatabase, poolOptions, DEFAULT_CONNECT_TIMEOUT_MS };

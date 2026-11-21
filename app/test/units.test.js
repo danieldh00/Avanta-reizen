@@ -16,6 +16,8 @@ const { createRateLimiter, clientKey } = require('../src/security/rate-limit');
 const { validateBooking } = require('../src/booking/fields');
 const { rewriteLink, cacheName } = require('../tools/import-wordpress');
 const { parseTrustProxy } = require('../src/server');
+const net = require('node:net');
+const { createDatabase, poolOptions, DEFAULT_CONNECT_TIMEOUT_MS } = require('../src/database/db');
 
 test('html escapet ingevoegde waarden maar niet raw()', () => {
   const name = '<script>alert("x")</script>';
@@ -202,5 +204,38 @@ test('TRUST_PROXY: alleen leeg/loopback of één exact IP-adres', () => {
   assert.equal(parseTrustProxy('fd00::5'), 'fd00::5');
   for (const unsafe of ['10.0.0.0/8', '172.16.0.0/12', 'loopback, 172.18.0.5', '1', 'true', 'uniquelocal']) {
     assert.throws(() => parseTrustProxy(unsafe), /TRUST_PROXY/);
+  }
+});
+
+test('databasepool: verbindingstime-out en grootte uit de omgeving, ongeldige waarden vallen terug', () => {
+  const standard = poolOptions('postgres://x', {});
+  assert.equal(standard.max, 10);
+  assert.equal(standard.connectionTimeoutMillis, DEFAULT_CONNECT_TIMEOUT_MS);
+  assert.ok(standard.idleTimeoutMillis > 0);
+  const custom = poolOptions('postgres://x', { DATABASE_POOL_SIZE: '4', DATABASE_CONNECT_TIMEOUT_MS: '1500' });
+  assert.equal(custom.max, 4);
+  assert.equal(custom.connectionTimeoutMillis, 1500);
+  for (const wrong of ['0', '-3', 'abc', '1.5']) {
+    assert.equal(poolOptions('postgres://x', { DATABASE_CONNECT_TIMEOUT_MS: wrong }).connectionTimeoutMillis, DEFAULT_CONNECT_TIMEOUT_MS, wrong);
+  }
+});
+
+test('databasepool: een database die niet antwoordt geeft na de time-out een fout in plaats van eindeloos wachten', async () => {
+  const sockets = [];
+  const silent = net.createServer((socket) => sockets.push(socket));
+  await new Promise((resolve) => silent.listen(0, '127.0.0.1', resolve));
+  const previous = process.env.DATABASE_CONNECT_TIMEOUT_MS;
+  process.env.DATABASE_CONNECT_TIMEOUT_MS = '300';
+  const db = createDatabase(`postgres://test@127.0.0.1:${silent.address().port}/test`);
+  try {
+    const started = Date.now();
+    await assert.rejects(db.query('SELECT 1'), /timeout/i);
+    assert.ok(Date.now() - started < 3000, 'binnen enkele seconden');
+  } finally {
+    if (previous === undefined) delete process.env.DATABASE_CONNECT_TIMEOUT_MS;
+    else process.env.DATABASE_CONNECT_TIMEOUT_MS = previous;
+    await db.close().catch(() => {});
+    sockets.forEach((socket) => socket.destroy());
+    await new Promise((resolve) => silent.close(resolve));
   }
 });
