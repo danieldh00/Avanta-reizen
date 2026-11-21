@@ -201,11 +201,12 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.equal(third.status, 200);
     assert.equal(fake.calls.filter((entry) => entry.method === 'POST').length, posts, 'open betaling hergebruikt');
     assert.equal((await db.query('SELECT 1 FROM online_payments WHERE booking_id = $1', [openId])).length, 1);
-    await db.query("UPDATE online_payments SET status = 'pending' WHERE booking_id = $1", [openId]);
+    // In behandeling, ook als de betaling al twee uur oud is.
+    await db.query("UPDATE online_payments SET status = 'pending', created_at = $2 WHERE booking_id = $1", [openId, '2027-03-01T08:00:00Z']);
     const busy = await request(path, { form: {} });
     assert.equal(busy.status, 409);
     assert.match(busy.text, /al een betaling voor deze aanmelding in behandeling/);
-    await db.query("UPDATE online_payments SET status = 'open' WHERE booking_id = $1", [openId]);
+    await db.query("UPDATE online_payments SET status = 'open', created_at = $2 WHERE booking_id = $1", [openId, '2027-03-01T10:00:00Z']);
   });
 
   await t.test('webhook: onbekend 200, afwijkend bedrag niet geregistreerd, geslaagd één keer met status door', async () => {

@@ -18,6 +18,9 @@ const TOKEN_LENGTH = 22;
  * open betaling minstens 15 minuten geldig). */
 const REUSE_MINUTES = 15;
 
+/** Zo lang (minuten) blokkeert een betaling die bij de bank in behandeling is een nieuwe betaling. */
+const PENDING_BLOCK_MINUTES = 24 * 60;
+
 /** Patroon van het deel `<id>-<token>` in de betaallink. */
 const LINK_PATTERN = /^(\d{1,9})-([A-Za-z0-9_-]{22})$/;
 
@@ -141,18 +144,23 @@ function createOnlinePayments(options) {
       const blocked = blockedReason(state);
       if (blocked) return { status: blocked };
       const { booking, kind, amountCents } = state;
-      const [running] = await client.query(
-        `SELECT status, kind, amount_cents, checkout_url, created_at FROM online_payments
-          WHERE booking_id = $1 AND status IN ('open', 'pending', 'authorized') AND created_at > $2::timestamptz - make_interval(mins => $3)
-          ORDER BY created_at DESC, id DESC LIMIT 1`,
-        [booking.id, new Date(now()).toISOString(), REUSE_MINUTES],
+      const clock = new Date(now()).toISOString();
+      // Een betaling die bij de bank in behandeling is (tot een dag oud, zodat een verloren webhook de aanmelding niet
+      // voorgoed vastzet): niet nog een starten.
+      const [pending] = await client.query(
+        `SELECT 1 AS hit FROM online_payments WHERE booking_id = $1 AND status IN ('pending', 'authorized')
+            AND created_at > $2::timestamptz - make_interval(mins => $3)`,
+        [booking.id, clock, PENDING_BLOCK_MINUTES],
       );
-      // Een betaling die bij de bank in behandeling is: niet nog een starten.
-      if (running && running.status !== 'open') return { status: 'bezig' };
-      // Nog een open betaalscherm voor dezelfde termijn en hetzelfde bedrag: dat hergebruiken.
-      if (running && running.kind === kind && running.amount_cents === amountCents && running.checkout_url) {
-        return { status: 'ok', checkoutUrl: running.checkout_url };
-      }
+      if (pending) return { status: 'bezig' };
+      // Nog een open betaalscherm van de laatste minuten voor dezelfde termijn en hetzelfde bedrag: dat hergebruiken.
+      const [open] = await client.query(
+        `SELECT checkout_url FROM online_payments WHERE booking_id = $1 AND status = 'open' AND kind = $2 AND amount_cents = $3
+            AND checkout_url <> '' AND created_at > $4::timestamptz - make_interval(mins => $5)
+          ORDER BY created_at DESC, id DESC LIMIT 1`,
+        [booking.id, kind, amountCents, clock, REUSE_MINUTES],
+      );
+      if (open) return { status: 'ok', checkoutUrl: open.checkout_url };
       const path = pathFor(booking.id);
       let created;
       try {
