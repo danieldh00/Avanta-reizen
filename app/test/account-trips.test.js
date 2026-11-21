@@ -271,7 +271,7 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
       const token = /name="token" value="([^"]+)"/.exec(page.text)[1];
       clock += 5000;
       const form = new URLSearchParams({
-        id: '', reis: 'namibie-2099', token, website: '', gender: 'vrouw', first_names: firstNames, call_name: '', last_name: 'Jansen',
+        id: '', reis: 'namibie-2099', token, website: '', gender: 'vrouw', first_names: firstNames, call_name: firstNames.split(' ')[0], last_name: 'Jansen',
         birth_date: '1999-05-04', mobile: '0612345678', email, email_confirm: email, street: 'Kerkstraat 9', postal_code: '4331 AB',
         city: 'Middelburg', occupation: 'Verpleegkundige', nationality: 'Nederlandse', document_type: 'paspoort', document_number: 'NX1234567',
         earlier_trip: 'nee', credit_card: 'nee', driver_interest: 'nee', driver_before: 'nee', payment_choice: 'aanbetaling', consent: 'ja',

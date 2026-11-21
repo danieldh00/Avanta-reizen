@@ -61,7 +61,9 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   kantoor. Tip: zet *Mijn account* (`/account/`) in het voetmenu via Beheer > Menu's.
   **Opnieuw boeken** (J4): meldt een ingelogde reiziger zich aan via `/aanmelden/`, dan vult het formulier de gewone
   gegevens van de vorige aanmelding alvast in (naam, geslacht, adres, telefoon, beroep; e-mailadres = dat van het
-  account). Bijzondere en paspoortgegevens worden nooit vooraf ingevuld. Daarvoor staat de cookie op pad `/`; alleen
+  account). Alleen aanmeldingen die de reiziger zelf deed (ingelogd, met het adres van het account: kolom
+  `bookings.customer_account_id`, migratie M24) tellen; op e-mailadres alleen nooit, want het formulier bevestigt dat
+  adres niet. Bijzondere en paspoortgegevens worden nooit vooraf ingevuld. Daarvoor staat de cookie op pad `/`; alleen
   `/account/` en `/aanmelden/` lezen hem.
 - Afbeeldingen staan in het volume `/data/media` (circa 250 MB na de import).
 - **Ontwerp** gelijk aan www.avantareizen.nl (CMS-pakket E, voorstel in de projectbestanden
