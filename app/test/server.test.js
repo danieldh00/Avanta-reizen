@@ -8,6 +8,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
+const { normalizeSiteContent } = require('../src/site/site-content');
 const { createVault } = require('../src/security/vault');
 const { createPersons } = require('../src/crm/persons');
 const { CONSENT_TEXT_VERSION } = require('../src/booking/fields');
@@ -47,7 +48,9 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   await insertTrip([1002, 'vol-albanie', 'Volle reis', '', '27-VOL-1', daysFromNow(40), 50000, true, null, []]);
   await insertTrip([1003, 'oude-reis', 'Oude reis', '', '19-OUD-1', '2019-07-30', 50000, false, null, []]);
   await db.query('INSERT INTO trip_category_links (trip_id, category_id) VALUES ($1, $2), ($1, $3)', [open.id, destination.id, type.id]);
-  await db.query("INSERT INTO posts (slug, title, body_html, published_at) VALUES ('op-avantuur', 'Op Avantuur', '<p>Verhaal</p>', now())");
+  await db.query("INSERT INTO posts (slug, title, body_html, published_at) VALUES ('op-avantuur', 'Op Avantuur', '<p>Verhaal &amp; meer</p>', now())");
+  await db.query(`INSERT INTO posts (slug, title, intro, body_html, published_at) VALUES ('met-video', 'Met video', 'Kijk dit filmpje',
+    '<p><a href="https://www.youtube.com/embed/el9qys7UK9A?feature=oembed" rel="noopener" target="_blank">Bekijk de video</a></p><p>Tekst</p>', now() - interval '1 day')`);
   await db.query("INSERT INTO pages (path, title, body_html) VALUES ('/contact/', 'Contact', '<p>Bel ons</p>'), ('/bedankt-voor-je-aanmelding/', 'Bedankt', '<p>Dank</p>'), ('/avanta-reizen/voorpret/', 'Voorpret', '<p>Tips</p>')");
   await db.query("INSERT INTO faqs (slug, question, answer_html, category) VALUES ('algemeen-1', 'Paspoort nodig?', '<p>Ja</p>', 'Algemeen')");
 
@@ -71,7 +74,15 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     query: colliding(db.query),
     transaction: (work) => db.transaction((client) => work({ ...client, query: colliding(client.query) })),
   };
-  const app = createApp({ db: collidingDb, masterKey: MASTER_KEY, now: () => clock });
+  // Vaste inhoud zoals de import die schrijft: een tag, het uitgelichte bericht en een galerij onder een pagina.
+  const siteContent = {
+    load: () => normalizeSiteContent({
+      blogTags: [{ slug: 'avontuur', name: 'Avontuur', posts: ['op-avantuur', 'bestaat-niet'] }],
+      featuredPost: 'op-avantuur',
+      galleries: { '/avanta-reizen/voorpret/': { title: 'Avanta = avontuur', images: ['/media/voorpret.jpg'] } },
+    }),
+  };
+  const app = createApp({ db: collidingDb, masterKey: MASTER_KEY, now: () => clock, siteContent });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => { server.close(); await db.close(); });
@@ -148,6 +159,42 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match(home.headers.get('content-security-policy'), /frame-src 'self' https:\/\/www\.youtube-nocookie\.com/);
     assert.match(home.text, /<iframe src="https:\/\/www\.youtube-nocookie\.com\/embed\//);
     assert.doesNotMatch((await get('/reis/')).headers.get('content-security-policy'), /youtube/);
+  });
+
+  await t.test('weblog, tags, bericht met video, pagina met galerij, FAQ en zoeken in de opmaak van de huidige site', async () => {
+    const blog = await get('/blog/');
+    assert.match(blog.text, /<p class="page-header__pretitle">campfire stories<\/p>\s*<h1 class="page-header__title">Weblog<\/h1>/);
+    assert.match(blog.text, /<a class="tags__item" href="\/tag\/avontuur\/">Avontuur<\/a>/);
+    assert.match(blog.text, /post-wrapper featured-post"><a class="post-teaser" href="\/op-avantuur\/">/, 'uitgelicht bericht groot rechts');
+    assert.match(blog.text, /<span class="post-teaser__summary">Verhaal &amp; meer \.\.\.<\/span>/, 'samenvatting uit de tekst');
+    assert.doesNotMatch(blog.text, /Bekijk de video \.\.\./, 'de videolink telt niet mee in de samenvatting');
+    const tag = await get('/tag/avontuur/');
+    assert.equal(tag.status, 200);
+    assert.match(tag.text, /<h1 class="page-header__title">Avontuur<\/h1>/);
+    assert.match(tag.text, /post-teaser--landscape" href="\/op-avantuur\/"/);
+    assert.doesNotMatch(tag.text, /met-video/);
+    assert.equal((await get('/tag/onbekend/')).headers.get('location'), '/blog/');
+    assert.equal((await get('/tag/%3Cscript%3E/')).status, 301);
+
+    const video = await get('/met-video/');
+    assert.match(video.headers.get('content-security-policy'), /frame-src 'self' https:\/\/www\.youtube-nocookie\.com/);
+    assert.match(video.text, /class="page-header page-header--single/);
+    assert.match(video.text, /<div class="page-introduction">Kijk dit filmpje<\/div><div class="page-content"><div class="page-content__video-wrapper">/);
+    assert.match(video.text, /<iframe src="https:\/\/www\.youtube-nocookie\.com\/embed\/el9qys7UK9A"/);
+    assert.doesNotMatch((await get('/op-avantuur/')).headers.get('content-security-policy'), /youtube/, 'zonder video geen frame-src');
+
+    const page = (await get('/avanta-reizen/voorpret/')).text;
+    assert.match(page, /<div class="page-content"><div class="page-content__text"><p>Tips<\/p><\/div><\/div>/);
+    assert.match(page, /<h2 class="section__title">Avanta = avontuur<\/h2>/);
+    assert.match(page, /<img src="\/media\/voorpret\.jpg"/);
+
+    const faq = (await get('/faq/')).text;
+    assert.match(faq, /<div class="category category--faq" id="algemeen">/);
+    assert.match(faq, /<summary class="faq__summary"><h2 class="faq__question">Paspoort nodig\?<\/h2>/);
+
+    const search = (await get('/zoeken/?s=avantuur')).text;
+    assert.match(search, /<div class="content-main"><div class="layout-container search-results">/);
+    assert.match(search, /post-teaser--landscape" href="\/op-avantuur\/"/);
   });
 
   await t.test('lijsten tonen geen vertrokken reizen; volle en oude reizen tonen geen aanmeldknop', async () => {
@@ -325,7 +372,12 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await get('/aanmelden/?id=1002')).status, 409);
     assert.equal((await get('/aanmelden/?id=1003')).status, 409);
     assert.equal((await get('/aanmelden/?id=9999')).status, 404);
-    assert.equal((await get('/aanmelden/')).headers.get('location'), '/reis/');
+    // Zonder reis: de melding van de huidige site met de kop "Aanmelden" en een knop naar alle reizen.
+    const none = await get('/aanmelden/');
+    assert.equal(none.status, 200);
+    assert.match(none.text, /<p class="page-header__pretitle">Ja! Ik ga graag mee op reis<\/p>/);
+    assert.match(none.text, /<h2>Er is geen reis geselecteerd<\/h2>\s*<a class="btn page-introduction--small" href="\/reis\/">Naar alle reizen<\/a>/);
+    assert.match((await get('/aanmelden/?id=1002')).text, /<h2>Deze reis is volgeboekt.<\/h2>/);
   });
 
   await t.test('verzoek van een andere site wordt geweigerd', async () => {
@@ -382,8 +434,17 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   await t.test('contact: formulier staat onder de pagina-inhoud en een bericht wordt opgeslagen', async () => {
     const page = await get('/contact/');
     assert.equal(page.headers.get('cache-control'), 'no-store');
-    assert.ok(page.text.indexOf('Bel ons') < page.text.indexOf('<form class="form" method="post" action="/contact/"'));
+    assert.ok(page.text.indexOf('Bel ons') < page.text.indexOf('<form class="form form--theme" method="post" action="/contact/"'));
+    assert.match(page.text, /<div class="grid contact-extra-info">/);
+    assert.match(page.text, /<h2 class="box__title" id="contact-titel">Verstuur bericht<\/h2>/);
+    assert.match(page.text, /veelgestelde vragen<\/a>/);
     assert.match(page.text, /name="consent"/);
+    assert.doesNotMatch(page.headers.get('content-security-policy'), /youtube-nocookie/, 'zonder video geen YouTube in frame-src');
+    await db.query("UPDATE pages SET body_html = $1 WHERE path = '/contact/'", ['<p>Bel ons</p><p><a href="https://www.youtube.com/embed/el9qys7UK9A" rel="noopener" target="_blank">Bekijk de video</a></p>']);
+    const withVideo = await get('/contact/');
+    assert.match(withVideo.headers.get('content-security-policy'), /frame-src 'self' https:\/\/www\.youtube-nocookie\.com/, 'video op de contactpagina mag');
+    assert.match(withVideo.text, /<iframe src="https:\/\/www\.youtube-nocookie\.com\/embed\/el9qys7UK9A"/);
+    await db.query("UPDATE pages SET body_html = '<p>Bel ons</p>' WHERE path = '/contact/'");
     const form = await contactFormFor();
     clock += 5000;
     const response = await postContact(form);

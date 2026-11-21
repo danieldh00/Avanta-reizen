@@ -61,6 +61,20 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   foto's en een detailpagina met stempel, citaat, woonplaats en galerij (`app/src/site/trip-view.js`). De koppen van de
   lijstpagina's en de extra reisleidergegevens staan tot CMS-pakket G/H in `DATA_DIR/site-content.json`
   (`app/src/site/site-content.js`); de import schrijft het, los met `--alleen-vaste-inhoud`.
+  **Blog, pagina's, FAQ, contact en aanmelden** volgen de huidige site (`app/src/site/page-view.js`): het weblog met
+  tagbalk, link naar het oude blogarchief en het uitgelichte bericht groot naast de eerste drie, tagpagina's op
+  `/tag/<slug>/` (onbekende tag: 301 naar `/blog/`), berichten met datum en "Naar overzicht", inhoud in blokken (tekst,
+  afbeelding, galerij, video via youtube-nocookie.com, alleen op pagina's met een video in `frame-src`), de FAQ als
+  uitklapbare vragen per categorie, de contactpagina met adresblok en formulier, en het aanmeldformulier in de
+  huisstijl (zonder reis een melding met "Naar alle reizen"). Samenvattingen zijn de eerste 197 bytes van de tekst plus
+  " ...", zoals nu. Tags, het uitgelichte bericht, de link naar het blogarchief en de fotogalerijen van pagina's en
+  berichten staan tot CMS-pakket H/I in `site-content.json` (versie 2; `install.sh` importeert opnieuw bij een oudere
+  versie). Adres en KvK-nummer op de contactpagina komen uit Beheer > Organisatie > Contact (`orgKvk`, leeg = niet tonen).
+  **Vergelijkende DOM-meting**: `app/tools/layout-compare.js` meet blog, tag, bericht, pagina, FAQ, contact, aanmelden en
+  reisleiders op 1440 en 375 px en vergelijkt met de opgeslagen meting van de huidige site
+  (`app/test/fixtures/layout-live.json`). Tegen een draaiende server: `LAYOUT_BASE_URL=http://localhost:3400 npm test`
+  (Playwright met Chromium nodig); nieuwe referentie met
+  `node tools/layout-compare.js --live https://www.avantareizen.nl --opslaan test/fixtures/layout-live.json`.
 - **CRM** op `/app/` (in opbouw, zie `docs/OPZET-CRM.md`): inloggen met e-mail en wachtwoord (scrypt, minimaal 12
   tekens), rollen `beheerder`, `kantoor`, `reisleider` en `boekhouding` met vaste rechten (`app/src/crm/rights.js`,
   per route gecontroleerd met `requireRight`), gebruikersbeheer en een auditlog op `/app/auditlog/`.

@@ -9,6 +9,7 @@ const net = require('node:net');
 const { createDatabase } = require('./database/db');
 const { createSiteRouter } = require('./site/routes');
 const { createBookingRouter } = require('./booking/routes');
+const { createSiteContentStore } = require('./site/site-content');
 const { createContactForm } = require('./contact/routes');
 const { createCrmRouter, generateSetupCode } = require('./crm/routes');
 const { startCrmMaintenance } = require('./crm/auth');
@@ -217,9 +218,11 @@ function createApp(options) {
   app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
-  app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now }));
+  // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).
+  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
+  app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now, siteContent }));
   const contactForm = createContactForm({ db: options.db, formKey, notifications, captcha, now: options.now });
-  app.use(createSiteRouter({ db: options.db, contactForm, homepage: options.homepage, siteContent: options.siteContent }));
+  app.use(createSiteRouter({ db: options.db, contactForm, homepage: options.homepage, siteContent }));
 
   // 404: telt mee in de 404-lijst van Beheer; altijd noindex (kop en renderPage zonder indexable), met een canonical
   // naar het gevraagde pad.

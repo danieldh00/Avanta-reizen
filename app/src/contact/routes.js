@@ -90,26 +90,25 @@ function createContactForm(options) {
     const errors = state.errors || {};
     const trip = state.trip || null;
     const values = { subject: trip ? `Vraag over ${trip.title}` : '', ...(state.values || {}) };
-    return html`<section class="container container--narrow section contact-form" aria-labelledby="contact-titel">
-      <h2 id="contact-titel">Stuur ons een bericht</h2>
+    return html`<div class="contact-form">
       ${Object.keys(errors).length ? html`<div class="form-alert" role="alert">${errors._form || 'Controleer de gemarkeerde velden.'}</div>` : ''}
-      <form class="form" method="post" action="/contact/" novalidate>
+      <form class="form form--theme" method="post" action="/contact/" novalidate aria-labelledby="contact-titel">
         ${trip ? html`<input type="hidden" name="reis" value="${trip.slug}">` : ''}
         ${guard.hiddenFields()}
         ${captchaField(options.captcha, 'contact')}
         <div class="form-grid">${CONTACT_FIELDS.map((field) => renderField(field, values, errors))}</div>
-        <div><button class="btn btn--large" type="submit">Versturen</button></div>
+        <div class="form__footer"><button class="btn" type="submit">Versturen</button></div>
       </form>
-    </section>`;
+    </div>`;
   };
 
   /**
    * De melding na het versturen.
    * @returns {object} HTML.
    */
-  const renderThanks = () => html`<section class="container container--narrow section contact-form">
+  const renderThanks = () => html`<div class="contact-form">
       <p class="notice" role="status">Bedankt voor je bericht! We nemen zo snel mogelijk contact met je op.</p>
-    </section>`;
+    </div>`;
 
   /**
    * Verwerkt een inzending. Een ingevulde honeypot krijgt dezelfde bedanktmelding, zonder opslag; een ongeldig,

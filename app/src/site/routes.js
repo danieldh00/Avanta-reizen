@@ -7,14 +7,14 @@ const { html, raw } = require('./html');
 const { renderPage, renderPageHeader, cssImageUrl } = require('./layout');
 const { isExcluded } = require('./site-settings');
 const { createContent, today } = require('./content');
-const views = require('./views');
+const pageViews = require('./page-view');
 const homeViews = require('./home-view');
 const { createHomepageStore, YOUTUBE_ORIGIN } = require('./homepage');
 const { addCspSources } = require('../security/csp');
 const tripViews = require('./trip-view');
 const { createSiteContentStore, sortGuides, EMPTY_GUIDE } = require('./site-content');
 const { DATA_DIR } = require('../paths');
-const { formatLongDate, isoDate, toDate, tripPath, categoryPath, guidePath, postPath } = require('./format');
+const { isoDate, toDate, tripPath, categoryPath, guidePath, postPath } = require('./format');
 const seo = require('./seo');
 
 /** Hoe lang de sitemap uit het geheugen komt voordat hij opnieuw wordt opgebouwd (milliseconden). */
@@ -130,9 +130,14 @@ function createSiteRouter(options) {
       content.upcomingTrips({ onlyAvailable: true, limit: 6 }),
       content.upcomingTrips({ limit: 60 }),
       content.categories('type'),
-      content.posts({ perPage: 4 }),
+      content.posts({ perPage: 5 }),
       content.newTripCount(),
     ]);
+    // Blog: drie nieuwste links, het uitgelichte bericht (of anders het vierde) groot rechts, zoals de huidige site.
+    const featuredSlug = siteContent.load().featuredPost;
+    const featuredPost = featuredSlug && !blog.posts.some((post) => post.slug === featuredSlug) ? (await content.postsBySlugs([featuredSlug]))[0] : null;
+    const arranged = pageViews.arrangePosts(featuredPost ? [...blog.posts, featuredPost] : blog.posts, featuredSlug);
+    const homePosts = [...arranged.list, ...(arranged.featured ? [arranged.featured] : [])];
     const typeBySlug = new Map(types.map((type) => [type.slug, type]));
     const homeTypes = home.typeSlugs.map((slug) => typeBySlug.get(slug)).filter(Boolean);
     const destinations = finder.destinations.filter((destination) => destination.trip_count > 0);
@@ -152,7 +157,7 @@ function createSiteRouter(options) {
         lastMinutes,
         types: homeTypes.length ? homeTypes : types.filter((type) => type.trip_count > 0),
         destinations,
-        posts: blog.posts,
+        posts: homePosts,
       }),
     });
   }));
@@ -281,37 +286,54 @@ function createSiteRouter(options) {
     });
   }));
 
+  /**
+   * Staat video's toe op deze pagina: alleen youtube-nocookie.com in een iframe.
+   * @param {object} res Express-antwoord.
+   * @returns {void}
+   */
+  const allowVideos = (res) => {
+    res.set('Content-Security-Policy', addCspSources(res.get('Content-Security-Policy'), { 'frame-src': [YOUTUBE_ORIGIN] }));
+  };
+
   router.get('/blog/', asyncRoute(async (req, res) => {
-    const page = Math.max(1, Math.min(500, Number.parseInt(req.query.pagina, 10) || 1));
-    const perPage = 12;
-    const { posts, total } = await content.posts({ page, perPage });
+    const archive = siteContent.load().archives.blog;
+    const { posts } = await content.posts({ perPage: 500 });
+    const { blogTags, blogArchiveLink, featuredPost } = siteContent.load();
     send(res, {
-      title: 'Weblog',
+      title: archive.title,
+      description: archive.introduction,
       path: '/blog/',
-      seo: seoFor(page > 1 ? `/blog/?pagina=${page}` : '/blog/'),
-      header: renderPageHeader({ title: 'Weblog', subtitle: 'verhalen van onderweg' }),
-      body: html`<div class="container section">
-        <div class="card-grid">${posts.map(views.postCard)}</div>
-        ${views.pagination({ page, pages: Math.ceil(total / perPage), basePath: '/blog/' })}
-      </div>`,
+      seo: seoFor('/blog/', { imageUrl: archive.image }),
+      header: renderPageHeader({ title: archive.title, pretitle: archive.pretitle, imageUrl: archive.image }),
+      body: html`<div class="content-main">${pageViews.blogArchive({ posts, introduction: archive.introduction, tags: blogTags, archiveLink: blogArchiveLink, featured: featuredPost })}</div>`,
+    });
+  }));
+
+  // Tags van het weblog (uit `site-content.json`); een onbekende tag gaat naar het overzicht, zoals voorheen.
+  router.get('/tag/:slug/', asyncRoute(async (req, res) => {
+    const slug = safeSlug(req.params.slug);
+    const tag = slug ? siteContent.load().blogTags.find((item) => item.slug === slug) : null;
+    if (!tag) return res.redirect(301, '/blog/');
+    const posts = await content.postsBySlugs(tag.posts);
+    const tagPath = `/tag/${tag.slug}/`;
+    return send(res, {
+      title: tag.name,
+      path: '/blog/',
+      seo: seoFor(tagPath, { imageUrl: tag.image, structuredData: [breadcrumbs([{ name: 'Weblog', path: '/blog/' }, { name: tag.name, path: tagPath }])] }),
+      header: renderPageHeader({ title: tag.name, imageUrl: tag.image, backLink: '/blog/' }),
+      body: html`<div class="content-main">${pageViews.tagArchive(posts)}</div>`,
     });
   }));
 
   router.get('/faq/', asyncRoute(async (req, res) => {
+    const archive = siteContent.load().archives.faq;
     const faqs = await content.faqs();
-    const groups = new Map();
-    for (const faq of faqs) groups.set(faq.category, [...(groups.get(faq.category) || []), faq]);
     send(res, {
-      title: 'Veelgestelde vragen',
+      title: archive.title,
       path: '/faq/',
-      seo: seoFor('/faq/'),
-      header: renderPageHeader({ title: 'Veelgestelde vragen' }),
-      body: html`<div class="container container--narrow section">
-        ${[...groups.entries()].map(([category, items]) => html`<section class="faq-group" id="${category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}">
-          <h2>${category}</h2>
-          ${items.map((faq) => html`<details class="faq"><summary>${faq.question}</summary><div class="prose">${raw(faq.answer_html)}</div></details>`)}
-        </section>`)}
-      </div>`,
+      seo: seoFor('/faq/', { imageUrl: archive.image }),
+      header: renderPageHeader({ title: archive.title, pretitle: archive.pretitle, imageUrl: archive.image }),
+      body: html`<div class="content-main">${pageViews.faqList(faqs)}</div>`,
     });
   }));
 
@@ -320,7 +342,7 @@ function createSiteRouter(options) {
     const anchor = req.path.startsWith('/faq-categorie/') ? `#${encodeURIComponent(req.params.slug)}` : '';
     res.redirect(301, `/faq/${anchor}`);
   });
-  router.get(['/category/:slug/', '/tag/:slug/'], (req, res) => res.redirect(301, '/blog/'));
+  router.get('/category/:slug/', (req, res) => res.redirect(301, '/blog/'));
 
   router.get('/zoeken/', asyncRoute(async (req, res) => {
     const term = typeof req.query.s === 'string' ? req.query.s.trim().slice(0, 80) : '';
@@ -331,17 +353,17 @@ function createSiteRouter(options) {
       path: '/zoeken/',
       seo: seoFor('/zoeken/'),
       header: renderPageHeader({ title: term ? `Zoekresultaten voor "${term}"` : 'Zoeken' }),
-      body: html`<div class="container section">
-        <form class="search-form" action="/zoeken/" method="get" role="search">
+      body: html`<div class="content-main"><div class="layout-container search-results">
+        <form class="search-form form--theme" action="/zoeken/" method="get" role="search">
           <label class="visually-hidden" for="zoekterm">Zoekterm</label>
           <input id="zoekterm" type="search" name="s" value="${term}" placeholder="Waar ben je naar op zoek?" maxlength="80" required>
           <button class="btn" type="submit">Zoeken</button>
         </form>
         ${term ? html`<p class="result-count">${count} resultaten</p>` : ''}
         ${results.trips.length ? html`<h2>Reizen</h2>${tripViews.tripList(results.trips, '')}` : ''}
-        ${results.posts.length ? html`<h2>Weblog</h2><div class="card-grid">${results.posts.map(views.postCard)}</div>` : ''}
+        ${results.posts.length ? html`<h2>Weblog</h2>${pageViews.postList(results.posts)}` : ''}
         ${results.pages.length ? html`<h2>Pagina's</h2><ul class="link-list">${results.pages.map((page) => html`<li><a href="${page.path}">${page.title}</a>${page.intro ? html` — ${page.intro}` : ''}</li>`)}</ul>` : ''}
-      </div>`,
+      </div></div>`,
     });
   }));
 
@@ -349,7 +371,8 @@ function createSiteRouter(options) {
     const contactForm = options.contactForm;
 
     /**
-     * Stuurt de contactpagina: de geïmporteerde inhoud met daaronder het formulier (of de bedanktmelding).
+     * Stuurt de contactpagina: de geïmporteerde inhoud (als die er is), daaronder het adres, de verwijzing naar de
+     * FAQ en het formulier (of de bedanktmelding), zoals de huidige site.
      * @param {object} res Express-antwoord.
      * @param {object} formHtml Formulier of melding.
      * @param {number} [status] HTTP-status.
@@ -357,6 +380,8 @@ function createSiteRouter(options) {
      */
     const sendContactPage = async (res, formHtml, status = 200) => {
       const page = await content.pageByPath('/contact/');
+      const article = page ? pageViews.articleBody(page) : { body: '', hasVideo: false };
+      if (article.hasVideo) allowVideos(res);
       res.set('Cache-Control', 'no-store');
       send(res, {
         title: page ? page.title : 'Contact',
@@ -364,10 +389,7 @@ function createSiteRouter(options) {
         path: '/contact/',
         seo: seoFor('/contact/', { imageUrl: page ? page.image_url : '' }),
         header: renderPageHeader({ title: page ? page.title : 'Contact', pretitle: page ? page.pretitle : '', imageUrl: page ? page.image_url : '' }),
-        body: html`${page ? html`<div class="container container--narrow section">
-          ${page.intro ? html`<p class="lead">${page.intro}</p>` : ''}
-          <div class="prose">${raw(page.body_html)}</div>
-        </div>` : ''}${formHtml}`,
+        body: html`<div class="content-main">${article.body}${pageViews.contactLayout(res.locals.site, formHtml)}</div>`,
       }, status);
     };
 
@@ -394,22 +416,24 @@ function createSiteRouter(options) {
     if (path.length > 300) return next();
     const page = await content.pageByPath(path);
     if (page) {
+      const article = pageViews.articleBody(page, siteContent.load().galleries.get(page.path));
+      if (article.hasVideo) allowVideos(res);
       return send(res, {
         title: page.title,
         description: page.intro,
         path,
         seo: seoFor(seo.encodePagePath(page.path), { imageUrl: page.image_url }),
         header: renderPageHeader({ title: page.title, pretitle: page.pretitle, imageUrl: page.image_url }),
-        body: html`<div class="container container--narrow section">
-          ${page.intro ? html`<p class="lead">${page.intro}</p>` : ''}
-          <div class="prose">${raw(page.body_html)}</div>
-        </div>`,
+        body: html`<div class="content-main">${article.body}</div>`,
       });
     }
     const segments = path.split('/').filter(Boolean);
     if (segments.length !== 1) return next();
     const post = await content.postBySlug(segments[0]);
     if (!post) return next();
+    const article = pageViews.articleBody(post, siteContent.load().galleries.get(`/${post.slug}/`));
+    if (article.hasVideo) allowVideos(res);
+    const published = post.published_at ? new Date(post.published_at) : null;
     return send(res, {
       title: post.title,
       description: post.excerpt,
@@ -422,11 +446,8 @@ function createSiteRouter(options) {
           breadcrumbs([{ name: 'Weblog', path: '/blog/' }, { name: post.title, path: postPath(post.slug) }]),
         ],
       }),
-      header: renderPageHeader({ title: post.title, pretitle: post.published_at ? formatLongDate(new Date(post.published_at)) : '', imageUrl: post.image_url, backLink: '/blog/' }),
-      body: html`<article class="container container--narrow section">
-        ${post.intro ? html`<p class="lead">${post.intro}</p>` : ''}
-        <div class="prose">${raw(post.body_html)}</div>
-      </article>`,
+      header: renderPageHeader({ title: post.title, date: published, imageUrl: post.image_url, backLink: '/blog/', single: true }),
+      body: html`<article class="content-main">${article.body}</article>`,
     });
   }));
 

@@ -17,14 +17,17 @@ const { createPersons } = require('../crm/persons');
 const { createFormGuard } = require('../security/form-guard');
 const { captchaField } = require('../security/captcha');
 const seo = require('../site/seo');
+const { createSiteContentStore } = require('../site/site-content');
+const { DATA_DIR } = require('../paths');
 
 const SGR_CENTS = 500;
 const BOOKING_FEE_CENTS = 1500;
 
 /**
  * Bouwt de router voor aanmeldingen.
- * @param {{db: object, vault: object, formKey: Buffer, notifications?: object, captcha?: object, now?: () => number}} options
- *   Database, kluis, sleutel voor het formuliertoken, de meldingen aan kantoor en de captcha. Het basisadres voor de canonical en de overige site-instellingen komen uit `res.locals.site`.
+ * @param {{db: object, vault: object, formKey: Buffer, notifications?: object, captcha?: object, now?: () => number, siteContent?: {load: Function}}} options
+ *   Database, kluis, sleutel voor het formuliertoken, de meldingen aan kantoor, de captcha en de vaste inhoud (kop van
+ *   de pagina, standaard `DATA_DIR/site-content.json`). Het basisadres voor de canonical en de overige site-instellingen komen uit `res.locals.site`.
  * @returns {express.Router} De router.
  */
 function createBookingRouter(options) {
@@ -32,6 +35,7 @@ function createBookingRouter(options) {
   const content = createContent(options.db);
   const persons = createPersons({ vault: options.vault });
   const now = options.now || Date.now;
+  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
   const guard = createFormGuard({
     purpose: 'aanmelden',
     formKey: options.formKey,
@@ -81,6 +85,28 @@ function createBookingRouter(options) {
   };
 
   /**
+   * De kop van de aanmeldpagina zoals de huidige site: foto, "Ja! Ik ga graag mee op reis" en "Aanmelden".
+   * @returns {object} HTML.
+   */
+  const header = () => {
+    const archive = siteContent.load().archives.aanmelden;
+    return renderPageHeader({ title: archive.title, pretitle: archive.pretitle, imageUrl: archive.image });
+  };
+
+  /**
+   * Een melding in plaats van het formulier (geen of een onbekende reis, volgeboekt, vertrokken), met een knop naar het
+   * reisaanbod.
+   * @param {string} reason De melding.
+   * @returns {object} HTML.
+   */
+  const notice = (reason) => html`<div class="content-main">
+    <div class="page-introduction">
+      <h2>${reason}</h2>
+      <a class="btn page-introduction--small" href="/reis/">Naar alle reizen</a>
+    </div>
+  </div>`;
+
+  /**
    * Eén formulierveld met label, hulptekst en foutmelding.
    * @param {object} field Veld uit FIELDS.
    * @param {Record<string, string>} values Ingevulde waarden.
@@ -123,15 +149,18 @@ function createBookingRouter(options) {
    */
   const renderForm = (trip, values, errors) => {
     const hasErrors = Object.keys(errors).length > 0;
-    return html`<div class="container container--narrow section">
-      <p>Doorloop onderstaande stappen om je aan te melden voor de reis.</p>
+    const archive = siteContent.load().archives.aanmelden;
+    return html`<div class="content-main">
+      ${archive.introduction ? html`<div class="page-introduction">${archive.introduction}</div>` : ''}
+      <section class="page-content"><div class="page-content__form apply__form">
       ${hasErrors ? html`<div class="form-alert" role="alert">${errors._form || 'Controleer de gemarkeerde velden.'}</div>` : ''}
-      <form class="form" method="post" action="/aanmelden/" novalidate>
+      <form class="form form--theme" method="post" action="/aanmelden/" novalidate aria-label="Aanmelden voor ${trip.title}">
         <input type="hidden" name="id" value="${trip.legacy_id || ''}">
         <input type="hidden" name="reis" value="${trip.slug}">
         ${guard.hiddenFields()}
         ${captchaField(options.captcha, 'aanmelden')}
-        <section class="form-summary" aria-label="Reisgegevens">
+        <section class="form-summary" aria-labelledby="reisgegevens">
+          <h2 class="form__section-title" id="reisgegevens">Reisgegevens</h2>
           <dl>
             <dt>Reis</dt><dd><a href="${tripPath(trip.slug)}">${trip.title}</a></dd>
             ${trip.trip_code ? html`<dt>Reiscode</dt><dd>${trip.trip_code}</dd>` : ''}
@@ -143,28 +172,23 @@ function createBookingRouter(options) {
           </dl>
         </section>
         ${FIELD_GROUPS.map((group) => html`<fieldset>
-          <legend>${group.title}</legend>
+          <legend class="form__section-title">${group.title}</legend>
           ${group.intro ? html`<p class="field__help">${group.intro}</p>` : ''}
           <div class="form-grid">${group.fields.map((field) => renderField(field, values, errors))}</div>
         </fieldset>`)}
-        <div><button class="btn btn--large" type="submit">Verstuur aanmelding</button></div>
+        <div class="form__footer"><button class="btn" type="submit">Verstuur aanmelding</button></div>
       </form>
+      </div></section>
     </div>`;
   };
 
   router.get('/aanmelden/', async (req, res, next) => {
     try {
-      if (!req.query.id && !req.query.reis) return res.redirect(302, '/reis/');
+      // Zonder reis: dezelfde melding als de huidige site.
+      if (!req.query.id && !req.query.reis) return send(res, { title: 'Aanmelden', header: header(), body: notice('Er is geen reis geselecteerd'), trip: null });
       const { trip, reason } = await findBookableTrip(req.query);
-      if (!trip || reason) {
-        return send(res, {
-          title: 'Aanmelden',
-          header: renderPageHeader({ title: 'Aanmelden' }),
-          body: html`<div class="container section"><p class="notice">${reason}</p><p><a class="btn" href="/reis/">Bekijk ons reisaanbod</a></p></div>`,
-          trip,
-        }, trip ? 409 : 404);
-      }
-      return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: renderPageHeader({ title: 'Aanmelden', subtitle: trip.title }), body: renderForm(trip, {}, {}) });
+      if (!trip || reason) return send(res, { title: 'Aanmelden', header: header(), body: notice(reason), trip }, trip ? 409 : 404);
+      return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: header(), body: renderForm(trip, {}, {}) });
     } catch (error) {
       return next(error);
     }
@@ -175,7 +199,7 @@ function createBookingRouter(options) {
       const body = req.body || {};
       const { trip, reason } = await findBookableTrip(body);
       if (!trip || reason) {
-        return send(res, { title: 'Aanmelden', header: renderPageHeader({ title: 'Aanmelden' }), body: html`<div class="container section"><p class="notice">${reason}</p></div>`, trip }, trip ? 409 : 404);
+        return send(res, { title: 'Aanmelden', header: header(), body: notice(reason), trip }, trip ? 409 : 404);
       }
       // Een ingevulde honeypot: stil doen alsof het gelukt is, zonder iets op te slaan.
       if (guard.isBot(body)) return res.redirect(303, '/bedankt-voor-je-aanmelding/');
@@ -184,16 +208,16 @@ function createBookingRouter(options) {
       // Ongeldig, verlopen of te snel token: formulier opnieuw tonen met de waarden en een nieuw token, niets opslaan.
       const tokenProblem = guard.tokenProblem(body);
       if (tokenProblem) {
-        return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: renderPageHeader({ title: 'Aanmelden', subtitle: trip.title }), body: renderForm(trip, values, { ...errors, _form: tokenProblem }) }, 422);
+        return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: header(), body: renderForm(trip, values, { ...errors, _form: tokenProblem }) }, 422);
       }
       if (Object.keys(errors).length) {
-        return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: renderPageHeader({ title: 'Aanmelden', subtitle: trip.title }), body: renderForm(trip, values, errors) }, 422);
+        return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: header(), body: renderForm(trip, values, errors) }, 422);
       }
       // De captcha als laatste: alleen een verder geldige aanmelding kost een controle bij Google.
       if (options.captcha) {
         const verdict = await options.captcha.check({ token: body.captchaToken, action: 'aanmelden', remoteIp: req.ip });
         if (!verdict.ok) {
-          return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: renderPageHeader({ title: 'Aanmelden', subtitle: trip.title }), body: renderForm(trip, values, { _form: verdict.message }) }, verdict.unavailable ? 503 : 422);
+          return send(res, { trip, title: `Aanmelden: ${trip.title}`, header: header(), body: renderForm(trip, values, { _form: verdict.message }) }, verdict.unavailable ? 503 : 422);
         }
       }
       // Referentiejaar volgens de Nederlandse datum, niet de tijdzone van de server (rond de jaarwisseling verschilt dat).

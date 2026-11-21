@@ -3,6 +3,27 @@
  * Alleen de kolommen die de pagina's nodig hebben; lijsten zonder de grote HTML-kolommen.
  */
 
+const { postSummary } = require('./format');
+
+/**
+ * Kolommen voor een blogbericht in een lijst: zonder de HTML, wel het begin van de tekst voor de samenvatting (tags
+ * weg, de link "Bekijk de video" van een geïmporteerde video ook). De regexes draaien alleen over de eerste 6000
+ * tekens van de HTML (genoeg voor 197 bytes tekst), zodat een lange lijst geen volledige berichten doorzoekt; een
+ * afgekapte tag aan het eind valt ook weg.
+ */
+const POST_TEASER_COLUMNS = `slug, title, excerpt, image_url, published_at,
+  left(regexp_replace(regexp_replace(regexp_replace(left(body_html, 6000), '<a [^>]*>Bekijk de video</a>', '', 'g'), '<[^>]*(>|$)', ' ', 'g'), '\\s+', ' ', 'g'), 800) AS body_text`;
+
+/**
+ * Een bericht uit de lijst met zijn samenvatting (`summary`) in plaats van het begin van de tekst.
+ * @param {object} row Rij met `body_text`.
+ * @returns {object} Bericht.
+ */
+function withSummary(row) {
+  const { body_text: bodyText, ...post } = row;
+  return { ...post, summary: postSummary(bodyText) };
+}
+
 /** Kolommen voor een reis in een lijst (teaser). */
 const TRIP_CARD_COLUMNS = `t.id, t.slug, t.title, t.summary, t.trip_code, t.departure_date, t.duration_label, t.price_cents,
   t.old_price_cents, t.offer_until, t.extra_costs_cents, t.destinations, t.status_label, t.guaranteed, t.fully_booked,
@@ -163,12 +184,26 @@ function createContent(db) {
     async posts(paging = {}) {
       const perPage = paging.perPage || 12;
       const offset = Math.max(0, (paging.page || 1) - 1) * perPage;
-      const posts = await db.query(
-        'SELECT slug, title, excerpt, image_url, published_at FROM posts WHERE published ORDER BY published_at DESC NULLS LAST LIMIT $1 OFFSET $2',
+      const rows = await db.query(
+        `SELECT ${POST_TEASER_COLUMNS} FROM posts WHERE published ORDER BY published_at DESC NULLS LAST LIMIT $1 OFFSET $2`,
         [perPage, offset],
       );
+      const posts = rows.map(withSummary);
       const [{ total }] = await db.query('SELECT COUNT(*)::int AS total FROM posts WHERE published');
       return { posts, total };
+    },
+
+    /**
+     * Gepubliceerde berichten op slug, in de volgorde van de lijst (onbekende slugs vallen weg).
+     * @param {string[]} slugs Slugs (hoogstens 500).
+     * @returns {Promise<object[]>} Berichten.
+     */
+    async postsBySlugs(slugs) {
+      const wanted = [...new Set(slugs)].slice(0, 500);
+      if (!wanted.length) return [];
+      const rows = await db.query(`SELECT ${POST_TEASER_COLUMNS} FROM posts WHERE published AND slug = ANY($1::text[])`, [wanted]);
+      const bySlug = new Map(rows.map((row) => [row.slug, withSummary(row)]));
+      return wanted.map((slug) => bySlug.get(slug)).filter(Boolean);
     },
 
     /**
@@ -223,7 +258,7 @@ function createContent(db) {
       const pattern = `%${term}%`;
       const [trips, posts, pages] = await Promise.all([
         this.upcomingTrips({ search: term, limit: 30 }),
-        db.query('SELECT slug, title, excerpt, image_url, published_at FROM posts WHERE published AND (title ILIKE $1 OR excerpt ILIKE $1) ORDER BY published_at DESC LIMIT 20', [pattern]),
+        db.query(`SELECT ${POST_TEASER_COLUMNS} FROM posts WHERE published AND (title ILIKE $1 OR excerpt ILIKE $1) ORDER BY published_at DESC LIMIT 20`, [pattern]).then((rows) => rows.map(withSummary)),
         db.query('SELECT path, title, intro FROM pages WHERE published AND (title ILIKE $1 OR intro ILIKE $1) ORDER BY title LIMIT 20', [pattern]),
       ]);
       return { trips, posts, pages };

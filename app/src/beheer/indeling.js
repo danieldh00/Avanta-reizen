@@ -38,7 +38,7 @@ const GROUPS = [
         id: 'contact',
         label: 'Contact en organisatie',
         intro: 'Contactgegevens in de voettekst van de site, en adres en social media voor de gegevens voor zoekmachines (JSON-LD).',
-        fields: ['contactPhone', 'contactEmail', 'orgStreet', 'orgPostalCode', 'orgCity', 'socialFacebook', 'socialInstagram', 'socialYoutube', 'socialLinkedin'],
+        fields: ['contactPhone', 'contactEmail', 'orgStreet', 'orgPostalCode', 'orgCity', 'orgKvk', 'socialFacebook', 'socialInstagram', 'socialYoutube', 'socialLinkedin'],
         words: 'telefoon e-mail mail voettekst adres postcode plaats organisatie facebook instagram youtube linkedin social sameas json-ld',
       },
       {

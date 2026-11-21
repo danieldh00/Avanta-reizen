@@ -266,46 +266,8 @@ h4, h5, h6 { font-size: 16px; }
 .search-form input, .form input, .form select, .form textarea { width: 100%; padding: .65rem .75rem; border: 1px solid #bcbcbd; border-radius: var(--av-radius); font: 1rem var(--av-font); color: var(--av-text); background: var(--av-white); }
 .search-form { display: flex; gap: .75rem; max-width: 640px; }
 
-/* Kaarten */
-.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
-.card-grid--four { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
-.card-grid--guides { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-.trip-card, .post-card, .guide-card { display: flex; flex-direction: column; background: var(--av-white); border-radius: var(--av-radius); box-shadow: var(--av-shadow); color: var(--av-text); text-decoration: none; overflow: hidden; transition: transform .15s ease; }
-.trip-card:hover, .post-card:hover, .guide-card:hover { transform: translateY(-3px); color: var(--av-text); }
-.trip-card__image, .post-card__image, .guide-card__image { position: relative; margin: 0; aspect-ratio: 8 / 6; background: var(--av-soil); overflow: hidden; }
-.guide-card__image { aspect-ratio: 1; }
-.trip-card__image img, .post-card__image img, .guide-card__image img { width: 100%; height: 100%; object-fit: cover; }
-.trip-card__label { position: absolute; top: .75rem; left: .75rem; background: var(--av-accent); color: var(--av-white); font-size: .8rem; font-weight: 700; padding: .2rem .6rem; border-radius: var(--av-radius); text-transform: uppercase; }
-.trip-card--full .trip-card__label { background: var(--av-muted); }
-.trip-card__body, .post-card__body { padding: 1rem 1.1rem 0; flex: 1; }
-.trip-card__meta { font-size: .85rem; color: var(--av-muted); }
-.trip-card__code { margin-left: .5rem; color: var(--av-green); font-weight: 600; }
-.trip-card__title, .post-card__title, .guide-card__name { margin: .25rem 0 .5rem; font-size: 1.2rem; }
-.guide-card__name { padding: .75rem 1rem; text-align: center; font-size: 1.05rem; }
-.trip-card__summary, .post-card p { font-size: .92rem; margin: 0 0 .75rem; }
-.post-card time { font-size: .85rem; color: var(--av-muted); }
-.trip-card__footer { display: flex; align-items: flex-end; justify-content: space-between; gap: .75rem; padding: .75rem 1.1rem 1rem; border-top: 1px solid var(--av-line); }
-.trip-card__more { color: var(--av-accent); font-weight: 600; font-size: .9rem; white-space: nowrap; }
-
-/* Tekst uit het CMS */
-.prose { overflow-wrap: break-word; }
-.prose img { border-radius: var(--av-radius); margin: 1rem 0; }
-.prose table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; }
-.prose th, .prose td { border: 1px solid var(--av-line); padding: .4rem .6rem; text-align: left; }
-.prose blockquote { margin: 1.5rem 0; padding-left: 1rem; border-left: 3px solid var(--av-accent); font-style: italic; }
-.prose--intro { margin-bottom: 2rem; }
-/* FAQ */
-.faq-group h2 { margin-top: 2.5rem; }
-.faq { border-bottom: 1px solid var(--av-line); }
-.faq summary { cursor: pointer; padding: 1rem 2rem 1rem 0; font-weight: 600; position: relative; list-style: none; }
-.faq summary::-webkit-details-marker { display: none; }
-.faq summary::after { content: "+"; position: absolute; right: .25rem; top: .8rem; font-size: 1.4rem; color: var(--av-accent); }
-.faq[open] summary::after { content: "−"; }
-.faq .prose { padding-bottom: 1rem; }
-
-/* Lijsten, paginering */
+/* Lijst met links (zoekresultaten) */
 .link-list { padding-left: 1.2rem; }
-.pagination { display: flex; justify-content: center; gap: 1.5rem; margin-top: 2.5rem; }
 
 /* Formulieren */
 .form { display: grid; gap: 1.5rem; }
@@ -546,20 +508,20 @@ h4, h5, h6 { font-size: 16px; }
 .page-header--bare .to-archive { z-index: 2; }
 .page-introduction { width: calc(100% - 30px); max-width: 1280px; margin: 0 auto; padding: 0 60px 60px; font-family: var(--av-serif); font-size: 34px; font-weight: 700; line-height: 1.2; text-align: center; color: var(--av-heading); }
 .page-content > [class*="page-content__"] { width: calc(100% - 30px); max-width: 850px; margin: 0 auto 60px; }
-.page-content__text { line-height: 1.75; overflow-wrap: break-word; }
-.page-content__text p { margin: 0; }
-.page-content__text p:not(:last-child) { margin-bottom: 45px; }
-.page-content__text a { text-decoration: underline; }
-.page-content__text strong { color: var(--av-heading); }
-.page-content__text img { height: auto; margin: 1rem 0; }
-.page-content__text ul, .page-content__text ol { margin: 2em 0 2em .5em; padding: 0; list-style: none; }
-.page-content__text li { position: relative; padding: .5em 0 .5em 20px; }
-.page-content__text ul li::before { content: ""; position: absolute; left: 0; top: 19px; width: 7px; height: 7px; background: var(--av-accent); transform: rotate(45deg); }
-.page-content__text ol { counter-reset: lijst; }
-.page-content__text ol li { counter-increment: lijst; }
-.page-content__text ol li::before { content: counter(lijst); position: absolute; left: 0; font-weight: 700; color: var(--av-accent); }
-.page-content__text table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; }
-.page-content__text th, .page-content__text td { padding: .4rem .6rem; border: 1px solid var(--av-line); text-align: left; }
+.page-content__text, .faq__answer { line-height: 1.75; overflow-wrap: break-word; }
+.page-content__text p, .faq__answer p { margin: 0; }
+.page-content__text p:not(:last-child), .faq__answer p:not(:last-child) { margin-bottom: 45px; }
+.page-content__text a, .faq__answer a { text-decoration: underline; }
+.page-content__text strong, .faq__answer strong { color: var(--av-heading); }
+.page-content__text img, .faq__answer img { height: auto; margin: 1rem 0; }
+.page-content__text ul, .page-content__text ol, .faq__answer ul, .faq__answer ol { margin: 2em 0 2em .5em; padding: 0; list-style: none; }
+.page-content__text li, .faq__answer li { position: relative; padding: .5em 0 .5em 20px; }
+.page-content__text ul li::before, .faq__answer ul li::before { content: ""; position: absolute; left: 0; top: 19px; width: 7px; height: 7px; background: var(--av-accent); transform: rotate(45deg); }
+.page-content__text ol, .faq__answer ol { counter-reset: lijst; }
+.page-content__text ol li, .faq__answer ol li { counter-increment: lijst; }
+.page-content__text ol li::before, .faq__answer ol li::before { content: counter(lijst); position: absolute; left: 0; font-weight: 700; color: var(--av-accent); }
+.page-content__text table, .faq__answer table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; }
+.page-content__text th, .page-content__text td, .faq__answer th, .faq__answer td { padding: .4rem .6rem; border: 1px solid var(--av-line); text-align: left; }
 .alert { display: block; padding: 30px; border-radius: 10px; background: rgba(67, 66, 72, .05); line-height: 1.2; text-align: center; }
 .content-main dl { display: flex; flex-wrap: wrap; width: 100%; margin: 0; font-size: 15px; line-height: 2; }
 .content-main dl dt, .content-main dl dd { width: 50%; margin: 0; }
@@ -670,7 +632,8 @@ h4, h5, h6 { font-size: 16px; }
 @media (max-width: 768px) {
   .content-main { padding-top: 30px; }
   .page-introduction { margin: 0 15px; padding: 0 15px 30px; font-size: 24px; width: auto; }
-  .page-content > [class*="page-content__"] { margin-bottom: 30px; padding: 0 15px; }
+  .page-content > [class*="page-content__"] { margin-bottom: 30px; }
+  .page-content > [class*="page-content__"]:not(:last-child) { padding: 0 15px; }
   .box--landscape { flex-direction: column; }
   .box--landscape .box__image, .box--additional .box__image { flex: 0 0 100px; min-height: 100px; height: 100px; }
   .box--landscape .box__inner { padding: 15px; }
@@ -690,10 +653,10 @@ h4, h5, h6 { font-size: 16px; }
   .trip__meta .trip__price { font-size: 34px; }
   .gallery-strip__item img { height: 300px; }
   .archive--guide { margin: 0; }
-  .archive--guide > .grid__item { width: 100%; margin: 0 0 10px; }
-  .post-teaser--guide { flex-direction: row; padding: 0; }
+  .archive--guide > .grid__item { width: 100%; margin: 0; }
+  .post-teaser--guide { flex-direction: row; margin-bottom: 10px; padding: 0; }
   .post-teaser--guide .post-teaser__thumb { flex: 0 0 100px; height: 90px; margin: 0 15px 0 0; }
-  .post-teaser--guide .post-teaser__inner { display: flex; align-items: center; }
+  .post-teaser--guide .post-teaser__inner { display: flex; flex-direction: column; justify-content: center; }
   .post-teaser--guide .post-teaser__title { font-size: 20px; line-height: 1.2; }
   .guide__personal, .guide__featured-image { padding: 0; }
   .guide__featured-image { padding-right: 60px; }
@@ -707,12 +670,99 @@ h4, h5, h6 { font-size: 16px; }
   .content-main .grid .page-content > [class*="page-content__"] { margin: 0 15px 30px; padding: 0 15px; }
 }
 
-/* Onderdelen die in E4 nog naar het thema gaan: tablet en mobiel */
+/* ===== Weblog, pagina's, FAQ, contact en aanmelden (CMS-pakket E4) ===== */
+/* Weblog: tags, drie berichten links en één groot rechts, daaronder de rest in twee kolommen */
+.tags { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; margin-bottom: 60px; }
+.tags__item { margin: 7.5px; padding: .75em 1em; border-radius: 5px; background: rgba(67, 66, 72, .1); font-size: 14px; line-height: 1.2; text-align: center; color: var(--av-muted); transition: .2s; }
+.tags__item:hover, .tags__item:focus { background: rgba(67, 66, 72, .2); color: var(--av-muted); }
+.tags__item--extern { background: transparent; box-shadow: inset 0 0 0 1px rgba(67, 66, 72, .1); }
+.tags__item--extern:hover, .tags__item--extern:focus { background: transparent; box-shadow: inset 0 0 0 1px rgba(67, 66, 72, .3); }
+.blog-archive .page-introduction { width: auto; margin: 0 15px; }
+.blog-archive .grid__item, .archive--post .list__item { margin-bottom: 0; }
+.post-wrapper { width: 100%; }
+.blog-archive .post-wrapper:not(.featured-post) .post-teaser { flex-direction: row; padding: 15px 0; }
+.blog-archive .post-wrapper:not(.featured-post) .post-teaser__thumb, .post-teaser--landscape .post-teaser__thumb { flex: 0 0 190px; height: 166px; margin: 0 30px 0 0; }
+.blog-archive .featured-post .post-teaser__thumb { height: 452px; }
+.post-teaser--landscape { flex-direction: row; }
+.archive--post .post-teaser__inner { display: flex; flex-direction: column; justify-content: center; width: 100%; }
+
+/* Ruimte boven de voettekst, zoals de huidige site */
+body:not(.home) > .site-main { padding-bottom: 60px; }
+
+/* Bericht of pagina: video en foto's breder dan de tekst (tot 1580 px), tekstblokken van 850 px, galerij op volle breedte */
+.page-content > .page-content__video-wrapper, .page-content > .page-content__image { width: auto; max-width: 1580px; padding: 0 60px; }
+.page-content > .page-content__gallery { width: auto; max-width: none; }
+.page-content__image { text-align: center; }
+.page-content__image img { display: inline-block; height: auto; margin: auto; }
+.page-content__video { position: relative; padding-bottom: 56.25%; }
+.page-content__video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.page-content__form { overflow: hidden; }
+
+/* FAQ: categorieën van 900 px, vragen klappen uit met <details>; het plusje draait een kwartslag */
+.category--faq { max-width: 900px; margin: 0 auto; }
+.category--faq + .category--faq .category__title { padding-top: 45px; }
+.category--faq .list__item { margin: 0; }
+.faq { margin: 0; padding: 0; border-top: 1px solid var(--av-line-soft); }
+.category--faq .list__item:last-child .faq { border-bottom: 1px solid var(--av-line-soft); }
+.faq__summary { position: relative; display: block; list-style: none; cursor: pointer; }
+.faq__summary::-webkit-details-marker { display: none; }
+.faq__question { margin: 0; padding: 15px 30px 15px 0; font-size: 18px; line-height: 1; color: var(--av-accent); }
+.faq__summary .icon { position: absolute; top: 9px; right: 0; width: 30px; height: 30px; color: var(--av-green); transition: transform .15s; }
+.faq[open] .faq__summary .icon { transform: rotate(45deg); }
+.faq__summary:focus-visible { outline: 2px solid var(--av-accent); outline-offset: 2px; }
+.faq__answer { padding: 0 0 30px; }
+
+/* Contact: links adres en FAQ, rechts het formulier */
+.contact-extra-info > .grid__item { flex-direction: column; flex-wrap: nowrap; align-items: stretch; margin-bottom: 0; }
+.contact-extra-info .box { margin-bottom: 30px; }
+.contact-extra-info .box__inner > .page-content__text { width: 100%; }
+.contact-extra-info .location__address > *, .contact-extra-info .location__phone, .contact-extra-info .location__mail { display: block; }
+.contact-extra-info .location__phone a { color: inherit; text-decoration: none; }
+.contact-extra-info .location__mail a { display: inline-block; color: var(--av-heading); text-decoration: underline; }
+.location__extra { margin: 0; padding: 0; list-style: none; }
+.contact-form { width: 100%; }
+
+/* Formulieren in de huidige huisstijl (contact, aanmelden): kleine labels in hoofdletters, rechte velden */
+.form--theme { gap: 30px; }
+.form--theme fieldset { margin: 0; padding: 0; border: 0; }
+.form__section-title { display: block; margin: 0 0 15px; padding: 0; font-family: var(--av-serif); font-size: 20px; font-weight: 700; line-height: 1; color: var(--av-heading); }
+.form--theme .field__label { font-size: 12px; font-weight: 400; line-height: 1.3; letter-spacing: 1pt; text-transform: uppercase; color: var(--av-muted); }
+.form--theme .field__label .required { color: var(--av-green); }
+.form--theme input:not([type="checkbox"]):not([type="radio"]), .form--theme select, .form--theme textarea { padding: 10px; border: 1px solid #bcbcbd; border-radius: 0; outline: 0; font: 16px/2 var(--av-font); color: var(--av-muted); background: var(--av-white); }
+.form--theme textarea { line-height: 1.5; }
+.contact-form textarea { height: 160px; }
+.form--theme input:focus, .form--theme select:focus, .form--theme textarea:focus { border-color: var(--av-accent); }
+.form--theme input[type="checkbox"], .form--theme input[type="radio"] { accent-color: var(--av-accent); }
+.form--theme .form-summary { padding: 30px; border-radius: 0; background: var(--av-white); }
+.form__footer { text-align: right; }
+
+/* Aanmelden zonder (beschikbare) reis: melding en knop in de inleiding */
+.page-introduction .btn { margin-top: 60px; line-height: 1; }
+.btn.page-introduction--small { font-family: var(--av-font); font-size: 18px; font-weight: 400; }
+
+/* Zoeken */
+.search-results .search-form { margin: 0 auto 60px; }
+.search-results h2 { margin-top: 30px; }
+
+@media (max-width: 1024px) {
+  .post-teaser__summary { display: none; }
+}
 @media (max-width: 768px) {
   .form-grid { grid-template-columns: minmax(0, 1fr); }
   .search-form { flex-direction: column; }
-  .card-grid, .card-grid--four { grid-template-columns: minmax(0, 1fr); }
-  .card-grid--guides { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .blog-archive .page-introduction { margin: 0 15px; }
+  .blog-archive .grid__item { margin: 0; }
+  .blog-archive .post-wrapper:not(.featured-post) .post-teaser, .blog-archive .featured-post .post-teaser { flex-direction: row; padding: 15px 0; }
+  .blog-archive .post-wrapper:not(.featured-post) .post-teaser__thumb, .blog-archive .featured-post .post-teaser__thumb, .post-teaser--landscape .post-teaser__thumb { flex: 0 0 100px; height: 88px; margin: 0 30px 0 0; }
+  .page-header:not(.page-header--trip) > .layout-container { position: static; }
+  .page-header--single { margin-top: 50px; overflow: visible; }
+  .page-header--single .to-archive { top: -50px; }
+  .page-content > .page-content__video-wrapper { margin-bottom: 60px; padding: 0 15px; }
+  .faq__question { font-size: 18px; line-height: 1.5; color: var(--av-muted); }
+  .faq__summary .icon { top: 15px; }
+  .faq__answer p:not(:last-child) { margin-bottom: 2em; }
+  .contact-extra-info > .grid__item { margin: 0; }
+  .contact-form textarea { height: 120px; }
 }
 
 /* CRM (/app/): compacte kop, tabellen en smalle formulieren; rustiger dan de site (geen hoofdletters in knoppen) */

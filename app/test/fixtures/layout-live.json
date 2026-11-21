@@ -1,0 +1,1342 @@
+{
+ "blog@1440": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 422,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__pretitle": {
+   "count": 1,
+   "x": 110,
+   "y": 150,
+   "w": 1220,
+   "h": 24,
+   "fontSize": "24px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 110,
+   "y": 182,
+   "w": 1220,
+   "h": 90,
+   "fontSize": "90px",
+   "fontWeight": "900"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 422,
+   "w": 1440,
+   "h": 6629,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-introduction": {
+   "count": 1,
+   "x": 95,
+   "y": 482,
+   "w": 1250,
+   "h": 101,
+   "fontSize": "34px",
+   "fontWeight": "700"
+  },
+  ".tags": {
+   "count": 1,
+   "x": 80,
+   "y": 582,
+   "w": 1280,
+   "h": 53,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".tags__item": {
+   "count": 6,
+   "x": 325,
+   "y": 590,
+   "w": 194,
+   "h": 38,
+   "fontSize": "14px",
+   "fontWeight": "400"
+  },
+  ".tags__item--extern": {
+   "count": 1,
+   "x": 968,
+   "y": 590,
+   "w": 147,
+   "h": 38,
+   "fontSize": "14px",
+   "fontWeight": "400"
+  },
+  ".list.archive--post .post-teaser": {
+   "count": 3,
+   "x": 80,
+   "y": 695,
+   "w": 625,
+   "h": 197,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".list.archive--post .post-teaser__thumb": {
+   "count": 3,
+   "x": 80,
+   "y": 710,
+   "w": 190,
+   "h": 166,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".list.archive--post .post-teaser__meta": {
+   "count": 3,
+   "x": 300,
+   "y": 715,
+   "w": 405,
+   "h": 26,
+   "fontSize": "13px",
+   "fontWeight": "700"
+  },
+  ".list.archive--post .post-teaser__title": {
+   "count": 3,
+   "x": 300,
+   "y": 741,
+   "w": 405,
+   "h": 24,
+   "fontSize": "24px",
+   "fontWeight": "900"
+  },
+  ".featured-post": {
+   "count": 1,
+   "x": 735,
+   "y": 695,
+   "w": 625,
+   "h": 615,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".featured-post .post-teaser__thumb": {
+   "count": 1,
+   "x": 735,
+   "y": 695,
+   "w": 625,
+   "h": 452,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".grid.archive--post .grid__item": {
+   "count": 53,
+   "x": 80,
+   "y": 1310,
+   "w": 625,
+   "h": 197,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".grid.archive--post .post-teaser__thumb": {
+   "count": 53,
+   "x": 80,
+   "y": 1325,
+   "w": 190,
+   "h": 166,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  "@scrollWidth": {
+   "w": 1440
+  }
+ },
+ "blog@375": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 375,
+   "h": 192,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__pretitle": {
+   "count": 1,
+   "x": 15,
+   "y": 60,
+   "w": 345,
+   "h": 24,
+   "fontSize": "24px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 15,
+   "y": 92,
+   "w": 345,
+   "h": 40,
+   "fontSize": "40px",
+   "fontWeight": "900"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 192,
+   "w": 375,
+   "h": 7489,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-introduction": {
+   "count": 1,
+   "x": 30,
+   "y": 222,
+   "w": 315,
+   "h": 116,
+   "fontSize": "24px",
+   "fontWeight": "700"
+  },
+  ".tags": {
+   "count": 1,
+   "x": 15,
+   "y": 338,
+   "w": 345,
+   "h": 158,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".tags__item": {
+   "count": 6,
+   "x": 46,
+   "y": 345,
+   "w": 194,
+   "h": 38,
+   "fontSize": "14px",
+   "fontWeight": "400"
+  },
+  ".tags__item--extern": {
+   "count": 1,
+   "x": 114,
+   "y": 451,
+   "w": 147,
+   "h": 38,
+   "fontSize": "14px",
+   "fontWeight": "400"
+  },
+  ".list.archive--post .post-teaser": {
+   "count": 3,
+   "x": 15,
+   "y": 556,
+   "w": 345,
+   "h": 119,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".list.archive--post .post-teaser__thumb": {
+   "count": 3,
+   "x": 15,
+   "y": 571,
+   "w": 100,
+   "h": 88,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".list.archive--post .post-teaser__meta": {
+   "count": 3,
+   "x": 145,
+   "y": 573,
+   "w": 215,
+   "h": 26,
+   "fontSize": "13px",
+   "fontWeight": "700"
+  },
+  ".list.archive--post .post-teaser__title": {
+   "count": 3,
+   "x": 145,
+   "y": 599,
+   "w": 215,
+   "h": 48,
+   "fontSize": "20px",
+   "fontWeight": "900"
+  },
+  ".featured-post": {
+   "count": 1,
+   "x": 15,
+   "y": 912,
+   "w": 345,
+   "h": 119,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".featured-post .post-teaser__thumb": {
+   "count": 1,
+   "x": 15,
+   "y": 927,
+   "w": 100,
+   "h": 88,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".grid.archive--post .grid__item": {
+   "count": 53,
+   "x": 15,
+   "y": 1030,
+   "w": 345,
+   "h": 119,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".grid.archive--post .post-teaser__thumb": {
+   "count": 53,
+   "x": 15,
+   "y": 1045,
+   "w": 100,
+   "h": 88,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  "@scrollWidth": {
+   "w": 375
+  }
+ },
+ "tag@1440": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 390,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 110,
+   "y": 150,
+   "w": 1220,
+   "h": 90,
+   "fontSize": "90px",
+   "fontWeight": "900"
+  },
+  ".to-archive": {
+   "count": 1,
+   "x": 80,
+   "y": 45,
+   "w": 150,
+   "h": 32,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 390,
+   "w": 1440,
+   "h": 425,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".post-teaser--landscape .post-teaser__thumb": {
+   "count": 2,
+   "x": 80,
+   "y": 450,
+   "w": 190,
+   "h": 166,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".post-teaser--landscape .post-teaser__inner": {
+   "count": 2,
+   "x": 300,
+   "y": 450,
+   "w": 1060,
+   "h": 166,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".post-teaser--landscape .post-teaser__title": {
+   "count": 2,
+   "x": 300,
+   "y": 505,
+   "w": 1060,
+   "h": 24,
+   "fontSize": "24px",
+   "fontWeight": "900"
+  },
+  "@scrollWidth": {
+   "w": 1440
+  }
+ },
+ "tag@375": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 375,
+   "h": 160,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 15,
+   "y": 60,
+   "w": 345,
+   "h": 40,
+   "fontSize": "40px",
+   "fontWeight": "900"
+  },
+  ".to-archive": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 375,
+   "h": 50,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 160,
+   "w": 375,
+   "h": 237,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".post-teaser--landscape .post-teaser__thumb": {
+   "count": 2,
+   "x": 15,
+   "y": 190,
+   "w": 100,
+   "h": 88,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".post-teaser--landscape .post-teaser__inner": {
+   "count": 2,
+   "x": 145,
+   "y": 190,
+   "w": 215,
+   "h": 88,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".post-teaser--landscape .post-teaser__title": {
+   "count": 2,
+   "x": 145,
+   "y": 230,
+   "w": 215,
+   "h": 24,
+   "fontSize": "20px",
+   "fontWeight": "900"
+  },
+  "@scrollWidth": {
+   "w": 375
+  }
+ },
+ "bericht@1440": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 422,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__pretitle time": {
+   "count": 1,
+   "x": 663,
+   "y": 146,
+   "w": 114,
+   "h": 32,
+   "fontSize": "24px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 110,
+   "y": 182,
+   "w": 1220,
+   "h": 90,
+   "fontSize": "90px",
+   "fontWeight": "900"
+  },
+  ".to-archive": {
+   "count": 1,
+   "x": 80,
+   "y": 45,
+   "w": 150,
+   "h": 32,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 422,
+   "w": 1440,
+   "h": 1135,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-introduction": {
+   "count": 1,
+   "x": 80,
+   "y": 482,
+   "w": 1280,
+   "h": 101,
+   "fontSize": "34px",
+   "fontWeight": "700"
+  },
+  ".page-content__video-wrapper": {
+   "count": 1,
+   "x": 0,
+   "y": 582,
+   "w": 1440,
+   "h": 743,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-content__video": {
+   "count": 1,
+   "x": 60,
+   "y": 582,
+   "w": 1320,
+   "h": 743,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-content__text": {
+   "count": 1,
+   "x": 295,
+   "y": 1385,
+   "w": 850,
+   "h": 112,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  "@scrollWidth": {
+   "w": 1440
+  }
+ },
+ "bericht@375": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 375,
+   "h": 192,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__pretitle time": {
+   "count": 1,
+   "x": 130,
+   "y": 56,
+   "w": 114,
+   "h": 32,
+   "fontSize": "24px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 15,
+   "y": 92,
+   "w": 345,
+   "h": 40,
+   "fontSize": "40px",
+   "fontWeight": "900"
+  },
+  ".to-archive": {
+   "count": 1,
+   "x": 0,
+   "y": -50,
+   "w": 375,
+   "h": 50,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 192,
+   "w": 375,
+   "h": 680,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-introduction": {
+   "count": 1,
+   "x": 15,
+   "y": 222,
+   "w": 345,
+   "h": 116,
+   "fontSize": "24px",
+   "fontWeight": "700"
+  },
+  ".page-content__video-wrapper": {
+   "count": 1,
+   "x": 0,
+   "y": 338,
+   "w": 375,
+   "h": 194,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-content__video": {
+   "count": 1,
+   "x": 15,
+   "y": 338,
+   "w": 345,
+   "h": 194,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-content__text": {
+   "count": 1,
+   "x": 15,
+   "y": 592,
+   "w": 345,
+   "h": 280,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  "@scrollWidth": {
+   "w": 375
+  }
+ },
+ "pagina@1440": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 422,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__pretitle": {
+   "count": 1,
+   "x": 110,
+   "y": 150,
+   "w": 1220,
+   "h": 24,
+   "fontSize": "24px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 110,
+   "y": 182,
+   "w": 1220,
+   "h": 90,
+   "fontSize": "90px",
+   "fontWeight": "900"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 422,
+   "w": 1440,
+   "h": 3702,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-introduction": {
+   "count": 1,
+   "x": 80,
+   "y": 482,
+   "w": 1280,
+   "h": 182,
+   "fontSize": "34px",
+   "fontWeight": "700"
+  },
+  ".page-content__text h2": {
+   "count": 8,
+   "x": 295,
+   "y": 933,
+   "w": 850,
+   "h": 28,
+   "fontSize": "28px",
+   "fontWeight": "900"
+  },
+  ".page-gallery .section__title": {
+   "count": 1,
+   "x": 0,
+   "y": 3396,
+   "w": 1440,
+   "h": 44,
+   "fontSize": "44px",
+   "fontWeight": "900"
+  },
+  "@scrollWidth": {
+   "w": 1440
+  }
+ },
+ "pagina@375": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 375,
+   "h": 256,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__pretitle": {
+   "count": 1,
+   "x": 15,
+   "y": 60,
+   "w": 345,
+   "h": 48,
+   "fontSize": "24px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 15,
+   "y": 116,
+   "w": 345,
+   "h": 80,
+   "fontSize": "40px",
+   "fontWeight": "900"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 256,
+   "w": 375,
+   "h": 6387,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-introduction": {
+   "count": 1,
+   "x": 15,
+   "y": 286,
+   "w": 345,
+   "h": 232,
+   "fontSize": "24px",
+   "fontWeight": "700"
+  },
+  ".page-content__text h2": {
+   "count": 8,
+   "x": 30,
+   "y": 1150,
+   "w": 315,
+   "h": 56,
+   "fontSize": "28px",
+   "fontWeight": "900"
+  },
+  ".page-gallery .section__title": {
+   "count": 1,
+   "x": 0,
+   "y": 6140,
+   "w": 375,
+   "h": 30,
+   "fontSize": "30px",
+   "fontWeight": "900"
+  },
+  "@scrollWidth": {
+   "w": 375
+  }
+ },
+ "faq@1440": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 422,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 110,
+   "y": 182,
+   "w": 1220,
+   "h": 90,
+   "fontSize": "90px",
+   "fontWeight": "900"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 422,
+   "w": 1440,
+   "h": 1193,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".category--faq": {
+   "count": 5,
+   "x": 270,
+   "y": 482,
+   "w": 900,
+   "h": 338,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".category__title": {
+   "count": 5,
+   "x": 270,
+   "y": 482,
+   "w": 900,
+   "h": 20,
+   "fontSize": "20px",
+   "fontWeight": "900"
+  },
+  ".category--faq + .category--faq .category__title": {
+   "count": 4,
+   "x": 270,
+   "y": 819,
+   "w": 900,
+   "h": 65,
+   "fontSize": "20px",
+   "fontWeight": "900"
+  },
+  ".faq": {
+   "count": 15,
+   "x": 270,
+   "y": 524,
+   "w": 900,
+   "h": 49,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".faq__question": {
+   "count": 15,
+   "x": 270,
+   "y": 525,
+   "w": 900,
+   "h": 48,
+   "fontSize": "18px",
+   "fontWeight": "900"
+  },
+  "@scrollWidth": {
+   "w": 1440
+  }
+ },
+ "faq@375": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 375,
+   "h": 232,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 15,
+   "y": 92,
+   "w": 345,
+   "h": 80,
+   "fontSize": "40px",
+   "fontWeight": "900"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 232,
+   "w": 375,
+   "h": 1622,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".category--faq": {
+   "count": 5,
+   "x": 15,
+   "y": 262,
+   "w": 345,
+   "h": 554,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".category__title": {
+   "count": 5,
+   "x": 15,
+   "y": 262,
+   "w": 345,
+   "h": 20,
+   "fontSize": "20px",
+   "fontWeight": "900"
+  },
+  ".category--faq + .category--faq .category__title": {
+   "count": 4,
+   "x": 15,
+   "y": 815,
+   "w": 345,
+   "h": 65,
+   "fontSize": "20px",
+   "fontWeight": "900"
+  },
+  ".faq": {
+   "count": 15,
+   "x": 15,
+   "y": 304,
+   "w": 345,
+   "h": 112,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".faq__question": {
+   "count": 15,
+   "x": 15,
+   "y": 305,
+   "w": 345,
+   "h": 111,
+   "fontSize": "18px",
+   "fontWeight": "900"
+  },
+  "@scrollWidth": {
+   "w": 375
+  }
+ },
+ "contact@1440": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 422,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 110,
+   "y": 182,
+   "w": 1220,
+   "h": 90,
+   "fontSize": "90px",
+   "fontWeight": "900"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 422,
+   "w": 1440,
+   "h": 922,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".contact-extra-info": {
+   "count": 1,
+   "x": 65,
+   "y": 482,
+   "w": 1310,
+   "h": 862,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".contact-extra-info > .grid__item": {
+   "count": 2,
+   "x": 80,
+   "y": 482,
+   "w": 625,
+   "h": 862,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".contact-extra-info > .grid__item + .grid__item": {
+   "count": 1,
+   "x": 735,
+   "y": 482,
+   "w": 625,
+   "h": 862,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".contact-extra-info .box__inner": {
+   "count": 3,
+   "x": 80,
+   "y": 482,
+   "w": 625,
+   "h": 263,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".location__name": {
+   "count": 1,
+   "x": 110,
+   "y": 512,
+   "w": 186,
+   "h": 20,
+   "fontSize": "20px",
+   "fontWeight": "900"
+  },
+  ".box__title": {
+   "count": 1,
+   "x": 765,
+   "y": 512,
+   "w": 565,
+   "h": 24,
+   "fontSize": "24px",
+   "fontWeight": "700"
+  },
+  "@scrollWidth": {
+   "w": 1440
+  }
+ },
+ "contact@375": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 375,
+   "h": 192,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 15,
+   "y": 92,
+   "w": 345,
+   "h": 40,
+   "fontSize": "40px",
+   "fontWeight": "900"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 192,
+   "w": 375,
+   "h": 1426,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".contact-extra-info": {
+   "count": 1,
+   "x": 15,
+   "y": 222,
+   "w": 345,
+   "h": 1396,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".contact-extra-info > .grid__item": {
+   "count": 2,
+   "x": 15,
+   "y": 222,
+   "w": 345,
+   "h": 511,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".contact-extra-info > .grid__item + .grid__item": {
+   "count": 1,
+   "x": 15,
+   "y": 732,
+   "w": 345,
+   "h": 885,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".contact-extra-info .box__inner": {
+   "count": 3,
+   "x": 15,
+   "y": 222,
+   "w": 345,
+   "h": 263,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".location__name": {
+   "count": 1,
+   "x": 45,
+   "y": 252,
+   "w": 186,
+   "h": 20,
+   "fontSize": "20px",
+   "fontWeight": "900"
+  },
+  ".box__title": {
+   "count": 1,
+   "x": 45,
+   "y": 762,
+   "w": 285,
+   "h": 24,
+   "fontSize": "24px",
+   "fontWeight": "700"
+  },
+  "@scrollWidth": {
+   "w": 375
+  }
+ },
+ "aanmelden@1440": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 422,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__pretitle": {
+   "count": 1,
+   "x": 110,
+   "y": 150,
+   "w": 1220,
+   "h": 24,
+   "fontSize": "24px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 110,
+   "y": 182,
+   "w": 1220,
+   "h": 90,
+   "fontSize": "90px",
+   "fontWeight": "900"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 422,
+   "w": 1440,
+   "h": 294,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-introduction": {
+   "count": 1,
+   "x": 80,
+   "y": 482,
+   "w": 1280,
+   "h": 234,
+   "fontSize": "34px",
+   "fontWeight": "700"
+  },
+  ".page-introduction h2": {
+   "count": 1,
+   "x": 140,
+   "y": 482,
+   "w": 1160,
+   "h": 28,
+   "fontSize": "28px",
+   "fontWeight": "900"
+  },
+  ".page-introduction .btn": {
+   "count": 1,
+   "x": 586,
+   "y": 592,
+   "w": 268,
+   "h": 63,
+   "fontSize": "18px",
+   "fontWeight": "400"
+  },
+  "@scrollWidth": {
+   "w": 1440
+  }
+ },
+ "aanmelden@375": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 375,
+   "h": 192,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__pretitle": {
+   "count": 1,
+   "x": 15,
+   "y": 60,
+   "w": 345,
+   "h": 24,
+   "fontSize": "24px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 15,
+   "y": 92,
+   "w": 345,
+   "h": 40,
+   "fontSize": "40px",
+   "fontWeight": "900"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 192,
+   "w": 375,
+   "h": 262,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-introduction": {
+   "count": 1,
+   "x": 15,
+   "y": 222,
+   "w": 345,
+   "h": 232,
+   "fontSize": "24px",
+   "fontWeight": "700"
+  },
+  ".page-introduction h2": {
+   "count": 1,
+   "x": 30,
+   "y": 222,
+   "w": 315,
+   "h": 56,
+   "fontSize": "28px",
+   "fontWeight": "900"
+  },
+  ".page-introduction .btn": {
+   "count": 1,
+   "x": 53,
+   "y": 360,
+   "w": 268,
+   "h": 63,
+   "fontSize": "18px",
+   "fontWeight": "400"
+  },
+  "@scrollWidth": {
+   "w": 375
+  }
+ },
+ "reisleiders@1440": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 422,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 110,
+   "y": 182,
+   "w": 1220,
+   "h": 90,
+   "fontSize": "90px",
+   "fontWeight": "900"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 422,
+   "w": 1440,
+   "h": 10385,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-introduction": {
+   "count": 1,
+   "x": 95,
+   "y": 482,
+   "w": 1250,
+   "h": 101,
+   "fontSize": "34px",
+   "fontWeight": "700"
+  },
+  ".archive--guide .grid__item": {
+   "count": 95,
+   "x": 80,
+   "y": 582,
+   "w": 298,
+   "h": 426,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".post-teaser--guide .post-teaser__thumb": {
+   "count": 95,
+   "x": 80,
+   "y": 582,
+   "w": 298,
+   "h": 340,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".post-teaser--guide .post-teaser__title": {
+   "count": 95,
+   "x": 80,
+   "y": 937,
+   "w": 298,
+   "h": 24,
+   "fontSize": "24px",
+   "fontWeight": "900"
+  },
+  "@scrollWidth": {
+   "w": 1440
+  }
+ },
+ "reisleiders@375": {
+  ".page-header": {
+   "count": 1,
+   "x": 0,
+   "y": 0,
+   "w": 375,
+   "h": 192,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-header__title": {
+   "count": 1,
+   "x": 15,
+   "y": 92,
+   "w": 345,
+   "h": 40,
+   "fontSize": "40px",
+   "fontWeight": "900"
+  },
+  ".content-main": {
+   "count": 1,
+   "x": 0,
+   "y": 192,
+   "w": 375,
+   "h": 9618,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".page-introduction": {
+   "count": 1,
+   "x": 30,
+   "y": 222,
+   "w": 315,
+   "h": 88,
+   "fontSize": "24px",
+   "fontWeight": "700"
+  },
+  ".archive--guide .grid__item": {
+   "count": 95,
+   "x": 15,
+   "y": 309,
+   "w": 345,
+   "h": 100,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".post-teaser--guide .post-teaser__thumb": {
+   "count": 95,
+   "x": 15,
+   "y": 309,
+   "w": 100,
+   "h": 90,
+   "fontSize": "16px",
+   "fontWeight": "400"
+  },
+  ".post-teaser--guide .post-teaser__title": {
+   "count": 95,
+   "x": 130,
+   "y": 342,
+   "w": 230,
+   "h": 24,
+   "fontSize": "20px",
+   "fontWeight": "900"
+  },
+  "@scrollWidth": {
+   "w": 375
+  }
+ }
+}

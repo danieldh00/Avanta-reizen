@@ -47,11 +47,14 @@ const SETTING_FIELDS = {
     max: 200,
     required: true,
   },
-  orgStreet: { type: 'text', label: 'Straat en huisnummer', help: 'Voor de gegevens voor zoekmachines (leeg = geen adres).', default: '', max: 100 },
+  orgStreet: { type: 'text', label: 'Straat en huisnummer', help: 'Op de contactpagina en in de gegevens voor zoekmachines (leeg = geen adres).', default: '', max: 100 },
   orgPostalCode: {
     type: 'text', label: 'Postcode', default: '', max: 7, pattern: /^[1-9][0-9]{3} ?[A-Za-z]{2}$/, patternMessage: 'Vul een Nederlandse postcode in, bijvoorbeeld 4331 AB.',
   },
   orgCity: { type: 'text', label: 'Plaats', default: '', max: 60 },
+  orgKvk: {
+    type: 'text', label: 'KvK-nummer', help: 'Op de contactpagina (leeg = niet tonen).', default: '', max: 8, pattern: /^[0-9]{8}$/, patternMessage: 'Vul de acht cijfers van het KvK-nummer in.',
+  },
   socialFacebook: { type: 'url', label: 'Facebook-pagina', help: 'Volledig adres; komt als "sameAs" in de gegevens voor zoekmachines.', default: '', max: 200 },
   socialInstagram: { type: 'url', label: 'Instagram-account', default: '', max: 200 },
   socialYoutube: { type: 'url', label: 'YouTube-kanaal', default: '', max: 200 },
