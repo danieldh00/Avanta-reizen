@@ -131,4 +131,14 @@ function typeIconName(slug) {
   return TYPE_ICONS[String(slug || '').toLowerCase()] || 'verre-reizen';
 }
 
-module.exports = { ICONS, TYPE_ICONS, icon, typeIconName };
+/**
+ * Het icoon van een reistype: het in het CRM gekozen icoon (als het bestaat), anders het icoon bij de slug.
+ * @param {{slug: string, icon?: string}} category Reistype.
+ * @returns {string} Naam van het icoon.
+ */
+function categoryIconName(category) {
+  const chosen = category && category.icon;
+  return chosen && Object.hasOwn(ICONS, chosen) ? chosen : typeIconName(category && category.slug);
+}
+
+module.exports = { ICONS, TYPE_ICONS, icon, typeIconName, categoryIconName };

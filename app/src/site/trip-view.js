@@ -6,7 +6,7 @@
  */
 const { html, raw } = require('./html');
 const { formatDate, tripPath, categoryPath, guidePath } = require('./format');
-const { icon, typeIconName } = require('./icons');
+const { icon, categoryIconName } = require('./icons');
 const { cssImageUrl } = require('./layout');
 
 /**
@@ -97,7 +97,7 @@ function tripList(trips, empty) {
  */
 function compactTripTypes(types) {
   return html`<div class="trip-types trip-types--compact">${types.map((type) => html`<a class="trip-type" href="${categoryPath(type.slug)}" title="${type.name}">
-    ${icon(typeIconName(type.slug), { className: 'trip-type__icon' })}<span class="visually-hidden">${type.name}</span>
+    ${icon(categoryIconName(type), { className: 'trip-type__icon' })}<span class="visually-hidden">${type.name}</span>
   </a>`)}</div>`;
 }
 

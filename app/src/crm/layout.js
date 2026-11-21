@@ -31,7 +31,15 @@ const CRM_MENU = [
       { label: 'Deelnemers', href: '/app/deelnemers/', icon: 'users', right: 'deelnemers', global: true },
     ],
   },
-  { key: 'website', title: 'Website', icon: 'image', items: [{ label: 'Fotobibliotheek', href: '/app/fotobibliotheek/', icon: 'image', right: 'media' }] },
+  {
+    key: 'website',
+    title: 'Website',
+    icon: 'image',
+    items: [
+      { label: 'Reistypes en landen', href: '/app/reistypes-en-landen/', icon: 'label', right: 'reizen' },
+      { label: 'Fotobibliotheek', href: '/app/fotobibliotheek/', icon: 'image', right: 'media' },
+    ],
+  },
   {
     key: 'gebruikers',
     title: 'Gebruikers',

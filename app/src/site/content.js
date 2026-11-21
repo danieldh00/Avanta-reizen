@@ -103,8 +103,8 @@ function createContent(db) {
       );
       if (!trip) return null;
       trip.categories = await db.query(
-        `SELECT c.slug, c.name, c.kind FROM trip_category_links l JOIN trip_categories c ON c.id = l.category_id
-         WHERE l.trip_id = $1 ORDER BY c.kind, c.name`,
+        `SELECT c.slug, c.name, c.kind, c.icon FROM trip_category_links l JOIN trip_categories c ON c.id = l.category_id
+         WHERE l.trip_id = $1 ORDER BY c.kind, c.sort_order, c.name`,
         [trip.id],
       );
       return trip;
@@ -124,17 +124,17 @@ function createContent(db) {
     },
 
     /**
-     * Categorieën van een soort met het aantal toekomstige reizen.
+     * Categorieën van een soort met het aantal toekomstige reizen, op de volgorde uit het CRM en dan op naam.
      * @param {string} kind 'bestemming', 'type' of 'overig'.
-     * @returns {Promise<object[]>} Categorieën.
+     * @returns {Promise<object[]>} Categorieën (met `icon` en `show_on_home`).
      */
     async categories(kind) {
       return db.query(
-        `SELECT c.slug, c.name, c.image_url, COUNT(t.id)::int AS trip_count
+        `SELECT c.slug, c.name, c.image_url, c.icon, c.show_on_home, COUNT(t.id)::int AS trip_count
          FROM trip_categories c
          LEFT JOIN trip_category_links l ON l.category_id = c.id
          LEFT JOIN trips t ON t.id = l.trip_id AND t.published AND t.departure_date >= $2
-         WHERE c.kind = $1 GROUP BY c.id ORDER BY c.name`,
+         WHERE c.kind = $1 GROUP BY c.id ORDER BY c.sort_order, c.name`,
         [kind, today()],
       );
     },
@@ -145,7 +145,7 @@ function createContent(db) {
      * @returns {Promise<(object|null)>} Categorie of null.
      */
     async categoryBySlug(slug) {
-      const [category] = await db.query('SELECT id, slug, name, kind, intro, body_html, image_url FROM trip_categories WHERE slug = $1', [slug]);
+      const [category] = await db.query('SELECT id, slug, name, kind, icon, intro, body_html, image_url FROM trip_categories WHERE slug = $1', [slug]);
       return category || null;
     },
 

@@ -65,6 +65,23 @@ function mediaUrl(media, minWidth = 0) {
 }
 
 /**
+ * Vergrendelt een foto die ergens gebruikt gaat worden (reis, reistype, land) met `SELECT … FOR SHARE`, zodat hij niet
+ * tegelijk verwijderd kan worden (`remove` neemt `FOR UPDATE` op dezelfde rij). Aanroepen in de transactie die de
+ * verwijzing opslaat; een verdwenen foto of iets anders dan een afbeelding geeft null.
+ * @param {{query: Function}} client Transactie-client.
+ * @param {(number|string)} id Id van de foto.
+ * @returns {Promise<(object|null)>} De foto (id, local_name, variants, alt_text) of null.
+ */
+async function lockMediaForUse(client, id) {
+  if (!/^\d{1,9}$/.test(String(id))) return null;
+  const [row] = await client.query(
+    "SELECT id, local_name, variants, alt_text FROM media WHERE id = $1 AND content_type LIKE 'image/%' FOR SHARE",
+    [Number(id)],
+  );
+  return row || null;
+}
+
+/**
  * Koppelt foto's uit de import die nog geen land hebben automatisch aan landen (CMS-pakket F3): een foto die in een
  * reis staat (kop-, kaart- of galerijfoto of in de tekst) krijgt de landen van die reis, een foto die de kopfoto of in
  * de tekst van een landpagina staat krijgt dat land. Foto's met al een land (ook met de hand gekozen) blijven ongemoeid.
@@ -298,9 +315,8 @@ function createMediaLibrary(options) {
   /**
    * Verwijdert een geüploade foto als die nergens gebruikt wordt: rij (met landen) in een transactie, daarna de bestanden.
    * Een foto uit de import wordt niet verwijderd (de import zou hem opnieuw ophalen).
-   * Bewuste afweging: het slot ligt alleen op de `media`-rij. Tot pakket G/H bestaan er geen schermen die een foto aan een
-   * reis of pagina koppelen, dus er is niets om mee te racen. Die editors moeten bij het opslaan van een verwijzing
-   * dezelfde rij met `SELECT … FOR SHARE` vergrendelen (en een verdwenen foto weigeren); dan sluit dit venster.
+   * Het slot ligt op de `media`-rij; schermen die een foto aan een reis, reistype of land koppelen vergrendelen dezelfde
+   * rij met `lockMediaForUse` (`FOR SHARE`) en weigeren een verdwenen foto, zodat koppelen en verwijderen niet kunnen racen.
    * @param {(number|string)} id Id.
    * @param {Function} [audit] Schrijft in dezelfde transactie de audit (`(client) => Promise`).
    * @returns {Promise<{status: ('weg'|'import'|'gebruikt'|'ok'), places?: object[]}>} Uitkomst.
@@ -480,4 +496,4 @@ function createMediaLibrary(options) {
   return { countries, storeUpload, list, get, update, usage, remove, folders, cleanupOrphans, backfillFiles, restoreMissingFiles, startCleanupTimer };
 }
 
-module.exports = { createMediaLibrary, linkImportedMedia, mediaUrl, titleFromFilename, cleanText, fileNamesOf, TEXT_LIMITS, USAGE_SOURCES };
+module.exports = { createMediaLibrary, linkImportedMedia, lockMediaForUse, mediaUrl, titleFromFilename, cleanText, fileNamesOf, TEXT_LIMITS, USAGE_SOURCES };

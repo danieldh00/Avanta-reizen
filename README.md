@@ -114,6 +114,19 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     SHA-256), dus in elke back-up, de kopie op Google Drive en de hersteltest. Bij het starten en daarna dagelijks zet de
     app ontbrekende bestanden terug uit de database (kleinere varianten opnieuw gemaakt) en zet uploads van vóór migratie
     13 alsnog in de database. Afbeeldingen uit de import zitten niet in de back-up (die haalt de import opnieuw op).
+  - **Reistypes en landen** op `/app/reistypes-en-landen/` (recht `reizen`: beheerder en kantoor; `app/src/trips/`,
+    migratie 14): lijst per soort (reistypes, landen, overig) met het aantal reizen (komend) en foto's; nieuw aanmaken
+    en wijzigen: naam, slug (leeg = uit de naam), soort, icoon uit de eigen SVG-set (leeg = op de slug), inleiding,
+    tekst (HTML, opgeschoond met dezelfde `sanitizeHtml` als de import), volgorde en *tonen op de homepage*. Staat bij
+    minstens één reistype *tonen op de homepage* aan, dan toont de homepage alleen die (op volgorde); anders de types
+    uit `homepage.json`. Hetzelfde voor de bestemmingen (anders alle landen met reizen). Een foto kies je uit de
+    fotobibliotheek (bij een land standaard de foto's van dat land; zoeken en filteren op land); de foto wordt bij het
+    opslaan vergrendeld (`FOR SHARE`), zodat hij niet tegelijk verwijderd kan worden, en staat daarna bij *gebruikt in*.
+    Een gewijzigde slug geeft automatisch een 301 van het oude adres (doorverwijzingen naar het oude adres gaan mee,
+    zonder lus). Dubbelingen uit de import samenvoegen (alleen binnen dezelfde soort; de soort van een land met foto's
+    wijzigen kan niet): reizen en foto's gaan naar de gekozen categorie, de dubbeling
+    verdwijnt en zijn adres verwijst door. Verwijderen kan alleen als er geen reizen en foto's aan hangen. Alles in de
+    auditlog.
   - **Aanmeldingen** op `/app/aanmeldingen/` (recht `aanmeldingen`; `app/src/crm/booking-routes.js`, migratie 11):
     lijst met filter op status en reis en zoeken op referentie, naam, e-mailadres of reiscode; per aanmelding de
     gegevens zoals ingevuld (zonder bijzondere gegevens, die staan bij de deelnemer), de status met vaste overgangen
@@ -282,6 +295,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `app/src/system/` | `system-update.js` (updates vanuit de app), `maintenance.js` (onderhoudsmodus), `host-tasks.js` (servertaken), `request-context.js` (context per verzoek), `app-log.js` (logboek, foutcodes), `monitor.js` (bewaking) |
 | `app/src/backup/` | `backups.js` (versleutelde back-ups, planner), `drive.js` (kopie naar Google Drive), `restore-test.js` (hersteltests), `cli.js` (maken, tonen, ontsleutelen op de opdrachtregel) |
 | `app/src/media/` | fotobibliotheek: `images.js` (soort op inhoud, sharp: rechtzetten, EXIF weg, WebP-varianten), `library.js` (opslag en queries, `media_countries`), `routes.js` (`/app/fotobibliotheek/`) |
+| `app/src/trips/` | reizen beheren: `slugs.js` (slug maken, 301 bij een nieuwe slug), `categories.js` en `category-routes.js` (`/app/reistypes-en-landen/`) |
 | `app/src/mail/` | `mailer.js` (versturen via SMTP of Exchange-connector), `wan-ip.js` (WAN-IP van de server), `layout.js` (opmaak), `notifications.js` (meldingen aan kantoor) |
 | `docs/OPZET-WEBSITE.md` | opzet, inventaris van de huidige site, fasering en open vragen |
 | `changes/` | releasenotes-fragmenten, zie `changes/README.md` |

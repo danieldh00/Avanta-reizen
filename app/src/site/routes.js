@@ -138,9 +138,13 @@ function createSiteRouter(options) {
     const featuredPost = featuredSlug && !blog.posts.some((post) => post.slug === featuredSlug) ? (await content.postsBySlugs([featuredSlug]))[0] : null;
     const arranged = pageViews.arrangePosts(featuredPost ? [...blog.posts, featuredPost] : blog.posts, featuredSlug);
     const homePosts = [...arranged.list, ...(arranged.featured ? [arranged.featured] : [])];
+    // Reistypes en bestemmingen: zijn er in het CRM categorieën op "tonen op de homepage" gezet, dan alleen die (op hun
+    // volgorde); anders de types uit de vaste inhoud en alle bestemmingen met reizen, zoals de huidige site.
+    const chosenTypes = types.filter((type) => type.show_on_home);
     const typeBySlug = new Map(types.map((type) => [type.slug, type]));
-    const homeTypes = home.typeSlugs.map((slug) => typeBySlug.get(slug)).filter(Boolean);
-    const destinations = finder.destinations.filter((destination) => destination.trip_count > 0);
+    const homeTypes = chosenTypes.length ? chosenTypes : home.typeSlugs.map((slug) => typeBySlug.get(slug)).filter(Boolean);
+    const chosenDestinations = finder.destinations.filter((destination) => destination.show_on_home);
+    const destinations = chosenDestinations.length ? chosenDestinations : finder.destinations.filter((destination) => destination.trip_count > 0);
     const tripImages = upcoming.map((trip) => cssImageUrl(trip.card_image_url)).filter(Boolean);
     const filled = homeViews.withFallbackImages(home, tripImages);
     const heroImage = cssImageUrl(filled.slides[0].image || filled.slides[0].fallbackImage);
