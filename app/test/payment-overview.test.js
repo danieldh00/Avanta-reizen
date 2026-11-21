@@ -10,7 +10,7 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { EXPORT_LIMIT } = require('../src/crm/payment-overview-routes');
+const { EXPORT_LIMIT, truncationMessage } = require('../src/crm/payment-overview-routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'payment_overview_test';
@@ -192,7 +192,7 @@ test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
       assert.match(page.text, /Alleen de eerste 1 aanmeldingen zijn meegenomen; kies een reis/);
       const refused = await get('/app/betalingen/overzicht.xlsx');
       assert.equal(refused.status, 422);
-      assert.match(refused.text, /kies een reis en exporteer per reis/);
+      assert.match(refused.text, /Er zijn in deze weergave meer dan 1 aanmeldingen; kies een reis en exporteer per reis/);
       const perTrip = await get(`/app/betalingen/overzicht.xlsx?reis=${albania.id}`);
       assert.equal(perTrip.status, 422);
       assert.match(perTrip.text, /Deze reis heeft in deze weergave meer dan 1 aanmeldingen; kies een smallere weergave/);
@@ -201,6 +201,9 @@ test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
       assert.match(tooMuch.text, /AV-2027-TEVEEL04/);
       assert.doesNotMatch(tooMuch.text, /zijn meegenomen/);
       assert.equal((await get('/app/betalingen/overzicht.xlsx?weergave=teveel')).status, 200);
+      // Te laat met een volle voorselectie: een eigen reden in plaats van "eerste N meegenomen".
+      assert.equal(truncationMessage({ view: 'te-laat', tripId: null }, 5000, true, 'pagina'), 'Er zijn te veel openstaande aanmeldingen om de te late te bepalen; kies een reis.');
+      assert.equal(truncationMessage({ view: 'te-laat', tripId: 3 }, 5000, false, 'export'), 'Deze reis heeft in deze weergave meer dan 5000 aanmeldingen.');
       // Te laat: twee openstaande aanmeldingen, waarvan één te laat; het maximum telt pas na het filter.
       const late = await get(`/app/betalingen/?weergave=te-laat&reis=${albania.id}`);
       assert.match(late.text, /AV-2027-LAAT0002/);

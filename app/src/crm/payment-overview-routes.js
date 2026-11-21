@@ -59,7 +59,8 @@ const OVERVIEW_SQL = `SELECT b.id, b.reference, b.trip_id, b.trip_title, b.trip_
  * @param {{query: Function}} db Database.
  * @param {{view: string, tripId: (number|null), terms: object, today: string, maxRows?: number}} filter Weergave, reis,
  *   termijnen, vandaag en (voor tests) het maximum aantal aanmeldingen.
- * @returns {Promise<{rows: object[], truncated: boolean}>} Regels met `summary`, en of de lijst is afgekapt.
+ * @returns {Promise<{rows: object[], truncated: boolean, scanCapped: boolean}>} Regels met `summary`, of de lijst is
+ *   afgekapt, en of dat kwam doordat de voorselectie vol zat (bij *te laat*: te veel openstaande om de te late te bepalen).
  */
 async function loadOverview(db, filter) {
   const withCancelled = filter.view === 'teveel' || filter.view === 'alles';
@@ -87,7 +88,27 @@ async function loadOverview(db, filter) {
     alles: () => true,
   }[filter.view];
   const kept = list.filter(keep);
-  return { rows: kept.slice(0, maxRows), truncated: rows.length > sqlLimit || kept.length > maxRows };
+  const scanCapped = rows.length > sqlLimit;
+  return { rows: kept.slice(0, maxRows), truncated: scanCapped || kept.length > maxRows, scanCapped };
+}
+
+/**
+ * De melding bij een afgekapte lijst, met een advies dat past bij de oorzaak en het filter.
+ * @param {{view: string, tripId: (number|null)}} filter Weergave en reis.
+ * @param {number} maxRows Maximum aantal aanmeldingen.
+ * @param {boolean} scanCapped Of de voorselectie vol zat (alleen van belang bij *te laat*).
+ * @param {('pagina'|'export')} where Op de pagina (er staat een deel) of bij de export (geweigerd).
+ * @returns {string} Melding.
+ */
+function truncationMessage(filter, maxRows, scanCapped, where) {
+  if (filter.view === 'te-laat' && scanCapped) {
+    return `Er zijn te veel openstaande aanmeldingen om de te late te bepalen${filter.tripId ? '' : '; kies een reis'}.`;
+  }
+  const lead = where === 'pagina'
+    ? `Alleen de eerste ${maxRows} aanmeldingen${filter.tripId ? ' van deze reis' : ''} zijn meegenomen`
+    : `${filter.tripId ? 'Deze reis heeft' : 'Er zijn'} in deze weergave meer dan ${maxRows} aanmeldingen`;
+  if (!filter.tripId) return `${lead}; kies een reis${where === 'export' ? ' en exporteer per reis' : ''}.`;
+  return filter.view === 'te-laat' ? `${lead}.` : `${lead}; kies een smallere weergave (bijvoorbeeld Te laat).`;
 }
 
 /**
@@ -154,7 +175,7 @@ function createPaymentOverviewRoutes(options) {
   router.get('/betalingen/', guard, async (req, res, next) => {
     try {
       const filter = readFilter(req.query);
-      const [{ rows, truncated }, trips] = await Promise.all([
+      const [{ rows, truncated, scanCapped }, trips] = await Promise.all([
         loadOverview(db, { ...filter, maxRows, terms: payments.termsFrom(settings), today: payments.localDay(now()) }),
         tripsWithBookings(),
       ]);
@@ -175,9 +196,7 @@ function createPaymentOverviewRoutes(options) {
             <a class="btn btn--small btn--outline" href="/app/betalingen/overzicht.xlsx?${query}">Excel (.xlsx)</a>
           </form>
           <p>${rows.length} aanmelding${rows.length === 1 ? '' : 'en'} · openstaand ${payments.formatAmount(open)}${late ? ` · ${late} te laat` : ''}</p>
-          ${truncated ? renderAlert(filter.tripId
-            ? `Alleen de eerste ${maxRows} aanmeldingen van deze reis zijn meegenomen${filter.view === 'te-laat' ? '.' : '; kies een smallere weergave.'}`
-            : `Alleen de eerste ${maxRows} aanmeldingen zijn meegenomen; kies een reis.`) : ''}
+          ${truncated ? renderAlert(truncationMessage(filter, maxRows, scanCapped, 'pagina')) : ''}
           ${rows.length ? html`<div class="crm-table-wrap"><table class="crm-table">
             <thead><tr><th scope="col">Referentie</th><th scope="col">Naam</th><th scope="col">Reis</th><th scope="col">Vertrek</th><th scope="col">Status</th>
               <th scope="col">Totaal</th><th scope="col">Betaald</th><th scope="col">Openstaand</th><th scope="col">Aanbetaling uiterlijk</th><th scope="col">Restant uiterlijk</th></tr></thead>
@@ -210,14 +229,12 @@ function createPaymentOverviewRoutes(options) {
       }
       const filter = readFilter(req.query);
       const clock = new Date(now());
-      const { rows, truncated } = await loadOverview(db, { ...filter, maxRows, terms: payments.termsFrom(settings), today: payments.localDay(clock) });
+      const { rows, truncated, scanCapped } = await loadOverview(db, { ...filter, maxRows, terms: payments.termsFrom(settings), today: payments.localDay(clock) });
       // Nooit stilletjes een onvolledig bestand: boven het maximum eerst op reis filteren.
       if (truncated) {
         return res.status(422).send(renderCrmPage({
           title: 'Te veel aanmeldingen', user: req.user, csrf: req.session.csrf, path: '/app/betalingen/',
-          body: html`${renderAlert(filter.tripId
-            ? `Deze reis heeft in deze weergave meer dan ${maxRows} aanmeldingen; ${filter.view === 'te-laat' ? 'dat is meer dan de export aankan.' : 'kies een smallere weergave (bijvoorbeeld Te laat).'}`
-            : `Er zijn meer dan ${maxRows} aanmeldingen; kies een reis en exporteer per reis.`)}<p><a href="/app/betalingen/">Naar de betalingen</a></p>`,
+          body: html`${renderAlert(truncationMessage(filter, maxRows, scanCapped, 'export'))}<p><a href="/app/betalingen/">Naar de betalingen</a></p>`,
         }));
       }
       let tripLabel = 'Alle reizen';
@@ -241,4 +258,4 @@ function createPaymentOverviewRoutes(options) {
   return router;
 }
 
-module.exports = { createPaymentOverviewRoutes, loadOverview, buildOverviewWorkbook, VIEWS, MAX_ROWS, EXPORT_LIMIT, PAYMENT_OVERVIEW_ACTION_LABELS };
+module.exports = { createPaymentOverviewRoutes, loadOverview, buildOverviewWorkbook, truncationMessage, VIEWS, MAX_ROWS, EXPORT_LIMIT, PAYMENT_OVERVIEW_ACTION_LABELS };
