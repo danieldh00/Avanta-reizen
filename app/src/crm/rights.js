@@ -19,6 +19,7 @@ const RIGHTS = {
   facturen: 'Facturen en export naar de boekhouding',
   'export.deelnemers': 'Deelnemerslijsten exporteren (.xlsx)',
   kpis: 'Dashboard met kengetallen',
+  media: 'Fotobibliotheek: foto\'s uploaden, beschrijven en aan landen koppelen',
 };
 
 /** De rollen: naam voor het scherm en de rechten die erbij horen. */
@@ -26,13 +27,15 @@ const ROLES = {
   beheerder: { label: 'Beheerder', rights: Object.keys(RIGHTS) },
   kantoor: {
     label: 'Kantoor',
-    rights: ['reizen', 'aanmeldingen', 'deelnemers', 'deelnemers.wijzigen', 'gegevens.identiteit', 'gegevens.gezondheid', 'betalingen', 'export.deelnemers', 'kpis'],
+    rights: ['reizen', 'aanmeldingen', 'deelnemers', 'deelnemers.wijzigen', 'gegevens.identiteit', 'gegevens.gezondheid', 'betalingen', 'export.deelnemers', 'kpis', 'media'],
   },
   reisleider: {
     label: 'Reisleider',
     rights: ['aanmeldingen', 'deelnemers', 'gegevens.identiteit', 'gegevens.gezondheid', 'export.deelnemers'],
   },
   boekhouding: { label: 'Boekhouding', rights: ['deelnemers', 'betalingen', 'facturen', 'kpis'] },
+  // Alleen de website; krijgt bij pakket H ook het recht `content` (pagina's, blog, FAQ, menu).
+  redacteur: { label: 'Redacteur', rights: ['media'] },
 };
 
 /**

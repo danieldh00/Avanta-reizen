@@ -817,6 +817,16 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
 .crm-history__when { display: block; color: var(--av-muted); font-size: .9rem; }
 .crm-search select { max-width: 100%; }
 @media (max-width: 800px) { .crm-columns { grid-template-columns: minmax(0, 1fr); gap: 1rem; } }
+/* Fotobibliotheek: uploadblok, raster met foto's (vaste verhouding 4:3) en voorbeeld. */
+.media-upload summary { cursor: pointer; }
+.media-upload .form { margin-top: .75rem; }
+.media-upload select, .crm-narrow select[multiple] { width: 100%; max-width: 100%; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 1rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+.media-grid__item { display: grid; gap: .25rem; min-width: 0; padding: .5rem; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); }
+.media-grid__item img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; background: var(--av-soft); }
+.media-grid__title { font-weight: 600; overflow-wrap: anywhere; }
+.media-grid__meta { color: var(--av-muted); font-size: .9rem; overflow-wrap: anywhere; }
+.media-preview { display: block; width: 100%; height: auto; margin-bottom: 1rem; background: var(--av-white); border: 1px solid var(--av-line); }
 /* Tweestapsverificatie: QR-code, sleutel om over te typen en herstelcodes. */
 .crm-qr { display: block; width: 220px; max-width: 100%; height: auto; border: 1px solid var(--av-line); }
 .crm-secret { font-size: 1rem; word-break: break-all; }

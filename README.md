@@ -95,6 +95,13 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     en een ingekort IP-adres (/24 of /48), nooit e-mailadressen, wachtwoorden of andere waarden; regels ouder dan de
     bewaartermijn (standaard 2 jaar) en IP-voorvoegsels ouder dan hun termijn (standaard 90 dagen) worden bij het starten
     en daarna dagelijks opgeruimd, net als verlopen sessies (instelbaar in Beheer).
+  - **Fotobibliotheek** op `/app/fotobibliotheek/` (recht `media`: beheerder, kantoor en de nieuwe rol *Redacteur*;
+    `app/src/media/`, migratie 12): foto's per land bekijken, filteren (land, *zonder land*) en zoeken; meerdere foto's
+    tegelijk uploaden (JPEG, PNG of WebP, maximaal 10 per keer, 15 MB per foto, 200 per gebruiker per uur, 60
+    megapixel). Het soort bestand wordt op de inhoud gecontroleerd; `sharp` zet de foto rechtop, verwijdert EXIF/GPS en
+    slaat hem op als WebP in vaste breedtes (400, 800, 1600, 2400 px, nooit vergroot) in `DATA_DIR/media` als
+    `bib-<willekeurig>-<breedte>.webp`. Per foto titel, alt-tekst, bijschrift, fotograaf en landen wijzigen; uploads
+    en wijzigingen staan in de auditlog. Landen zijn de reiscategorieën van het soort *bestemming*.
   - **Aanmeldingen** op `/app/aanmeldingen/` (recht `aanmeldingen`; `app/src/crm/booking-routes.js`, migratie 11):
     lijst met filter op status en reis en zoeken op referentie, naam, e-mailadres of reiscode; per aanmelding de
     gegevens zoals ingevuld (zonder bijzondere gegevens, die staan bij de deelnemer), de status met vaste overgangen
@@ -255,6 +262,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `app/src/beheer/` | Beheer: `settings.js` (instellingen), `indeling.js` (zijbalk), `routes.js` (`/app/beheer/`), `mail-routes.js` (testmail, WAN-IP), `backup-routes.js` (back-ups), `drive-routes.js` (Google Drive), `restore-test-routes.js` (hersteltest), `update-routes.js` (updates en onderhoud), `host-task-routes.js` (servertaken), `log-routes.js` (logboek), `monitor-routes.js` (bewaking) |
 | `app/src/system/` | `system-update.js` (updates vanuit de app), `maintenance.js` (onderhoudsmodus), `host-tasks.js` (servertaken), `request-context.js` (context per verzoek), `app-log.js` (logboek, foutcodes), `monitor.js` (bewaking) |
 | `app/src/backup/` | `backups.js` (versleutelde back-ups, planner), `drive.js` (kopie naar Google Drive), `restore-test.js` (hersteltests), `cli.js` (maken, tonen, ontsleutelen op de opdrachtregel) |
+| `app/src/media/` | fotobibliotheek: `images.js` (soort op inhoud, sharp: rechtzetten, EXIF weg, WebP-varianten), `library.js` (opslag en queries, `media_countries`), `routes.js` (`/app/fotobibliotheek/`) |
 | `app/src/mail/` | `mailer.js` (versturen via SMTP of Exchange-connector), `wan-ip.js` (WAN-IP van de server), `layout.js` (opmaak), `notifications.js` (meldingen aan kantoor) |
 | `docs/OPZET-WEBSITE.md` | opzet, inventaris van de huidige site, fasering en open vragen |
 | `changes/` | releasenotes-fragmenten, zie `changes/README.md` |
