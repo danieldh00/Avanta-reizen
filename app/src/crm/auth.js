@@ -13,7 +13,7 @@
  * - Auditlog: wie, wat, welk record, wanneer en een ingekort IP-adres; nooit de waarde zelf of persoonsgegevens.
  */
 const crypto = require('node:crypto');
-const { roleHasRight, roleNeedsMfa } = require('./rights');
+const { roleHasRight, roleHasGlobalRight, roleNeedsMfa } = require('./rights');
 const { isCrossSite } = require('../security/form-guard');
 
 /** Naam en pad van de sessiecookie. */
@@ -320,6 +320,17 @@ function createAuth(options) {
   });
 
   /**
+   * Middleware-fabriek: vereist een recht voor álle records (niet beperkt tot eigen vertrekken, zie
+   * `TRIP_SCOPED_ROLES`). Zonder sessie als `requireLogin`, anders 403.
+   * @param {string} right Het recht (sleutel uit `RIGHTS`).
+   * @returns {Function} Express-middleware.
+   */
+  const requireGlobalRight = (right) => (req, res, next) => requireLogin(req, res, () => {
+    if (roleHasGlobalRight(req.user.role, right)) return next();
+    return res.status(403).type('text').send('Je hebt geen toegang tot deze pagina.');
+  });
+
+  /**
    * Middleware: controleert bij een POST de herkomst en het CSRF-token uit het formulier (veld `_csrf`). Vereist een
    * (volledige of halve) sessie en een geparste body.
    * @param {object} req Express-verzoek.
@@ -337,7 +348,7 @@ function createAuth(options) {
     return next();
   };
 
-  return { audit, startSession, completeMfa, endSession, endSessionsOf, loadSession, requireLogin, requireRight, checkCsrf, mfaRequiredFor, pendingPath };
+  return { audit, startSession, completeMfa, endSession, endSessionsOf, loadSession, requireLogin, requireRight, requireGlobalRight, checkCsrf, mfaRequiredFor, pendingPath };
 }
 
 module.exports = { createAuth, purgeExpired, startCrmMaintenance, hashToken, readCookie, ipPrefix, COOKIE_NAME, IDLE_HOURS, MAX_DAYS, PENDING_MINUTES, AUDIT_RETENTION_MONTHS, AUDIT_IP_RETENTION_DAYS };
