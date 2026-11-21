@@ -249,6 +249,9 @@ function createGuides(options) {
     if (!guide) return { status: 'weg' };
     if (guide.published) return { status: 'online' };
     if (guide.legacy_id !== null) return { status: 'import' };
+    // Geen race met koppelen: een INSERT in trip_guides neemt via de foreign key FOR KEY SHARE op deze guides-rij, wat
+    // botst met de FOR UPDATE hierboven. Koppelen wacht dus (en faalt daarna op de foreign key), of verwijderen wacht
+    // op de commit van het koppelen en ziet de koppeling dan wel (READ COMMITTED: nieuwe snapshot per statement).
     const [linked] = await client.query('SELECT 1 AS linked FROM trip_guides WHERE guide_id = $1 LIMIT 1', [guide.id]);
     if (linked) return { status: 'reizen' };
     await client.query('DELETE FROM guides WHERE id = $1', [guide.id]);
