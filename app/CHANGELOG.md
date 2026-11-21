@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.13.1 — 2026-11-21 — Geüploade foto's in de back-up
+
+- Foto's die je in de fotobibliotheek uploadt, zitten nu in elke back-up en in de kopie op Google Drive. Na het
+
+- Migratie 13: tabel `media_files` (grootste WebP-variant per upload, breedte, SHA-256; `STORAGE EXTERNAL`), met
+  `ON DELETE CASCADE` op `media`.
+- Upload schrijft de grootste variant in dezelfde transactie naar `media_files`.
+- `media/library.js`: `backfillFiles()` (uploads van vóór M13), `restoreMissingFiles()` (ontbrekende bestanden terug,
+  kleinere varianten via `resizeWebp`, hash gecontroleerd); bij het starten en dagelijks, met meldingen in het logboek.
+- `docs/DRAAIBOEK-VPS-VERHUIZING.md` bijgewerkt.
+
 ## 0.13.0 — 2026-11-21 — Zijbalk voor CRM en Beheer zoals in AquaTech
 
 - Het CRM en Beheer hebben een vaste zijbalk links, zoals in AquaTech: alle onderdelen in groepen, de huidige pagina
