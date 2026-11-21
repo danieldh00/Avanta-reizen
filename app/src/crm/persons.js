@@ -42,6 +42,9 @@ const MAX_CANDIDATES = 20;
 /** Tekstversie voor toestemmingen die uit een aanmelding van vóór de losse vinkjes komen (één vinkje voor alles). */
 const LEGACY_TEXT_VERSION = 'oud-formulier';
 
+/** Tekstversie van art. 9-toestemmingen bij omgezette oude aanmeldingen: het oude formulier vroeg die niet los. */
+const LEGACY_ART9_TEXT_VERSION = 'oud-formulier, geen losse art. 9-toestemming';
+
 /**
  * Normaliseert een waarde om twee invoeren te vergelijken: hoofdletterongevoelig, witruimte samengevoegd.
  * @param {*} value Waarde.
@@ -261,7 +264,8 @@ function createPersons(options) {
   /**
    * Zet aanmeldingen van vóór de personen-tabel om: per aanmelding de persoon zoeken of maken, de bijzondere gegevens
    * naar de blokken van de persoon en `bookings.sensitive_data` leeg. Art. 9-gegevens (kerkgenootschap,
-   * bijzonderheden) gaan niet mee: daarvoor was geen losse toestemming. Draait bij het starten; elke aanmelding in een
+   * bijzonderheden) gaan mee (besluit Daniël 21-11-2026), met een toestemmingsregel die laat zien dat het oude
+   * formulier daar geen losse toestemming voor vroeg (`LEGACY_ART9_TEXT_VERSION`). Draait bij het starten; elke aanmelding in een
    * eigen transactie, dus een onderbreking is veilig. Een aanmelding die niet te ontsleutelen of op te slaan is blijft
    * staan en wordt geteld.
    * @param {{query: Function, transaction: Function}} db Database.
@@ -290,10 +294,13 @@ function createPersons(options) {
           failed++;
           continue;
         }
-        // Het oude formulier had één vinkje voor alles en geen uitdrukkelijke toestemming voor art. 9. Kerkgenootschap en
-        // bijzonderheden gaan daarom niet mee naar de persoon (en verdwijnen met sensitive_data); kantoor vraagt ze zo
-        // nodig opnieuw, met toestemming. Alleen de voorwaarden worden vastgelegd, met tekstversie 'oud-formulier'.
-        const values = { ...row, ...sensitive, church: '', particulars: '', consent_religion: '', consent_health: '' };
+        // Het oude formulier had één vinkje voor alles en geen uitdrukkelijke toestemming voor art. 9. De gegevens gaan
+        // wel mee (besluit Daniël); de voorwaarden krijgen 'oud-formulier', art. 9 een eigen regel die dat verschil toont.
+        const values = { ...row, ...sensitive, consent_religion: '', consent_health: '' };
+        const legacyArt9 = [
+          ...(values.church ? [BLOCK_CONSENTS.special_data] : []),
+          ...(values.particulars ? [BLOCK_CONSENTS.health_data] : []),
+        ];
         try {
           await db.transaction(async (client) => {
             const [current] = await client.query('SELECT id FROM bookings WHERE id = $1 AND person_id IS NULL AND sensitive_data IS NOT NULL FOR UPDATE', [row.id]);
@@ -301,6 +308,13 @@ function createPersons(options) {
             const { personId } = await savePerson(client, values);
             await client.query('UPDATE bookings SET person_id = $2, sensitive_data = NULL WHERE id = $1', [row.id, personId]);
             await recordConsents(client, { personId, bookingId: row.id, values, textVersion: LEGACY_TEXT_VERSION, givenAt: row.consent_at });
+            if (legacyArt9.length) {
+              await client.query(
+                `INSERT INTO consents (person_id, booking_id, kind, text_version, given_at)
+                 SELECT $1, $2, kind, $4, coalesce($5::timestamptz, now()) FROM unnest($3::text[]) AS kind`,
+                [personId, row.id, legacyArt9, LEGACY_ART9_TEXT_VERSION, row.consent_at || null],
+              );
+            }
           });
         } catch (error) {
           // Eén onbruikbare aanmelding houdt de rest niet tegen; hij blijft staan en wordt bij de volgende start opnieuw geprobeerd.
@@ -399,4 +413,4 @@ function createPersons(options) {
   return { matchKey, openBlock, savePerson, recordConsents, backfillPersons, splitValues, writeBlock, refreshMatchKey, findPerson, mergePersons };
 }
 
-module.exports = { createPersons, PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, LEGACY_TEXT_VERSION };
+module.exports = { createPersons, PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION };
