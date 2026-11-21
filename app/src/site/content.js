@@ -12,7 +12,7 @@ const { fullyBookedSql } = require('../trips/seats');
  * tekens van de HTML (genoeg voor 197 bytes tekst), zodat een lange lijst geen volledige berichten doorzoekt; een
  * afgekapte tag aan het eind valt ook weg.
  */
-const POST_TEASER_COLUMNS = `slug, title, excerpt, image_url, published_at,
+const POST_TEASER_COLUMNS = `slug, title, excerpt, image_url, published_at, managed_in_crm,
   left(regexp_replace(regexp_replace(regexp_replace(left(body_html, 6000), '<a [^>]*>Bekijk de video</a>', '', 'g'), '<[^>]*(>|$)', ' ', 'g'), '\\s+', ' ', 'g'), 800) AS body_text`;
 
 /**
@@ -21,9 +21,17 @@ const POST_TEASER_COLUMNS = `slug, title, excerpt, image_url, published_at,
  * @returns {object} Bericht.
  */
 function withSummary(row) {
-  const { body_text: bodyText, ...post } = row;
-  return { ...post, summary: postSummary(bodyText) };
+  const { body_text: bodyText, managed_in_crm: managed, ...post } = row;
+  // Een bericht uit het CMS heeft een eigen samenvatting (bij publiceren zonder samenvatting: het begin van de tekst);
+  // zonder samenvatting (bijv. een geïmporteerd bericht dat alleen een ander adres kreeg) het begin van body_html.
+  return { ...post, summary: managed && post.excerpt ? post.excerpt : postSummary(bodyText) };
 }
+
+/**
+ * Voorwaarde voor een bericht dat bezoekers zien: gepubliceerd en de publicatiedatum is bereikt (een bericht met een
+ * datum in de toekomst is ingepland, CMS-pakket I1). Vaste tekst zonder invoer; gebruik hem in elke query op `posts`.
+ */
+const VISIBLE_POST_SQL = '(published AND (published_at IS NULL OR published_at <= now()))';
 
 /** Kolommen voor een reis in een lijst (teaser). */
 const TRIP_CARD_COLUMNS = `t.id, t.slug, t.title, t.summary, t.trip_code, t.departure_date, t.duration_label, t.price_cents,
@@ -193,11 +201,11 @@ function createContent(db) {
       const perPage = paging.perPage || 12;
       const offset = Math.max(0, (paging.page || 1) - 1) * perPage;
       const rows = await db.query(
-        `SELECT ${POST_TEASER_COLUMNS} FROM posts WHERE published ORDER BY published_at DESC NULLS LAST LIMIT $1 OFFSET $2`,
+        `SELECT ${POST_TEASER_COLUMNS} FROM posts WHERE ${VISIBLE_POST_SQL} ORDER BY published_at DESC NULLS LAST LIMIT $1 OFFSET $2`,
         [perPage, offset],
       );
       const posts = rows.map(withSummary);
-      const [{ total }] = await db.query('SELECT COUNT(*)::int AS total FROM posts WHERE published');
+      const [{ total }] = await db.query(`SELECT COUNT(*)::int AS total FROM posts WHERE ${VISIBLE_POST_SQL}`);
       return { posts, total };
     },
 
@@ -209,7 +217,7 @@ function createContent(db) {
     async postsBySlugs(slugs) {
       const wanted = [...new Set(slugs)].slice(0, 500);
       if (!wanted.length) return [];
-      const rows = await db.query(`SELECT ${POST_TEASER_COLUMNS} FROM posts WHERE published AND slug = ANY($1::text[])`, [wanted]);
+      const rows = await db.query(`SELECT ${POST_TEASER_COLUMNS} FROM posts WHERE ${VISIBLE_POST_SQL} AND slug = ANY($1::text[])`, [wanted]);
       const bySlug = new Map(rows.map((row) => [row.slug, withSummary(row)]));
       return wanted.map((slug) => bySlug.get(slug)).filter(Boolean);
     },
@@ -220,7 +228,11 @@ function createContent(db) {
      * @returns {Promise<(object|null)>} Bericht of null.
      */
     async postBySlug(slug) {
-      const [post] = await db.query('SELECT slug, title, intro, excerpt, body_html, image_url, published_at FROM posts WHERE slug = $1 AND published', [slug]);
+      const [post] = await db.query(
+        `SELECT slug, title, intro, excerpt, blocks, body_html, managed_in_crm, image_url, published_at, seo_title, seo_description
+           FROM posts WHERE slug = $1 AND ${VISIBLE_POST_SQL}`,
+        [slug],
+      );
       return post || null;
     },
 
@@ -251,7 +263,7 @@ function createContent(db) {
         db.query('SELECT slug FROM trips WHERE published = $1 ORDER BY slug', [true]),
         db.query('SELECT slug FROM trip_categories ORDER BY slug'),
         db.query('SELECT slug FROM guides WHERE published = $1 ORDER BY slug', [true]),
-        db.query('SELECT slug, published_at FROM posts WHERE published = $1 ORDER BY published_at DESC NULLS LAST, slug', [true]),
+        db.query(`SELECT slug, published_at FROM posts WHERE ${VISIBLE_POST_SQL} ORDER BY published_at DESC NULLS LAST, slug`),
         db.query("SELECT path FROM pages WHERE published = $1 AND path <> '/' ORDER BY path", [true]),
       ]);
       return { trips, categories, guides, posts, pages };
@@ -266,7 +278,7 @@ function createContent(db) {
       const pattern = `%${term}%`;
       const [trips, posts, pages] = await Promise.all([
         this.upcomingTrips({ search: term, limit: 30 }),
-        db.query(`SELECT ${POST_TEASER_COLUMNS} FROM posts WHERE published AND (title ILIKE $1 OR excerpt ILIKE $1) ORDER BY published_at DESC LIMIT 20`, [pattern]).then((rows) => rows.map(withSummary)),
+        db.query(`SELECT ${POST_TEASER_COLUMNS} FROM posts WHERE ${VISIBLE_POST_SQL} AND (title ILIKE $1 OR excerpt ILIKE $1) ORDER BY published_at DESC LIMIT 20`, [pattern]).then((rows) => rows.map(withSummary)),
         db.query("SELECT path, title, intro FROM pages WHERE published AND path <> '/' AND (title ILIKE $1 OR intro ILIKE $1) ORDER BY title LIMIT 20", [pattern]),
       ]);
       return { trips, posts, pages };
@@ -274,4 +286,4 @@ function createContent(db) {
   };
 }
 
-module.exports = { createContent, today };
+module.exports = { createContent, today, VISIBLE_POST_SQL };

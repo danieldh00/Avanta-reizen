@@ -456,12 +456,13 @@ function createSiteRouter(options) {
     if (segments.length !== 1) return next();
     const post = await content.postBySlug(segments[0]);
     if (!post) return next();
-    const article = pageViews.articleBody(post, siteContent.load().galleries.get(`/${post.slug}/`));
+    // Blokken uit het CMS (pakket I1); een bericht uit de import zonder blokken toont zijn tekst als één tekstblok.
+    const article = await renderPageArticle(post, content, siteContent.load().galleries.get(`/${post.slug}/`));
     if (article.hasVideo) allowVideos(res);
     const published = post.published_at ? new Date(post.published_at) : null;
     return send(res, {
-      title: post.title,
-      description: post.excerpt,
+      title: post.seo_title || post.title,
+      description: post.seo_description || post.excerpt,
       path: '/blog/',
       seo: seoFor(postPath(post.slug), {
         imageUrl: post.image_url,

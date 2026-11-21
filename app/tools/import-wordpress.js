@@ -555,11 +555,15 @@ async function store(db, data) {
 
     for (const post of data.posts) {
       await client.query(
+        // Een bericht dat in het CRM is gepubliceerd (managed_in_crm) of waar een concept voor openstaat (draft) blijft
+        // zoals het is (CMS-pakket I1); een bericht dat in het CRM een ander adres kreeg komt niet terug op het oude.
         `INSERT INTO posts (legacy_id, slug, title, intro, excerpt, body_html, image_url, categories, published_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         SELECT $1::int, $2::text, $3::text, $4::text, $5::text, $6::text, $7::text, $8::text[], $9::timestamptz
+          WHERE NOT EXISTS (SELECT 1 FROM posts moved WHERE moved.legacy_id = $1::int AND moved.slug <> $2::text)
          ON CONFLICT (slug) DO UPDATE SET legacy_id = EXCLUDED.legacy_id, title = EXCLUDED.title, intro = EXCLUDED.intro,
            excerpt = EXCLUDED.excerpt, body_html = EXCLUDED.body_html, image_url = EXCLUDED.image_url,
-           categories = EXCLUDED.categories, published_at = EXCLUDED.published_at`,
+           categories = EXCLUDED.categories, published_at = EXCLUDED.published_at
+         WHERE NOT posts.managed_in_crm AND posts.draft IS NULL`,
         [post.legacyId, post.slug, post.title, post.intro, post.excerpt, post.bodyHtml, post.imageUrl, post.categories, post.publishedAt],
       );
     }
