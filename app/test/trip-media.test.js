@@ -232,4 +232,17 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.equal(row.gallery.length, libraryCount);
     assert.doesNotMatch((await request(tripsBase, { cookie: kantoor.cookie })).text, /uit de import weghalen/);
   });
+
+  await t.test('galerijlimiet telt de foto\'s uit de import mee', async () => {
+    const libraryCount = (await links()).filter((link) => link.role === 'galerij').length;
+    const extra = Array.from({ length: 60 - libraryCount }, (_, i) => ({ url: `/media/import-oud-${i}.jpg`, alt: '' }));
+    const [current] = await db.query('SELECT gallery FROM trips WHERE id = $1', [trip.id]);
+    await db.query('UPDATE trips SET gallery = $2 WHERE id = $1', [trip.id, JSON.stringify([...current.gallery, ...extra])]);
+    const [photo] = await db.query(
+      "INSERT INTO media (local_name, content_type, bytes, source, title, alt_text, variants) VALUES ('limiet.webp', 'image/webp', 10, 'upload', 'Limiet', '', '{}') RETURNING id",
+    );
+    const response = await request(`${tripsBase}fotos/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, rol: 'galerij', media_id: String(photo.id) } });
+    assert.equal(response.status, 422);
+    assert.match(response.text, /maximaal 60/);
+  });
 });

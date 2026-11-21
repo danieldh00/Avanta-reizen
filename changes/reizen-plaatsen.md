@@ -17,3 +17,6 @@ titel: Plaatsen van een reis en Kopiëren naar nieuw vertrek
   `trip_category_links`, `trip_guides`, `trip_media` en de afgeleide fotokolommen; zonder vertrekdatum, aanbieding,
   statustekst, gegarandeerd, volgeboekt en aanmeldingen; vrije slug `<slug>-kopie[-n]` (ook niet als oud adres in
   `redirects`).
+- Foto's bij een reis: het herkennen van foto's uit de import zonder rij in de bibliotheek doet nu één lookup op
+  `media.local_name` (plus één variantcontrole voor de rest) in plaats van een scan per adres; de galerijlimiet van 60
+  telt die foto's mee.
