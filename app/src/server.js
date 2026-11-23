@@ -50,6 +50,7 @@ const { createMonitor } = require('./system/monitor');
 const { createAppLog, normalizePath, describeError, newErrorCode, newRequestId } = require('./system/app-log');
 const { html } = require('./site/html');
 const { createHealthRoute } = require('./system/health');
+const { createPasswordCheck } = require('./security/password-check');
 
 /**
  * De standaard Content-Security-Policy: alleen eigen bestanden, geen inline scripts en geen inline `<style>`-blokken.
@@ -104,10 +105,10 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, settings?: object, appLog?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, statfs?: Function, monitorRequest?: Function, monitorDataDir?: string, retentionToday?: () => string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, now?: () => number, homepage?: {load: Function}, siteContent?: {load: Function}}} options Database,
+ * @param {{db: object, masterKey: Buffer, settings?: object, appLog?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, statfs?: Function, monitorRequest?: Function, monitorDataDir?: string, retentionToday?: () => string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, passwordCheckFetch?: Function, now?: () => number, homepage?: {load: Function}, siteContent?: {load: Function}}} options Database,
  *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), het logboek (standaard
  *   `system/app-log.js`; wegschrijven start pas met `appLog.start()` in `start()`), de koppeling met het updatescript
- *   (standaard `system/system-update.js` met de mappen uit `updateStatusDir`/`updateRequestDir` of UPDATE_STATUS_DIR/UPDATE_REQUEST_DIR), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), de back-updienst (standaard `backup/backups.js` met `databaseUrl`, `backupDir` en `pgDumpPath`; zonder `databaseUrl` geen back-ups), een eigen fetch voor Google Drive (`googleFetch`, tests), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
+ *   (standaard `system/system-update.js` met de mappen uit `updateStatusDir`/`updateRequestDir` of UPDATE_STATUS_DIR/UPDATE_REQUEST_DIR), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), de back-updienst (standaard `backup/backups.js` met `databaseUrl`, `backupDir` en `pgDumpPath`; zonder `databaseUrl` geen back-ups), een eigen fetch voor Google Drive (`googleFetch`, tests) en voor de controle op gelekte wachtwoorden (`passwordCheckFetch`, tests), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
  *   (standaard `TRUST_PROXY`, anders loopback), de installatiecode voor de eerste CRM-beheerder en of de CRM-cookie
  *   `Secure` krijgt (standaard ja).
  * @returns {express.Express} De app.
@@ -269,7 +270,10 @@ function createApp(options) {
   // Vaste inhoud van de homepage en lijstkoppen (DATA_DIR); ook het CRM gebruikt ze (homepage als blokpagina opzetten).
   const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
   const homepage = options.homepage || createHomepageStore(DATA_DIR);
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  // Controle van nieuwe wachtwoorden op gelekte en veelgebruikte wachtwoorden (CRM en reizigersaccount).
+  const passwordCheck = createPasswordCheck({ settings, appLog, fetchImpl: options.passwordCheckFetch, now: options.now });
+  app.locals.passwordCheck = passwordCheck;
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, passwordCheck, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).
@@ -277,7 +281,7 @@ function createApp(options) {
   // vult bij een ingelogde reiziger de gewone gegevens van de vorige aanmelding alvast in (J4).
   const accounts = createAccounts({ db: options.db });
   app.locals.accounts = accounts;
-  const accountRouter = createAccountRouter({ db: options.db, masterKey: options.masterKey, formKey, mailer, settings, captcha, accounts, secureCookies: options.secureCookies, now: options.now });
+  const accountRouter = createAccountRouter({ db: options.db, masterKey: options.masterKey, formKey, mailer, settings, captcha, accounts, passwordCheck, secureCookies: options.secureCookies, now: options.now });
   app.use(createOnlinePaymentRoutes({ db: options.db, onlinePayments, settings, now: options.now }));
   app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now, siteContent, prefill: accountRouter.prefillFor, customerFor: accountRouter.customerFor }));
   app.use(accountRouter);

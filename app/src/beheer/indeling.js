@@ -131,6 +131,14 @@ const GROUPS = [
         words: 'tweestapsverificatie 2fa mfa totp authenticator app code herstelcode inloggen beveiliging',
       },
       {
+        id: 'wachtwoorden',
+        label: 'Wachtwoorden',
+        intro: 'Een nieuw wachtwoord (CRM en reizigersaccount) moet minimaal 12 tekens hebben, mag niet het e-mailadres zijn en mag geen veelgebruikt woord of reeks zijn (zoals Wachtwoord2026! of 1234567890ab). Met de controle hieronder aan wordt het ook vergeleken met de wachtwoorden uit bekende datalekken (Have I Been Pwned). Bestaande wachtwoorden worden niet opnieuw gecontroleerd. Storingen staan in het logboek (bron wachtwoordcontrole).',
+        fields: ['passwordBreachCheck'],
+        extra: 'wachtwoordcontrole',
+        words: 'wachtwoord password gelekt datalek have i been pwned hibp veelgebruikt sterk beveiliging inloggen reizigersaccount',
+      },
+      {
         id: 'captcha',
         label: 'Captcha op formulieren',
         intro: 'Een onzichtbare captcha (Google reCAPTCHA v3) op het contact- en aanmeldformulier, naast de bestaande beveiliging (honeypot, tijdcontrole en limiet). Zonder sleutels of met de schakelaar uit staat er niets van Google in de site.',
