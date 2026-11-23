@@ -29,7 +29,7 @@ const LATE_SCAN_ROWS = 500;
 /**
  * Wat een rol op het overzicht mag zien.
  * @param {string} role Rol van de gebruiker.
- * @returns {{bookings: boolean, persons: boolean, payments: boolean, trips: boolean, system: boolean}} Per onderdeel
+ * @returns {{bookings: boolean, persons: boolean, payments: boolean, trips: boolean, system: boolean, users: boolean}} Per onderdeel
  *   of de rol het recht heeft (voor aanmeldingen, deelnemers en betalingen: voor alle records, niet per vertrek).
  */
 function dashboardAccess(role) {
@@ -39,6 +39,7 @@ function dashboardAccess(role) {
     payments: roleHasGlobalRight(role, 'betalingen'),
     trips: roleHasRight(role, 'reizen'),
     system: roleHasRight(role, 'systeem'),
+    users: roleHasRight(role, 'gebruikers'),
   };
 }
 
@@ -287,6 +288,7 @@ function renderSystem(data) {
       <dt>Bewaking</dt><dd>${monitorStatus} <a href="/app/beheer/bewaking/">Bekijken</a></dd>
       <dt>Laatste back-up</dt><dd>${system.lastBackupAt ? formatDateTime(system.lastBackupAt) : 'Nog geen'} <a href="/app/beheer/back-ups/">Back-ups</a></dd>
       <dt>Versie</dt><dd>${system.version || 'onbekend'}${system.updateAvailable ? html` ${ui.renderStatus('nieuw', 'Update beschikbaar')}` : ''} <a href="/app/beheer/updates/">Updates</a></dd>
+      ${data.access.users ? html`<dt>Gebruikers</dt><dd><a href="/app/gebruikers/">Gebruikers beheren</a></dd>` : ''}
     </dl>
   </section>`;
 }

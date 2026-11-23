@@ -31,12 +31,12 @@ function withSchema(url) {
 }
 
 test('overzicht: toegang per rol', () => {
-  assert.deepEqual(dashboardAccess('beheerder'), { bookings: true, persons: true, payments: true, trips: true, system: true });
-  assert.deepEqual(dashboardAccess('kantoor'), { bookings: true, persons: true, payments: true, trips: true, system: false });
-  assert.deepEqual(dashboardAccess('boekhouding'), { bookings: false, persons: true, payments: true, trips: false, system: false });
-  assert.deepEqual(dashboardAccess('reisleider'), { bookings: false, persons: false, payments: false, trips: false, system: false }, 'reisleider: dicht tot eigen vertrekken bestaan');
-  assert.deepEqual(dashboardAccess('redacteur'), { bookings: false, persons: false, payments: false, trips: false, system: false });
-  assert.deepEqual(dashboardAccess('onbekend'), { bookings: false, persons: false, payments: false, trips: false, system: false });
+  assert.deepEqual(dashboardAccess('beheerder'), { bookings: true, persons: true, payments: true, trips: true, system: true, users: true });
+  assert.deepEqual(dashboardAccess('kantoor'), { bookings: true, persons: true, payments: true, trips: true, system: false, users: false });
+  assert.deepEqual(dashboardAccess('boekhouding'), { bookings: false, persons: true, payments: true, trips: false, system: false, users: false });
+  assert.deepEqual(dashboardAccess('reisleider'), { bookings: false, persons: false, payments: false, trips: false, system: false, users: false }, 'reisleider: dicht tot eigen vertrekken bestaan');
+  assert.deepEqual(dashboardAccess('redacteur'), { bookings: false, persons: false, payments: false, trips: false, system: false, users: false });
+  assert.deepEqual(dashboardAccess('onbekend'), { bookings: false, persons: false, payments: false, trips: false, system: false, users: false });
 });
 
 test('overzicht: omschrijving van een wijziging', () => {
