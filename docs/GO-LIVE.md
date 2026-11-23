@@ -13,6 +13,10 @@ november 2026.
 | Avanta | kantoor van Avanta Reizen | inhoud, juridische keuzes, afspraken met verwerkers en reisleiders |
 | Code | een PR in deze repository | wat in de app of de scripts moet veranderen |
 
+**Beheer > Systeem > Livegang** (`/app/beheer/livegang/`) toont van de stappen die de app zelf kan nagaan de actuele
+stand (instellingen, tweestapsverificatie per gebruiker, vaste inhoud in het CRM). Gebruik die pagina naast dit
+draaiboek; stappen buiten de app staan alleen hier.
+
 Servercommando's staan niet in dit draaiboek: wat op de server moet gebeuren, is een vaste servertaak (Beheer >
 Servertaken) of staat in `docs/DRAAIBOEK-VPS-VERHUIZING.md`.
 
@@ -44,7 +48,7 @@ Servertaken) of staat in `docs/DRAAIBOEK-VPS-VERHUIZING.md`.
 | # | Stap | Eigenaar | Klaar als |
 |---|---|---|---|
 | 1.12 | Cloudflare-regels (A24), zie §5 | Daniël | regels actief op het productiedomein |
-| 1.13 | Beveiligingsscan (ZAP) tegen de testomgeving en opvolging van de bevindingen (A21) | Code (plan PR 6.4) | geen open bevindingen van niveau hoog of middel |
+| 1.13 | Beveiligingsscan (ZAP) en opvolging van de bevindingen (A21): Actions > Beveiligingsscan (ZAP) > Run workflow, eventueel met het adres van de testomgeving | Daniël start, Code volgt op | laatste run groen; geen open bevindingen van niveau Hoog of Middel zonder reden in `.github/zap/regels.tsv` |
 | 1.14 | Captcha met echte sleutels (Beheer > Toegang en beveiliging), CSP-uitzondering nagelopen (W08) | Daniël, daarna Code | formulieren werken met captcha aan; geen CSP-fouten in de browserconsole |
 | 1.15 | Alle CRM-gebruikers hebben tweestapsverificatie aangezet, zodat de verplichting in 2.4 niemand buitensluit | Daniël | Gebruikers: bij elke gebruiker met rol beheerder, kantoor of reisleider staat 2FA aan |
 
@@ -52,7 +56,7 @@ Servertaken) of staat in `docs/DRAAIBOEK-VPS-VERHUIZING.md`.
 
 | # | Stap | Eigenaar | Klaar als |
 |---|---|---|---|
-| 1.16 | Vaste inhoud staat in het CRM, niet meer in de terugvalbestanden (F09) | Code (plan PR 6.5) en Avanta | controle uit plan PR 6.5 meldt niets meer |
+| 1.16 | Vaste inhoud staat in het CRM, niet meer in de terugvalbestanden (F09) | Avanta, met Daniël | Beheer > Systeem > Livegang, blok *Vaste inhoud in het CRM*: niets meer *Open* |
 | 1.17 | Adres, KvK-nummer en social media (Beheer > Organisatie > Contact en organisatie) | Avanta | voettekst en contactpagina kloppen |
 | 1.18 | Privacyverklaring bijgewerkt: captcha, Analytics (als aan), verwerkers, bewaartermijnen (A03) | Avanta | pagina gepubliceerd in het CRM |
 | 1.19 | Verwerkersovereenkomsten (hosting, mail, Google, Mollie) en bewaartermijnen vastgesteld (A03, A16) | Avanta | getekend; termijnen in Beheer > Toegang en beveiliging > AVG en bewaartermijnen |
