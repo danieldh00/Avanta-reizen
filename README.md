@@ -162,7 +162,9 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     **Back-up**: van elke geüploade foto staat de grootste variant ook in de database (`media_files`, migratie 13, met
     SHA-256), dus in elke back-up, de kopie op Google Drive en de hersteltest. Bij het starten en daarna dagelijks zet de
     app ontbrekende bestanden terug uit de database (kleinere varianten opnieuw gemaakt) en zet uploads van vóór migratie
-    13 alsnog in de database. Afbeeldingen uit de import zitten niet in de back-up (die haalt de import opnieuw op).
+    13 alsnog in de database. Ook de **afbeeldingen uit de import** gaan in de back-up (bevinding A14): het onderhoud zet
+    elk importbestand (JPEG, PNG, WebP, GIF, tot 15 MB) byte voor byte in `media_files` en zet het ongewijzigd terug als
+    het ontbreekt. De back-up groeit daarmee met de grootte van de import (circa 250 MB).
   - **Reizen** op `/app/reizen/` (recht `reizen`; `app/src/trips/`, migratie 15): lijst met filter (komend, vertrokken,
     concept, alle) en zoeken op titel, reiscode of slug; een reis aanmaken en wijzigen met alle velden van de huidige
     site (titel, slug, reiscode, vertrekdatum, reisduur, inleiding, samenvatting, tekst als opgeschoonde HTML, reissom,

@@ -126,4 +126,25 @@ async function webpWidth(buffer) {
   }
 }
 
-module.exports = { processImage, resizeWebp, webpWidth, detectImageType, variantWidthsFor, ImageError, VARIANT_WIDTHS, MAX_UPLOAD_BYTES, MAX_INPUT_PIXELS, MIN_SIDE };
+/** Grootste importfoto die in de database (back-up) gaat; gelijk aan de grens van de import zelf. */
+const MAX_IMPORT_BYTES = 15 * 1024 * 1024;
+/** Formaten die de import van de oude site binnenhaalt (zie `tools/import-wordpress.js`). */
+const IMPORT_FORMATS = new Set(['jpeg', 'png', 'webp', 'gif']);
+
+/**
+ * Leest de breedte van een foto uit de import van de oude site (JPEG, PNG, WebP of GIF, ongewijzigd opgeslagen), om
+ * hem als kopie in de database te zetten. Alleen lezen, niets omzetten: de kopie is byte voor byte het bestand.
+ * @param {Buffer} buffer Inhoud van het bestand.
+ * @returns {Promise<(number|null)>} Breedte in pixels, of null als het geen leesbare foto binnen de limieten is.
+ */
+async function importImageWidth(buffer) {
+  if (!Buffer.isBuffer(buffer) || !buffer.length || buffer.length > MAX_IMPORT_BYTES) return null;
+  try {
+    const metadata = await sharp(buffer, { limitInputPixels: MAX_INPUT_PIXELS, failOn: 'error' }).metadata();
+    return IMPORT_FORMATS.has(metadata.format) && metadata.width ? metadata.width : null;
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { processImage, resizeWebp, webpWidth, importImageWidth, MAX_IMPORT_BYTES, detectImageType, variantWidthsFor, ImageError, VARIANT_WIDTHS, MAX_UPLOAD_BYTES, MAX_INPUT_PIXELS, MIN_SIDE };

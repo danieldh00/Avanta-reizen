@@ -12,8 +12,9 @@ Stand: 23-11-2026 (pakket C; §7 uit P2.4). Voor apps01 (testomgeving) en elke v
 
 **Geüploade foto's** (fotobibliotheek) zitten wél in de back-up: de grootste variant staat in de database (tabel
 `media_files`). Na het terugzetten zet de app bij het starten de bestanden in `/data/media` vanzelf terug, ook de kleinere
-varianten. **Afbeeldingen uit de import** van de huidige site zitten niet in de back-up; die komen uit de import of uit
-een kopie van het volume (stap 4.5).
+varianten. **Afbeeldingen uit de import** van de huidige site zitten er ook in: de app zet elk
+importbestand ongewijzigd in `media_files` (bij het starten en daarna dagelijks) en zet het na het terugzetten terug.
+De back-up wordt daardoor zo groot als de afbeeldingen (circa 250 MB).
 
 **Hoofdsleutel in de kluis zetten** (eenmalig, nu doen): op de server
 `grep '^AVANTA_MASTER_KEY=' /opt/apps/avanta/repo/deploy/apps01/.env` en de waarde in de wachtwoordkluis zetten.
@@ -72,7 +73,8 @@ migraties uit.
    account, Beheer > Systeemoverzicht (versie, laatste migratie), Beheer > Back-ups (**sleutel-id gelijk aan de oude
    server**), een aanmelding openen in het CRM (versleutelde velden leesbaar), **Nu een back-up maken**.
 5. **Afbeeldingen**: geüploade foto's zet de app bij het starten zelf terug uit de database (Beheer > Logboek, bron
-   *fotobibliotheek*: *foto('s) hersteld uit de database*). Afbeeldingen uit de import haalt de import uit stap 2 opnieuw op. Of kopieer het volume van de oude server:
+   *fotobibliotheek*: *foto('s) hersteld uit de database*); dat geldt ook voor de afbeeldingen uit de import. Meldt het
+   logboek *importfoto('s) zonder bruikbaar bestand*, haal ze dan opnieuw op met de import uit stap 2 of kopieer het volume van de oude server:
    ```sh
    # oude server
    docker run --rm -v avanta_app-data:/data -v /root:/uit alpine tar czf /uit/media.tgz -C /data media
