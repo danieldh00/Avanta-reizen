@@ -41,12 +41,23 @@ aan de coördinator vóór hij begint; twee threads werken nooit tegelijk in het
 | Bestand | Waarom gedeeld | Stand |
 |---|---|---|
 | `database/migrations/` | elke migratie | **opgesplitst**: één bestand per migratie, zie §3 |
-| `crm/routes.js` | koppelt de routes van alle modules aan `/app/` | wordt opgesplitst (stap 2) |
+| `crm/routes.js` | schil van `/app/` (limiet, formuliergrootte, sessie) en de lijst van modules | **opgesplitst**: zie §3a; alleen een nieuwe module of een andere formuliergrootte raakt dit bestand |
 | `beheer/settings.js`, `beheer/indeling.js` | elke nieuwe instelling | wordt opgesplitst (stap 3) |
 | `server.js` | maakt alle diensten aan en start de timers | wordt opgesplitst (stap 4) |
-| `crm/layout.js` | menu van het CRM | wordt opgesplitst (stap 2) |
+| `crm/layout.js` | menu van het CRM (`CRM_MENU`) | blijft gedeeld: één regel per nieuw scherm |
 | `public/css/site.css`, `public/css/crm.css` | alle opmaak | blijft gedeeld tot het minificeren (plan PR 6.6) |
 | `README.md`, `CLAUDE.md` | documentatie van elke feature | wordt per map verdeeld (stap 5) |
+
+## 3a. Routes van het CRM
+
+- `crm/routes.js` is alleen de schil: limiet, formuliergrootte per onderdeel, sessie laden en de 404. De routes zelf
+  staan per onderwerp in een eigen bestand (`crm/login-routes.js` voor inloggen, installatie en wachtwoord,
+  `crm/dashboard-routes.js` voor het overzicht).
+- Een module met schermen in het CRM heeft een ingang `<module>/index.js` met één functie
+  `create<Module>ModuleRoutes(context)` die de routebestanden van die module koppelt (`trips/`, `cms/`, `media/`).
+  `context` is wat de schil meegeeft: `db`, `auth` en de gedeelde diensten uit `server.js`.
+- Een nieuw scherm in een bestaande module: een nieuw `<onderwerp>-routes.js` en één regel in de ingang van die
+  module. `crm/routes.js` verandert alleen bij een nieuwe module.
 
 ## 3. Migraties
 
