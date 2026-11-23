@@ -64,10 +64,14 @@ test('bevindingen: dezelfde fout op meerdere pagina\'s wordt één regel, ernsti
   assert.deepEqual(sheets[2].rows[1], ['CRM en Beheer', 'NEE', 403]);
 });
 
-test('testgegevens alleen in een lokale database', () => {
+test('testgegevens alleen in een lokale test- of ontwerpdatabase', () => {
   assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@localhost:5432/avanta_design'));
-  assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@127.0.0.1/avanta'));
-  assert.throws(() => assertLocalDatabase('postgres://avanta:x@db.example.nl/avanta'), /alleen tegen een lokale database/);
+  assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@127.0.0.1/avanta_test'));
+  assert.throws(() => assertLocalDatabase('postgres://avanta:x@db.example.nl/avanta_design'), /alleen tegen een lokale database/);
+  assert.throws(() => assertLocalDatabase('postgres://avanta:x@localhost/avanta_design?host=db.example.nl'), /db\.example\.nl/);
+  assert.throws(() => assertLocalDatabase('postgres://avanta:x@localhost/avanta?hostaddr=10.0.0.5'), /10\.0\.0\.5/);
+  assert.throws(() => assertLocalDatabase('postgres://avanta:x@localhost/avanta'), /test- of ontwerpdatabase/);
+  assert.throws(() => assertLocalDatabase(''), /DATABASE_URL ontbreekt/);
 });
 
 const playwright = loadPlaywright();

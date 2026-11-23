@@ -129,19 +129,35 @@ async function recordPayment(page, db) {
   await Promise.all([page.waitForLoadState('load'), page.locator('form:has([name=bedrag][id=veld-bedrag]) button[type=submit]').first().click()]);
 }
 
+/** Hosts die als lokaal gelden. */
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1', '[::1]'];
+
 /**
- * Weigert te draaien tegen iets anders dan een lokale database: de testaccounts hebben een bekend wachtwoord en horen
- * nooit op een omgeving met echte gegevens. Alleen met `DESIGN_SEED_TOEGESTAAN=1` mag een andere host (bijv. een
- * database-container in CI).
+ * Weigert te draaien tegen iets anders dan een lokale test- of ontwerpdatabase: de testaccounts hebben een bekend
+ * wachtwoord en horen nooit op een omgeving met echte gegevens. Eisen: geen `NODE_ENV=production`, een lokale host (ook
+ * in de query-parameters `host`/`hostaddr`, die de host uit het adres overschrijven) en een databasenaam met `design` of
+ * `test` erin. Alleen met `DESIGN_SEED_TOEGESTAAN=1` mag het afwijken (bijv. een wegwerpcontainer in CI).
  * @param {string} databaseUrl Verbindings-URL.
- * @returns {void}
+ * @returns {void} Gooit een fout als de database niet aan de eisen voldoet.
  */
 function assertLocalDatabase(databaseUrl) {
   if (process.env.NODE_ENV === 'production') throw new Error('seed.js draait niet met NODE_ENV=production.');
-  const host = new URL(databaseUrl).hostname;
-  if (!['localhost', '127.0.0.1', '::1', '[::1]'].includes(host) && process.env.DESIGN_SEED_TOEGESTAAN !== '1') {
-    throw new Error(`seed.js draait alleen tegen een lokale database (host ${host}); zet DESIGN_SEED_TOEGESTAAN=1 voor een testcontainer.`);
+  let parsed;
+  try {
+    parsed = new URL(databaseUrl);
+  } catch {
+    throw new Error('DATABASE_URL ontbreekt of is ongeldig.');
   }
+  if (process.env.DESIGN_SEED_TOEGESTAAN === '1') return;
+  const hosts = [parsed.hostname, ...parsed.searchParams.getAll('host'), ...parsed.searchParams.getAll('hostaddr')]
+    .flatMap((value) => value.split(','))
+    .map((value) => value.trim())
+    .filter(Boolean);
+  // Een host die met / begint is een lokale Unix-socket.
+  const remote = hosts.filter((host) => !LOCAL_HOSTS.includes(host) && !host.startsWith('/'));
+  if (remote.length) throw new Error(`seed.js draait alleen tegen een lokale database (host ${remote.join(', ')}); zet DESIGN_SEED_TOEGESTAAN=1 voor een wegwerpcontainer.`);
+  const name = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
+  if (!/design|test/i.test(name)) throw new Error(`seed.js draait alleen tegen een test- of ontwerpdatabase (naam met "design" of "test"), niet tegen "${name}".`);
 }
 
 /**
