@@ -49,6 +49,7 @@ const { startUpdateSync } = require('./beheer/update-routes');
 const { createMonitor } = require('./system/monitor');
 const { createAppLog, normalizePath, describeError, newErrorCode, newRequestId } = require('./system/app-log');
 const { html } = require('./site/html');
+const { createHealthRoute } = require('./system/health');
 
 /**
  * De standaard Content-Security-Policy: alleen eigen bestanden, geen inline scripts en geen inline `<style>`-blokken.
@@ -58,9 +59,18 @@ const { html } = require('./site/html');
 const BASE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self'; style-src-attr 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 
 /**
+ * HSTS (audit A06): de browser gebruikt een jaar lang alleen nog https voor deze host. Zonder `includeSubDomains`: de
+ * kop staat op de host van de site, en andere subdomeinen van het domein van Avanta (mail, oude diensten) mogen er
+ * niet door breken. `includeSubDomains` en `preload` horen bij de domeininstellingen in Cloudflare, en pas na een
+ * stabiele periode.
+ */
+const HSTS_VALUE = 'max-age=31536000';
+
+/**
  * Zet de beveiligingskoppen op elk antwoord, met standaard `noindex`: de middleware met de site-instellingen haalt die
  * kop pas weg als indexeren in Beheer aan staat. Zo is een antwoord van vóór die middleware (of bij een fout) nooit
- * indexeerbaar.
+ * indexeerbaar. HSTS alleen bij https (`req.secure`, achter de vertrouwde proxy via `X-Forwarded-Proto`): over http
+ * negeert de browser de kop, en lokaal of in de tests draait de app zonder https.
  * @returns {Function} Express-middleware.
  */
 function securityHeaders() {
@@ -71,6 +81,7 @@ function securityHeaders() {
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     });
+    if (req.secure) res.set('Strict-Transport-Security', HSTS_VALUE);
     res.set('X-Robots-Tag', 'noindex, nofollow');
     next();
   };
@@ -104,7 +115,8 @@ function parseTrustProxy(value) {
 function createApp(options) {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY));
+  const trustedProxy = parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY);
+  app.set('trust proxy', trustedProxy);
   app.use(securityHeaders());
   // Elk verzoek een eigen request-id (nooit een id van buiten) in de context en in de kop X-Request-Id; trage verzoeken
   // komen in het logboek (genormaliseerd pad, geen querystring). Het logboek zelf wordt verderop gemaakt.
@@ -124,14 +136,8 @@ function createApp(options) {
     runWithContext({ requestId }, next);
   });
 
-  app.get('/api/health', async (req, res) => {
-    try {
-      await options.db.query('SELECT 1 AS ok');
-      res.json({ ok: true, version: require('../package.json').version });
-    } catch (_) {
-      res.status(503).json({ ok: false });
-    }
-  });
+  // Gezondheid voor Docker en het updatescript; de versie alleen voor verzoeken van binnen de server (`system/health.js`).
+  app.get('/api/health', createHealthRoute({ db: options.db, version: require('../package.json').version, trustedProxy }));
 
   // Instellingen uit Beheer: één keer geladen, daarna uit het geheugen (Beheer schrijft het geheugen bij). De opties
   // `indexable` en `siteUrl` (of SITE_INDEXABLE/SITE_URL) zijn alleen de startwaarde; Beheer gaat voor.
@@ -204,6 +210,10 @@ function createApp(options) {
 
   app.get('/robots.txt', (req, res) => {
     res.type('text/plain').send(seo.robotsTxt(res.locals.site));
+  });
+  // Waar een beveiligingsprobleem gemeld kan worden (RFC 9116); ook als de site nog niet geïndexeerd mag worden.
+  app.get('/.well-known/security.txt', (req, res) => {
+    res.set('Cache-Control', 'public, max-age=3600').type('text/plain').send(seo.securityTxt(res.locals.site));
   });
 
   app.use(express.static(PUBLIC_DIR, { maxAge: '7d', index: false, redirect: false }));

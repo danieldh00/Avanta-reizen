@@ -22,6 +22,14 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   bescherming als aanmelden (`app/src/security/form-guard.js`): herkomstcontrole, 5 per 10 minuten per bezoeker,
   honeypot en ondertekend tijdstempel. Een ingevulde honeypot wordt stil genegeerd; een ongeldig, verlopen (na 3 uur)
   of te snel (binnen 3 seconden) verstuurd formulier komt terug (422) met de ingevulde waarden en een nieuw token.
+- **Beveiligingskoppen**: CSP, `nosniff`, Referrer- en Permissions-Policy op elk antwoord; via https ook HSTS
+  (`max-age=31536000`, zonder `includeSubDomains`; dat en preload horen bij de domeininstellingen in Cloudflare).
+- **`/api/health`** geeft `{"ok":true}` (503 bij een databasefout). Het versienummer staat er alleen bij voor een
+  verzoek van binnen de server (loopback of het Docker-netwerk, niet van de proxy uit `TRUST_PROXY`, zonder
+  doorstuurkop); `update.sh` en `servertaken.sh` lezen het zo via `127.0.0.1`. `docker-compose.yml` publiceert de
+  poort standaard alleen op `127.0.0.1` (`APP_BIND`).
+- **`/.well-known/security.txt`** (RFC 9116): meldadres = het e-mailadres uit Beheer > Organisatie > Contact,
+  vervaldatum steeds 180 dagen vooruit.
 - `TRUST_PROXY`: welke reverse proxy Express vertrouwt voor het bezoekersadres (standaard `loopback`). **Leeg laten als
   er geen proxy voor de app staat.** Staat er een proxy in een andere container voor, zet dan het **exacte** adres
   daarvan (bijv. `TRUST_PROXY=172.18.0.5`), nooit een heel subnet: verkeer van buiten kan via het Docker-bridgeadres
