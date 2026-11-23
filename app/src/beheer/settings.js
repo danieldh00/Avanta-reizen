@@ -42,7 +42,7 @@ const SETTING_FIELDS = {
   contactEmail: {
     type: 'email',
     label: 'E-mailadres',
-    help: 'Staat in de voettekst van de site en in de gegevens voor zoekmachines.',
+    help: 'Staat in de voettekst van de site, in de gegevens voor zoekmachines en als meldadres voor beveiligingsproblemen in /.well-known/security.txt.',
     default: 'info@avantareizen.nl',
     max: 200,
     required: true,

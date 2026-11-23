@@ -233,7 +233,32 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal(response.headers.get('x-powered-by'), null);
     assert.match(response.text, /<meta name="robots" content="noindex, nofollow">/);
     assert.match((await get('/robots.txt')).text, /Disallow: \//);
-    assert.equal((await get('/api/health')).status, 200);
+    // HSTS alleen bij https: rechtstreeks over http niet, via de vertrouwde proxy (loopback) met https wel.
+    assert.equal(response.headers.get('strict-transport-security'), null);
+    const viaProxy = await get('/', { headers: { 'X-Forwarded-Proto': 'https', 'X-Forwarded-For': '198.51.100.7' } });
+    assert.equal(viaProxy.headers.get('strict-transport-security'), 'max-age=31536000');
+  });
+
+  await t.test('/api/health: versie alleen van binnen de server (A23)', async () => {
+    const local = await get('/api/health');
+    assert.equal(local.status, 200);
+    assert.equal(local.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(JSON.parse(local.text), { ok: true, version: require('../package.json').version });
+    // Via een proxy (doorstuurkop) alleen ok, ook als de verbinding zelf van loopback komt.
+    for (const header of ['X-Forwarded-For', 'Forwarded', 'CF-Connecting-IP', 'X-Real-IP']) {
+      const outside = await get('/api/health', { headers: { [header]: '198.51.100.7' } });
+      assert.deepEqual(JSON.parse(outside.text), { ok: true }, header);
+    }
+  });
+
+  await t.test('security.txt met het contactadres uit Beheer (V01)', async () => {
+    const response = await get('/.well-known/security.txt');
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type'), /^text\/plain/);
+    assert.match(response.text, /^Contact: mailto:info@avantareizen\.nl\nExpires: \d{4}-\d{2}-\d{2}T00:00:00Z\n/);
+    const expires = Date.parse(/Expires: (\S+)/.exec(response.text)[1]);
+    assert.ok(expires > Date.now() && expires < Date.now() + 366 * 86400000, 'verloopt binnen een jaar, niet in het verleden');
+    assert.match(response.text, /Canonical: https?:\/\/[^\n]+\/\.well-known\/security\.txt\n/);
   });
 
   /**

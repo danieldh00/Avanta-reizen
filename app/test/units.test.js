@@ -16,6 +16,8 @@ const { createRateLimiter, clientKey } = require('../src/security/rate-limit');
 const { validateBooking } = require('../src/booking/fields');
 const { rewriteLink, cacheName } = require('../tools/import-wordpress');
 const { parseTrustProxy } = require('../src/server');
+const { isInternalRequest, isInternalAddress } = require('../src/system/health');
+const { securityTxt } = require('../src/site/seo');
 const net = require('node:net');
 const { createDatabase, poolOptions, DEFAULT_CONNECT_TIMEOUT_MS } = require('../src/database/db');
 
@@ -247,4 +249,32 @@ test('databasepool: een database die niet antwoordt geeft na de time-out een fou
     sockets.forEach((socket) => socket.destroy());
     await new Promise((resolve) => silent.close(resolve));
   }
+});
+
+test('health: versie alleen voor verzoeken van binnen de server', () => {
+  const request = (remoteAddress, headers = {}) => ({ socket: { remoteAddress }, headers });
+  for (const address of ['127.0.0.1', '::1', '::ffff:127.0.0.1', '172.18.0.1', '::ffff:172.18.0.1', '10.1.2.3', '192.168.1.5', 'fd00::5']) {
+    assert.equal(isInternalAddress(address), true, address);
+    assert.equal(isInternalRequest(request(address), 'loopback'), true, address);
+  }
+  for (const address of ['8.8.8.8', '::ffff:8.8.8.8', '2a00:1450::1', '', undefined, 'geen-ip']) {
+    assert.equal(isInternalRequest(request(address), 'loopback'), false, String(address));
+  }
+  // De vertrouwde proxy (cloudflared) stuurt bezoekers door: geen versie, ook zonder doorstuurkop.
+  assert.equal(isInternalRequest(request('172.18.0.9'), '172.18.0.9'), false);
+  assert.equal(isInternalRequest(request('::ffff:172.18.0.9'), '172.18.0.9'), false);
+  assert.equal(isInternalRequest(request('172.18.0.1'), '172.18.0.9'), true, 'de host via de Docker-poort wel');
+  assert.equal(isInternalRequest(request('127.0.0.1', { 'x-forwarded-for': '8.8.8.8' }), 'loopback'), false);
+  assert.equal(isInternalRequest(request('127.0.0.1', { forwarded: 'for=8.8.8.8' }), 'loopback'), false);
+});
+
+test('security.txt: contact, vervaldatum binnen een jaar en canonical', () => {
+  const text = securityTxt({ siteUrl: 'https://www.avantareizen.nl', contact: { email: 'info@avantareizen.nl' } }, new Date('2026-11-23T17:00:00Z'));
+  assert.equal(text, [
+    'Contact: mailto:info@avantareizen.nl',
+    'Expires: 2027-05-22T00:00:00Z',
+    'Preferred-Languages: nl, en',
+    'Canonical: https://www.avantareizen.nl/.well-known/security.txt',
+    '',
+  ].join('\n'));
 });

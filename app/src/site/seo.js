@@ -295,6 +295,28 @@ function robotsTxt(site) {
   return `${lines.join('\n')}\n\nSitemap: ${site.siteUrl}/sitemap.xml\n`;
 }
 
+/** Zoveel dagen na vandaag verloopt security.txt; RFC 9116 raadt minder dan een jaar aan. */
+const SECURITY_TXT_DAYS = 180;
+
+/**
+ * Maakt security.txt (RFC 9116, bevinding V01): waar iemand een beveiligingsprobleem kan melden. Het contactadres is het
+ * e-mailadres uit Beheer > Organisatie > Contact. De vervaldatum schuift elke dag mee, zodat het bestand nooit verlopen
+ * is zolang de site draait en het adres in Beheer actueel is.
+ * @param {{siteUrl: string, contact: {email: string}}} site Site-instellingen.
+ * @param {Date} [now] Het huidige moment (voor tests).
+ * @returns {string} Inhoud van security.txt.
+ */
+function securityTxt(site, now = new Date()) {
+  const expires = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + SECURITY_TXT_DAYS));
+  return [
+    `Contact: mailto:${site.contact.email}`,
+    `Expires: ${expires.toISOString().replace('.000Z', 'Z')}`,
+    'Preferred-Languages: nl, en',
+    `Canonical: ${site.siteUrl}/.well-known/security.txt`,
+    '',
+  ].join('\n');
+}
+
 /**
  * Haalt Markdown-opmaak uit een tekst voor llms.txt (zodat een naam geen link of kop kan worden).
  * @param {string} text Tekst.
@@ -339,6 +361,7 @@ function llmsTxt(site, content) {
 
 module.exports = {
   robotsTxt,
+  securityTxt,
   llmsTxt,
   plainMarkdown,
   DEFAULT_SITE_URL,
