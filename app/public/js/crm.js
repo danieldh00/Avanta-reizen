@@ -1,5 +1,6 @@
 /**
- * Zijbalk en kopbalk van het CRM en Beheer (`crm/layout.js`). Staat direct na de kopbalk en de zijbalk in de pagina,
+ * Zijbalk en kopbalk van het CRM en Beheer (`crm/layout.js`); verderop in dit bestand de tabbladen van bewerkschermen
+ * en de opmaakknoppen boven tekstvakken. Staat direct na de kopbalk en de zijbalk in de pagina,
  * zodat de ingeklapte stand vóór het tekenen bekend is (geen verspringen).
  * - Breed scherm: zijbalk in te klappen tot een iconenbalk; de keuze wordt per browser onthouden (localStorage).
  * - Hoofdzijbalk: vaste groepen, altijd open. Beheer heeft een tweede zijbalk (`#crm-sub`) met inklapbare groepen: één
@@ -145,6 +146,70 @@
     if (event.key === 'Escape' && body.classList.contains('nav-open')) setDrawer(false);
   });
 })();
+
+/**
+ * Tabbladen op een bewerkscherm (`renderTabNav` en `renderTabPanel` in `crm/ui.js`): binnen een element met
+ * `data-tabs` is één paneel (`data-tab-panel`) tegelijk zichtbaar. Welk paneel opent:
+ * 1. het paneel uit het adres (`#tab-…`, of een anker binnen een paneel zoals `#fotos`);
+ * 2. anders het eerste paneel met een veld dat een fout heeft;
+ * 3. anders het eerste paneel.
+ * Een formulier met `data-tab-form` dat over meerdere panelen loopt, verdwijnt met zijn opslaanbalk als geen van zijn
+ * panelen zichtbaar is. Zonder JavaScript staan alle panelen onder elkaar. Het script staat vóór de inhoud, dus dit
+ * wacht tot de pagina geladen is.
+ */
+document.addEventListener('DOMContentLoaded', function setupTabs() {
+  Array.prototype.forEach.call(document.querySelectorAll('[data-tabs]'), (container) => {
+    const panels = Array.prototype.slice.call(container.querySelectorAll('[data-tab-panel]'));
+    const links = Array.prototype.slice.call(container.querySelectorAll('a[data-tab]'));
+    const forms = Array.prototype.slice.call(container.querySelectorAll('form[data-tab-form]'));
+    if (!panels.length) return;
+
+    /**
+     * Toont één paneel en markeert het bijbehorende tabblad.
+     * @param {string} key Sleutel van het paneel.
+     * @returns {void}
+     */
+    function show(key) {
+      panels.forEach((panel) => { panel.hidden = panel.getAttribute('data-tab-panel') !== key; });
+      links.forEach((link) => {
+        if (link.getAttribute('data-tab') === key) link.setAttribute('aria-current', 'true');
+        else link.removeAttribute('aria-current');
+      });
+      forms.forEach((form) => { form.hidden = !form.querySelector('[data-tab-panel]:not([hidden])'); });
+    }
+
+    /**
+     * Zoekt het paneel dat bij het anker in het adres hoort: het paneel zelf of het paneel om het doel heen.
+     * @returns {(string|null)} Sleutel van het paneel, of null als het anker niet in een paneel ligt.
+     */
+    function keyFromAddress() {
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      const target = id ? document.getElementById(id) : null;
+      const panel = target && container.contains(target) ? target.closest('[data-tab-panel]') : null;
+      return panel ? panel.getAttribute('data-tab-panel') : null;
+    }
+
+    links.forEach((link) => {
+      const panel = container.querySelector(`[data-tab-panel="${link.getAttribute('data-tab')}"]`);
+      if (panel && panel.querySelector('[aria-invalid="true"]')) link.classList.add('crm-tabs-error');
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        show(link.getAttribute('data-tab'));
+        window.history.replaceState(null, '', link.getAttribute('href'));
+      });
+    });
+    const withError = panels.find((panel) => panel.querySelector('[aria-invalid="true"]'));
+    show(keyFromAddress() || (withError || panels[0]).getAttribute('data-tab-panel'));
+    container.classList.add('crm-tabbed--js');
+    // Een anker binnen een paneel (bijvoorbeeld na het toevoegen van een foto): na het tonen ernaartoe schuiven.
+    const anchor = window.location.hash.length > 1 ? document.getElementById(decodeURIComponent(window.location.hash.slice(1))) : null;
+    if (anchor && container.contains(anchor) && !anchor.hasAttribute('data-tab-panel')) anchor.scrollIntoView();
+    window.addEventListener('hashchange', () => {
+      const key = keyFromAddress();
+      if (key) show(key);
+    });
+  });
+});
 
 /**
  * Opmaakknoppen boven een tekstvak met HTML (`textarea.cms-richtext`, pagina's in het CMS): vet, cursief, kopjes, lijst,

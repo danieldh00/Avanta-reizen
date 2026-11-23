@@ -117,6 +117,35 @@
 .crm-activity-meta { display: block; font-size: 13px; color: var(--crm-text); }
 @media (max-width: 1100px) { .crm-dash--split { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 800px) { .crm-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Bewerkschermen (crm/ui.js): tabbladen met panelen en een vaste opslaanbalk. */
+.crm-tabs--edit { margin: 0 0 1.25rem; border-bottom: 1px solid var(--crm-line); }
+.crm-tabs--edit ul { gap: 0 .25rem; flex-wrap: nowrap; overflow-x: auto; }
+.crm-tabs--edit li { flex: 0 0 auto; }
+.crm-tabs--edit a { min-height: 40px; padding: .4rem .9rem; border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; }
+.crm-tabs--edit a[aria-current="true"] { background: transparent; border-bottom-color: var(--av-accent); color: var(--av-accent-dark); }
+.crm-tabs--edit a.crm-tabs-error::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #b3261e; }
+/* `hidden` moet ook winnen van een formulier met een eigen display (bijvoorbeeld `.form`). */
+.crm-tabbed [hidden] { display: none !important; }
+.crm-tabpanel { margin: 0 0 1.5rem; scroll-margin-top: calc(var(--crm-header-h) + 1rem); }
+.crm-tabpanel > :last-child { margin-bottom: 0; }
+.crm-edit-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.crm-edit-cols > * { min-width: 0; }
+.crm-edit-cols .crm-narrow { max-width: none; }
+.crm-edit-side { padding: 1rem; background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 8px; display: grid; gap: .75rem; }
+.crm-narrow--wide { max-width: 860px; }
+.crm-edit-side h2 { margin: 0; font-size: 1.05rem; }
+.crm-savebar { position: sticky; bottom: .5rem; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1rem 0 0; padding: .6rem 1rem; background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 8px; box-shadow: 0 4px 16px rgba(47, 46, 51, .12); }
+.crm-savebar-note { min-width: 0; font-size: 14px; color: var(--crm-text); overflow-wrap: anywhere; }
+.crm-savebar .btn { flex: 0 0 auto; }
+@media (max-width: 800px) {
+  .crm-edit-cols { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .crm-tabs--edit a { min-height: 44px; }
+  .crm-savebar .btn { min-height: 44px; }
+  /* Op een telefoon alleen de knop: de toelichting maakt de vaste balk te hoog. */
+  .crm-savebar-note { display: none; }
+  .crm-savebar { justify-content: flex-end; }
+}
+@media print { .crm-savebar { position: static; } }
 .crm-pager { display: flex; align-items: center; gap: .75rem; margin: 1rem 0 0; }
 .crm-pager-page, .crm-pager-off { font-size: 14px; color: var(--crm-text); }
 .crm-pager-off { padding: .3rem .7rem; opacity: .6; }

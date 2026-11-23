@@ -1,6 +1,8 @@
 /**
- * Gedeelde bouwstenen voor de schermen van het CRM: paginakop met acties, filterknoppen, zoekregel, tabel, statuslabel
- * en bladeren. Elke lijst gebruikt dezelfde opzet, zodat lijsten er overal gelijk uitzien en zich gelijk gedragen.
+ * Gedeelde bouwstenen voor de schermen van het CRM.
+ * - Lijsten: paginakop met acties, filterknoppen, zoekregel, tabel, statuslabel en bladeren.
+ * - Bewerkschermen: tabbladen (`renderTabNav` met `renderTabPanel`) en een vaste opslaanbalk (`renderSaveBar`).
+ * Elk scherm gebruikt dezelfde opzet, zodat schermen er overal gelijk uitzien en zich gelijk gedragen.
  * Alle uitvoer loopt via `html`, dus waarden worden altijd ge-escaped.
  */
 
@@ -112,4 +114,51 @@ function renderPager(pager) {
   </nav>`;
 }
 
-module.exports = { queryString, listUrl, renderStatus, renderActions, renderFilterTabs, renderSearch, renderTable, renderPager };
+/**
+ * Controleert de sleutel van een tabblad; die komt in een id en een adres.
+ * @param {string} key Sleutel.
+ * @returns {string} De sleutel.
+ * @throws {Error} Als de sleutel iets anders bevat dan kleine letters, cijfers en streepjes.
+ */
+function checkedTabKey(key) {
+  if (!/^[a-z0-9-]{1,40}$/.test(String(key))) throw new Error('Ongeldige sleutel voor een tabblad.');
+  return String(key);
+}
+
+/**
+ * De tabbladen van een bewerkscherm: links naar de panelen op dezelfde pagina. Het omsluitende element krijgt
+ * `data-tabs`; `public/js/crm.js` toont dan één paneel tegelijk. Zonder JavaScript staan alle panelen onder elkaar en
+ * springen de links naar het paneel.
+ * @param {{key: string, label: string, count?: number}[]} tabs De tabbladen in volgorde; lege waarden vallen weg.
+ * @param {string} [label] Naam van de navigatie voor schermlezers.
+ * @returns {object} HTML.
+ */
+function renderTabNav(tabs, label = 'Onderdelen') {
+  return html`<nav class="crm-tabs crm-tabs--edit" aria-label="${label}"><ul>${tabs.filter(Boolean).map((tab) => html`<li>
+    <a href="#tab-${checkedTabKey(tab.key)}" data-tab="${checkedTabKey(tab.key)}">${tab.label}${Number.isInteger(tab.count) ? html` <span class="crm-tabs-count">${tab.count}</span>` : ''}</a>
+  </li>`)}</ul></nav>`;
+}
+
+/**
+ * Eén paneel bij een tabblad.
+ * @param {string} key Sleutel van het tabblad (gelijk aan die in `renderTabNav`).
+ * @param {object} body Inhoud van het paneel.
+ * @returns {object} HTML.
+ */
+function renderTabPanel(key, body) {
+  return html`<div class="crm-tabpanel" id="tab-${checkedTabKey(key)}" data-tab-panel="${checkedTabKey(key)}">${body}</div>`;
+}
+
+/**
+ * De vaste balk onderaan een formulier met de knop om op te slaan. Hoort binnen het `<form>`.
+ * @param {{label: string, note?: (object|string)}} bar Tekst op de knop en een toelichting links ervan.
+ * @returns {object} HTML.
+ */
+function renderSaveBar(bar) {
+  return html`<div class="crm-savebar">
+    <span class="crm-savebar-note">${bar.note || ''}</span>
+    <button class="btn" type="submit">${bar.label}</button>
+  </div>`;
+}
+
+module.exports = { queryString, listUrl, renderStatus, renderActions, renderFilterTabs, renderSearch, renderTable, renderPager, renderTabNav, renderTabPanel, renderSaveBar };

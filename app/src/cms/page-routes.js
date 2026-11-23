@@ -9,6 +9,7 @@
 const express = require('express');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
+const ui = require('../crm/ui');
 const { renderPage, renderPageHeader } = require('../site/layout');
 const { addCspSources } = require('../security/csp');
 const { YOUTUBE_ORIGIN } = require('../site/homepage');
@@ -211,8 +212,8 @@ function createPageRoutes(options) {
       user: req.user,
       csrf: req.session.csrf,
       path: BASE,
-      body: html`<p><a href="${BASE}">Naar pagina's</a> · <a href="${page.path}">Bekijk op de site</a> · <a href="${pageUrl}voorbeeld/">Voorbeeld van ${page.draft ? 'het concept' : 'de pagina'}</a></p>
-        ${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
+      actions: ui.renderActions([{ label: `Voorbeeld van ${page.draft ? 'het concept' : 'de pagina'}`, href: `${pageUrl}voorbeeld/` }, { label: 'Bekijk op de site', href: page.path }]),
+      body: html`${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
         ${renderAlert(state.error)}
         <section class="crm-block cms-status">
           ${page.draft ? html`<p><strong>Concept met wijzigingen</strong> die nog niet op de site staan.</p>
@@ -227,7 +228,31 @@ function createPageRoutes(options) {
           </dl>
         </section>
 
-        <section class="crm-block" id="adres">
+        <div class="crm-tabbed" data-tabs>
+          ${ui.renderTabNav([{ key: 'inhoud', label: 'Inhoud' }, { key: 'blokken', label: 'Blokken' }, { key: 'instellingen', label: isHomepage ? 'Zichtbaarheid' : 'Adres en zichtbaarheid' }, { key: 'versies', label: 'Versies', count: revisionRows.length }])}
+          ${ui.renderTabPanel('inhoud', html`<section class="crm-block" id="gegevens">
+          <h2>Gegevens</h2>
+          <form class="form crm-narrow" method="post" action="${pageUrl}gegevens/">
+            ${hidden(req, page)}
+            ${isHomepage ? html`<p class="field__help">Op de homepage staan titel, bovenkop, inleiding en kopfoto niet in beeld; de titel is alleen de naam in deze lijst. De hoofdkop (h1) is de titel van het blok "Over Avanta met stempel".</p>` : ''}
+            ${field('title', 'Titel', html`<input id="pagina-title" name="title" type="text" value="${values.title}" maxlength="${PAGE_LIMITS.title}" required${invalidAttributes('pagina-title', errors.title)}>`)}
+            ${field('pretitle', 'Bovenkop (kleine tekst boven de titel)', html`<input id="pagina-pretitle" name="pretitle" type="text" value="${values.pretitle}" maxlength="${PAGE_LIMITS.pretitle}"${invalidAttributes('pagina-pretitle', errors.pretitle)}>`)}
+            ${field('intro', 'Inleiding (grote tekst bovenaan)', html`<textarea id="pagina-intro" name="intro" rows="4" maxlength="${PAGE_LIMITS.intro}"${invalidAttributes('pagina-intro', errors.intro)}>${values.intro}</textarea>`)}
+            <details class="cms-style"${errors.seo_title || errors.seo_description || values.seoTitle || values.seoDescription ? raw(' open') : ''}><summary>Vindbaarheid (zoekmachines)</summary>
+              ${field('seo_title', 'Titel voor zoekmachines', html`<input id="pagina-seo_title" name="seo_title" type="text" value="${values.seoTitle}" maxlength="${PAGE_LIMITS.seoTitle}"${invalidAttributes('pagina-seo_title', errors.seo_title)}>`, `Leeg = de titel van de pagina. Hoogstens ${PAGE_LIMITS.seoTitle} tekens; de naam van de site komt er vanzelf achter.`)}
+              ${field('seo_description', 'Omschrijving voor zoekmachines', html`<textarea id="pagina-seo_description" name="seo_description" rows="3" maxlength="${PAGE_LIMITS.seoDescription}"${invalidAttributes('pagina-seo_description', errors.seo_description)}>${values.seoDescription}</textarea>`, `Leeg = de inleiding. Ongeveer 150 tekens werkt het best (hoogstens ${PAGE_LIMITS.seoDescription}).`)}
+            </details>
+            ${ui.renderSaveBar({ label: 'Opslaan in concept', note: 'Wijzigingen komen in het concept. Publiceren doe je bovenaan.' })}
+          </form>
+        </section>
+
+        <section class="crm-block" id="kopfoto">
+          <h2>Kopfoto</h2>
+          ${current.imageUrl ? html`<img class="media-preview media-preview--small" src="${current.imageUrl}" alt="" width="400" height="300">` : html`<p>Geen kopfoto: de kop van de pagina is dan een effen vlak.</p>`}
+          <p><a class="btn btn--small btn--outline" href="${pageUrl}kopfoto/">${current.imageUrl ? 'Andere kopfoto kiezen' : 'Kopfoto kiezen'}</a></p>
+        </section>`)}
+          ${ui.renderTabPanel('blokken', html`${editor.renderBlocksSection({ item: page, hidden: hidden(req, page), options, state, openBlock, typeOptions, homeTypes: isHomepage })}`)}
+          ${ui.renderTabPanel('instellingen', html`<section class="crm-block" id="adres">
           <h2>${isHomepage ? 'Zichtbaarheid' : 'Adres en zichtbaarheid'}</h2>
           ${isHomepage ? html`<p class="field__help">Staat de homepage offline (of is hij nog nooit gepubliceerd), dan toont de site de vaste homepage.</p>` : html`<form class="form crm-narrow" method="post" action="${pageUrl}adres/">
             ${hidden(req, page)}
@@ -244,33 +269,8 @@ function createPageRoutes(options) {
               <button class="btn btn--small btn--outline" type="submit">Verwijderen</button></form>` : ''}
           </div>
           ${!page.published && page.legacy_id !== null ? html`<p class="field__help">Een pagina van de oude site kun je alleen offline halen (bij een nieuwe import zou hij anders terugkomen).</p>` : ''}
-        </section>
-
-        <section class="crm-block" id="gegevens">
-          <h2>Gegevens</h2>
-          <form class="form crm-narrow" method="post" action="${pageUrl}gegevens/">
-            ${hidden(req, page)}
-            ${isHomepage ? html`<p class="field__help">Op de homepage staan titel, bovenkop, inleiding en kopfoto niet in beeld; de titel is alleen de naam in deze lijst. De hoofdkop (h1) is de titel van het blok "Over Avanta met stempel".</p>` : ''}
-            ${field('title', 'Titel', html`<input id="pagina-title" name="title" type="text" value="${values.title}" maxlength="${PAGE_LIMITS.title}" required${invalidAttributes('pagina-title', errors.title)}>`)}
-            ${field('pretitle', 'Bovenkop (kleine tekst boven de titel)', html`<input id="pagina-pretitle" name="pretitle" type="text" value="${values.pretitle}" maxlength="${PAGE_LIMITS.pretitle}"${invalidAttributes('pagina-pretitle', errors.pretitle)}>`)}
-            ${field('intro', 'Inleiding (grote tekst bovenaan)', html`<textarea id="pagina-intro" name="intro" rows="4" maxlength="${PAGE_LIMITS.intro}"${invalidAttributes('pagina-intro', errors.intro)}>${values.intro}</textarea>`)}
-            <details class="cms-style"${errors.seo_title || errors.seo_description || values.seoTitle || values.seoDescription ? raw(' open') : ''}><summary>Vindbaarheid (zoekmachines)</summary>
-              ${field('seo_title', 'Titel voor zoekmachines', html`<input id="pagina-seo_title" name="seo_title" type="text" value="${values.seoTitle}" maxlength="${PAGE_LIMITS.seoTitle}"${invalidAttributes('pagina-seo_title', errors.seo_title)}>`, `Leeg = de titel van de pagina. Hoogstens ${PAGE_LIMITS.seoTitle} tekens; de naam van de site komt er vanzelf achter.`)}
-              ${field('seo_description', 'Omschrijving voor zoekmachines', html`<textarea id="pagina-seo_description" name="seo_description" rows="3" maxlength="${PAGE_LIMITS.seoDescription}"${invalidAttributes('pagina-seo_description', errors.seo_description)}>${values.seoDescription}</textarea>`, `Leeg = de inleiding. Ongeveer 150 tekens werkt het best (hoogstens ${PAGE_LIMITS.seoDescription}).`)}
-            </details>
-            <div><button class="btn" type="submit">Opslaan in concept</button></div>
-          </form>
-        </section>
-
-        <section class="crm-block" id="kopfoto">
-          <h2>Kopfoto</h2>
-          ${current.imageUrl ? html`<img class="media-preview media-preview--small" src="${current.imageUrl}" alt="" width="400" height="300">` : html`<p>Geen kopfoto: de kop van de pagina is dan een effen vlak.</p>`}
-          <p><a class="btn btn--small btn--outline" href="${pageUrl}kopfoto/">${current.imageUrl ? 'Andere kopfoto kiezen' : 'Kopfoto kiezen'}</a></p>
-        </section>
-
-        ${editor.renderBlocksSection({ item: page, hidden: hidden(req, page), options, state, openBlock, typeOptions, homeTypes: isHomepage })}
-
-        <section class="crm-block" id="versies">
+        </section>`)}
+          ${ui.renderTabPanel('versies', html`<section class="crm-block" id="versies">
           <h2>Versies</h2>
           ${revisionRows.length ? html`<div class="crm-table-wrap"><table class="crm-table">
             <thead><tr><th>Versie</th><th>Gepubliceerd</th><th>Door</th><th></th></tr></thead>
@@ -281,7 +281,8 @@ function createPageRoutes(options) {
               <td><form method="post" action="${pageUrl}versies/${row.version}/terugzetten/">${hidden(req, page)}<button class="btn btn--small btn--outline" type="submit">Terugzetten als concept</button></form></td>
             </tr>`)}</tbody>
           </table></div>` : html`<p>Nog geen versies. Bij de eerste publicatie wordt ook de huidige stand bewaard.</p>`}
-        </section>`,
+        </section>`)}
+        </div>`,
     });
   };
 

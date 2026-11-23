@@ -71,3 +71,23 @@ test('ui: bladeren alleen bij meer dan één pagina, met behoud van filters', ()
   assert.match(second, /Pagina 2/);
   assert.match(second, /<span class="crm-pager-off">Volgende<\/span>/);
 });
+
+test('ui: tabbladen linken naar hun paneel en weigeren een onveilige sleutel', () => {
+  const nav = toString(ui.renderTabNav([{ key: 'algemeen', label: 'Algemeen' }, null, { key: 'fotos', label: 'Foto\'s <3', count: 4 }]));
+  assert.match(nav, /<nav class="crm-tabs crm-tabs--edit" aria-label="Onderdelen">/);
+  assert.match(nav, /<a href="#tab-algemeen" data-tab="algemeen">Algemeen<\/a>/);
+  assert.match(nav, /<a href="#tab-fotos" data-tab="fotos">Foto&#39;s &lt;3 <span class="crm-tabs-count">4<\/span><\/a>/);
+  assert.equal((nav.match(/<li>/g) || []).length, 2, 'een lege waarde valt weg');
+  const panel = toString(ui.renderTabPanel('fotos', html`<p>inhoud</p>`));
+  assert.equal(panel, '<div class="crm-tabpanel" id="tab-fotos" data-tab-panel="fotos"><p>inhoud</p></div>');
+  assert.throws(() => ui.renderTabPanel('x" onload="y', html``), /Ongeldige sleutel/);
+  assert.throws(() => ui.renderTabNav([{ key: 'Hoofd Letters', label: 'x' }]), /Ongeldige sleutel/);
+});
+
+test('ui: opslaanbalk met knop en toelichting', () => {
+  const bar = toString(ui.renderSaveBar({ label: 'Opslaan', note: 'Laatst gewijzigd door <Jan>' }));
+  assert.match(bar, /<div class="crm-savebar">/);
+  assert.match(bar, /<span class="crm-savebar-note">Laatst gewijzigd door &lt;Jan&gt;<\/span>/);
+  assert.match(bar, /<button class="btn" type="submit">Opslaan<\/button>/);
+  assert.match(toString(ui.renderSaveBar({ label: 'Maken' })), /<span class="crm-savebar-note"><\/span>/);
+});

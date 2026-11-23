@@ -139,6 +139,14 @@ test('zijbalk: script en stijl bestaan en passen bij de opmaak', () => {
   assert.ok(fs.existsSync(path.join(publicDir, 'images', 'logo-light.png')));
 });
 
+test('tabbladen: het script en de opmaak passen bij de bouwstenen uit crm/ui.js', () => {
+  const publicDir = path.join(__dirname, '..', 'public');
+  const script = fs.readFileSync(path.join(publicDir, 'js', 'crm.js'), 'utf8');
+  for (const hook of ['[data-tabs]', '[data-tab-panel]', 'a[data-tab]', 'form[data-tab-form]', 'aria-invalid', 'hashchange']) assert.ok(script.includes(hook), hook);
+  const css = fs.readFileSync(path.join(publicDir, 'css', 'crm.css'), 'utf8');
+  for (const selector of ['.crm-tabs--edit ', '.crm-tabpanel {', '.crm-savebar {', '.crm-tabbed [hidden] {', '.crm-edit-side {']) assert.ok(css.includes(selector), selector);
+});
+
 test('menu: vier vaste groepen in de volgorde van het werk, reizen onder Reisaanbod', () => {
   const page = pageFor('beheerder');
   const nav = page.slice(page.indexOf('id="crm-nav"'), page.indexOf('crm-nav-backdrop'));
