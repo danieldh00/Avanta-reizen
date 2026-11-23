@@ -7,6 +7,7 @@ Korte ingang voor AI-agents. Details: `CLAUDE.md` (volledig werkgeheugen), `READ
 | Pad | Inhoud |
 |---|---|
 | `app/src/server.js` | Express-app, beveiligingskoppen, statisch, `/media` |
+| `app/src/services.js` | alle gedeelde diensten (`createServices`) en achtergrondtaken (`startBackgroundTasks`) |
 | `app/src/site/` | publieke routes, queries, HTML-weergave (escaping via `html\`…\``) |
 | `app/src/booking/` | aanmeldformulier → tabel `bookings`; aanmeldingen in het CRM (`crm-routes.js`) |
 | `app/src/crm/` | schil van `/app/` (`routes.js`), toegang, gebruikers, rechten, opmaak; modules koppelen via `<module>/index.js` |
