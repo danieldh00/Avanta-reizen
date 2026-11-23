@@ -282,7 +282,7 @@ test('security.txt: contact, vervaldatum binnen een jaar en canonical', () => {
 
 test('wachtwoordcontrole: lokaal veelgebruikte woorden en reeksen', () => {
   for (const password of ['Wachtwoord2026!', 'Avantareizen1', 'Avanta-reizen-2026', '1234567890ab', 'Qwertyuiop12!', 'Welkom01welkom',
-    'testtesttest', 'Zomer!Winter#2026', '123456789012', 'welkomwachtwoord', 'Geheim-wachtwoord-1', '0987654321zyx']) {
+    'testtesttest', 'Zomer!Winter#2026', '123456789012', 'welkomwachtwoord', 'Geheim-wachtwoord-1', '0987654321zyx', 'abc1abc2abc3', 'qwe1qwe2qwe3', 'zyx1zyx2zyx3']) {
     assert.notEqual(commonPasswordProblem(password), '', password);
   }
   for (const password of ['Jezus is mijn herder', 'de kat zit op de mat', 'correct-paard-batterij-nietje', 'nieuw beheerwachtwoord', 'Sterk-Wachtwoord-2026!', '197503211985', 'kantoor wachtwoord 1']) {

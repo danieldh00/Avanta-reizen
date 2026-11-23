@@ -117,8 +117,9 @@ function commonPasswordProblem(password) {
   // Alleen cijfers en tekens: een reeks of herhaling is te raden (`123456789012`, `112233445566`).
   if (!words.length) return isSequence(digitsAndSigns) || new Set(digitsAndSigns).size <= 4 ? MESSAGES.common : '';
   // Hoogstens 3 letters in totaal (`1234567890ab`) is te raden; een zin van korte woorden (`de kat zit op de mat`) niet.
-  const letterCount = words.join('').length;
-  const lettersAreCommon = letterCount <= 3 || words.every(isWeakWord);
+  // De letters samen vangen herhalingen die per woord niet opvallen (`abc1abc2abc3` → `abcabcabc`).
+  const letters = words.join('');
+  const lettersAreCommon = letters.length <= 3 || words.every(isWeakWord) || isWeakWord(letters);
   // Wat er naast de woorden staat, mag niet meer zijn dan een jaartal, een volgnummer of een uitroepteken.
   const restIsTrivial = digitsAndSigns.length <= 6 || isSequence(digitsAndSigns.replace(/[^0-9]/g, ''));
   return lettersAreCommon && restIsTrivial ? MESSAGES.common : '';
