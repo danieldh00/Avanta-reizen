@@ -32,7 +32,7 @@ const SETTING_FIELDS = {
   contactPhone: {
     type: 'text',
     label: 'Telefoonnummer',
-    help: 'Staat in de voettekst van de site, in de gegevens voor zoekmachines en als meldadres voor beveiligingsproblemen in /.well-known/security.txt.',
+    help: 'Staat in de voettekst van de site en in de gegevens voor zoekmachines.',
     default: '0118 638427',
     max: 30,
     required: true,
