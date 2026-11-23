@@ -1,6 +1,6 @@
 /**
- * Tweestapsverificatie (TOTP) voor het CRM: opslag in `users` (migratie 9) en de schermen. Zelfde aanpak als AquaTech
- * (`hub/backend/src/beveiliging/two-factor.js`): het geheim staat versleuteld in `users.totp_secret` (vault, AAD
+ * Tweestapsverificatie (TOTP) voor het CRM: opslag in `users` (migratie 9) en de schermen.
+ * Aanpak: het geheim staat versleuteld in `users.totp_secret` (vault, AAD
  * `users:totp:<id>`); zolang `totp_enabled_at` leeg is, is het een nog niet bevestigde instelling.
  * `users.totp_last_step` voorkomt dat dezelfde code twee keer werkt; `users.totp_recovery` bewaart alleen de SHA-256 van
  * de herstelcodes.

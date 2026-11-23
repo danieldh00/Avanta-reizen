@@ -147,7 +147,7 @@ database in de back-up.
   optioneel; verplicht te maken per instelling `mfaRequiredFor` (niemand / rollen met `gegevens.*` / iedereen). Wie 2FA
   aan heeft of moet hebben: zonder `mfa_ok` alleen de codestap of de 2FA-pagina bereikbaar (halve sessie, 15 minuten).
   Aanzetten vraagt altijd een activatiecode van de beheerder (eerste beheerder: de installatiecode). Gebouwd in M9 (`crm/totp.js`, `crm/two-factor.js`).
-- **Eerste beheerder**: eenmalige installatiecode in het serverlog, zoals AquaTech.
+- **Eerste beheerder**: eenmalige installatiecode in het serverlog.
 - **Rechten op de server**: middleware `requireRight(recht)` per route; vertrek-scope voor reisleider in de query zelf
   (`JOIN trip_guides … WHERE guide_id = $1`). Onbekend of niet-eigen record → 404, ontbrekend recht → 403.
 - **CSRF**: token per sessie in elk formulier + herkomstcontrole (bestaat al voor het openbare formulier).

@@ -1,5 +1,5 @@
 /**
- * Updates vanuit de app (Beheer > Systeem > Updates), naar het voorbeeld van Aquatech. De app rolt zelf niets uit: ze
+ * Updates vanuit de app (Beheer > Systeem > Updates). De app rolt zelf niets uit: ze
  * heeft geen Docker-socket en geen rootrechten. Ze praat met het hostscript `deploy/apps01/update.sh` via twee
  * gedeelde mappen (bind mounts uit `deploy/apps01/docker-compose.yml`):
  *

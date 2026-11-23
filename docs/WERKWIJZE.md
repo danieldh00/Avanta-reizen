@@ -55,6 +55,7 @@ Algemene afspraken voor samenwerken met Claude in een project met een coördinat
 - Tests voor randgevallen; dezelfde database als productie in de tests.
 - UI controleren op 1440 en 375 px via DOM/CSS-meting; geen screenshots tenzij gevraagd.
 - Eén diepe beveiligingsscan vóór go-live.
+- Geen verwijzingen naar andere projecten (namen, repository's, paden, containernamen) in bestanden, commits of PR-teksten.
 - Geen modelnamen of -ID's in commits, PR's, code of docs. Nooit secrets, wachtwoorden of persoonsgegevens in repo, chat of geheugen (zeker niet in een publieke repo).
 - Een nieuwe externe koppeling: instelling in de app, status en logboek zichtbaar, nooit tokens in de uitvoer.
 

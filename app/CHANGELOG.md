@@ -190,7 +190,7 @@ opnieuw wordt opgeslagen; daarna blijft alleen de gekozen reisleider over.
 
 ## 0.26.4 — 2026-11-21 — Beheer als eigen omgeving met een tweede zijbalk
 
-- Beheer staat nu in een eigen omgeving, zoals in AquaTech: in de hoofdzijbalk staat één knop *Beheer*, en daarin
+- Beheer staat nu in een eigen omgeving: in de hoofdzijbalk staat één knop *Beheer*, en daarin
 
 - `crm/layout.js`: de groepen van Beheer en het zoekveld zijn uit de hoofdzijbalk; daar staat één ingang *Beheer*
   (`/app/beheer/` met recht `systeem`, anders `/app/gebruikers/` met recht `gebruikers`). Op paden onder
@@ -500,9 +500,9 @@ opnieuw wordt opgeslagen; daarna blijft alleen de gekozen reisleider over.
   kleinere varianten via `resizeWebp`, hash gecontroleerd); bij het starten en dagelijks, met meldingen in het logboek.
 - `docs/DRAAIBOEK-VPS-VERHUIZING.md` bijgewerkt.
 
-## 0.13.0 — 2026-11-21 — Zijbalk voor CRM en Beheer zoals in AquaTech
+## 0.13.0 — 2026-11-21 — Zijbalk voor CRM en Beheer
 
-- Het CRM en Beheer hebben een vaste zijbalk links, zoals in AquaTech: alle onderdelen in groepen, de huidige pagina
+- Het CRM en Beheer hebben een vaste zijbalk links: alle onderdelen in groepen, de huidige pagina
 
 - `crm/layout.js`: de menubalk bovenin is vervangen door een vaste zijbalk met logo, zoekveld voor Beheer (recht
   `systeem`), groepen Reizigers, Website, Gebruikers en de groepen van Beheer (`beheer/indeling.js`), en een voet met
@@ -715,7 +715,7 @@ Het CRM houdt zijn rustige knoppen en koppen.
   sessies vervallen. Verkeerde codes per account in `users.totp_failures` (5 per kwartier, overleeft een herstart).
 - Activatiecode (eenmalig, 7 dagen, SHA-256) nodig voor elk aanzetten van 2FA; bij gebruik meteen gewist, daarna mag alleen die sessie instellen
   (`POST /app/tweestaps/activeren/`, `POST /app/gebruikers/:id/activatiecode/`).
-- `crm/totp.js` (TOTP volgens RFC 6238, herstelcodes) en `crm/qr-code.js` overgenomen uit AquaTech; `crm/two-factor.js`
+- `crm/totp.js` (TOTP volgens RFC 6238, herstelcodes) en `crm/qr-code.js` als eigen code zonder bibliotheek; `crm/two-factor.js`
   met de opslag, de codestap `/app/inloggen/code/` en het scherm `/app/tweestaps/` (instellen, nieuwe herstelcodes,
   uitzetten als het niet verplicht is).
 - Halve sessie na het wachtwoord (`mfa_ok` onwaar, 15 minuten, alleen de tweede stap bereikbaar); na de code een nieuwe

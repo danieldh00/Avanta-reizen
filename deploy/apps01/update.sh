@@ -89,7 +89,8 @@ fi
 
 setting() { sed -n "s/^$1=//p" "$ENV_FILE" 2>/dev/null | tail -n 1; }
 track="$(setting AVANTA_TRACK)"; track="${track:-main}"
-tunnel_container="$(setting TUNNEL_CONTAINER)"; tunnel_container="${tunnel_container:-aquatech-cloudflared}"
+# Naam van de cloudflared-container: install.sh zet hem in .env; leeg = install.sh zoekt hem zelf.
+tunnel_container="$(setting TUNNEL_CONTAINER)"
 port="$(setting APP_PORT)"; port="${port:-3400}"
 
 # ---------- Wat staat er klaar? ----------

@@ -6,7 +6,7 @@
  * scherm (≤ 800 px) is het een lade via de menuknop in de kopbalk. Zonder JavaScript staat de zijbalk op een smal scherm
  * boven de inhoud. De opmaak staat in `public/css/crm.css`, bovenop de basis van `site.css`.
  *
- * Beheer (`/app/beheer/`, gebruikers en auditlog) is een eigen omgeving, zoals in Aquatech: naast de hoofdzijbalk staat
+ * Beheer (`/app/beheer/`, gebruikers en auditlog) is een eigen omgeving: naast de hoofdzijbalk staat
  * een tweede, lichte zijbalk met een weg terug naar het CRM, het zoekveld en de onderdelen van Beheer per onderwerp.
  * Op een smal scherm klapt die tweede zijbalk samen tot een knop boven de inhoud. Zelfde huisstijl als de site
  * (`site.css`), nooit indexeerbaar.

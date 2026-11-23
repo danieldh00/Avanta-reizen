@@ -1,7 +1,7 @@
 # Architectuur: modules en parallel werken
 
 Hoe de code van Avanta Reizen is ingedeeld, welke bestanden gedeeld zijn en hoe meerdere threads tegelijk kunnen
-bouwen zonder merge-conflicten. De opzet volgt die van AquaTech: een map per domein, per onderwerp een bestand met de
+bouwen zonder merge-conflicten. De opzet: een map per domein, per onderwerp een bestand met de
 logica en een bestand met de routes, en zo min mogelijk bestanden waar elke wijziging langs moet.
 
 Dit bestand beschrijft de stand op `main`. Wie de indeling verandert, werkt dit bestand bij in dezelfde PR.

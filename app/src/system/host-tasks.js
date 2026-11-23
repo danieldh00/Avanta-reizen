@@ -1,5 +1,5 @@
 /**
- * Servertaken (Beheer > Systeem > Servertaken), naar het voorbeeld van Aquatech: dingen die op apps01 of de
+ * Servertaken (Beheer > Systeem > Servertaken): dingen die op apps01 of de
  * Proxmox-host moeten gebeuren en die de app en de automatische update zelf niet kunnen doen. De lijst staat hier in
  * de repo (`HOST_TASKS`): een PR die een hosttaak vereist, voegt er één regel aan toe én een functie
  * `hosttask_<id>` in `deploy/apps01/servertaken.sh` (een test bewaakt dat beide lijsten gelijk blijven).

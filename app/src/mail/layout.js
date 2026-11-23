@@ -2,7 +2,7 @@
  * Opmaak van de e-mails van de app (Beheer > E-mail > Mail-opmaak): e-mailveilige HTML met tabellen en inline stijlen,
  * het logo van de site als ingebedde bijlage (`cid:`), een kopbalk in de ingestelde kleur en een voettekst. Elke mail
  * krijgt ook een platte-tekstversie. Alle waarden gaan via `html\`…\`` (escaping); er komt nooit invoer als HTML in.
- * Opzet naar AquaTech (`platform/mail-layout.js`), zonder instelbare teksten per mailtype.
+ * Eén opmaak voor alle mails, zonder instelbare teksten per mailtype.
  */
 const fs = require('node:fs');
 const path = require('node:path');

@@ -44,6 +44,7 @@ node tools/release-notes.js --check                              # fragmenten co
   bevindingen oplossen vóór auto-merge.
 - **Versie en `app/CHANGELOG.md` nooit zelf aanraken**; `release.yml` doet dat na de merge. Alleen docs/CI zonder
   effect: PR-label `geen-releasenotes`.
+- Geen verwijzingen naar andere projecten in bestanden, commits of PR-teksten (test `tests/geen-andere-projecten.test.js`).
 - Geen modelnamen/-ID's in commits, PR's, code of docs. Geen secrets in repo of chat.
 
 ## Zuinig werken (vaste werkwijze)

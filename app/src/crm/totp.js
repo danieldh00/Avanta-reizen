@@ -1,6 +1,6 @@
 /**
- * Tweestapsverificatie met een authenticator-app (TOTP, RFC 6238), zonder bibliotheek. Overgenomen uit AquaTech
- * (`hub/backend/src/beveiliging/totp.js`), waar deze aanpak werkt: geheim maken (base32), de code van een moment
+ * Tweestapsverificatie met een authenticator-app (TOTP, RFC 6238), zonder bibliotheek.
+ * Wat hier staat: geheim maken (base32), de code van een moment
  * berekenen (HMAC-SHA1, 30 seconden, 6 cijfers), een ingevoerde code controleren met één stap speling en zonder
  * hergebruik (`lastStep`), en herstelcodes maken en controleren (alleen SHA-256 bewaard). De opslag staat in
  * `crm/two-factor.js`.

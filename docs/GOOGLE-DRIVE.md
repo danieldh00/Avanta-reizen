@@ -21,13 +21,13 @@ zelf aanmaakt (scope `drive.file`), niet tot de rest van de Drive.
    niet gevoelig.
 6. Bij *Gegevenstoegang* (Data access) hoeft niets: de app vraagt zelf alleen `drive.file`.
 
-## 2a. Domeinverificatie (net als bij AquaTech)
+## 2a. Domeinverificatie
 Google accepteert een geautoriseerd domein (en daarmee het terugkeeradres op dat domein) in een gepubliceerde app pas
 als je hebt bewezen dat het domein van jou is. Dat gaat via Google Search Console, met hetzelfde Google-account als het
 Cloud-project (of voeg dat account daar toe als eigenaar).
 
 1. Ga naar <https://search.google.com/search-console> > **Property toevoegen** > **Domein** > `den-hollander.com`.
-   Staat het domein er al als geverifieerde property (bijvoorbeeld van AquaTech) voor dit account, dan ben je klaar en
+   Staat het domein er al als geverifieerde property (bijvoorbeeld van een andere applicatie) voor dit account, dan ben je klaar en
    ga je door naar stap 3.
 2. Google toont een **TXT-record** (`google-site-verification=…`). Kopieer het.
 3. Cloudflare-dashboard > `den-hollander.com` > **DNS > Records** > **Record toevoegen**: type `TXT`, naam `@`,

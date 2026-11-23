@@ -3,7 +3,7 @@
  * <input type="hidden" name="captchaToken" data-site-key="…" data-captcha-action="contact"> krijgt vlak vóór het
  * verzenden een vers token. Het script van Google wordt pas geladen als de bezoeker het formulier begint in te vullen
  * (of verstuurt), niet bij het openen van de pagina. Lukt het laden niet (adblocker, geen verbinding), dan gaat het
- * formulier zonder token weg en toont de server een duidelijke melding. Aanpak uit AquaTech (`shared/captcha.js`).
+ * formulier zonder token weg en toont de server een duidelijke melding.
  */
 (function setupCaptcha() {
   'use strict';

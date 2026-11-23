@@ -1,7 +1,7 @@
 # Testomgeving op apps01: avanta.den-hollander.com
 
 Aparte Docker-stack (projectnaam `avanta`, map `/opt/apps/avanta`) op apps01 met de app en een eigen PostgreSQL 17.
-**Geen eigen tunnel**: de bestaande `aquatech-cloudflared` krijgt er een losse public hostname bij,
+**Geen eigen tunnel**: de bestaande cloudflared-container op apps01 krijgt er een losse public hostname bij,
 `avanta.den-hollander.com -> http://avanta-app:3400`. De app hangt daarvoor met alias `avanta-app` in het
 Docker-netwerk van die cloudflared (naast zijn eigen netwerk met de database); er staan geen poorten open naar buiten.
 Dit is test/staging: `SITE_URL=https://avanta.den-hollander.com` en altijd `SITE_INDEXABLE=false`.
@@ -16,10 +16,10 @@ AVANTA_REF=<sha> bash <(curl -fsSL https://raw.githubusercontent.com/danieldh00/
 ```
 
 `pve-setup.sh` (herhaalbaar):
-1. zoekt apps01 zoals de Aquatech-scripts: LXC via `pct exec`, anders ssh als `daniel@apps01` met `sudo -n`
+1. zoekt apps01: LXC via `pct exec`, anders ssh als `daniel@apps01` met `sudo -n`
    (instelbaar met `APPS01_SSH`, `APPS01_CTID`, `APPS01_NAME`);
 2. draait daar `install.sh`: repo naar `/opt/apps/avanta/repo` op dezelfde commit, `.env` met gegenereerde geheimen
-   (eenmalig), netwerk en exact IP van `aquatech-cloudflared` opzoeken (zit die in meerdere netwerken, geef dan
+   (eenmalig), netwerk en exact IP van de cloudflared-container opzoeken (zit die in meerdere netwerken, geef dan
    `TUNNEL_NETWORK=<naam>` mee; daarna onthoudt `.env` de keuze) (`TUNNEL_NETWORK`, `TRUST_PROXY`), image bouwen, stack starten,
    gezondheidscheck en bij een lege database de content-import van www.avantareizen.nl;
 3. leest uit de draaiende cloudflared alleen het account- en tunnel-id (het geheime deel van het token blijft op apps01)
@@ -44,7 +44,7 @@ en de path-unit `avanta-update-now.path` (start dezelfde service zodra de app ee
   werkt alleen de status bij;
 - koppeling met de app via `/opt/apps/avanta/update/status` (alleen root schrijft; in de container alleen-lezen) en
   `/opt/apps/avanta/update/request` (eigenaar uid 1000, de app); uitleg bovenin `update.sh`;
-- ander IP van `aquatech-cloudflared` (bijv. na een image-update) → `TRUST_PROXY` opnieuw gezet, zelfde commit;
+- ander IP van de cloudflared-container (bijv. na een image-update) → `TRUST_PROXY` opnieuw gezet, zelfde commit;
 - staat `deploy/apps01` nog niet op die branch, dan doet de timer niets.
 
 Logboek: `journalctl -u avanta-update`; status: `systemctl list-timers avanta-update.timer`.
@@ -62,7 +62,7 @@ geheugen, back-ups); verder `logs [uren]` en `update`.
 
 ## Handmatige binding in Cloudflare (zonder API-token)
 
-**Zero Trust > Networks > Tunnels** > de tunnel van `aquatech-cloudflared` > **Public Hostname** (nieuw dashboard:
+**Zero Trust > Networks > Tunnels** > de tunnel van de cloudflared-container > **Public Hostname** (nieuw dashboard:
 *Published application routes*) > **Add**:
 
 | Veld | Waarde |
@@ -86,10 +86,12 @@ curl -sI https://avanta.den-hollander.com/ | grep -i x-robots-tag   # noindex, n
 ```
 
 Een 403 op het contactformulier betekent dat `TRUST_PROXY` niet klopt (de app ziet dan `http` in plaats van `https`).
-`TRUST_PROXY` is bewust het exacte IP van `aquatech-cloudflared` (geen subnet, zie de hoofd-README).
+`TRUST_PROXY` is bewust het exacte IP van de cloudflared-container (geen subnet, zie de hoofd-README).
+De naam van die container staat in `.env` (`TUNNEL_CONTAINER`); zonder waarde zoekt `install.sh` de enige draaiende
+container waarvan de naam op `cloudflared` eindigt en stopt met een melding als er geen of meer dan één is.
 Migraties draaien automatisch bij elke start van de app.
 
-Wordt `aquatech-cloudflared` opnieuw aangemaakt (bijv. bij een image-update), dan kan zijn IP veranderen; de timer
+Wordt de cloudflared-container opnieuw aangemaakt (bijv. bij een image-update), dan kan zijn IP veranderen; de timer
 zet `TRUST_PROXY` dan binnen 15 minuten goed (tot die tijd geven de formulieren 403).
 
 ## Back-up en herstel

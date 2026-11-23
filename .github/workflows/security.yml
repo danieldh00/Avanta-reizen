@@ -3,7 +3,7 @@ name: Security scans
 # Vindt lekken vóór productie: geheimen in de code en de git-historie (gitleaks). Draait bij code-wijzigingen in een
 # PR, op main en wekelijks. CodeQL is bewust verwijderd (te veel false positives, geen verplichte check).
 # Secret scanning en push protection van GitHub zelf staan in de repo-instellingen (Settings > Code security), niet hier.
-# Een image-scan (Trivy) komt erbij zodra er een Dockerfile is (zie de AquaTech-workflow als voorbeeld).
+# Een image-scan (Trivy) komt erbij zodra er een Dockerfile is.
 on:
   push:
     branches: [main]

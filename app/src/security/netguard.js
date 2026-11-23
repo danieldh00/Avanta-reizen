@@ -1,8 +1,7 @@
 /**
  * Uitgaande verbindingen naar adressen die een beheerder zelf invult (zoals de mailserver) mogen niet naar het eigen
  * netwerk van de server: anders kan iemand via de app het lokale netwerk aftasten (SSRF). Daarom wordt de naam eerst
- * opgezocht en alleen een openbaar adres toegestaan; de verbinding gaat daarna naar precies dat adres. Overgenomen uit
- * AquaTech (`beveiliging/netguard.js`).
+ * opgezocht en alleen een openbaar adres toegestaan; de verbinding gaat daarna naar precies dat adres.
  */
 const dns = require('node:dns').promises;
 const net = require('node:net');
