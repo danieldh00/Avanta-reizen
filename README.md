@@ -556,6 +556,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `AGENTS.md` | korte kaart voor agents, sectie *Zuinig werken* |
 | `docs/WERKWIJZE.md` | projectonafhankelijke werkwijze |
 | `docs/AVANTA-CONTEXT.md` | productcontext, bedrijfsregels, AVG en omgeving |
+| `docs/GO-LIVE.md` | go-live-draaiboek: checklist met eigenaar per stap, rooktest, Cloudflare-regels, mailauthenticatie, externe bewaking, terugvalplan |
 | `docs/ARCHITECTUUR.md` | indeling in modules, gedeelde kernbestanden, migraties per bestand en regels voor parallel werken |
 | `docs/CLAUDE-sjabloon.md` | sjabloon voor `CLAUDE.md` in een volgend project |
 | `.claude/agents/` | verkenners `map`, `callers`, `tests` |
