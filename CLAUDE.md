@@ -41,7 +41,9 @@ Details en open vragen: `docs/AVANTA-CONTEXT.md` en `docs/OPZET-WEBSITE.md`.
   Claude-abonnement (secret `CLAUDE_CODE_OAUTH_TOKEN`, aanmaken met `claude setup-token`).
 
 ## Stack en mappen
-Node 22 + Express, server-gerenderde HTML, PostgreSQL 17 (enige database), geen build-stap, geen CDN's.
+Node 22 + Express, server-gerenderde HTML, PostgreSQL 17 (enige database), geen CDN's. Eén bouwstap, alleen in het image: `app/tools/minify-public.js`
+(esbuild, ontwikkelafhankelijkheid) verkleint de publieke CSS en JS; de bron in `app/public/` blijft leesbaar en lokaal
+en in de tests draait de app op die bron.
 Per map onder `app/src/` staat een eigen `CLAUDE.md` met de bestanden van die map; een feature-PR werkt dát bestand bij,
 niet deze tabel (alleen een nieuwe map krijgt hier een regel).
 | Pad | Inhoud |
@@ -68,6 +70,7 @@ niet deze tabel (alleen een nieuwe map krijgt hier een regel).
 | `app/src/dev/seed/` | testdata voor de testomgeving (alleen via `servertaken.sh testdata`); details per bestand: `app/src/dev/seed/CLAUDE.md` |
 | `app/public/` | `css/site.css` (huisstijl van de huidige site via `--av-*`-variabelen, breekpunten 1024/768), `css/crm.css` (opmaak van het CRM en Beheer, bouwstenen voor lijsten uit `crm/ui.js`, alleen daar geladen na `site.css`; breekpunt 800), `js/site.js` (kop, mobiel menu, zoekvenster), `images/theme/` (texturen uit het oude thema), fonts en logo lokaal |
 | `app/tools/import-wordpress.js` | import van de huidige site (`tools/import/parse.js`, `sanitize.js`) |
+| `app/tools/minify-public.js` | verkleint `public/css` en `public/js` bij het bouwen van het image (Dockerfile, stap `minify`); niet in de draaiende app |
 | `app/tools/layout-compare.js` | DOM-meting nieuw tegen live op 1440/375 (referentie `test/fixtures/layout-live.json`, test met `LAYOUT_BASE_URL`) |
 | `app/test/` | `units.test.js` (zonder database), `server.test.js` (PostgreSQL, `TEST_DATABASE_URL`) |
 | `changes/`, `tools/`, `tests/` | releasenotes-fragmenten en het releasescript (root) |

@@ -74,6 +74,11 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   adres niet. Bijzondere en paspoortgegevens worden nooit vooraf ingevuld. Daarvoor staat de cookie op pad `/`; alleen
   `/account/` en `/aanmelden/` lezen hem.
 - Afbeeldingen staan in het volume `/data/media` (circa 250 MB na de import).
+- **Verkleinde CSS en JavaScript**: het image levert `public/css/*.css` en `public/js/*.js` verkleind uit (circa 145 KB
+  naar 102 KB, JavaScript ruim de helft kleiner). Dat gebeurt in de bouwstap `minify` van `app/Dockerfile` met
+  `app/tools/minify-public.js` (esbuild, alleen een ontwikkelafhankelijkheid); de bron in `app/public/` blijft leesbaar
+  en lokaal en in de tests draait de app op die bron. Zelf meten: `cd app && node tools/minify-public.js public /tmp/min`.
+  Na een update laadt de browser de nieuwe bestanden via `?v=<versie>`.
 - **Ontwerp** gelijk aan www.avantareizen.nl (CMS-pakket E, voorstel in de projectbestanden
   `cms/voorstel-cms-reizen-boekingen.md`): kleuren, maten en breekpunten (1024 en 768 px, container 1280 px) uit het
   thema van de huidige site in `app/public/css/site.css`; texturen (papierrand, korrel) en de achtergrondfoto van de
@@ -552,7 +557,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `docs/ARCHITECTUUR.md` | indeling in modules, gedeelde kernbestanden, migraties per bestand en regels voor parallel werken |
 | `docs/CLAUDE-sjabloon.md` | sjabloon voor `CLAUDE.md` in een volgend project |
 | `.claude/agents/` | verkenners `map`, `callers`, `tests` |
-| `app/` | de applicatie (`src/`, `public/`, `tools/import-wordpress.js`, `test/`); versie in `app/package.json` |
+| `app/` | de applicatie (`src/`, `public/`, `tools/import-wordpress.js`, `tools/minify-public.js` (alleen bij het bouwen van het image), `test/`); versie in `app/package.json` |
 | `app/src/beheer/` | Beheer: `instellingen/<groep>.js` (instellingen en secties per groep), `settings.js` (opslag en controle), `indeling.js` (zijbalk en zoeken), `routes.js` (`/app/beheer/`), `mail-routes.js` (testmail, WAN-IP), `backup-routes.js` (back-ups), `drive-routes.js` (Google Drive), `restore-test-routes.js` (hersteltest), `update-routes.js` (updates en onderhoud), `host-task-routes.js` (servertaken), `log-routes.js` (logboek), `monitor-routes.js` (bewaking) |
 | `app/src/crm/` | schil van `/app/` (`routes.js`), toegang (`login-routes.js`, `auth.js`, `two-factor.js`), gebruikers, rechten, opmaak en het overzicht |
 | `app/src/persons/` | personen en deelnemers, samenvoegen, inzage en wissen, deelnemerslijsten, AVG-opschoning (`retention.js`) |

@@ -1,4 +1,14 @@
-# Image van Avanta Reizen: Node 22 zonder build-stap; data (afbeeldingen, sleutel) in het volume /data.
+# Image van Avanta Reizen: Node 22; data (afbeeldingen, sleutel) in het volume /data.
+# Eén bouwstap: de publieke CSS en JavaScript worden verkleind (tools/minify-public.js, esbuild alleen hier). De bron
+# in public/ blijft leesbaar; het image krijgt de verkleinde bestanden over de bron heen.
+FROM node:22-alpine AS minify
+WORKDIR /build
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
+COPY public ./public
+COPY tools/minify-public.js ./tools/minify-public.js
+RUN node tools/minify-public.js public public-min
+
 FROM node:22-alpine
 # pg_dump/pg_restore voor de versleutelde back-ups (zelfde hoofdversie als de database: PostgreSQL 17).
 RUN apk add --no-cache postgresql17-client
@@ -8,6 +18,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY src ./src
 COPY public ./public
+COPY --from=minify /build/public-min ./public
 COPY tools ./tools
 RUN mkdir -p /data && chown node:node /data
 USER node
