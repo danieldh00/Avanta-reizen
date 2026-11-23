@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { html } = require('../src/site/html');
-const { renderCrmPage } = require('../src/crm/layout');
+const { renderCrmPage, breadcrumbsFor } = require('../src/crm/layout');
 const { GROUPS } = require('../src/beheer/indeling');
 
 /**
@@ -71,8 +71,9 @@ test('zijbalk: huidige pagina gemarkeerd en haar groep open', () => {
   const page = pageFor('beheerder', { path: '/app/deelnemers/12/' });
   assert.match(page, /href="\/app\/deelnemers\/" aria-current="page"/);
   assert.doesNotMatch(page, /href="\/app\/" aria-current/, 'Overzicht alleen op /app/ zelf');
-  assert.match(page, /class="crm-nav-sec is-open has-active" data-group="reizigers"/);
-  assert.match(page, /class="crm-nav-sec" data-group="website"/, 'andere groepen dicht');
+  assert.match(page, /class="crm-nav-group has-active" data-group="boekingen"/);
+  assert.match(page, /class="crm-nav-group" data-group="website"/, 'andere groepen niet gemarkeerd');
+  assert.doesNotMatch(page.slice(page.indexOf('id="crm-nav"'), page.indexOf('crm-nav-backdrop')), /crm-nav-sec/, 'hoofdzijbalk heeft vaste groepen, geen inklapbare');
   assert.equal((page.match(/aria-current="page"/g) || []).length, 1);
   const home = pageFor('beheerder', { path: '/app/' });
   assert.match(home, /href="\/app\/" aria-current="page"/);
@@ -131,7 +132,45 @@ test('zijbalk: script en stijl bestaan en passen bij de opmaak', () => {
   const script = fs.readFileSync(path.join(publicDir, 'js', 'crm.js'), 'utf8');
   for (const hook of ['data-nav-compact', 'data-nav-toggle', 'data-nav-close', 'data-search', 'data-sub-toggle', 'crm-sub', 'nav-compact', 'nav-open', 'is-open']) assert.ok(script.includes(hook), hook);
   assert.doesNotMatch(script, /innerHTML/, 'geen HTML uit tekst');
-  const css = fs.readFileSync(path.join(publicDir, 'css', 'site.css'), 'utf8');
-  for (const selector of ['.crm-nav {', '.nav-compact .crm-nav {', '.js .nav-open .crm-nav {', '.crm-nav-item[aria-current]', '.crm-beheer {', '.crm-sub {', '.js .crm-sub:not(.is-open) .crm-sub-body']) assert.ok(css.includes(selector), selector);
+  for (const hook of ['details.crm-user', 'Escape']) assert.ok(script.includes(hook), hook);
+  const css = fs.readFileSync(path.join(publicDir, 'css', 'crm.css'), 'utf8');
+  assert.doesNotMatch(fs.readFileSync(path.join(publicDir, 'css', 'site.css'), 'utf8'), /\.crm-|\.beheer-/, 'de opmaak van het CRM staat niet meer in site.css');
+  for (const selector of ['.crm-header {', '.crm-crumbs {', '.crm-user-menu {', '.crm-nav-group-title {', '.crm-nav {', '.nav-compact .crm-nav {', '.js .nav-open .crm-nav {', '.crm-nav-item[aria-current]', '.crm-beheer {', '.crm-sub {', '.js .crm-sub:not(.is-open) .crm-sub-body']) assert.ok(css.includes(selector), selector);
   assert.ok(fs.existsSync(path.join(publicDir, 'images', 'logo-light.png')));
+});
+
+test('menu: vier vaste groepen in de volgorde van het werk, reizen onder Reisaanbod', () => {
+  const page = pageFor('beheerder');
+  const nav = page.slice(page.indexOf('id="crm-nav"'), page.indexOf('crm-nav-backdrop'));
+  const order = ['Boekingen', 'Aanmeldingen', 'Betalingen', 'Reisaanbod', 'Reizen', 'Reisleiders', 'Website', 'Pagina&#39;s', 'Fotobibliotheek', 'title="Beheer"'].map((label) => nav.indexOf(label));
+  assert.ok(order.every((position) => position > -1), 'alle onderdelen aanwezig');
+  assert.deepEqual(order, [...order].sort((first, second) => first - second), 'volgorde van de groepen en onderdelen');
+  assert.match(nav, /role="group" aria-labelledby="crm-nav-reisaanbod">\s*<p class="crm-nav-group-title" id="crm-nav-reisaanbod">/);
+  // Wachtwoord, tweestapsverificatie en uitloggen staan in het gebruikersmenu, niet meer in de zijbalk.
+  assert.doesNotMatch(nav, /\/app\/wachtwoord\/|\/app\/tweestaps\/|\/app\/uitloggen\//);
+  // Een redacteur zonder recht op reizen of boekingen ziet die groepen niet.
+  const editor = pageFor('redacteur');
+  assert.doesNotMatch(editor, /data-group="boekingen"|data-group="reisaanbod"/);
+  assert.match(editor, /data-group="website"/);
+});
+
+test('kopbalk: kruimelpad, link naar de site en gebruikersmenu; zonder gebruiker alleen het logo', () => {
+  const page = pageFor('beheerder', { path: '/app/reizen/12/', title: 'Namibië <i>' });
+  assert.match(page, /<link rel="stylesheet" href="\/css\/crm\.css\?v=/);
+  assert.match(page, /<nav class="crm-crumbs" aria-label="Kruimelpad"><ol><li>Reisaanbod<\/li><li><a href="\/app\/reizen\/">Reizen<\/a><\/li><li aria-current="location">Namibië &lt;i&gt;<\/li><\/ol><\/nav>/);
+  assert.match(page, /<a class="crm-header-site" href="\/">Bekijk de site<\/a>/);
+  const menu = page.slice(page.indexOf('<details class="crm-user">'), page.indexOf('</details>'));
+  assert.match(menu, /Jan &lt;b&gt; <span class="crm-user-role">Beheerder<\/span>/);
+  for (const part of ['href="/app/wachtwoord/"', 'href="/app/tweestaps/"', 'action="/app/uitloggen/"', 'name="_csrf" value="token-1"']) assert.ok(menu.includes(part), part);
+  const user = { name: 'Jan', role: 'beheerder' };
+  assert.deepEqual(breadcrumbsFor(user, '/app/', 'Overzicht'), [{ label: 'Overzicht' }]);
+  assert.deepEqual(breadcrumbsFor(user, '/app/aanmeldingen/', 'Aanmeldingen'), [{ label: 'Boekingen' }, { label: 'Aanmeldingen' }]);
+  assert.deepEqual(breadcrumbsFor(user, '/app/beheer/mailserver/', 'Mailserver'), [{ label: 'Beheer', href: '/app/beheer/' }, { label: 'Mailserver' }]);
+  assert.deepEqual(breadcrumbsFor(user, '/app/wachtwoord/', 'Wachtwoord wijzigen'), [{ label: 'Wachtwoord wijzigen' }]);
+  // Zonder recht op het onderdeel geen kruimel ernaartoe (de route zelf geeft 403).
+  assert.deepEqual(breadcrumbsFor({ name: 'Eva', role: 'redacteur' }, '/app/reizen/12/', 'Namibië'), [{ label: 'Namibië' }]);
+  assert.deepEqual(breadcrumbsFor({ name: 'Eva', role: 'kantoor' }, '/app/beheer/mailserver/', 'Geen toegang'), [{ label: 'Geen toegang' }]);
+  const login = renderCrmPage({ title: 'Inloggen', body: html`<p>x</p>` });
+  assert.match(login, /<a class="crm-brand" href="\/app\/">/);
+  assert.doesNotMatch(login, /crm-crumbs|crm-user|Bekijk de site/);
 });

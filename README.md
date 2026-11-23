@@ -346,12 +346,18 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     inloggen opnieuw in. De sessie na
     de installatie (installatiecode) is volledig; de eerste beheerder stelt 2FA daarna in. Na de update naar deze
     versie logt iedereen opnieuw in.
-- **Zijbalk van het CRM** (`app/src/crm/layout.js`, `app/public/js/crm.js`; opzet zoals in AquaTech): een vaste,
-  donkere zijbalk links met het logo, de modules in inklapbare groepen (Reizigers, Website), één ingang *Beheer* (met
-  recht `systeem` of `gebruikers`) en onderaan de gebruiker met wachtwoord, tweestapsverificatie en uitloggen. Alleen
-  modules waarvoor de gebruiker het recht heeft staan erin (de server controleert opnieuw). De groep met de huidige
-  pagina staat open, één groep tegelijk. Op een breed scherm in te klappen tot een iconenbalk (per browser onthouden);
-  tot 800 px een lade via de menuknop. Zonder JavaScript staat alles open.
+- **Zijbalk en kopbalk van het CRM** (`app/src/crm/layout.js`, `app/public/js/crm.js`, `app/public/css/crm.css`): een
+  vaste, donkere zijbalk links met het logo en de modules in vier vaste groepen: *Boekingen* (aanmeldingen, deelnemers,
+  deelnemerslijsten, betalingen), *Reisaanbod* (reizen, reistypes en landen, reisleiders), *Website* (pagina's, blog,
+  veelgestelde vragen, menu's, fotobibliotheek) en één ingang *Beheer* (met recht `systeem` of `gebruikers`). Alleen
+  modules waarvoor de gebruiker het recht heeft staan erin (de server controleert opnieuw). Boven de inhoud staat een
+  kopbalk met het kruimelpad (groep, onderdeel, pagina), *Bekijk de site* en het gebruikersmenu met wachtwoord,
+  tweestapsverificatie en uitloggen (een `<details>`, werkt zonder JavaScript). Op een breed scherm is de zijbalk in te
+  klappen tot een iconenbalk (per browser onthouden); tot 800 px een lade via de menuknop.
+- **Eigen opmaak van het CRM**: `crm.css` wordt alleen in het CRM geladen, na `site.css`; de publieke site laadt geen
+  CRM-opmaak meer. Het CRM is compacter dan de site (15 px, koppen in Open Sans, velden van 40 px en 44 px op een
+  telefoon) en gebruikt een donkerdere tint van de huisstijlkleur (`#a8503f`), zodat knoppen en links het contrast van
+  WCAG AA halen.
 - **Beheer als eigen omgeving** (zoals in AquaTech): op `/app/beheer/…`, `/app/gebruikers/` en `/app/auditlog/` staat
   naast de hoofdzijbalk een tweede, lichte zijbalk met *Terug naar het CRM*, het zoekveld en de onderdelen per
   onderwerp (Gebruikers, Systeem, Organisatie, E-mail, CRM, Toegang en beveiliging, Back-ups en herstel,
