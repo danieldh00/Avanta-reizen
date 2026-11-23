@@ -45,6 +45,7 @@ const ACTION_LABELS = {
   'tweestaps.herstelcode': 'Ingelogd met een herstelcode',
   'tweestaps.herstelcodes': 'Nieuwe herstelcodes gemaakt',
   'gebruiker.tweestaps': 'Tweestapsverificatie uitgezet door beheerder',
+  'gebruiker.hersteld-server': 'Toegang van beheerder hersteld op de server (wachtwoord, tweestapsverificatie, sessies)',
   'gebruiker.activatiecode': 'Activatiecode voor tweestapsverificatie gemaakt',
   'tweestaps.activatie-mislukt': 'Tweestapsverificatie: onjuiste activatiecode',
   uitloggen: 'Uitgelogd',

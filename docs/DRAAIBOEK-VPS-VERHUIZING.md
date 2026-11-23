@@ -1,6 +1,6 @@
 # Draaiboek: back-up terugzetten en verhuizen naar een andere server
 
-Stand: 20-11-2026 (pakket C). Voor apps01 (testomgeving) en elke volgende server (VPS) met dezelfde Docker-stack uit
+Stand: 23-11-2026 (pakket C; §7 uit P2.4). Voor apps01 (testomgeving) en elke volgende server (VPS) met dezelfde Docker-stack uit
 `deploy/apps01`. Alle commando's als root (`sudo -i`) op de server zelf, tenzij anders vermeld.
 
 ## 1. Wat je nodig hebt
@@ -96,3 +96,27 @@ migraties uit.
 Zolang de oude server niet is opgeruimd: zet de public hostname terug op de oude tunnel en start daar de stack
 (`docker compose start` en de timers weer aan). Wijzigingen die al op de nieuwe server zijn gedaan, haal je over met een
 back-up van de nieuwe server en `restore-backup.sh` op de oude.
+
+## 7. Weer toegang als beheerder
+Bevinding F07: een CRM-gebruiker kan zijn wachtwoord niet zelf herstellen. Dat doet een **andere beheerder** onder
+Gebruikers (wachtwoord instellen, tweestapsverificatie uitzetten en een activatiecode maken). Houd daarom altijd **twee
+actieve beheerders** aan; de startpagina van Beheer waarschuwt als er maar één is.
+
+Is er geen andere beheerder (of komt niemand er meer in), dan herstelt de server de toegang. Op de **Proxmox-host als
+root**: het vaste commando uit Beheer > Systeem > Servertaken, met aan het eind `beheerder-herstel <e-mailadres>` in
+plaats van `openstaand`:
+
+```sh
+REF=$(curl -fsSL -H 'Accept: application/vnd.github.sha' https://api.github.com/repos/danieldh00/Avanta-reizen/commits/main) && T=$(mktemp) && trap 'rm -f "$T"' EXIT && curl -fsSL "https://raw.githubusercontent.com/danieldh00/Avanta-reizen/$REF/deploy/apps01/servertaken.sh" -o "$T" && TASKS_REF="$REF" bash "$T" beheerder-herstel <e-mailadres>
+```
+
+Na `ja` krijgt die beheerder (alleen een **actieve** gebruiker met de rol beheerder):
+- een **tijdelijk wachtwoord**, alleen in de terminal getoond: log in op `/app/inloggen/` en kies meteen een eigen
+  wachtwoord onder *Wachtwoord*;
+- **tweestapsverificatie uit** en een nieuwe **activatiecode** (7 dagen geldig) om de authenticator opnieuw te koppelen;
+- **alle sessies beëindigd** (ook een gestolen sessie).
+
+Het auditlog krijgt de regel *Toegang van beheerder hersteld op de server*. Klopt het adres niet, dan toont de opdracht de
+actieve beheerders gemaskeerd (`d***@voorbeeld.nl`) en verandert er niets. Op een andere server dan apps01: in de map
+met `docker-compose.yml` `docker compose exec -T app node src/crm/cli.js beheerder-herstel <e-mailadres>`.
+Is er nog helemaal geen gebruiker (lege tabel), dan geldt de installatiecode uit het log (`README.md`, *Eerste beheerder*).
