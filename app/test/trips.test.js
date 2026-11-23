@@ -50,7 +50,7 @@ test('bedragen lezen en tonen', () => {
 test('velden van een reis controleren', () => {
   const ok = validateTrip({
     title: ' 20 dagen Namibië ', departure_date: '2027-06-01', price: '1849', deposit: '300', capacity: '16', categorie: ['3', '3', 'x', '7'],
-    reisleider_1: '5', reisleider_2: '5', reisleider_3: '9', published: '1', body_html: '<p>Tekst<script>alert(1)</script></p>',
+    reisleider: ['5', '9'], reisleider_2: '9', published: '1', body_html: '<p>Tekst<script>alert(1)</script></p>',
   });
   assert.deepEqual(ok.errors, {});
   assert.equal(ok.values.slug, '20-dagen-namibie');
@@ -58,7 +58,7 @@ test('velden van een reis controleren', () => {
   assert.equal(ok.values.depositCents, 30000);
   assert.equal(ok.values.capacity, 16);
   assert.deepEqual(ok.values.categoryIds, [3, 7]);
-  assert.deepEqual(ok.values.guideIds, [5, 9], 'dubbele reisleider valt weg, volgorde blijft');
+  assert.deepEqual(ok.values.guideIds, [5], 'een reis heeft hoogstens één reisleider');
   assert.equal(ok.values.published, true);
   assert.equal(ok.values.bodyHtml, '<p>Tekst</p>');
   const bad = validateTrip({ title: '', slug: 'fout!', departure_date: '2027-13-01', price: 'gratis', capacity: '-1', duration_days: '0', offer_until: 'morgen' });
@@ -127,7 +127,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
   const tripForm = (extra) => ({
     _csrf: kantoor.csrf, title: '20 dagen Namibië', slug: '', trip_code: '27-NAM-1', departure_date: '2099-06-01', price: '1849',
     deposit: '300', capacity: '16', published: '0', categorie: [String(namibia.id), String(botswana.id), String(camping.id), '999999'],
-    reisleider_1: String(eva.id), reisleider_2: String(martijn.id), ...extra,
+    reisleider: String(eva.id), ...extra,
   });
   let tripId;
 
@@ -160,7 +160,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     const links = await db.query('SELECT category_id FROM trip_category_links WHERE trip_id = $1 ORDER BY category_id', [tripId]);
     assert.deepEqual(links.map((link) => link.category_id), [namibia.id, botswana.id, camping.id].sort((a, b) => a - b), 'onbekende categorie genegeerd');
     const guides = await db.query('SELECT guide_id FROM trip_guides WHERE trip_id = $1 ORDER BY sort_order', [tripId]);
-    assert.deepEqual(guides.map((guide) => guide.guide_id), [eva.id, martijn.id]);
+    assert.deepEqual(guides.map((guide) => guide.guide_id), [eva.id]);
     assert.equal((await request('/reis/20-dagen-namibie/')).status, 404, 'concept niet op de site');
     const concepts = await request('/app/reizen/?status=concept', { cookie: kantoor.cookie });
     assert.match(concepts.text, />20 dagen Namibië</);
@@ -190,7 +190,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.match(saved.headers.get('location'), /opgeslagen=2/, 'bij publiceren wel een 301 van de vorige slug');
     const page = await request('/reis/20-dagen-namibie/');
     assert.equal(page.status, 200);
-    assert.match(page.text, /Reisleiders<\/dt><dd><a href="\/reisleider\/eva\/">Eva<\/a>, <a href="\/reisleider\/martijn\/">Martijn<\/a>/);
+    assert.match(page.text, /Reisleider<\/dt><dd><a href="\/reisleider\/eva\/">Eva<\/a><\/dd>/);
     assert.match(page.text, /Botswana<\/a>, <a href="\/reis-categorie\/namibie\/">Namibië/);
     assert.match(page.text, /\/aanmelden\/\?id=&reis=20-dagen-namibie/);
     // Zoeken op een land vindt de reis (landen komen nu uit de koppeltabel).
@@ -303,7 +303,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     const linksOf = async (id) => (await db.query('SELECT category_id FROM trip_category_links WHERE trip_id = $1 ORDER BY category_id', [id])).map((row) => row.category_id);
     assert.deepEqual(await linksOf(copyId), await linksOf(tripId));
     const guidesOf = async (id) => (await db.query('SELECT guide_id FROM trip_guides WHERE trip_id = $1 ORDER BY sort_order', [id])).map((row) => row.guide_id);
-    assert.deepEqual(await guidesOf(copyId), [eva.id, martijn.id]);
+    assert.deepEqual(await guidesOf(copyId), [eva.id]);
     assert.deepEqual(await db.query('SELECT media_id, role FROM trip_media WHERE trip_id = $1', [copyId]), [{ media_id: photo.id, role: 'kop' }]);
     assert.equal((await db.query('SELECT count(*)::int AS count FROM bookings WHERE trip_id = $1', [copyId]))[0].count, 0);
 
