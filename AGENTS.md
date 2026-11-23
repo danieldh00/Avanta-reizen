@@ -9,7 +9,7 @@ Korte ingang voor AI-agents. Details: `CLAUDE.md` (volledig werkgeheugen), `READ
 | `app/src/server.js` | Express-app, beveiligingskoppen, statisch, `/media` |
 | `app/src/site/` | publieke routes, queries, HTML-weergave (escaping via `html\`…\``) |
 | `app/src/booking/` | aanmeldformulier → tabel `bookings` (basis CRM) |
-| `app/src/database/` | `db.js`, `migrations.js` (positioneel) |
+| `app/src/database/` | `db.js`, `migrations.js` (lader), `migrations/NNN-korte-naam.js` (één bestand per migratie, positioneel) |
 | `app/src/security/` | versleuteling gevoelige velden, rate limit |
 | `app/src/beheer/` | Beheer `/app/beheer/`: instellingen (`settings.js`), zijbalk (`indeling.js`), routes |
 | `app/tools/import-wordpress.js` | import van www.avantareizen.nl |
@@ -18,7 +18,7 @@ Korte ingang voor AI-agents. Details: `CLAUDE.md` (volledig werkgeheugen), `READ
 | `changes/` | releasenotes-fragmenten (zie `changes/README.md`) |
 | `tools/release-notes.js` | verwerkt fragmenten na de merge; controleert PR's (`--pull-request`) |
 | `tests/` | `node --test` voor de hulpmiddelen |
-| `docs/` | `WERKWIJZE.md` (projectonafhankelijk), `AVANTA-CONTEXT.md` (product), `CLAUDE-sjabloon.md` |
+| `docs/` | `WERKWIJZE.md` (projectonafhankelijk), `AVANTA-CONTEXT.md` (product), `ARCHITECTUUR.md` (modules, kernbestanden, parallel werken), `CLAUDE-sjabloon.md` |
 | `.claude/agents/` | verkenners `map`, `callers`, `tests` |
 | `.github/workflows/` | `ci.yml`, `version.yml`, `release.yml`, `claude-review.yml`, `security.yml` |
 

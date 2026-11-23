@@ -4,7 +4,8 @@
 > tegenspraak geldt dit bestand. Vaste werkwijze om verbruik te besparen: sectie *Zuinig werken* in `AGENTS.md`.
 
 > **Werkwijze en context:** de algemene werkwijze (projectonafhankelijk, gelijk aan die van AquaTech) staat in
-> `docs/WERKWIJZE.md`; de Avanta-specifieke context (product, bedrijfsregels, omgeving) in `docs/AVANTA-CONTEXT.md`.
+> `docs/WERKWIJZE.md`; de Avanta-specifieke context (product, bedrijfsregels, omgeving) in `docs/AVANTA-CONTEXT.md`;
+> de indeling in modules, de gedeelde kernbestanden en de regels voor parallel werken in `docs/ARCHITECTUUR.md`.
 
 ## Product
 Avanta Reizen: christelijke, avontuurlijke groepsreizen (kamperen, verre reizen, jeugd/jongeren/plus). Fase 1: de
@@ -44,7 +45,7 @@ Node 22 + Express, server-gerenderde HTML, PostgreSQL 17 (enige database), geen 
 | Pad | Inhoud |
 |---|---|
 | `app/src/server.js` | Express-app, beveiligingskoppen (CSP zonder inline `<style>`, noindex tot go-live), statische bestanden, `/media` |
-| `app/src/database/` | `db.js` (pool, transactie, migreren), `migrations.js` (`MIGRATIONS`, positioneel) |
+| `app/src/database/` | `db.js` (pool, transactie, migreren), `migrations.js` (lader van `MIGRATIONS`), `migrations/NNN-korte-naam.js` (één bestand per migratie, positioneel) |
 | `app/src/site/` | `routes.js` (alle publieke URL's), `content.js` (queries), `layout.js` (kop/voet), `page-view.js` (blog, tags, pagina's, FAQ, contact), `html.js` (escaping), `format.js`, `seo.js` (JSON-LD, sitemap, robots.txt, llms.txt), `site-settings.js` (`res.locals.site`), `redirects.js` (doorverwijzingen + 404-tellers), `analytics.js` (GA4-meet-ID, CSP), `icons.js` (eigen SVG-iconen, inline), `homepage.js` (vaste homepage-inhoud uit `DATA_DIR/homepage.json`, gecontroleerd) en `home-view.js` (HTML van de homepage), `trip-view.js` (reizen en reisleiders), `site-content.js` (lijstkoppen en reisleidergegevens uit `DATA_DIR/site-content.json`), `json-store.js` (lezer voor die JSON-bestanden) |
 | `app/src/booking/` | aanmeldformulier: `fields.js` (velden + validatie), `routes.js` (`/aanmelden/`) |
 | `app/src/account/` | reizigersaccount onder `/account/` (CMS-pakket J): `accounts.js` (tabellen `customer_accounts`, `customer_sessions`, `customer_tokens`; eenmalige links, max. 3 per soort per uur), `routes.js` (registreren, bevestigen met link + wachtwoord, inloggen met dezelfde limieten als het CRM, wachtwoord vergeten/herstellen, code per e-mail vóór export en wachtwoord wijzigen; cookie `avanta_reiziger` op pad `/account`, eigen CSRF), `my-trips.js` (Mijn reizen/gegevens op het bevestigde e-mailadres, nooit bijzondere gegevens), `mails.js`, `views.js`; los van `users`/`sessions` van het CRM |
@@ -72,7 +73,7 @@ Regels:
   `persons:<blok>:<id>`); art. 9-velden alleen met eigen toestemmingsvinkje (`consentFor`, tabel `consents`). Hoofdsleutel: `AVANTA_MASTER_KEY` of `DATA_DIR/master-key`.
 - Openbare formulieren: limiet (`createRateLimiter`), herkomstcontrole, honeypot en ondertekend tijdstempel; plus
   `captchaField`/`captcha.check` (`security/captcha.js`, actie per formulier) als laatste controle.
-- Nieuwe migratie: achteraan in `MIGRATIONS` met het eerstvolgende nummer; een migratie op `main` verandert nooit meer.
+- Nieuwe migratie: een nieuw bestand `app/src/database/migrations/NNN-korte-naam.js` met het eerstvolgende nummer, en de bestandsnaam ervan in `migrations/laatste-migratie.txt` (geeft met opzet een git-conflict als twee takken hetzelfde nummer nemen; dan rebasen en je eigen bestand hernummeren; `migrations.js` zelf niet wijzigen); een migratie op `main` verandert nooit meer.
   Volgorde (besluit 20-11-2026): M5 instellingen, M6 doorverwijzingen/404, M7 logboek, M8 bewaking, 2FA M9 (alle gebouwd),
   persons M10, aanmeldingen M11, fotobibliotheek M12, foto's in de back-up M13, reistypes en landen M14, reizen M15, foto's bij reizen M16 (CMS-pakket G, gebouwd), pagina's in blokken M17 (H1), nieuwe pagina's/SEO/menu's M18 (H3), blog M19 (I1), categorieën en tags M20 (I2), FAQ M21 (I3), reisleiders M22 (I4), reizigersaccounts M23 (J2), aanmelding bij account M24 (J4), AVG-opschoning M25, betalingen M26, betaalherinneringen M27, online betalen M28; volgende vrije migratie M29. Eén migratie-PR tegelijk.
 - **Instellingen** altijd in `SETTING_FIELDS` (`beheer/settings.js`) met een sectie in `beheer/indeling.js`, nooit een
