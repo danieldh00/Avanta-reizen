@@ -10,6 +10,7 @@ const { formatDate, isoDate } = require('../site/format');
 const { createXlsx, XLSX_TYPE } = require('../export/xlsx');
 const { createRateLimiter } = require('../security/rate-limit');
 const { renderCrmPage, renderAlert } = require('./layout');
+const ui = require('./ui');
 const { STATUSES } = require('./booking-routes');
 const payments = require('./payments');
 
@@ -190,33 +191,41 @@ function createPaymentOverviewRoutes(options) {
         user: req.user,
         csrf: req.session.csrf,
         path: '/app/betalingen/',
-        body: html`<form class="crm-search" method="get" action="/app/betalingen/">
-            <label for="veld-weergave" class="visually-hidden">Weergave</label>
-            <select id="veld-weergave" name="weergave">${Object.entries(VIEWS).map(([key, label]) => html`<option value="${key}"${key === filter.view ? raw(' selected') : ''}>${label}</option>`)}</select>
-            <label for="veld-reis" class="visually-hidden">Reis</label>
+        actions: ui.renderActions([{ label: 'Excel (.xlsx)', href: `/app/betalingen/overzicht.xlsx?${query}` }]),
+        body: html`${ui.renderFilterTabs({
+          base: '/app/betalingen/',
+          name: 'weergave',
+          current: filter.view,
+          params: { reis: filter.tripId },
+          label: 'Weergave',
+          options: Object.entries(VIEWS).map(([key, label]) => ({ value: key, label })),
+        })}
+          <form class="crm-search" method="get" action="/app/betalingen/">
+            <input type="hidden" name="weergave" value="${filter.view}">
+            <label for="veld-reis">Reis</label>
             <select id="veld-reis" name="reis"><option value="">Alle reizen</option>${trips.map((trip) => html`<option value="${trip.id}"${trip.id === filter.tripId ? raw(' selected') : ''}>${trip.title}${trip.trip_code ? ` (${trip.trip_code})` : ''}</option>`)}</select>
-            <button class="btn btn--small" type="submit">Tonen</button>
-            <a class="btn btn--small btn--outline" href="/app/betalingen/overzicht.xlsx?${query}">Excel (.xlsx)</a>
+            <button class="btn btn--small btn--outline" type="submit">Tonen</button>
           </form>
-          <p>${rows.length} aanmelding${rows.length === 1 ? '' : 'en'} · openstaand ${payments.formatAmount(open)}${late ? ` · ${late} te laat` : ''}</p>
+          <p class="crm-summary">${rows.length} aanmelding${rows.length === 1 ? '' : 'en'} · openstaand ${payments.formatAmount(open)}${late ? ` · ${late} te laat` : ''}</p>
           ${truncated ? renderAlert(truncationMessage(filter, maxRows, scanCapped, 'pagina')) : ''}
-          ${rows.length ? html`<div class="crm-table-wrap"><table class="crm-table">
-            <thead><tr><th scope="col">Referentie</th><th scope="col">Naam</th><th scope="col">Reis</th><th scope="col">Vertrek</th><th scope="col">Status</th>
-              <th scope="col">Totaal</th><th scope="col">Betaald</th><th scope="col">Openstaand</th><th scope="col">Aanbetaling uiterlijk</th><th scope="col">Restant uiterlijk</th><th scope="col">Laatste herinnering</th></tr></thead>
-            <tbody>${rows.map((row) => html`<tr>
-              <td><a href="/app/betalingen/${row.id}/">${row.reference}</a></td>
-              <td>${row.last_name}, ${row.call_name || row.first_names}</td>
-              <td>${row.trip_title}${row.trip_code ? ` (${row.trip_code})` : ''}</td>
-              <td>${formatDate(row.departure_date)}</td>
-              <td><span class="crm-status crm-status--${row.summary.state}">${payments.PAYMENT_STATES[row.summary.state]}</span>${row.summary.overdue ? html` <span class="crm-badge">${row.summary.overdue} te laat</span>` : ''}</td>
-              <td>${payments.formatAmount(row.summary.totalCents)}</td>
-              <td>${payments.formatAmount(row.summary.paidCents)}</td>
-              <td>${payments.formatAmount(row.summary.balanceCents)}</td>
-              <td>${formatDate(row.summary.depositDueOn)}</td>
-              <td>${row.summary.balanceDueOn ? formatDate(row.summary.balanceDueOn) : '–'}</td>
-              <td>${row.reminded_at ? formatDate(payments.localDay(row.reminded_at)) : '–'}</td>
-            </tr>`)}</tbody>
-          </table></div>` : html`<p>Geen aanmeldingen in deze weergave.</p>`}`,
+          ${ui.renderTable({
+          caption: 'Betalingen per aanmelding',
+          empty: 'Geen aanmeldingen in deze weergave.',
+          rows,
+          columns: [
+            { label: 'Referentie', cell: (row) => html`<a href="/app/betalingen/${row.id}/">${row.reference}</a>` },
+            { label: 'Naam', cell: (row) => `${row.last_name}, ${row.call_name || row.first_names}` },
+            { label: 'Reis', cell: (row) => `${row.trip_title}${row.trip_code ? ` (${row.trip_code})` : ''}` },
+            { label: 'Vertrek', cell: (row) => formatDate(row.departure_date) },
+            { label: 'Status', cell: (row) => html`${ui.renderStatus(row.summary.state, payments.PAYMENT_STATES[row.summary.state])}${row.summary.overdue ? html` <span class="crm-badge">${row.summary.overdue} te laat</span>` : ''}` },
+            { label: 'Totaal', numeric: true, cell: (row) => payments.formatAmount(row.summary.totalCents) },
+            { label: 'Betaald', numeric: true, cell: (row) => payments.formatAmount(row.summary.paidCents) },
+            { label: 'Openstaand', numeric: true, cell: (row) => payments.formatAmount(row.summary.balanceCents) },
+            { label: 'Aanbetaling uiterlijk', cell: (row) => formatDate(row.summary.depositDueOn) },
+            { label: 'Restant uiterlijk', cell: (row) => (row.summary.balanceDueOn ? formatDate(row.summary.balanceDueOn) : '–') },
+            { label: 'Laatste herinnering', cell: (row) => (row.reminded_at ? formatDate(payments.localDay(row.reminded_at)) : '–') },
+          ],
+        })}`,
       }));
     } catch (error) {
       return next(error);

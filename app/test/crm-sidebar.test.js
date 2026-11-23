@@ -98,7 +98,7 @@ test('beheer: eigen omgeving met tweede zijbalk, weg terug en alle onderdelen pe
   }
   for (const href of ['/app/gebruikers/', '/app/auditlog/']) assert.match(page, new RegExp(`href="${href}"`), href);
   // De titel staat in de inhoudskolom, naast de tweede zijbalk.
-  assert.match(page, /<div class="crm-beheer-main">\s*<h1 class="crm-title">Test<\/h1>/);
+  assert.match(page, /<div class="crm-beheer-main">\s*<div class="crm-pagehead"><h1 class="crm-title">Test<\/h1><\/div>/);
   // Gebruikers en auditlog horen bij Beheer.
   const users = pageFor('beheerder', { path: '/app/gebruikers/' });
   assert.match(users, /href="\/app\/gebruikers\/" aria-current="page"/);

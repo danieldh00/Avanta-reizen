@@ -8,6 +8,7 @@
 const express = require('express');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
+const ui = require('../crm/ui');
 const { searchPatterns } = require('../crm/person-routes');
 const { formatDate, isoDate, tripPath } = require('../site/format');
 const { KINDS } = require('./categories');
@@ -108,33 +109,36 @@ function createTripRoutes(options) {
       const page = Math.min(Math.max(Number.parseInt(req.query.pagina, 10) || 1, 1), 1000);
       const rows = await trips.list({ status, patterns, limit: PAGE_SIZE + 1, offset: (page - 1) * PAGE_SIZE });
       const items = rows.slice(0, PAGE_SIZE);
-      const query = (extra) => new URLSearchParams({ status, ...(text ? { q: text } : {}), ...extra }).toString();
       return res.send(renderCrmPage({
         title: 'Reizen',
         user: req.user,
         csrf: req.session.csrf,
         path: BASE,
-        body: html`<p><a class="btn btn--small" href="${BASE}nieuw/">Nieuwe reis</a></p>
-          <nav class="media-folders" aria-label="Filter"><ul>${Object.entries(STATUS_FILTERS).map(([key, label]) => html`<li><a href="${BASE}?${new URLSearchParams({ status: key, ...(text ? { q: text } : {}) }).toString()}"${key === status ? raw(' aria-current="page"') : ''}>${label}</a></li>`)}</ul></nav>
-          <form class="crm-search" method="get" action="${BASE}" role="search">
-            <input type="hidden" name="status" value="${status}">
-            <label for="veld-q">Zoek op titel, reiscode of slug</label>
-            <input id="veld-q" name="q" type="search" value="${text}" maxlength="100">
-            <button class="btn btn--small" type="submit">Zoeken</button>
-          </form>
-          ${items.length ? html`<div class="crm-table-wrap"><table class="crm-table">
-            <thead><tr><th>Vertrek</th><th>Reiscode</th><th>Titel</th><th>Landen</th><th>Reisleider</th><th>Plaatsen</th><th>Status</th></tr></thead>
-            <tbody>${items.map((trip) => html`<tr>
-              <td>${formatDate(trip.departure_date) || '–'}</td>
-              <td>${trip.trip_code || '–'}</td>
-              <td><a href="${BASE}${trip.id}/">${trip.title}</a></td>
-              <td>${trip.countries.join(', ') || '–'}</td>
-              <td>${trip.guides.join(', ') || '–'}</td>
-              <td>${seatsText(trip)}</td>
-              <td>${trip.published ? (seatSummary(trip).full ? 'volgeboekt' : 'gepubliceerd') : html`<span class="crm-badge">concept</span>`}</td>
-            </tr>`)}</tbody>
-          </table></div>` : html`<p>Geen reizen gevonden.</p>`}
-          <p>${page > 1 ? html`<a href="${BASE}?${query({ pagina: String(page - 1) })}">Vorige</a> ` : ''}${rows.length > PAGE_SIZE ? html`<a href="${BASE}?${query({ pagina: String(page + 1) })}">Volgende</a>` : ''}</p>`,
+        actions: ui.renderActions([{ label: 'Nieuwe reis', href: `${BASE}nieuw/`, primary: true }]),
+        body: html`${ui.renderFilterTabs({
+          base: BASE,
+          name: 'status',
+          current: status,
+          params: { q: text },
+          label: 'Status',
+          options: Object.entries(STATUS_FILTERS).map(([key, label]) => ({ value: key, label })),
+        })}
+          ${ui.renderSearch({ action: BASE, label: 'Zoek op titel, reiscode of slug', value: text, hidden: { status } })}
+          ${ui.renderTable({
+          caption: 'Reizen',
+          empty: 'Geen reizen gevonden.',
+          rows: items,
+          columns: [
+            { label: 'Vertrek', cell: (trip) => formatDate(trip.departure_date) || '–' },
+            { label: 'Reiscode', cell: (trip) => trip.trip_code || '–' },
+            { label: 'Titel', cell: (trip) => html`<a href="${BASE}${trip.id}/">${trip.title}</a>` },
+            { label: 'Landen', cell: (trip) => trip.countries.join(', ') || '–' },
+            { label: 'Reisleider', cell: (trip) => trip.guides.join(', ') || '–' },
+            { label: 'Plaatsen', cell: (trip) => seatsText(trip) },
+            { label: 'Status', cell: (trip) => (trip.published ? (seatSummary(trip).full ? ui.renderStatus('vol', 'Volgeboekt') : ui.renderStatus('gepubliceerd', 'Gepubliceerd')) : ui.renderStatus('concept', 'Concept')) },
+          ],
+        })}
+          ${ui.renderPager({ base: BASE, params: { status, q: text }, page, hasNext: rows.length > PAGE_SIZE })}`,
       }));
     } catch (error) {
       return next(error);

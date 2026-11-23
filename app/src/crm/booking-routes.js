@@ -12,6 +12,7 @@ const { FIELDS } = require('../booking/fields');
 const { roleHasGlobalRight } = require('./rights');
 const { searchPatterns } = require('./person-routes');
 const { renderCrmPage, renderAlert, formatDateTime } = require('./layout');
+const ui = require('./ui');
 const payments = require('./payments');
 
 /** De statussen met hun naam op het scherm, in volgorde. */
@@ -130,7 +131,7 @@ function createBookingRoutes(options) {
       const tripId = /^\d{1,9}$/.test(String(req.query.reis || '')) ? Number(req.query.reis) : null;
       const { text, patterns } = searchPatterns(req.query.q);
       const page = Math.min(Math.max(Number.parseInt(req.query.pagina, 10) || 1, 1), 10000);
-      const [rows, trips] = await Promise.all([
+      const [rows, trips, counts] = await Promise.all([
         db.query(
           `SELECT id, reference, trip_title, trip_code, departure_date, status, created_at, first_names, call_name, last_name, city
              FROM bookings
@@ -150,36 +151,61 @@ function createBookingRoutes(options) {
             WHERE EXISTS (SELECT 1 FROM bookings b WHERE b.trip_id = t.id)
             ORDER BY t.departure_date DESC NULLS LAST, t.id`,
         ),
+        // Aantallen per status binnen de gekozen reis en zoektekst, voor de filterknoppen.
+        db.query(
+          `SELECT status, count(*)::int AS total
+             FROM bookings
+            WHERE ($1::int IS NULL OR trip_id = $1)
+              AND NOT EXISTS (
+                    SELECT 1 FROM unnest($2::text[]) AS term
+                     WHERE lower(reference || ' ' || last_name || ' ' || first_names || ' ' || call_name || ' ' || email || ' ' || coalesce(trip_code, '')) NOT LIKE term
+                  )
+            GROUP BY status`,
+          [tripId, patterns],
+        ),
       ]);
       const list = rows.slice(0, PAGE_SIZE);
-      const query = (extra) => new URLSearchParams({ ...(text ? { q: text } : {}), ...(status ? { status } : {}), ...(tripId ? { reis: String(tripId) } : {}), ...extra }).toString();
+      const filters = { q: text, reis: tripId };
+      const perStatus = new Map(counts.map((row) => [row.status, row.total]));
+      const total = counts.reduce((sum, row) => sum + row.total, 0);
       return res.send(renderCrmPage({
         title: 'Aanmeldingen',
         user: req.user,
         csrf: req.session.csrf,
         path: '/app/aanmeldingen/',
-        body: html`<form class="crm-search" method="get" action="/app/aanmeldingen/" role="search">
-            <label for="veld-q">Zoek op referentie, naam, e-mailadres of reiscode</label>
-            <input id="veld-q" name="q" type="search" value="${text}" maxlength="100">
-            <label for="veld-status" class="visually-hidden">Status</label>
-            <select id="veld-status" name="status"><option value="">Alle statussen</option>${Object.entries(STATUSES).map(([key, label]) => html`<option value="${key}"${key === status ? raw(' selected') : ''}>${label}</option>`)}</select>
-            <label for="veld-reis" class="visually-hidden">Reis</label>
-            <select id="veld-reis" name="reis"><option value="">Alle reizen</option>${trips.map((trip) => html`<option value="${trip.id}"${trip.id === tripId ? raw(' selected') : ''}>${trip.title}${trip.trip_code ? ` (${trip.trip_code})` : ''}</option>`)}</select>
-            <button class="btn btn--small" type="submit">Zoeken</button>
-          </form>
-          ${tripId && roleHasGlobalRight(req.user.role, 'export.deelnemers') ? html`<p><a href="/app/deelnemerslijsten/#reis-${tripId}">Deelnemerslijst van deze reis (.xlsx)</a></p>` : ''}
-          ${list.length ? html`<div class="crm-table-wrap"><table class="crm-table">
-            <thead><tr><th scope="col">Referentie</th><th scope="col">Naam</th><th scope="col">Reis</th><th scope="col">Vertrek</th><th scope="col">Status</th><th scope="col">Aangemeld</th></tr></thead>
-            <tbody>${list.map((booking) => html`<tr>
-              <td><a href="/app/aanmeldingen/${booking.id}/">${booking.reference}</a></td>
-              <td>${booking.last_name}, ${booking.call_name || booking.first_names}</td>
-              <td>${booking.trip_title}${booking.trip_code ? ` (${booking.trip_code})` : ''}</td>
-              <td>${formatDate(booking.departure_date)}</td>
-              <td><span class="crm-status crm-status--${booking.status}">${STATUSES[booking.status] || booking.status}</span></td>
-              <td>${formatDateTime(booking.created_at)}</td>
-            </tr>`)}</tbody>
-          </table></div>` : html`<p>Geen aanmeldingen gevonden.</p>`}
-          <p>${page > 1 ? html`<a href="/app/aanmeldingen/?${query({ pagina: String(page - 1) })}">Vorige</a> ` : ''}${rows.length > PAGE_SIZE ? html`<a href="/app/aanmeldingen/?${query({ pagina: String(page + 1) })}">Volgende</a>` : ''}</p>`,
+        actions: ui.renderActions([
+          tripId && roleHasGlobalRight(req.user.role, 'export.deelnemers') ? { label: 'Deelnemerslijst (.xlsx)', href: `/app/deelnemerslijsten/#reis-${tripId}` } : null,
+        ]),
+        body: html`${ui.renderFilterTabs({
+          base: '/app/aanmeldingen/',
+          name: 'status',
+          current: status,
+          params: filters,
+          label: 'Status',
+          options: [{ value: '', label: 'Alle', count: total }, ...Object.entries(STATUSES).map(([key, label]) => ({ value: key, label, count: perStatus.get(key) || 0 }))],
+        })}
+          ${ui.renderSearch({
+          action: '/app/aanmeldingen/',
+          label: 'Zoek op referentie, naam, e-mailadres of reiscode',
+          value: text,
+          hidden: { status },
+          extra: html`<label for="veld-reis" class="visually-hidden">Reis</label>
+            <select id="veld-reis" name="reis"><option value="">Alle reizen</option>${trips.map((trip) => html`<option value="${trip.id}"${trip.id === tripId ? raw(' selected') : ''}>${trip.title}${trip.trip_code ? ` (${trip.trip_code})` : ''}</option>`)}</select>`,
+        })}
+          ${ui.renderTable({
+          caption: 'Aanmeldingen',
+          empty: 'Geen aanmeldingen gevonden.',
+          rows: list,
+          columns: [
+            { label: 'Referentie', cell: (booking) => html`<a href="/app/aanmeldingen/${booking.id}/">${booking.reference}</a>` },
+            { label: 'Naam', cell: (booking) => `${booking.last_name}, ${booking.call_name || booking.first_names}` },
+            { label: 'Reis', cell: (booking) => `${booking.trip_title}${booking.trip_code ? ` (${booking.trip_code})` : ''}` },
+            { label: 'Vertrek', cell: (booking) => formatDate(booking.departure_date) },
+            { label: 'Status', cell: (booking) => ui.renderStatus(booking.status, STATUSES[booking.status] || booking.status) },
+            { label: 'Aangemeld', cell: (booking) => formatDateTime(booking.created_at) },
+          ],
+        })}
+          ${ui.renderPager({ base: '/app/aanmeldingen/', params: { ...filters, status }, page, hasNext: rows.length > PAGE_SIZE })}`,
       }));
     } catch (error) {
       return next(error);

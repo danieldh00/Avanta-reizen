@@ -116,6 +116,8 @@ test('aanmeldingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     const byTrip = await request(`/app/aanmeldingen/?reis=${other.id}`, { cookie: kantoor.cookie });
     assert.doesNotMatch(byTrip.text, /AV-2026-AAAA0001/);
     assert.match(byTrip.text, /AV-2026-BBBB0002/);
+    assert.match(byTrip.text, />Alle <span class="crm-tabs-count">1<\/span><\/a>/, 'aantallen binnen de gekozen reis');
+    assert.match(byTrip.text, new RegExp(`href="/app/aanmeldingen/\\?reis=${other.id}&amp;status=nieuw"`), 'filterknop houdt de reis vast');
     assert.match((await request('/app/aanmeldingen/?q=jansen', { cookie: kantoor.cookie })).text, /AV-2026-AAAA0001/);
     assert.match((await request('/app/aanmeldingen/?status=betaald', { cookie: kantoor.cookie })).text, /Geen aanmeldingen gevonden/);
     assert.equal((await request("/app/aanmeldingen/?status=x'&reis=abc", { cookie: kantoor.cookie })).status, 200, 'onbekende filters worden genegeerd');

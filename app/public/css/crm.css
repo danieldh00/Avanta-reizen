@@ -70,6 +70,40 @@
 .crm-removed ul { margin: .5rem 0 0; padding-left: 1.25rem; overflow-wrap: anywhere; }
 .crm-reminders { margin: 0 0 1rem; padding-left: 1.25rem; overflow-wrap: anywhere; }
 .crm-search select { max-width: 100%; }
+/* Gedeelde bouwstenen voor lijsten (crm/ui.js): paginakop met acties, filterknoppen, statuslabels, tabel en bladeren. */
+.crm-pagehead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin: 0 0 1rem; }
+.crm-pagehead .crm-title { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.crm-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.crm-tabs { margin: 0 0 1rem; }
+.crm-tabs ul { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0; padding: 0; list-style: none; }
+.crm-tabs a { display: inline-flex; align-items: center; gap: .4rem; min-height: 32px; padding: .2rem .75rem; background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 999px; color: var(--crm-text); text-decoration: none; font-size: 14px; }
+.crm-tabs a:hover, .crm-tabs a:focus-visible { border-color: var(--av-accent); color: var(--av-accent-dark); }
+.crm-tabs a[aria-current="true"] { background: var(--av-accent); border-color: var(--av-accent); color: var(--av-white); font-weight: 600; }
+.crm-tabs-count { min-width: 1.4rem; padding: 0 .35rem; border-radius: 999px; background: var(--crm-ground); color: var(--crm-ink); font-size: 12px; font-weight: 600; text-align: center; }
+.crm-tabs a[aria-current="true"] .crm-tabs-count { background: var(--av-white); color: var(--av-accent-dark); }
+.crm-search { padding: .6rem .75rem; background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 8px; }
+.crm-search > label:not(.visually-hidden):not(.choice) { font-size: 14px; color: var(--crm-text); }
+.crm-summary { margin: 0 0 .75rem; color: var(--crm-text); }
+.crm-empty { margin: 0 0 1rem; padding: 1.5rem 1rem; background: var(--av-white); border: 1px dashed var(--crm-line); border-radius: 8px; color: var(--crm-text); text-align: center; }
+.crm-table tbody tr:hover { background: #fafafb; }
+.crm-table tbody tr:last-child td { border-bottom: 0; }
+.crm-table .crm-num { text-align: right; font-variant-numeric: tabular-nums; }
+.crm-status { padding: .05rem .55rem; border: 0; border-radius: 999px; font-size: 13px; font-weight: 600; background: #eeeef0; color: #4a4950; }
+.crm-status--nieuw, .crm-status--open { background: #e4edf8; color: #1f4b7a; }
+.crm-status--bevestigd, .crm-status--aanbetaald { background: #fbf0d9; color: #734600; }
+.crm-status--betaald, .crm-status--gepubliceerd { background: #e2f1e5; color: #1e5a2c; }
+.crm-status--teveel, .crm-status--vol { background: #f7e6e2; color: #8a3f31; }
+.crm-status--geannuleerd { background: #eeeef0; color: #4a4950; text-decoration: line-through; }
+.crm-pager { display: flex; align-items: center; gap: .75rem; margin: 1rem 0 0; }
+.crm-pager-page, .crm-pager-off { font-size: 14px; color: var(--crm-text); }
+.crm-pager-off { padding: .3rem .7rem; opacity: .6; }
+@media (max-width: 800px) {
+  .crm-tabs a { min-height: 44px; padding: .2rem .9rem; }
+  .crm-search { align-items: stretch; }
+  .crm-search input[type="search"], .crm-search select { flex: 1 1 100%; max-width: 100%; }
+  .crm-pager { justify-content: space-between; }
+  .crm-actions .btn, .crm-search .btn, .crm-pager .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
+}
 @media (max-width: 800px) { .crm-columns { grid-template-columns: minmax(0, 1fr); gap: 1rem; } }
 /* Fotobibliotheek: uploadblok, raster met foto's (vaste verhouding 4:3) en voorbeeld. */
 .media-upload summary { cursor: pointer; }
