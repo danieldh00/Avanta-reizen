@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const { screenType, areaOf, groupFindings } = require('../tools/design-check/check');
 const { buildSheets } = require('../tools/design-check/report');
 const { runPageChecks } = require('../tools/design-check/page-checks');
-const { assertLocalDatabase } = require('../tools/design-check/seed');
+const { assertLocalDatabase, assertLocalBaseUrl } = require('../tools/design-check/seed');
 
 /**
  * Laadt Playwright als het beschikbaar is.
@@ -72,6 +72,15 @@ test('testgegevens alleen in een lokale test- of ontwerpdatabase', () => {
   assert.throws(() => assertLocalDatabase('postgres://avanta:x@localhost/avanta?hostaddr=10.0.0.5'), /10\.0\.0\.5/);
   assert.throws(() => assertLocalDatabase('postgres://avanta:x@localhost/avanta'), /test- of ontwerpdatabase/);
   assert.throws(() => assertLocalDatabase(''), /DATABASE_URL ontbreekt/);
+  assert.throws(() => assertLocalDatabase('postgres://avanta:x@localhost/avanta_latest'), /test- of ontwerpdatabase/, 'alleen als los deel van de naam');
+  assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@localhost/avanta-test'));
+});
+
+test('testgegevens alleen via een lokale app', () => {
+  assert.doesNotThrow(() => assertLocalBaseUrl('http://localhost:3400'));
+  assert.doesNotThrow(() => assertLocalBaseUrl('http://127.0.0.1:3400/'));
+  assert.throws(() => assertLocalBaseUrl('https://www.avantareizen.nl'), /alleen tegen een lokale app/);
+  assert.throws(() => assertLocalBaseUrl('geen adres'), /DESIGN_BASE_URL is ongeldig/);
 });
 
 test('testgegevens: zonder host in het adres tellen PGHOST en PGHOSTADDR mee', (t) => {
