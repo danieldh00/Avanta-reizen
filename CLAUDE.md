@@ -3,7 +3,7 @@
 > Korte ingang voor agents: `AGENTS.md` (kaart, commando's, kernregels). Dit bestand is het volledige werkgeheugen; bij
 > tegenspraak geldt dit bestand. Vaste werkwijze om verbruik te besparen: sectie *Zuinig werken* in `AGENTS.md`.
 
-> **Werkwijze en context:** de algemene werkwijze (projectonafhankelijk, gelijk aan die van AquaTech) staat in
+> **Werkwijze en context:** de algemene werkwijze (projectonafhankelijk) staat in
 > `docs/WERKWIJZE.md`; de Avanta-specifieke context (product, bedrijfsregels, omgeving) in `docs/AVANTA-CONTEXT.md`;
 > de indeling in modules, de gedeelde kernbestanden en de regels voor parallel werken in `docs/ARCHITECTUUR.md`.
 
@@ -50,6 +50,7 @@ niet deze tabel (alleen een nieuwe map krijgt hier een regel).
 | `app/src/services.js` | `createServices` (alle gedeelde diensten per module: instellingen, logboek, mail, back-ups, bewaking, betalingen, …; ook op `app.locals`) en `startBackgroundTasks` (timers en planners; een nieuwe achtergrondtaak komt hier) |
 | `app/src/database/` | pool, transacties en migraties (één bestand per migratie); details per bestand: `app/src/database/CLAUDE.md` |
 | `app/src/site/` | publieke website: routes, queries, weergave, SEO, doorverwijzingen; details per bestand: `app/src/site/CLAUDE.md` |
+| `app/src/contact/` | contactformulier op `/contact/`; details per bestand: `app/src/contact/CLAUDE.md` |
 | `app/src/booking/` | aanmeldformulier en de aanmeldingen in het CRM; details per bestand: `app/src/booking/CLAUDE.md` |
 | `app/src/account/` | `/account/`: registreren, inloggen, Mijn reizen; details per bestand: `app/src/account/CLAUDE.md` |
 | `app/src/export/` | eigen .xlsx-schrijver; gebruik hem voor elke Excel-export; details per bestand: `app/src/export/CLAUDE.md` |
@@ -113,6 +114,9 @@ Regels:
 ## Harde regels
 - UI-teksten, commentaar, changelog en docs in het **Nederlands**; tijden in Europe/Amsterdam.
 - Exports: **Excel (.xlsx), geen CSV**, tenzij expliciet anders gevraagd.
+- **Geen verwijzingen naar andere projecten** (namen, repository's, bestandspaden, containernamen) in code,
+  commentaar, docs, changelog, commits of PR-teksten; ook niet als bron van een aanpak. De test
+  `tests/geen-andere-projecten.test.js` bewaakt de bestanden.
 - Geen modelnamen/-ID's in commits, PR's, code of docs. Nooit secrets, wachtwoorden of persoonsgegevens in repo,
   chat of geheugen.
 - **Servertaken**: geef Daniël nooit losse servercommando's in de chat; zie `docs/WERKWIJZE.md`, *Servertaken en scripts*.

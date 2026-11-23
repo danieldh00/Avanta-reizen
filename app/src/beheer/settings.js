@@ -1,5 +1,5 @@
 /**
- * Instellingen van de app, te beheren onder Beheer (`/app/beheer/`, recht `systeem`). Zelfde opzet als in Aquatech:
+ * Instellingen van de app, te beheren onder Beheer (`/app/beheer/`, recht `systeem`). Opzet:
  * - Elke instelling staat in `SETTING_FIELDS` (per groep in `beheer/instellingen/<groep>.js`) met type, standaardwaarde, eventueel een omgevingsvariabele en grenzen.
  * - Volgorde per instelling: database (tabel `settings`) → omgevingsvariabele → standaardwaarde. De omgeving is dus
  *   alleen een startwaarde; wat in Beheer is opgeslagen gaat voor en werkt zonder herstart.

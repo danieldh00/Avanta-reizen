@@ -1,5 +1,5 @@
 /**
- * E-mail versturen via de mailserver uit Beheer > E-mail > Mailserver (aanpak uit AquaTech, `platform/mailer.js`):
+ * E-mail versturen via de mailserver uit Beheer > E-mail > Mailserver:
  * - `smtp`: inloggen met gebruikersnaam en wachtwoord (poort 587 met STARTTLS of 465 met SSL/TLS);
  * - `connector`: Exchange Online-connector op IP-basis (poort 25, geen inlog; Microsoft vertrouwt het WAN-IP).
  * De mailserver moet een openbaar adres hebben (`security/netguard.js`); er wordt verbonden met het gevonden adres en

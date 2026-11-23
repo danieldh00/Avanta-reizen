@@ -34,16 +34,16 @@ reisgenoot, bijzonderheden (medisch), eerdere reizen, creditcard, chauffeur (int
 **Huisstijl**: tekst `#434248`, accent terracotta `#c47362`, groen `#81986a`, grijs `#6b6b6b`/`#bcbcbd`;
 koppen Playfair Display, tekst Open Sans.
 
-## Keuzes (aanbeveling, gelijk aan AquaTech zodat beheer en werkwijze hetzelfde blijven)
+## Keuzes (aanbeveling)
 | Onderwerp | Keuze | Waarom |
 |---|---|---|
 | Backend | Node 22 + Express, server-gerenderde HTML | geen build-stap, snel, SEO-vriendelijk; CRM in dezelfde app |
 | Database | PostgreSQL 17 | CRM-gegevens en content in één database |
-| Frontend | gewone HTML/CSS/JS, geen CDN, fonts lokaal | AVG (geen Google Fonts/trackers), zelfde regels als AquaTech |
+| Frontend | gewone HTML/CSS/JS, geen CDN, fonts lokaal | AVG (geen Google Fonts/trackers) |
 | Content-overzetting | eenmalig importscript (`tools/import-wordpress.js`) → PostgreSQL; afbeeldingen naar de dataopslag | herhaalbaar tot go-live |
 | Formulieren | eigen formulieren met eigen captcha en limieten | geen reCAPTCHA (Google) |
 | Betalen | iDEAL via Mollie (of de huidige provider), pas bij go-live | nu alleen "handmatig" |
-| Hosting | Docker op de eigen server, zoals AquaTech | zelfde updatemechanisme |
+| Hosting | Docker op de eigen server | updaten vanuit de app |
 | Indexeren | **noindex tot go-live** | geen dubbele content naast de huidige site |
 
 ## AVG-aandachtspunten (vóór het CRM)
@@ -63,7 +63,7 @@ koppen Playfair Display, tekst Open Sans.
 7. ⏳ CRM fase 2: aparte opzet in `docs/OPZET-CRM.md`.
 
 ## Open vragen
-1. Hosting: dezelfde server als AquaTech (Docker + tunnel) of elders?
+1. Hosting: de eigen server (Docker + tunnel) of elders?
 2. Betaalprovider: Mollie, Buckaroo of OmniKassa (alle drie staan in de huidige site)?
 3. Uiterlijk: zelfde ontwerp als nu, of meteen een opgefriste versie in dezelfde huisstijl?
 4. Kerkgenootschap in het formulier houden?

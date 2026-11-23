@@ -358,7 +358,7 @@
   .crm--nav .crm-page { padding-left: 0 !important; }
 }
 
-/* Beheer (/app/beheer/, gebruikers, auditlog): eigen omgeving met een tweede, lichte zijbalk (zoals in Aquatech). Breed
+/* Beheer (/app/beheer/, gebruikers, auditlog): eigen omgeving met een tweede, lichte zijbalk. Breed
    scherm: vast naast de inhoud, meeschuivend (sticky). Smal scherm (≤ 800px): een knop met het huidige onderdeel opent
    de lijst; zonder JavaScript staat de lijst open boven de inhoud. */
 .crm-main--beheer { max-width: none; }

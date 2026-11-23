@@ -29,7 +29,7 @@ function merge(response) {
   }
 }
 
-const HUB = { hostname: 'hub.den-hollander.com', service: 'http://aquatech:3300', originRequest: { noTLSVerify: false } };
+const HUB = { hostname: 'hub.den-hollander.com', service: 'http://hub:3300', originRequest: { noTLSVerify: false } };
 const CATCH_ALL = { service: 'http_status:404' };
 
 test('nieuwe regel komt vóór de catch-all; andere regels en instellingen blijven', () => {

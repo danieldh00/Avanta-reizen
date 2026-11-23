@@ -1,6 +1,6 @@
 /**
  * Onzichtbare captcha (Google reCAPTCHA v3) op de openbare formulieren (contact en aanmelden), naast de honeypot, het
- * ondertekende tijdstempel en de limiet uit `security/form-guard.js`. Aanpak uit AquaTech (`beveiliging/captcha.js`):
+ * ondertekende tijdstempel en de limiet uit `security/form-guard.js`. Aanpak:
  * - Alleen actief met de schakelaar aan, een geldige sitesleutel en het geheim (Beheer > Toegang en beveiliging >
  *   Captcha). Anders doet dit bestand niets: geen Google in de pagina, de CSP blijft gelijk.
  * - De browser krijgt alleen de sitesleutel; het geheim gaat alleen naar het vaste controleadres van Google.

@@ -1,5 +1,5 @@
 # Test/staging-stack op apps01 (Proxmox): app + eigen PostgreSQL 17. Geen eigen tunnel: de bestaande cloudflared op
-# apps01 (aquatech-cloudflared) stuurt avanta.den-hollander.com door naar http://avanta-app:3400 via zijn Docker-netwerk.
+# apps01 stuurt avanta.den-hollander.com door naar http://avanta-app:3400 via zijn Docker-netwerk.
 # Projectnaam vast op "avanta", zodat containers, netwerk en volumes los staan van andere stacks op de host.
 # Instellingen in .env naast dit bestand (zie .env.example); uitleg en commando's in README.md.
 name: avanta

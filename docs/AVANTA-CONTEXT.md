@@ -26,7 +26,7 @@ de opzet van website en CRM in `docs/OPZET-WEBSITE.md`.
 
 ## Omgeving
 - Repo `danieldh00/Avanta-reizen`, hoofdbranch `main`, applicatie in `app/` (poort 3400).
-- Hosting: nog te kiezen (voorstel: Docker op de eigen server zoals AquaTech). Database PostgreSQL 17.
+- Hosting: nog te kiezen (voorstel: Docker op de eigen server). Database PostgreSQL 17.
 - Huisstijl: tekst `#434248`, accent terracotta `#c47362`, groen `#81986a`; koppen Playfair Display, tekst Open Sans;
   logo `app/public/images/logo.png`.
 - Contact: T 0118 638427, E info@avantareizen.nl.

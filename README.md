@@ -348,7 +348,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     *Persoon wissen* (typ WISSEN) anonimiseert de persoon en de bijbehorende aanmeldingen met dezelfde functie als de
     dagelijkse opschoning en verwijdert het reizigersaccount met hetzelfde e-mailadres; audit `deelnemer.gewist`. Bij een
     lopende of toekomstige reis weigert het (422) tenzij *ook wissen bij een lopende reis* is aangevinkt.
-  - **Tweestapsverificatie (2FA)** met een authenticator-app (TOTP, RFC 6238; eigen code op `crypto`, zoals AquaTech).
+  - **Tweestapsverificatie (2FA)** met een authenticator-app (TOTP, RFC 6238; eigen code op `crypto`).
     Na het juiste wachtwoord krijgt wie 2FA heeft of moet hebben eerst een *halve sessie* (15 minuten): daarmee is
     alleen de codestap (`/app/inloggen/code/`) of het instellen (`/app/tweestaps/`) bereikbaar; pas na de code volgt
     een volledige sessie met een nieuw token. Standaard optioneel (ieder zet het zelf aan onder *Tweestapsverificatie*);
@@ -401,11 +401,11 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   CRM-opmaak meer. Het CRM is compacter dan de site (15 px, koppen in Open Sans, velden van 40 px en 44 px op een
   telefoon) en gebruikt een donkerdere tint van de huisstijlkleur (`#a8503f`), zodat knoppen en links het contrast van
   WCAG AA halen.
-- **Beheer als eigen omgeving** (zoals in AquaTech): op `/app/beheer/…`, `/app/gebruikers/` en `/app/auditlog/` staat
+- **Beheer als eigen omgeving**: op `/app/beheer/…`, `/app/gebruikers/` en `/app/auditlog/` staat
   naast de hoofdzijbalk een tweede, lichte zijbalk met *Terug naar het CRM*, het zoekveld en de onderdelen per
   onderwerp (Gebruikers, Systeem, Organisatie, E-mail, CRM, Toegang en beveiliging, Back-ups en herstel,
   Vindbaarheid). Tot 800 px klapt die samen tot een knop met het huidige onderdeel boven de inhoud.
-- **Beheer** op `/app/beheer/` (alleen de rol beheerder, recht `systeem`; opzet zoals in AquaTech): groepen en secties
+- **Beheer** op `/app/beheer/` (alleen de rol beheerder, recht `systeem`): groepen en secties
   in de tweede zijbalk van Beheer, het zoekveld filtert die, een systeemoverzicht (versie, Node.js, PostgreSQL, laatste migratie, looptijd en de bron van elke
   instelling) en instellingenformulieren. Instellingen staan in de tabel `settings` (`app/src/beheer/settings.js`):
   wat in Beheer is opgeslagen gaat voor een omgevingsvariabele (startwaarde), die weer voor de standaard; per instelling
@@ -531,7 +531,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
 
 ## Werkwijze
 
-Repository opgezet volgens dezelfde werkwijze als AquaTech Hub: Claude Code werkt in kleine PR's op een eigen branch,
+Werkwijze van deze repository: Claude Code werkt in kleine PR's op een eigen branch,
 elke PR krijgt een verplichte Claude code review en security review, en versie + changelog worden na de merge
 automatisch bijgewerkt uit releasenotes-fragmenten.
 
@@ -540,7 +540,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 |---|---|
 | `CLAUDE.md` | werkgeheugen voor Claude Code (wordt automatisch gelezen) |
 | `AGENTS.md` | korte kaart voor agents, sectie *Zuinig werken* |
-| `docs/WERKWIJZE.md` | projectonafhankelijke werkwijze (gelijk aan AquaTech) |
+| `docs/WERKWIJZE.md` | projectonafhankelijke werkwijze |
 | `docs/AVANTA-CONTEXT.md` | productcontext, bedrijfsregels, AVG en omgeving |
 | `docs/ARCHITECTUUR.md` | indeling in modules, gedeelde kernbestanden, migraties per bestand en regels voor parallel werken |
 | `docs/CLAUDE-sjabloon.md` | sjabloon voor `CLAUDE.md` in een volgend project |

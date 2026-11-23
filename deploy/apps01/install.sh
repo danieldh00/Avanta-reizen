@@ -3,14 +3,14 @@
 # geheimen bij de eerste keer, koppeling aan het netwerk van de bestaande cloudflared, image bouwen, stack starten,
 # gezondheid controleren en bij een lege database de content importeren.
 # Draait als root op apps01; normaal aangeroepen door pve-setup.sh vanaf de Proxmox-host.
-# Gebruik: sudo install.sh [git-ref]      Optioneel: TUNNEL_CONTAINER (standaard aquatech-cloudflared), BASE_DIR,
+# Gebruik: sudo install.sh [git-ref]      Optioneel: TUNNEL_CONTAINER (naam van de cloudflared-container), BASE_DIR,
 #          INSTALL_PHASE=build (alleen code ophalen en het image bouwen; update.sh doet dat vóór de onderhoudsmodus).
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/danieldh00/Avanta-reizen.git}"
 BASE_DIR="${BASE_DIR:-/opt/apps/avanta}"
 REF="${1:-${AVANTA_REF:-main}}"
-TUNNEL_CONTAINER="${TUNNEL_CONTAINER:-aquatech-cloudflared}"
+TUNNEL_CONTAINER="${TUNNEL_CONTAINER:-}"
 REPO_DIR="$BASE_DIR/repo"
 STACK_DIR="$REPO_DIR/deploy/apps01"
 
@@ -19,10 +19,21 @@ die() { echo "FOUT: $*" >&2; exit 1; }
 for tool in git docker openssl curl; do command -v "$tool" >/dev/null || die "ontbreekt: $tool"; done
 docker compose version >/dev/null 2>&1 || die "docker compose-plugin ontbreekt"
 
+# Naam van de bestaande cloudflared-container: uit de omgeving, anders uit de .env van een eerdere run, anders de enige
+# draaiende container waarvan de naam op "cloudflared" eindigt. Nooit raden als er meer dan één is.
+[ -n "$TUNNEL_CONTAINER" ] || TUNNEL_CONTAINER="$(sed -n 's/^TUNNEL_CONTAINER=//p' "$STACK_DIR/.env" 2>/dev/null | tail -n 1 || true)"
+if [ -z "$TUNNEL_CONTAINER" ]; then
+  candidates="$(docker ps --format '{{.Names}}' | grep -E 'cloudflared$' || true)"
+  case "$(grep -c . <<<"$candidates" || true)" in
+    1) TUNNEL_CONTAINER="$candidates" ;;
+    0) die "geen draaiende cloudflared-container gevonden; zet TUNNEL_CONTAINER=<naam>" ;;
+    *) die "meerdere cloudflared-containers ($(echo $candidates)); kies er een met TUNNEL_CONTAINER=<naam>" ;;
+  esac
+fi
 # Bestaande tunnel: het (eerste) Docker-netwerk van de cloudflared-container.
 docker inspect "$TUNNEL_CONTAINER" >/dev/null 2>&1 || die "container $TUNNEL_CONTAINER niet gevonden (zet TUNNEL_CONTAINER=<naam>)"
 # Keuze van het netwerk: TUNNEL_NETWORK (omgeving of bestaande .env) is leidend; anders alleen als de container in
-# precies één netwerk zit. Nooit raden: bij meerdere netwerken kan er een met de Aquatech-database tussen zitten.
+# precies één netwerk zit. Nooit raden: bij meerdere netwerken kan er een met de database van een andere applicatie tussen zitten.
 networks="$(docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$TUNNEL_CONTAINER" | grep -v '^$' || true)"
 [ -n "${TUNNEL_NETWORK:-}" ] || TUNNEL_NETWORK="$(sed -n 's/^TUNNEL_NETWORK=//p' "$STACK_DIR/.env" 2>/dev/null | tail -n 1 || true)"
 if [ -n "${TUNNEL_NETWORK:-}" ]; then

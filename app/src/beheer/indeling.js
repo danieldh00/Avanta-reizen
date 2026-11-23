@@ -1,5 +1,5 @@
 /**
- * Indeling van Beheer (`/app/beheer/`): groepen met secties, zoals de zijbalk in Aquatech. Een sectie is een pagina
+ * Indeling van Beheer (`/app/beheer/`): groepen met secties in de zijbalk. Een sectie is een pagina
  * onder `/app/beheer/<id>/`. Een sectie met `fields` is een instellingenformulier voor die instellingen uit
  * `beheer/settings.js`; een sectie met `view` heeft een eigen weergave in `beheer/routes.js`. `words` zijn extra
  * zoekwoorden voor het zoekveld. De groepen zelf staan per bestand in `beheer/instellingen/` (naast hun instellingen).

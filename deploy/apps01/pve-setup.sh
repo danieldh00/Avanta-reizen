@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Eén commando op de Proxmox-host (als root): installeert of werkt de Avanta-testomgeving bij op apps01 en voegt aan de
-# bestaande tunnel (aquatech-cloudflared) een losse public hostname toe: avanta.den-hollander.com -> http://avanta-app:3400.
-# Geen nieuwe tunnel. Herhaalbaar. apps01 wordt gezocht zoals in Aquatech: LXC via pct exec, anders ssh als
+# bestaande tunnel (de cloudflared-container op apps01) een losse public hostname toe: avanta.den-hollander.com -> http://avanta-app:3400.
+# Geen nieuwe tunnel. Herhaalbaar. apps01 wordt zo gezocht: LXC via pct exec, anders ssh als
 # daniel@apps01 met sudo -n (root-login via ssh staat uit).
 #
 # Gebruik (vaste commit, zie deploy/apps01/README.md):
 #   AVANTA_REF=<sha> bash <(curl -fsSL https://raw.githubusercontent.com/danieldh00/Avanta-reizen/<sha>/deploy/apps01/pve-setup.sh)
-# Optioneel: APPS01_NAME (apps01), APPS01_CTID, APPS01_SSH (daniel@apps01), TUNNEL_CONTAINER (aquatech-cloudflared), TUNNEL_NETWORK, CF_YES=1,
+# Optioneel: APPS01_NAME (apps01), APPS01_CTID, APPS01_SSH (daniel@apps01), TUNNEL_CONTAINER (naam van de cloudflared-container; leeg = zoeken), TUNNEL_NETWORK, CF_YES=1,
 #            HOSTNAME_FQDN (avanta.den-hollander.com), CF_API_TOKEN (anders gevraagd; leeg = hostname met de hand).
 set -euo pipefail
 
@@ -14,7 +14,8 @@ REF="${AVANTA_REF:?zet AVANTA_REF op de commit-SHA (of branch) die je wilt uitro
 NAME="${APPS01_NAME:-apps01}"
 FQDN="${HOSTNAME_FQDN:-avanta.den-hollander.com}"
 ZONE="${CF_ZONE:-${FQDN#*.}}"
-TUNNEL_CONTAINER="${TUNNEL_CONTAINER:-aquatech-cloudflared}"
+TUNNEL_CONTAINER="${TUNNEL_CONTAINER:-}"
+GUEST_ENV_FILE="/opt/apps/avanta/repo/deploy/apps01/.env"
 SERVICE_URL="http://avanta-app:3400"
 RAW="https://raw.githubusercontent.com/danieldh00/Avanta-reizen/${REF}/deploy/apps01/install.sh"
 API="https://api.cloudflare.com/client/v4"
@@ -46,9 +47,12 @@ run_guest true || die "apps01 niet bereikbaar (of sudo vraagt een wachtwoord); z
 run_guest "set -euo pipefail
 tmp=\$(mktemp -d); trap 'rm -rf \"\$tmp\"' EXIT
 curl -fsSL '$RAW' -o \"\$tmp/install.sh\"
-TUNNEL_CONTAINER='$TUNNEL_CONTAINER' ${TUNNEL_NETWORK:+TUNNEL_NETWORK='$TUNNEL_NETWORK'} bash \"\$tmp/install.sh\" '$REF'"
+${TUNNEL_CONTAINER:+TUNNEL_CONTAINER='$TUNNEL_CONTAINER'} ${TUNNEL_NETWORK:+TUNNEL_NETWORK='$TUNNEL_NETWORK'} bash \"\$tmp/install.sh\" '$REF'"
 
 # ---------- 3. Losse public hostname op de bestaande tunnel ----------
+# install.sh heeft de naam van de cloudflared-container in .env gezet (opgegeven of zelf gevonden).
+[ -n "$TUNNEL_CONTAINER" ] || TUNNEL_CONTAINER="$(run_guest "sed -n 's/^TUNNEL_CONTAINER=//p' '$GUEST_ENV_FILE' | tail -n 1" || true)"
+[ -n "$TUNNEL_CONTAINER" ] || die "naam van de cloudflared-container niet gevonden in $GUEST_ENV_FILE"
 # Account- en tunnel-id uit het token van de draaiende cloudflared (het geheime deel verlaat apps01 niet).
 ids="$(run_guest "docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' '$TUNNEL_CONTAINER' \
   | sed -n 's/^TUNNEL_TOKEN=//p' | base64 -d 2>/dev/null \

@@ -1,6 +1,5 @@
 /**
- * Kopie van de back-ups naar Google Drive (Beheer > Back-ups en herstel > Google Drive, pakket C2). Zelfde opzet als in
- * Aquatech:
+ * Kopie van de back-ups naar Google Drive (Beheer > Back-ups en herstel > Google Drive, pakket C2). Opzet:
  * - OAuth 2.0 met een eigen Google-app (client-ID en -secret uit de Google Cloud Console), scope `drive.file`: de app
  *   ziet en wijzigt alleen de map en bestanden die ze zelf aanmaakte, nooit de rest van de Drive.
  * - Wat naar Google gaat is al versleuteld met de hoofdsleutel (`backup/backups.js`): Google kan de inhoud niet lezen.

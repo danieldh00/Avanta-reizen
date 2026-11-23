@@ -1,5 +1,5 @@
 /**
- * Logboek van de app (tabel `app_logs`, Beheer > Systeem > Logboek), naar het voorbeeld van Aquatech: één plek voor
+ * Logboek van de app (tabel `app_logs`, Beheer > Systeem > Logboek): één plek voor
  * fouten (met foutcode), trage verzoeken, waarschuwingen en fouten van achtergrondtaken (via de console) en later de
  * bewaking. Elk verzoek krijgt een request-id (kop `X-Request-Id`) waarmee alles van één verzoek terug te vinden is.
  *

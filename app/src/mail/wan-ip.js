@@ -1,8 +1,7 @@
 /**
  * WAN-IP van deze server: het openbare IPv4-adres waarmee de server naar buiten verbindt (dus niet het adres van de
  * website achter Cloudflare). Een Exchange Online-connector op IP-basis moet precies dit adres vertrouwen. Opzoeken
- * bij een vaste externe dienst (nooit een adres uit invoer), met de uitkomst een uur in het geheugen. Aanpak uit
- * AquaTech (`platform/wan-ip.js`).
+ * bij een vaste externe dienst (nooit een adres uit invoer), met de uitkomst een uur in het geheugen.
  */
 const https = require('node:https');
 const net = require('node:net');

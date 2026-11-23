@@ -1,8 +1,8 @@
 /**
  * QR-code maken zonder bibliotheek, voor het aanzetten van tweestapsverificatie: de authenticator-app leest het
  * otpauth://-adres in. Alleen wat daarvoor nodig is: bytemodus, foutcorrectie M, versie 1 t/m 10 (tot 213 bytes),
- * automatische keuze van het masker (strafpunten volgens ISO/IEC 18004). Overgenomen uit AquaTech
- * (`hub/frontend/shared/qr-code.js`), hier alleen aan de serverkant: de pagina krijgt een SVG als data-adres.
+ * automatische keuze van het masker (strafpunten volgens ISO/IEC 18004).
+ * Hier alleen aan de serverkant: de pagina krijgt een SVG als data-adres.
  */
 /** Per versie (1-10) bij foutcorrectie M: codewoorden foutcorrectie per blok en de blokken [aantal, datacodewoorden]. */
 const BLOCKS_M = [
