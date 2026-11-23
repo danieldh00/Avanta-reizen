@@ -4,17 +4,19 @@
  * eerstvolgende nummer; dit bestand hoeft daarvoor niet te veranderen, zodat twee takken met elk een eigen migratie
  * niet in hetzelfde bestand werken. Een bestaande migratie verandert nooit meer nadat hij op main staat.
  *
- * `migrations/laatste-nummer.txt` bevat het nummer van de laatste migratie en verandert bij elke nieuwe migratie mee.
- * Dat is met opzet het ene gedeelde regeltje: nemen twee takken hetzelfde nummer, dan geeft git een conflict in dat
- * bestand en kan de tweede niet mergen voordat hij is hernummerd (`test/migrations.test.js` bewaakt dat het klopt).
+ * `migrations/laatste-migratie.txt` bevat de bestandsnaam van de laatste migratie en verandert bij elke nieuwe
+ * migratie mee. Dat is met opzet het ene gedeelde regeltje: nemen twee takken hetzelfde nummer, dan zetten ze er elk
+ * een andere bestandsnaam in, geeft git een conflict in dat bestand en kan de tweede niet mergen voordat hij is
+ * hernummerd. (Alleen het nummer zou niet werken: twee keer dezelfde wijziging voegt git zonder conflict samen.)
+ * `test/migrations.test.js` bewaakt dat de naam klopt.
  */
 const fs = require('node:fs');
 const path = require('node:path');
 
 /** Map met de migratiebestanden. */
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
-/** Bestand met het nummer van de laatste migratie (zie de kop van dit bestand). */
-const LAST_NUMBER_FILE = path.join(MIGRATIONS_DIR, 'laatste-nummer.txt');
+/** Bestand met de bestandsnaam van de laatste migratie (zie de kop van dit bestand). */
+const LAST_MIGRATION_FILE = path.join(MIGRATIONS_DIR, 'laatste-migratie.txt');
 /** Vorm van een bestandsnaam: drie cijfers, een streepje en een naam in kebab-case. */
 const FILE_PATTERN = /^(\d{3})-[a-z0-9]+(?:-[a-z0-9]+)*\.js$/;
 
@@ -43,4 +45,4 @@ function loadMigrations(directory = MIGRATIONS_DIR) {
 
 const MIGRATIONS = loadMigrations();
 
-module.exports = { MIGRATIONS, loadMigrations, MIGRATIONS_DIR, LAST_NUMBER_FILE };
+module.exports = { MIGRATIONS, loadMigrations, MIGRATIONS_DIR, LAST_MIGRATION_FILE };
