@@ -68,6 +68,7 @@ niet deze tabel (alleen een nieuwe map krijgt hier een regel).
 | `app/src/dev/seed/` | testdata voor de testomgeving (alleen via `servertaken.sh testdata`); details per bestand: `app/src/dev/seed/CLAUDE.md` |
 | `app/public/` | `css/site.css` (huisstijl van de huidige site via `--av-*`-variabelen, breekpunten 1024/768), `css/crm.css` (opmaak van het CRM en Beheer, bouwstenen voor lijsten uit `crm/ui.js`, alleen daar geladen na `site.css`; breekpunt 800), `js/site.js` (kop, mobiel menu, zoekvenster), `images/theme/` (texturen uit het oude thema), fonts en logo lokaal |
 | `app/tools/import-wordpress.js` | import van de huidige site (`tools/import/parse.js`, `sanitize.js`) |
+| `app/tools/design-check/` | design-controle met Playwright op 1440/375: `seed.js` (testgegevens), `check.js` (`--full` of `--paths=`), `page-checks.js` (metingen in de browser), `report.js` (.xlsx), `overview.js` (schermafbeeldingen per soort scherm), `login.js`, `credentials.js` (alleen lokaal) |
 | `app/tools/layout-compare.js` | DOM-meting nieuw tegen live op 1440/375 (referentie `test/fixtures/layout-live.json`, test met `LAYOUT_BASE_URL`) |
 | `app/test/` | `units.test.js` (zonder database), `server.test.js` (PostgreSQL, `TEST_DATABASE_URL`) |
 | `changes/`, `tools/`, `tests/` | releasenotes-fragmenten en het releasescript (root) |

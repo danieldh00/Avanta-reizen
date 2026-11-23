@@ -109,6 +109,18 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   (`app/test/fixtures/layout-live.json`). Tegen een draaiende server: `LAYOUT_BASE_URL=http://localhost:3400 npm test`
   (Playwright met Chromium nodig); nieuwe referentie met
   `node tools/layout-compare.js --live https://www.avantareizen.nl --opslaan test/fixtures/layout-live.json`.
+  **Design-controle** (`app/tools/design-check/`, Playwright met Chromium nodig, geen dependency van de app): opent de
+  schermen van de site, het reizigersaccount, het CRM en Beheer op 1440 en 375 px en meet overloop, afgekapte en
+  ingekorte tekst, overlap, knoppen/velden die niet even hoog of niet op één lijn staan, net-niet-gelijke linkerranden,
+  tekst tegen de schermrand, kapotte afbeeldingen, tekst onder 12 px en klikdoelen onder 24 px. Uitsnede per bevinding
+  met het element rood omlijnd. Stappen tegen een verse lokale database met de import:
+  `SETUP_CODE=<installatiecode> DATABASE_URL=… node tools/design-check/seed.js` (fictieve testgegevens via de echte
+  schermen), dan `node tools/design-check/check.js --full --out=/tmp/design` (alles: sitemap + alle schermen onder
+  `/app/`) of `--paths=/reis/,/app/beheer/*` (alleen de genoemde schermen; `*` = alles eronder), daarna
+  `node tools/design-check/report.js /tmp/design/results.json /tmp/design/designcontrole.xlsx` en eventueel
+  `overview.js` (volledige schermafbeelding per soort scherm). Basisadres via `DESIGN_BASE_URL` (standaard
+  http://localhost:3400); externe verzoeken (YouTube e.d.) worden afgebroken. Exitcode 1 bij bevindingen met ernst
+  hoog (behalve met `--no-fail`).
 - **CRM** op `/app/` (in opbouw, zie `docs/OPZET-CRM.md`): inloggen met e-mail en wachtwoord (scrypt, minimaal 12
   tekens), rollen `beheerder`, `kantoor`, `reisleider` en `boekhouding` met vaste rechten (`app/src/crm/rights.js`,
   per route gecontroleerd met `requireRight`), gebruikersbeheer en een auditlog op `/app/auditlog/`.
