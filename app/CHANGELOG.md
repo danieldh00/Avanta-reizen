@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.26.5 — 2026-11-23 — Eén reisleider per reis
+
+- Een reis heeft voortaan één reisleider. Het bewerkscherm van een reis toont één keuzeveld *Reisleider* in plaats van drie.
+
+Een reis heeft hoogstens één reisleider (besluit 23-11-2026). `validateTrip` leest het veld `reisleider` en bewaart
+hoogstens één id; de drie velden `reisleider_1` t/m `reisleider_3` en `MAX_GUIDES` vervallen. De koppeltabel
+`trip_guides` blijft ongewijzigd (geen migratie): een reis die nog meer dan één reisleider heeft, houdt die tot hij
+opnieuw wordt opgeslagen; daarna blijft alleen de gekozen reisleider over.
+
 ## 0.26.4 — 2026-11-21 — Beheer als eigen omgeving met een tweede zijbalk
 
 - Beheer staat nu in een eigen omgeving, zoals in AquaTech: in de hoofdzijbalk staat één knop *Beheer*, en daarin
