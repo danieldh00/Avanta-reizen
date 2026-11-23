@@ -38,6 +38,16 @@ const FIELDS = {
     help: 'Uit het Mollie-dashboard (Ontwikkelaars > API-sleutels): begin met een testsleutel (test_…) en zet pas na een proefbetaling de live-sleutel (live_…) erin. Staat versleuteld opgeslagen en gaat nooit naar de browser.',
     default: '', max: 70, pattern: /^(test|live)_[A-Za-z0-9]{20,64}$/, patternMessage: 'Een Mollie-sleutel begint met test_ of live_ gevolgd door letters en cijfers.',
   },
+  guideWindowDaysBefore: {
+    type: 'int', label: 'Venster opent (dagen vóór vertrek)',
+    help: 'Vanaf zoveel dagen vóór vertrek kan de reisleider identiteits- en gezondheidsgegevens van zijn deelnemers in de deelnemerslijst zetten. Daarvoor ziet hij alleen naam, mobiel en e-mail. Standaard 14 dagen; leg de keuze vast met Avanta.',
+    default: 14, min: 0, max: 60,
+  },
+  guideWindowDaysAfter: {
+    type: 'int', label: 'Venster sluit (dagen na de terugkomst)',
+    help: 'Tot en met zoveel dagen na de terugkomstdag (vertrek + duur van de reis) blijft het venster open, bijvoorbeeld voor nazorg na een incident. 0 betekent: tot en met de terugkomstdag. Kort houden: na de reis heeft de reisleider deze gegevens zelden nodig.',
+    default: 0, min: 0, max: 60,
+  },
 };
 
 /** De groep CRM in de zijbalk van Beheer, met haar secties. */
@@ -57,6 +67,13 @@ const GROUP = {
       intro: 'Optioneel: laat reizigers het openstaande bedrag online betalen via Mollie (iDEAL). Zonder Mollie werkt alles gewoon met overmaken en registreert kantoor de betalingen met de hand. De betaallink staat in de betaalherinnering en op de betaalpagina in het CRM; Mollie meldt een geslaagde betaling terug aan de site, die hem dan zelf registreert. Fouten van de koppeling staan in het logboek (bron mollie).',
       fields: ['mollieEnabled', 'mollieApiKey'],
       words: 'mollie ideal online betalen betaallink betaalprovider api sleutel webhook',
+    },
+    {
+      id: 'reisleider',
+      label: 'Reisleider',
+      intro: 'Een reisleider ziet in het CRM alleen zijn eigen vertrekken (via het reisleidersprofiel dat aan zijn account hangt, in Gebruikers). Identiteits- en gezondheidsgegevens van zijn deelnemers kan hij alleen binnen een venster rond het vertrek exporteren; elke export staat in het auditlog. Hier stel je dat venster in.',
+      fields: ['guideWindowDaysBefore', 'guideWindowDaysAfter'],
+      words: 'reisleider venster deelnemerslijst paspoort medisch gezondheid identiteit vertrek terugkomst avg',
     },
   ],
 };

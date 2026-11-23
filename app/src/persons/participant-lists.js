@@ -83,9 +83,6 @@ const BASE_COLUMNS = [
 /** Kolommen van de beperkte lijst voor de reisleider (`docs/OPZET-CRM.md` §4: naam, mobiel en e-mail). */
 const LIMITED_LABELS = ['Nr.', 'Achternaam', 'Roepnaam', 'Voornamen', 'Mobiel', 'E-mailadres'];
 
-/** Dagen vóór vertrek waarop de reisleider bijzondere en identiteitsgegevens mag exporteren. */
-const GUIDE_WINDOW_DAYS = 14;
-
 /**
  * De kolommen per categorie met bijzondere of identiteitsgegevens: blok en veld in dat blok.
  * @type {Record<string, Array<{label: string, block: string, field: string, date?: boolean, options?: boolean}>>}
@@ -226,4 +223,4 @@ function participantFileName(trip, now = new Date()) {
   return `deelnemerslijst-${base}-${day}.xlsx`;
 }
 
-module.exports = { CATEGORIES, CATEGORY_COLUMNS, BASE_COLUMNS, LIMITED_LABELS, GUIDE_WINDOW_DAYS, loadParticipants, buildParticipantWorkbook, participantFileName, consentAllows, NO_CONSENT, UNREADABLE };
+module.exports = { CATEGORIES, CATEGORY_COLUMNS, BASE_COLUMNS, LIMITED_LABELS, loadParticipants, buildParticipantWorkbook, participantFileName, consentAllows, NO_CONSENT, UNREADABLE };

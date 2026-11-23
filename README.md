@@ -329,7 +329,9 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     per categorie), hoogstens 30 per gebruiker per 10 minuten. Blad *Over deze lijst* noemt reis, maker en moment.
     De **reisleider** ziet alleen de vertrekken van het reisleidersprofiel dat bij *Gebruikers* aan zijn account hangt
     (`users.guide_id` naar `trip_guides`; andere reis geeft 404), met naam, mobiel en e-mail. Identiteit en gezondheid
-    alleen van 14 dagen vóór vertrek tot en met de terugkomst (vertrek + duur - 1).
+    alleen binnen het venster rond het vertrek (`app/src/trips/guide-window.js`): standaard van 14 dagen vóór vertrek
+    tot en met de terugkomst (vertrek + duur - 1), instelbaar in **Beheer > CRM > Reisleider** (dagen vóór vertrek en
+    dagen na de terugkomst, elk 0 tot 60).
   - **Deelnemers** op `/app/deelnemers/` (recht `deelnemers`; `app/src/persons/person-routes.js`): lijst met zoeken op
     naam, e-mailadres of woonplaats (elk woord moet voorkomen) en een filter *mogelijk dubbel*; per persoon NAW,
     aanmeldingen, toestemmingen en de bijzondere gegevens per blok. Een blok staat nooit in de lijst en op de pagina pas
@@ -377,6 +379,11 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   bezetting en openstaand bedrag, de laatste wijzigingen aan aanmeldingen en voor de beheerder de stand van het systeem
   (bewaking, laatste back-up, versie). Elk onderdeel hoort bij een recht (`dashboardAccess`): wat een rol niet mag
   zien wordt niet opgehaald en niet getekend. *Te laat* gebruikt dezelfde berekening als het betaaloverzicht.
+  De **reisleider** krijgt een eigen overzicht (`app/src/crm/guide-dashboard.js`): tegels met zijn vertrekken, het
+  aantal deelnemers (zonder geannuleerden), vertrekken met het venster open en vertrekken binnen 30 dagen, en per
+  vertrek de datums, het aantal deelnemers, de stand van het venster (open tot en met, of opent op) en een link naar
+  de deelnemerslijst. Alleen reizen van het gekoppelde reisleidersprofiel; een vertrek verdwijnt als het venster na de
+  terugkomst dicht is. Zonder gekoppeld profiel staat er een uitleg. Er staan geen persoonsgegevens op, alleen aantallen.
 - **Eén opzet voor lijsten** (`app/src/crm/ui.js`): paginakop met de acties rechts (bijvoorbeeld *Nieuwe reis* of
   *Excel (.xlsx)*), filterknoppen met aantallen, een zoek- en filterregel, een tabel met statuslabels in kleur en
   bladeren onderaan. Aanmeldingen, Deelnemers, Betalingen en Reizen gebruiken deze bouwstenen; een nieuwe lijst bouw

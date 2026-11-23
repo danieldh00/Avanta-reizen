@@ -7,7 +7,7 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 ## Bestanden
 - CRM onder `/app/`: `routes.js` (schil: limiet, formuliergrootte, sessie, en de modules via hun ingang `<module>/index.js` in `persons/`, `booking/`, `payments/`, `trips/`, `cms/`, `media/`; een nieuw scherm komt in de ingang van zijn module)
 - `login-routes.js` (inloggen, uitloggen, installatie, wachtwoord wijzigen)
-- `dashboard-routes.js` (route van het overzicht)
+- `dashboard-routes.js` (route van het overzicht; de reisleider krijgt `guide-dashboard.js`)
 - `input.js` (`normalizeEmail`, `textField`)
 - `users.js` (gebruikers, auditlog, 2FA uitzetten)
 - `auth.js` (sessies, halve sessie tot de tweede stap, CSRF, `requireRight`, audit)
@@ -19,3 +19,4 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `layout.js`
 - `ui.js` (bouwstenen voor lijsten)
 - `dashboard.js` (overzicht `/app/`: per recht ophalen en tekenen)
+- `guide-dashboard.js` (overzicht `/app/` voor de reisleider: eigen vertrekken, aantallen, stand van het venster, link naar de deelnemerslijst)

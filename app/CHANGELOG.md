@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.29.0 — 2026-11-23 — Eigen overzicht voor de reisleider en instelbaar venster
+
+- De reisleider ziet op het overzicht van het CRM zijn eigen vertrekken: datums, aantal deelnemers, of het venster
+- Het venster waarin de reisleider identiteits- en gezondheidsgegevens mag exporteren is instelbaar in
+
+- Nieuw `crm/guide-dashboard.js`: overzicht `/app/` voor rollen in `TRIP_SCOPED_ROLES`, alleen reizen van het
+  gekoppelde reisleidersprofiel, alleen aantallen (geen persoonsgegevens); vertrekken verdwijnen als het venster na
+  de terugkomst dicht is. `crm/dashboard-routes.js` kiest per rol.
+- Nieuw `trips/guide-window.js`: venster uit de instellingen `guideWindowDaysBefore` en `guideWindowDaysAfter`
+  (groep CRM, sectie Reisleider, 0 tot 60) en de gedeelde SQL voor venster en eigen vertrekken, met gebonden
+  parameters. De vaste `GUIDE_WINDOW_DAYS` in de deelnemerslijsten is vervangen.
+- Tests: `test/guide-dashboard.test.js` (eigen reizen, andere reisleider, aantallen, venster uit Beheer in overzicht
+  en export, 403 buiten het venster).
+
 ## 0.28.5 — 2026-11-23 — Geen verwijzingen naar andere projecten
 
 - Alle verwijzingen naar een ander project zijn uit code, commentaar en documentatie gehaald; de app zelf

@@ -1,12 +1,14 @@
 /**
- * Route van het overzicht `/app/`: wat er te doen is per recht (`crm/dashboard.js`) en de melding als de eigen
- * tweestapsverificatie nog uit staat.
+ * Route van het overzicht `/app/`: wat er te doen is per recht (`crm/dashboard.js`), voor de reisleider zijn eigen
+ * vertrekken (`crm/guide-dashboard.js`), en de melding als de eigen tweestapsverificatie nog uit staat.
  */
 const express = require('express');
 const { html } = require('../site/html');
-const { roleLabel } = require('./rights');
+const { roleLabel, TRIP_SCOPED_ROLES } = require('./rights');
 const { renderCrmPage } = require('./layout');
 const { loadDashboard, renderDashboard } = require('./dashboard');
+const { loadGuideDashboard, renderGuideDashboard } = require('./guide-dashboard');
+const { guideWindowFrom } = require('../trips/guide-window');
 
 /**
  * Bouwt de route van het overzicht.
@@ -20,12 +22,16 @@ function createDashboardRoutes(options) {
 
   router.get('/', auth.requireLogin, async (req, res, next) => {
     try {
+      // De reisleider ziet alleen zijn eigen vertrekken; de algemene onderdelen zijn voor hem dicht.
+      const scoped = TRIP_SCOPED_ROLES.includes(req.user.role);
       const [mfa, data] = await Promise.all([
         twoFactor.stateOf(req.user.id),
-        loadDashboard(
-          { db, settings: options.settings, monitor: options.monitor, backups: options.backups, systemUpdate: options.systemUpdate, appLog: options.appLog },
-          { role: req.user.role, now: (options.now || Date.now)() },
-        ),
+        scoped
+          ? loadGuideDashboard(db, { userId: req.user.id, window: guideWindowFrom(options.settings) })
+          : loadDashboard(
+            { db, settings: options.settings, monitor: options.monitor, backups: options.backups, systemUpdate: options.systemUpdate, appLog: options.appLog },
+            { role: req.user.role, now: (options.now || Date.now)() },
+          ),
       ]);
       return res.send(renderCrmPage({
         title: 'Overzicht',
@@ -34,7 +40,7 @@ function createDashboardRoutes(options) {
         path: '/app/',
         body: html`<p class="crm-summary">Welkom, ${req.user.name}. Je bent ingelogd als <strong>${roleLabel(req.user.role)}</strong>.</p>
           ${mfa.enabled ? '' : html`<p class="notice">Tweestapsverificatie staat nog uit voor je account${auth.mfaRequiredFor(req.user.role) ? ' en is verplicht vanaf de volgende keer dat je inlogt' : ''}. <a href="/app/tweestaps/">Nu instellen</a></p>`}
-          ${renderDashboard(data)}`,
+          ${scoped ? renderGuideDashboard(data) : renderDashboard(data)}`,
       }));
     } catch (error) {
       return next(error);
