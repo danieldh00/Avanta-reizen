@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.28.0 — 2026-11-23 — Routes van het CRM per module
+
+Modulestructuur, stap 2 (geen gedragswijziging): `app/src/crm/routes.js` is alleen nog de schil van `/app/` (limiet,
+formuliergrootte, sessie laden, 404). Inloggen, uitloggen, installatie en wachtwoord wijzigen staan in
+`crm/login-routes.js`, het overzicht in `crm/dashboard-routes.js`, de invoerhulpjes in `crm/input.js`. De modules
+Reisaanbod, Website-inhoud en Foto's koppelen hun eigen routes via een ingang `trips/index.js`, `cms/index.js` en
+`media/index.js`; een nieuw scherm in zo'n module raakt `crm/routes.js` niet meer. Alle adressen, de volgorde van de
+routes en de limieten zijn ongewijzigd. `docs/ARCHITECTUUR.md` beschrijft de ingang per module.
+
+## 0.27.9 — 2026-11-23 — Migraties in één bestand per migratie
+
+Modulestructuur, stap 1 (geen gedragswijziging): de 28 databasemigraties staan niet meer in één groot
+`app/src/database/migrations.js` maar elk in een eigen bestand `app/src/database/migrations/NNN-korte-naam.js`.
+`migrations.js` is de lader: hij leest de map op volgorde en weigert te starten bij een gat, een dubbel nummer, een
+afwijkend `id` of een verkeerde bestandsnaam. De inhoud van elke migratie (nummer, naam en SQL) is byte voor byte
+gelijk gebleven. Een nieuwe migratie is voortaan een nieuw bestand, zodat twee takken niet meer in hetzelfde bestand
+werken. `migrations/laatste-migratie.txt` bevat de bestandsnaam van de laatste migratie, zodat twee takken met hetzelfde nummer een
+git-conflict krijgen in plaats van een app die na de merge niet start. Nieuw: `docs/ARCHITECTUUR.md` met de indeling in modules, de gedeelde kernbestanden en de regels voor
+parallel werken.
+
 ## 0.27.8 — 2026-11-23 — Weer toegang als beheerder via de server
 
 - Komt een beheerder er niet meer in en is er geen tweede beheerder, dan herstelt het vaste servercommando de toegang
