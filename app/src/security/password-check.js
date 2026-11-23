@@ -73,12 +73,12 @@ function isSequence(text) {
 
 /**
  * Of een woord te raden is: een veelgebruikt woord, een reeks, of een herhaling daarvan of van een kort stukje
- * (`welkomwelkom`, `ababab`). Een woord van hoogstens 3 letters telt als te raden (`ab`, `zyx`).
+ * (`welkomwelkom`, `ababab`).
  * @param {string} word Woord in kleine letters.
  * @returns {boolean} Waar als het woord te raden is.
  */
 function isWeakWord(word) {
-  if (word.length <= 3 || COMMON_WORDS.has(word) || isSequence(word)) return true;
+  if (COMMON_WORDS.has(word) || isSequence(word)) return true;
   const repeated = /^(.+?)\1+$/u.exec(word);
   if (repeated) return repeated[1].length <= 3 || isWeakWord(repeated[1]);
   return isCommonCompound(word);
@@ -116,22 +116,37 @@ function commonPasswordProblem(password) {
   const digitsAndSigns = compact.replace(/\p{L}/gu, '');
   // Alleen cijfers en tekens: een reeks of herhaling is te raden (`123456789012`, `112233445566`).
   if (!words.length) return isSequence(digitsAndSigns) || new Set(digitsAndSigns).size <= 4 ? MESSAGES.common : '';
-  const lettersAreCommon = words.every(isWeakWord);
+  // Hoogstens 3 letters in totaal (`1234567890ab`) is te raden; een zin van korte woorden (`de kat zit op de mat`) niet.
+  const letterCount = words.join('').length;
+  const lettersAreCommon = letterCount <= 3 || words.every(isWeakWord);
   // Wat er naast de woorden staat, mag niet meer zijn dan een jaartal, een volgnummer of een uitroepteken.
   const restIsTrivial = digitsAndSigns.length <= 6 || isSequence(digitsAndSigns.replace(/[^0-9]/g, ''));
   return lettersAreCommon && restIsTrivial ? MESSAGES.common : '';
 }
 
 /**
- * Leest een antwoord als tekst, met een grens aan de grootte.
+ * Leest een antwoord als tekst, met een harde grens aan het aantal bytes: ook zonder `Content-Length` (chunked) stopt
+ * het lezen zodra de grens over is, en wordt de rest van het antwoord afgebroken.
  * @param {object} response Antwoord van fetch.
  * @returns {Promise<(string|null)>} De tekst, of null als het antwoord te groot is.
  */
 async function readLimitedText(response) {
-  const declared = Number(response.headers && response.headers.get ? response.headers.get('content-length') : 0);
-  if (declared > MAX_RESPONSE_BYTES) return null;
-  const text = await response.text();
-  return text.length > MAX_RESPONSE_BYTES ? null : text;
+  const declared = Number(response.headers.get('content-length') || 0);
+  if (declared > MAX_RESPONSE_BYTES || !response.body) return null;
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_RESPONSE_BYTES) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 /**

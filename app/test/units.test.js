@@ -285,7 +285,7 @@ test('wachtwoordcontrole: lokaal veelgebruikte woorden en reeksen', () => {
     'testtesttest', 'Zomer!Winter#2026', '123456789012', 'welkomwachtwoord', 'Geheim-wachtwoord-1', '0987654321zyx']) {
     assert.notEqual(commonPasswordProblem(password), '', password);
   }
-  for (const password of ['Jezus is mijn herder', 'correct-paard-batterij-nietje', 'nieuw beheerwachtwoord', 'Sterk-Wachtwoord-2026!', '197503211985', 'kantoor wachtwoord 1']) {
+  for (const password of ['Jezus is mijn herder', 'de kat zit op de mat', 'correct-paard-batterij-nietje', 'nieuw beheerwachtwoord', 'Sterk-Wachtwoord-2026!', '197503211985', 'kantoor wachtwoord 1']) {
     assert.equal(commonPasswordProblem(password), '', password);
   }
 });
@@ -317,7 +317,17 @@ test('wachtwoordcontrole: Have I Been Pwned met k-anonimiteit', async () => {
   assert.equal(await check.problem('een prima wachtwoord'), '');
   reply = () => new Response('x', { status: 200, headers: { 'Content-Length': String(2 * 1024 * 1024) } });
   assert.equal(await check.problem('een prima wachtwoord'), '');
+  // Zonder Content-Length (stroom in stukken): ook dan stopt het lezen bij de grens en wordt de stroom afgebroken.
+  let cancelled = false;
+  let sent = 0;
+  reply = () => new Response(new ReadableStream({
+    pull(controller) { sent += 1; controller.enqueue(new Uint8Array(256 * 1024).fill(65)); },
+    cancel() { cancelled = true; },
+  }), { status: 200 });
+  assert.equal(await check.problem('een prima wachtwoord'), '');
+  assert.equal(cancelled, true);
+  assert.ok(sent <= 6, `afgebroken na ${sent} stukken`);
   reply = () => { throw new Error('weg'); };
   assert.equal(await check.problem('een prima wachtwoord'), '');
-  assert.deepEqual(check.recent().map((event) => event.outcome), ['onbereikbaar', 'onbereikbaar', 'onbereikbaar', 'lokaal', 'gelekt', 'lokaal']);
+  assert.deepEqual(check.recent().map((event) => event.outcome), ['onbereikbaar', 'onbereikbaar', 'onbereikbaar', 'onbereikbaar', 'lokaal', 'gelekt', 'lokaal']);
 });

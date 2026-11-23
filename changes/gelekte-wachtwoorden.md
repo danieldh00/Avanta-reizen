@@ -11,7 +11,7 @@ titel: Controle op gelekte en veelgebruikte wachtwoorden
 - Nieuw `app/src/security/password-check.js` (audit A09, ASVS 2.1.7): vaste regels uit `crm/passwords.js`, lokale
   controle (veelgebruikte woorden, samenstellingen en herhalingen daarvan, toetsenbord- en telreeksen, met hoogstens
   een jaartal of tekens eromheen) en de range-API van Have I Been Pwned (k-anonimiteit: 5 tekens van de SHA-1,
-  `Add-Padding`, 3 s tijdslimiet, antwoord hoogstens 1 MB). Onbereikbaar: alleen lokaal, logboekregel (bron
+  `Add-Padding`, 3 s tijdslimiet, antwoord hoogstens 1 MB, ook zonder `Content-Length`). Onbereikbaar: alleen lokaal, logboekregel (bron
   `wachtwoordcontrole`) hoogstens eens per kwartier.
 - Gebruikt bij installatie, eigen wachtwoord wijzigen, nieuwe gebruiker en wachtwoord instellen door de beheerder
   (CRM), en bij registreren, wachtwoord wijzigen en wachtwoord herstellen (reizigersaccount).
