@@ -6,6 +6,7 @@
 const express = require('express');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
+const ui = require('../crm/ui');
 const { guidePath } = require('../site/format');
 const { createMediaLibrary } = require('../media/library');
 const { pickerFilter, pickerPhotos, renderPhotoPicker } = require('../media/picker');
@@ -78,9 +79,10 @@ function createGuideRoutes(options) {
    * @param {object} req Express-verzoek.
    * @param {string} title Titel.
    * @param {object} body HTML.
+   * @param {object} [actions] Knoppen naast de titel (zie `renderActions` in `crm/ui.js`).
    * @returns {string} HTML.
    */
-  const page = (req, title, body) => renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, body });
+  const page = (req, title, body, actions) => renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, body, actions });
 
   /**
    * 404 binnen het CRM.
@@ -189,8 +191,7 @@ function createGuideRoutes(options) {
      */
     const input = (name, label, max, help) => fieldRow({ id: `reisleider-${name}`, label, help, error: errors[name], control: html`<input id="reisleider-${name}" name="${name}" type="text" value="${values[name]}" maxlength="${max}"${name === 'name' ? raw(' required') : ''}${invalidAttributes(`reisleider-${name}`, errors[name])}>` });
     const notice = NOTICES[req.query.opgeslagen];
-    return page(req, `Reisleider: ${guide.name}`, html`<p><a href="${BASE}">Naar de reisleiders</a>${guide.published ? html` · <a href="${guidePath(guide.slug)}">Bekijk op de site</a>` : ''}</p>
-      ${notice ? html`<p class="notice" role="status">${notice}</p>` : ''}
+    return page(req, `Reisleider: ${guide.name}`, html`${notice ? html`<p class="notice" role="status">${notice}</p>` : ''}
       ${renderAlert(state.error)}
       <section class="crm-block" id="status">
         <h2>Status</h2>
@@ -201,7 +202,9 @@ function createGuideRoutes(options) {
           <button class="btn btn--small${guide.published ? ' btn--outline' : ''}" type="submit">${guide.published ? 'Offline halen' : 'Online zetten'}</button>
         </form>
       </section>
-      <form class="form crm-block" method="post" action="${BASE}${guide.id}/" id="profiel">
+      <div class="crm-tabbed" data-tabs>
+        ${ui.renderTabNav([{ key: 'profiel-tab', label: 'Profiel' }, { key: 'fotos-tab', label: 'Foto\'s' }, { key: 'verwijderen', label: 'Verwijderen' }])}
+        ${ui.renderTabPanel('profiel-tab', html`<form class="form crm-block" method="post" action="${BASE}${guide.id}/" id="profiel">
         <h2>Profiel</h2>
         <input type="hidden" name="_csrf" value="${req.session.csrf}">
         ${input('name', 'Voornaam', GUIDE_LIMITS.name)}
@@ -212,9 +215,9 @@ function createGuideRoutes(options) {
         ${input('quote', 'Citaat', GUIDE_LIMITS.quote)}
         ${fieldRow({ id: 'reisleider-intro', label: 'Korte inleiding (zoekmachines en delen)', error: errors.intro, control: html`<textarea id="reisleider-intro" name="intro" rows="3" maxlength="${GUIDE_LIMITS.intro}"${invalidAttributes('reisleider-intro', errors.intro)}>${values.intro}</textarea>` })}
         ${fieldRow({ id: 'reisleider-body', label: 'Over deze reisleider', error: errors.body, help: RICHTEXT_HELP, control: html`<textarea id="reisleider-body" name="body" rows="14" class="cms-richtext" maxlength="${GUIDE_LIMITS.body}"${invalidAttributes('reisleider-body', errors.body)}>${values.bodyInput}</textarea>` })}
-        <div><button class="btn" type="submit">Opslaan</button></div>
-      </form>
-      <section class="crm-block" id="fotos">
+        ${ui.renderSaveBar({ label: 'Opslaan', note: guide.managed_in_crm ? '' : 'Na opslaan toont de site de gegevens uit het CRM.' })}
+      </form>`)}
+        ${ui.renderTabPanel('fotos-tab', html`<section class="crm-block" id="fotos">
         <h2>Foto's</h2>
         ${Object.entries(PHOTO_FIELDS).map(([kind, field]) => {
           const url = kind === 'portret' ? portrait : image;
@@ -225,13 +228,14 @@ function createGuideRoutes(options) {
           </div>`;
         })}
         <p class="field__help">Het portret staat in de lijst met reisleiders en op de eigen pagina; de tweede foto staat op de pagina naast het portret. De galerij onderaan komt nog van de huidige site.</p>
-      </section>
-      <form class="crm-block crm-actions" method="post" action="${BASE}${guide.id}/verwijderen/">
+      </section>`)}
+        ${ui.renderTabPanel('verwijderen', html`<form class="crm-block crm-actions" method="post" action="${BASE}${guide.id}/verwijderen/">
         <input type="hidden" name="_csrf" value="${req.session.csrf}">
         <p class="field__help">Verwijderen kan alleen bij een reisleider die offline staat, niet van de huidige site komt en aan geen reis hangt. Anders: offline halen.</p>
         <label class="checkbox"><input type="checkbox" name="zeker" value="ja" required> Ja, verwijder deze reisleider</label>
         <button class="btn btn--small btn--outline" type="submit">Verwijderen</button>
-      </form>`);
+      </form>`)}
+      </div>`, ui.renderActions([guide.published ? { label: 'Bekijk op de site', href: guidePath(guide.slug) } : null]));
   };
 
   /**

@@ -261,6 +261,17 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     await addBooking(tripId, 'geannuleerd');
     let edit = await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie });
     assert.match(edit.text, /15 aanmeldingen \(niet geannuleerd\) van 16 plaatsen, 1 vrij\./);
+    // Bewerkscherm met tabbladen: de velden staan in één formulier over drie panelen, foto's en aanmeldingen erbuiten.
+    for (const key of ['algemeen', 'prijs', 'tekst', 'fotos', 'aanmeldingen']) {
+      assert.match(edit.text, new RegExp(`<a href="#tab-${key}" data-tab="${key}">`), key);
+      assert.match(edit.text, new RegExp(`id="tab-${key}" data-tab-panel="${key}"`), key);
+    }
+    assert.match(edit.text, /data-tab="aanmeldingen">Aanmeldingen <span class="crm-tabs-count">15<\/span>/);
+    assert.match(edit.text, /<form class="form" method="post" action="\/app\/reizen\/\d+\/" data-tab-form>/);
+    assert.match(edit.text, /<div class="crm-savebar">[\s\S]*?<button class="btn" type="submit">Opslaan<\/button>/);
+    const fresh = await request('/app/reizen/nieuw/', { cookie: kantoor.cookie });
+    assert.doesNotMatch(fresh.text, /data-tab="fotos"|data-tab="aanmeldingen"/, 'een nieuwe reis heeft nog geen foto\'s of aanmeldingen');
+    assert.match(fresh.text, /<button class="btn" type="submit">Reis aanmaken<\/button>/);
     assert.doesNotMatch(edit.text, /<strong>Volgeboekt<\/strong>/);
     assert.match(edit.text, new RegExp(`href="/app/aanmeldingen/\\?reis=${tripId}"`));
     assert.doesNotMatch((await request('/reis/namibie-juni/')).text, /Volgeboekt/);

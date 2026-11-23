@@ -174,63 +174,87 @@ function createTripRoutes(options) {
     };
     const guideSelect = () => html`<div class="field"><span class="field__label"><label for="veld-reisleider">Reisleider</label></span>
       <select id="veld-reisleider" name="reisleider"><option value="">–</option>${guides.map((guide) => html`<option value="${guide.id}"${String(values.reisleider || '') === String(guide.id) ? raw(' selected') : ''}>${guide.name}${guide.published ? '' : ' (niet gepubliceerd)'}</option>`)}</select></div>`;
+    const published = values.published === true || values.published === '1';
+    const tabs = [
+      { key: 'algemeen', label: 'Algemeen' },
+      { key: 'prijs', label: 'Prijs' },
+      { key: 'tekst', label: 'Tekst en programma' },
+      trip ? { key: 'fotos', label: 'Foto\'s' } : null,
+      trip ? { key: 'aanmeldingen', label: 'Aanmeldingen', count: seatSummary(trip).booked } : null,
+    ];
+    const general = html`<div class="crm-edit-cols">
+      <section class="crm-narrow">
+        ${input('title', 'Titel', { max: LIMITS.title, required: true })}
+        ${input('slug', 'Slug (deel van het adres; leeg = uit de titel)', { max: 80, help: 'Wijzig je de slug van een bestaande reis, dan verwijst het oude adres automatisch door (301).' })}
+        ${input('trip_code', 'Reiscode', { max: LIMITS.trip_code })}
+        ${input('departure_date', 'Vertrekdatum', { type: 'date', required: true })}
+        ${input('duration_label', 'Reisduur (tekst, bijvoorbeeld 20 dagen)', { max: LIMITS.duration_label })}
+        ${input('duration_days', 'Aantal dagen', { inputmode: 'numeric' })}
+        ${input('capacity', 'Aantal plaatsen', { inputmode: 'numeric', help: 'Leeg = onbekend.' })}
+        ${guideSelect()}
+        <h2>Landen en reistypes</h2>
+        ${categoryGroup('bestemming', 'Landen')}
+        ${categoryGroup('type', 'Reistypes')}
+        ${categoryGroup('overig', KINDS.overig)}
+      </section>
+      <aside class="crm-edit-side" aria-labelledby="reis-zichtbaarheid">
+        <h2 id="reis-zichtbaarheid">Zichtbaarheid</h2>
+        <div class="field"><span class="field__label"><label for="veld-published">Zichtbaar op de site</label></span>
+          <select id="veld-published" name="published"><option value="0">Concept (niet zichtbaar)</option><option value="1"${published ? raw(' selected') : ''}>Gepubliceerd</option></select></div>
+        ${input('status_label', 'Statustekst (bijvoorbeeld "Nog 3 plaatsen")', { max: LIMITS.status_label })}
+        ${checkbox('guaranteed', 'Gegarandeerd vertrek')}
+        ${checkbox('fully_booked', 'Volgeboekt (ook als er nog plaatsen vrij zijn)')}
+        ${checkbox('is_new', 'Nieuw (label op de reis)')}
+      </aside>
+    </div>`;
+    const price = html`<section class="crm-narrow">
+      ${input('price', 'Reissom (€)', { inputmode: 'decimal' })}
+      ${input('old_price', 'Oude prijs bij een aanbieding (€)', { inputmode: 'decimal' })}
+      ${input('offer_until', 'Aanbieding geldig tot', { type: 'date' })}
+      ${input('extra_costs', 'Bijkomende kosten (€)', { inputmode: 'decimal' })}
+      ${input('deposit', 'Aanbetaling (€)', { inputmode: 'decimal' })}
+      ${input('price_note', 'Opmerking bij de prijs', { max: LIMITS.price_note })}
+    </section>`;
+    const text = html`<section class="crm-narrow crm-narrow--wide">
+      ${input('tagline', 'Inleiding (onder de titel)', { max: LIMITS.tagline })}
+      ${textarea('summary', 'Samenvatting (in de lijsten)', 3, LIMITS.summary)}
+      ${textarea('body_html', 'Tekst (HTML; alleen veilige opmaak blijft over)', 14, null)}
+    </section>`;
+    const saveNote = trip
+      ? html`Laatst gewijzigd ${formatDateTime(trip.updated_at)}${trip.updated_by_name ? html` door ${trip.updated_by_name}` : ''}.`
+      : 'De reis wordt als concept aangemaakt, tenzij je bij Zichtbaarheid Gepubliceerd kiest.';
     return renderCrmPage({
       title: trip ? trip.title : 'Nieuwe reis',
       user: req.user,
       csrf: req.session.csrf,
       path: BASE,
-      body: html`<p><a href="${BASE}">Naar de reizen</a>${trip && trip.published ? html` · <a href="${tripPath(trip.slug)}">Bekijk op de site</a>` : ''}</p>
+      actions: ui.renderActions([trip && trip.published ? { label: 'Bekijk op de site', href: tripPath(trip.slug) } : null]),
+      body: html`${trip ? html`<p class="crm-summary">${trip.published ? ui.renderStatus('gepubliceerd', 'Gepubliceerd') : ui.renderStatus('concept', 'Concept')}${seatSummary(trip).full ? html` ${ui.renderStatus('vol', 'Volgeboekt')}` : ''}
+          ${[trip.trip_code, formatDate(trip.departure_date), seatsText(trip)].filter(Boolean).join(' · ')}</p>` : ''}
         ${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
         ${renderAlert(state.error)}
-        ${trip ? html`<p class="field__help">Laatst gewijzigd ${formatDateTime(trip.updated_at)}${trip.updated_by_name ? html` door ${trip.updated_by_name}` : ''}.${trip.managed_in_crm ? '' : ' Deze reis komt nog uit de import van de huidige site; na opslaan beheer je hem hier en slaat de import hem over.'}</p>` : ''}
-        <form class="form" method="post" action="${action}">
-          <input type="hidden" name="_csrf" value="${req.session.csrf}">
-          <div class="crm-columns">
-            <section class="crm-narrow">
-              <h2>Reis</h2>
-              ${input('title', 'Titel', { max: LIMITS.title, required: true })}
-              ${input('slug', 'Slug (deel van het adres; leeg = uit de titel)', { max: 80, help: 'Wijzig je de slug van een bestaande reis, dan verwijst het oude adres automatisch door (301).' })}
-              ${input('trip_code', 'Reiscode', { max: LIMITS.trip_code })}
-              ${input('departure_date', 'Vertrekdatum', { type: 'date', required: true })}
-              ${input('duration_label', 'Reisduur (tekst, bijvoorbeeld 20 dagen)', { max: LIMITS.duration_label })}
-              ${input('duration_days', 'Aantal dagen', { inputmode: 'numeric' })}
-              ${input('capacity', 'Aantal plaatsen', { inputmode: 'numeric', help: 'Leeg = onbekend.' })}
-              ${input('tagline', 'Inleiding (onder de titel)', { max: LIMITS.tagline })}
-              ${textarea('summary', 'Samenvatting (in de lijsten)', 3, LIMITS.summary)}
-              ${textarea('body_html', 'Tekst (HTML; alleen veilige opmaak blijft over)', 14, null)}
-            </section>
-            <section class="crm-narrow">
-              <h2>Prijs</h2>
-              ${input('price', 'Reissom (€)', { inputmode: 'decimal' })}
-              ${input('old_price', 'Oude prijs bij een aanbieding (€)', { inputmode: 'decimal' })}
-              ${input('offer_until', 'Aanbieding geldig tot', { type: 'date' })}
-              ${input('extra_costs', 'Bijkomende kosten (€)', { inputmode: 'decimal' })}
-              ${input('deposit', 'Aanbetaling (€)', { inputmode: 'decimal' })}
-              ${input('price_note', 'Opmerking bij de prijs', { max: LIMITS.price_note })}
-              <h2>Status</h2>
-              <div class="field"><span class="field__label"><label for="veld-published">Zichtbaar op de site</label></span>
-                <select id="veld-published" name="published"><option value="0">Concept (niet zichtbaar)</option><option value="1"${values.published === true || values.published === '1' ? raw(' selected') : ''}>Gepubliceerd</option></select></div>
-              ${input('status_label', 'Statustekst (bijvoorbeeld "Nog 3 plaatsen")', { max: LIMITS.status_label })}
-              ${checkbox('guaranteed', 'Gegarandeerd vertrek')}
-              ${trip ? renderSeats(req, trip) : ''}
-              ${checkbox('fully_booked', 'Volgeboekt (ook als er nog plaatsen vrij zijn)')}
-              ${checkbox('is_new', 'Nieuw (label op de reis)')}
-              <h2>Reisleider</h2>
-              ${guideSelect()}
-              <h2>Landen en reistypes</h2>
-              ${categoryGroup('bestemming', 'Landen')}
-              ${categoryGroup('type', 'Reistypes')}
-              ${categoryGroup('overig', KINDS.overig)}
-            </section>
-          </div>
-          <div><button class="btn" type="submit">${trip ? 'Opslaan' : 'Reis aanmaken'}</button></div>
-        </form>
-        ${trip ? html`<form class="crm-actions" method="post" action="${BASE}${trip.id}/kopieren/">
-          <input type="hidden" name="_csrf" value="${req.session.csrf}">
-          <button class="btn btn--small" type="submit">Kopiëren naar nieuw vertrek</button>
-          <span class="field__help">Maakt een concept met dezelfde teksten, prijs, landen, reistypes, reisleider en foto's. Niet opgeslagen wijzigingen hierboven gaan niet mee.</span>
-        </form>` : ''}
-        ${trip ? await renderPhotos(req, trip) : ''}`,
+        ${trip && !trip.managed_in_crm ? html`<p class="field__help">Deze reis komt nog uit de import van de huidige site; na opslaan beheer je hem hier en slaat de import hem over.</p>` : ''}
+        <div class="crm-tabbed" data-tabs>
+          ${ui.renderTabNav(tabs)}
+          <form class="form" method="post" action="${action}" data-tab-form>
+            <input type="hidden" name="_csrf" value="${req.session.csrf}">
+            ${ui.renderTabPanel('algemeen', general)}
+            ${ui.renderTabPanel('prijs', price)}
+            ${ui.renderTabPanel('tekst', text)}
+            ${ui.renderSaveBar({ label: trip ? 'Opslaan' : 'Reis aanmaken', note: saveNote })}
+          </form>
+          ${trip ? ui.renderTabPanel('fotos', await renderPhotos(req, trip)) : ''}
+          ${trip ? ui.renderTabPanel('aanmeldingen', html`<section class="crm-block">
+            <h2>Aanmeldingen en plaatsen</h2>
+            ${renderSeats(req, trip)}
+          </section>
+          <form class="crm-block" method="post" action="${BASE}${trip.id}/kopieren/">
+            <input type="hidden" name="_csrf" value="${req.session.csrf}">
+            <h2>Nieuw vertrek van deze reis</h2>
+            <p class="field__help">Maakt een concept met dezelfde teksten, prijs, landen, reistypes, reisleider en foto's. Niet opgeslagen wijzigingen gaan niet mee.</p>
+            <button class="btn btn--small btn--outline" type="submit">Kopiëren naar nieuw vertrek</button>
+          </form>`) : ''}
+        </div>`,
     });
   };
 

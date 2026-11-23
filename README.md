@@ -364,6 +364,13 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   bladeren onderaan. Aanmeldingen, Deelnemers, Betalingen en Reizen gebruiken deze bouwstenen; een nieuwe lijst bouw
   je met `renderFilterTabs`, `renderSearch`, `renderTable`, `renderStatus` en `renderPager`, en acties geef je mee
   als `actions` aan `renderCrmPage`.
+- **Bewerkschermen met tabbladen** (`renderTabNav`, `renderTabPanel` en `renderSaveBar` in `app/src/crm/ui.js`,
+  `app/public/js/crm.js`): een reis (Algemeen, Prijs, Tekst en programma, Foto's, Aanmeldingen), een pagina en een
+  blogbericht (Inhoud, Blokken, Adres en zichtbaarheid, Versies) en een reisleider (Profiel, Foto's, Verwijderen) tonen
+  één onderdeel tegelijk; de knop *Opslaan* staat in een balk die onderaan in beeld blijft. Na een fout opent het
+  tabblad met het foute veld, en een adres met een anker (bijvoorbeeld `#fotos`) opent het juiste tabblad. Zonder
+  JavaScript staan alle onderdelen onder elkaar. Een nieuw bewerkscherm: het omsluitende element krijgt `data-tabs`,
+  een formulier dat over meerdere panelen loopt `data-tab-form`.
 - **Eigen opmaak van het CRM**: `crm.css` wordt alleen in het CRM geladen, na `site.css`; de publieke site laadt geen
   CRM-opmaak meer. Het CRM is compacter dan de site (15 px, koppen in Open Sans, velden van 40 px en 44 px op een
   telefoon) en gebruikt een donkerdere tint van de huisstijlkleur (`#a8503f`), zodat knoppen en links het contrast van
