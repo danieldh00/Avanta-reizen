@@ -15,11 +15,11 @@ const { createParticipantListRoutes } = require('./participant-list-routes');
  * @returns {express.Router} Router, te koppelen binnen `/app`.
  */
 function createPersonsModuleRoutes(context) {
-  const { db, auth, persons, now } = context;
+  const { db, auth, persons, settings, now } = context;
   const router = express.Router();
   router.use(createPersonRoutes({ db, auth, persons, now }));
   router.use(createPersonMergeRoutes({ db, auth, persons }));
-  router.use(createParticipantListRoutes({ db, auth, persons, now }));
+  router.use(createParticipantListRoutes({ db, auth, persons, settings, now }));
   return router;
 }
 

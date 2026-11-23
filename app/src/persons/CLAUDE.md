@@ -9,5 +9,5 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `person-routes.js` (`/app/deelnemers/`: lijst, *Toon* per blok met audit, wijzigen, toestemming intrekken; reisleider via `TRIP_SCOPED_ROLES` dicht tot eigen vertrekken bestaan)
 - `person-merge-routes.js` (mogelijke dubbelen samenvoegen of markering weghalen)
 - `person-privacy-routes.js` (recht `avg`: inzage-export .xlsx en persoon wissen)
-- `participant-lists.js` + `participant-list-routes.js` (`/app/deelnemerslijsten/`: Excel-lijst per vertrek)
+- `participant-lists.js` + `participant-list-routes.js` (`/app/deelnemerslijsten/`: Excel-lijst per vertrek; venster en eigen vertrekken van de reisleider uit `trips/guide-window.js`)
 - `retention.js` (AVG-opschoning: bewaartermijnen uit Beheer, `anonymizePerson`, rondes in `retention_runs`; een nieuwe tabel met persoonsgegevens hoort hier een regel te krijgen)

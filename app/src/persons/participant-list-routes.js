@@ -4,8 +4,8 @@
  * categorie zonder het recht ervoor (403). Elke export staat in het auditlog, met een eigen regel per categorie
  * bijzondere gegevens. De reisleider (rol in `TRIP_SCOPED_ROLES`) ziet alleen de vertrekken van het reisleidersprofiel
  * dat aan zijn account hangt (`users.guide_id` naar `trip_guides`; een andere reis geeft 404) en krijgt de beperkte
- * lijst (naam, mobiel, e-mail). Identiteit en gezondheid mag hij alleen exporteren van 14 dagen voor vertrek tot en met
- * de terugkomst (`docs/OPZET-CRM.md` §4); daarbuiten worden ze niet aangeboden en geweigerd (403).
+ * lijst (naam, mobiel, e-mail). Identiteit en gezondheid mag hij alleen binnen het venster rond het vertrek exporteren
+ * (`trips/guide-window.js`, instelbaar in Beheer > CRM > Reisleider); daarbuiten worden ze niet aangeboden en geweigerd (403).
  */
 const express = require('express');
 const { html } = require('../site/html');
@@ -14,7 +14,8 @@ const { XLSX_TYPE } = require('../export/xlsx');
 const { createRateLimiter } = require('../security/rate-limit');
 const { roleHasRight, TRIP_SCOPED_ROLES } = require('../crm/rights');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
-const { CATEGORIES, GUIDE_WINDOW_DAYS, loadParticipants, buildParticipantWorkbook, participantFileName } = require('./participant-lists');
+const { guideWindowFrom, guideWindowSql, ownTripSql, describeWindow } = require('../trips/guide-window');
+const { CATEGORIES, loadParticipants, buildParticipantWorkbook, participantFileName } = require('./participant-lists');
 
 /** Hoogstens zoveel exports per gebruiker per venster (ontsleutelen per persoon is duur). */
 const EXPORT_LIMIT = 30;
@@ -28,22 +29,6 @@ const MAX_ROWS = 1000;
 /** Hoogstens zoveel reizen in het overzicht. */
 const MAX_TRIPS = 300;
 
-/**
- * SQL-voorwaarde: de reis `t` hoort bij het reisleidersprofiel van gebruiker `$n`, of `$n` is null (geen beperking).
- * @param {number} param Nummer van de parameter met het gebruikers-id.
- * @returns {string} Voorwaarde.
- */
-function ownTripSql(param) {
-  return `($${param}::int IS NULL OR EXISTS (SELECT 1 FROM trip_guides tg JOIN users u ON u.guide_id = tg.guide_id WHERE tg.trip_id = t.id AND u.id = $${param}))`;
-}
-
-/**
- * SQL-uitdrukking: vandaag (Europe/Amsterdam) valt in het venster van de reisleider, van 14 dagen voor vertrek tot en
- * met de terugkomst (vertrek + duur - 1; zonder duur alleen de vertrekdag).
- */
-const GUIDE_WINDOW_SQL = `(t.departure_date IS NOT NULL AND (now() AT TIME ZONE 'Europe/Amsterdam')::date
-  BETWEEN t.departure_date - ${GUIDE_WINDOW_DAYS} AND t.departure_date + GREATEST(coalesce(t.duration_days, 1), 1) - 1)`;
-
 /** Acties voor het auditlog (zie `ACTION_LABELS` in `crm/users.js`). */
 const PARTICIPANT_LIST_ACTION_LABELS = {
   'export.deelnemers': 'Deelnemerslijst geëxporteerd (.xlsx)',
@@ -52,12 +37,16 @@ const PARTICIPANT_LIST_ACTION_LABELS = {
 
 /**
  * Maakt de routes voor deelnemerslijsten.
- * @param {{db: object, auth: object, persons: object, now?: () => number}} options Database, sessie- en rechtenlaag,
- *   personen (`persons/persons.js`) en (voor tests) de klok van de limiet.
+ * @param {{db: object, auth: object, persons: object, settings?: object, now?: () => number}} options Database, sessie-
+ *   en rechtenlaag, personen (`persons/persons.js`), de instellingen (venster van de reisleider) en (voor tests) de
+ *   klok van de limiet.
  * @returns {express.Router} Router.
  */
 function createParticipantListRoutes(options) {
-  const { db, auth, persons } = options;
+  const { db, auth, persons, settings } = options;
+  const currentWindow = () => guideWindowFrom(settings);
+  // Parameters 1 en 2 in beide queries: dagen vóór vertrek en na terugkomst.
+  const windowSql = guideWindowSql('t', { before: 1, after: 2 });
   const router = express.Router();
   const guard = auth.requireRight('export.deelnemers');
   const limiter = createRateLimiter({ limit: EXPORT_LIMIT, windowMs: EXPORT_WINDOW_MINUTES * 60 * 1000, now: options.now });
@@ -85,15 +74,16 @@ function createParticipantListRoutes(options) {
    * @returns {Promise<string>} HTML-pagina.
    */
   const renderOverview = async (req, state = {}) => {
+    const { daysBefore, daysAfter } = currentWindow();
     const trips = await db.query(
-      `SELECT t.id, t.title, t.trip_code, t.departure_date, ${GUIDE_WINDOW_SQL} AS in_window,
+      `SELECT t.id, t.title, t.trip_code, t.departure_date, ${windowSql.inWindow} AS in_window,
               count(b.id) FILTER (WHERE b.status <> 'geannuleerd')::int AS participant_count
          FROM trips t JOIN bookings b ON b.trip_id = t.id
-        WHERE ${ownTripSql(2)}
+        WHERE ${ownTripSql('t', 3)}
         GROUP BY t.id
         ORDER BY (t.departure_date IS NULL OR t.departure_date < current_date), t.departure_date ASC, t.id
-        LIMIT $1`,
-      [MAX_TRIPS, isScoped(req.user) ? req.user.id : null],
+        LIMIT $4`,
+      [daysBefore, daysAfter, isScoped(req.user) ? req.user.id : null, MAX_TRIPS],
     );
     const scoped = isScoped(req.user);
     const hidden = html`<input type="hidden" name="_csrf" value="${req.session.csrf}">`;
@@ -104,7 +94,7 @@ function createParticipantListRoutes(options) {
       path: '/app/deelnemerslijsten/',
       body: html`${renderAlert(state.error)}
         <p>Per vertrek een Excel-bestand met alle aanmeldingen die niet geannuleerd zijn. Kies alleen de bijzondere gegevens die je echt nodig hebt; elke export wordt gelogd.</p>
-        ${scoped ? html`<p class="field__help">Je ziet alleen je eigen vertrekken, met naam, mobiel en e-mail. Identiteit en gezondheid kun je kiezen van ${GUIDE_WINDOW_DAYS} dagen vóór vertrek tot en met de terugkomst.</p>` : ''}
+        ${scoped ? html`<p class="field__help">Je ziet alleen je eigen vertrekken, met naam, mobiel en e-mail. Identiteit en gezondheid kun je kiezen ${describeWindow(daysBefore, daysAfter)}.</p>` : ''}
         ${trips.length ? html`<div class="crm-table-wrap"><table class="crm-table">
           <thead><tr><th scope="col">Reis</th><th scope="col">Vertrek</th><th scope="col">Deelnemers</th><th scope="col">Exporteren</th></tr></thead>
           <tbody>${trips.map((trip) => html`<tr id="reis-${trip.id}">
@@ -132,9 +122,10 @@ function createParticipantListRoutes(options) {
     try {
       const requested = Object.keys(CATEGORIES).filter((slug) => req.body[slug] === 'ja');
       // Een reis van een ander vertrek bestaat voor de reisleider niet (404), net als een onbekende reis.
+      const { daysBefore, daysAfter } = currentWindow();
       const [trip] = await db.query(
-        `SELECT t.id, t.slug, t.title, t.trip_code, t.departure_date, ${GUIDE_WINDOW_SQL} AS in_window FROM trips t WHERE t.id = $1 AND ${ownTripSql(2)}`,
-        [Number(req.params.tripId), isScoped(req.user) ? req.user.id : null],
+        `SELECT t.id, t.slug, t.title, t.trip_code, t.departure_date, ${windowSql.inWindow} AS in_window FROM trips t WHERE t.id = $4 AND ${ownTripSql('t', 3)}`,
+        [daysBefore, daysAfter, isScoped(req.user) ? req.user.id : null, Number(req.params.tripId)],
       );
       if (!trip) {
         return res.status(404).send(renderCrmPage({
