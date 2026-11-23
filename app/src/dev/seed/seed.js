@@ -12,15 +12,15 @@
  *   indexeren (dan is de site live). NODE_ENV zegt niets: de testomgeving draait het productie-image.
  * - Alles in één transactie: lukt iets niet, dan verandert er niets.
  * - Testdata is herkenbaar (`test-`-slugs, `@example.com`-adressen) en `removeSeed` verwijdert alleen dat.
- * - Persoonsgegevens gaan via `crm/persons.js` (dezelfde versleuteling per blok en toestemmingen als het formulier) en
- *   de verwachte bedragen via `crm/payments.js` (dezelfde regels als bij aanmelden).
+ * - Persoonsgegevens gaan via `persons/persons.js` (dezelfde versleuteling per blok en toestemmingen als het formulier) en
+ *   de verwachte bedragen via `payments/payments.js` (dezelfde regels als bij aanmelden).
  * - Uitvoer en audit bevatten alleen aantallen, nooit persoonsgegevens.
  *
  * De verzonnen gegevens zijn bij elke run gelijk (vaste startwaarde van de toevalsgenerator); alleen de datums schuiven
  * mee met vandaag.
  */
-const { createPersons } = require('../../crm/persons');
-const { addInitialCharges, addDays, localDay, summarize, termsFrom } = require('../../crm/payments');
+const { createPersons } = require('../../persons/persons');
+const { addInitialCharges, addDays, localDay, summarize, termsFrom } = require('../../payments/payments');
 const data = require('./data');
 
 /** Startwaarde van de toevalsgenerator: dezelfde testdata bij elke run. */
@@ -415,7 +415,7 @@ function createSeeder({ vault, today, terms }) {
   };
 
   /**
-   * Schrijft de aanmeldingen van alle reizen, met personen (via `crm/persons.js`), bedragen, betalingen,
+   * Schrijft de aanmeldingen van alle reizen, met personen (via `persons/persons.js`), bedragen, betalingen,
    * gebeurtenissen en toestemmingen. Een deel van de reizigers gaat vaker mee (zelfde persoon, nieuwe aanmelding) en
    * één reiziger meldt zich aan met een andere geboortedatum (mogelijk dubbel, om samenvoegen te testen).
    * @param {{query: Function}} client Transactie-client.
