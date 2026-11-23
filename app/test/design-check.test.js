@@ -74,6 +74,21 @@ test('testgegevens alleen in een lokale test- of ontwerpdatabase', () => {
   assert.throws(() => assertLocalDatabase(''), /DATABASE_URL ontbreekt/);
 });
 
+test('testgegevens: productie weigert altijd, de vlag staat een wegwerpcontainer toe', (t) => {
+  const saved = { NODE_ENV: process.env.NODE_ENV, DESIGN_SEED_TOEGESTAAN: process.env.DESIGN_SEED_TOEGESTAAN };
+  t.after(() => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  process.env.DESIGN_SEED_TOEGESTAAN = '1';
+  assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@postgres/avanta'), 'vlag: andere host en naam toegestaan');
+  assert.throws(() => assertLocalDatabase('niet-een-url'), /DATABASE_URL ontbreekt/, 'ook met de vlag een geldige URL');
+  process.env.NODE_ENV = 'production';
+  assert.throws(() => assertLocalDatabase('postgres://avanta:x@localhost/avanta_design'), /NODE_ENV=production/, 'productie weigert, ook met de vlag');
+});
+
 const playwright = loadPlaywright();
 test('metingen in de browser: overlap, knophoogte, scheve rand en overloop', { skip: !playwright && 'Playwright niet beschikbaar' }, async (t) => {
   const browser = await playwright.chromium.launch();
