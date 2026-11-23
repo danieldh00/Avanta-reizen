@@ -23,6 +23,7 @@ Alle code van de app staat in `app/src/`. Een map is een module met één onderw
 | Website-inhoud | `cms/` | pagina's in blokken, menu's, blog, FAQ |
 | Foto's | `media/` | fotobibliotheek |
 | Beheer | `beheer/` | `/app/beheer/`: instellingen en systeemschermen |
+| Testdata | `dev/seed/` | verzonnen testdata voor de testomgeving (servertaak `testdata`) |
 | Platform | `system/`, `backup/`, `mail/`, `security/`, `export/`, `database/` | logboek, bewaking, updates, back-ups, mail, kluis en limieten, Excel, database |
 
 Binnen een module:
@@ -32,6 +33,8 @@ Binnen een module:
 - **`<onderwerp>-routes.js`** bevat de routes en de schermen van dat onderwerp (`create<Onderwerp>Routes(context)`
   geeft een router terug). Wat de routes nodig hebben (database, sessies, instellingen) krijgen ze als argument mee,
   nooit via een globale variabele.
+- **`CLAUDE.md`** in de map beschrijft de bestanden van die module. Een PR werkt dat bestand bij, niet de tabel in
+  de root-`CLAUDE.md`.
 - Een nieuw onderwerp is een nieuw paar bestanden in de map van zijn module, geen uitbreiding van een bestaand
   bestand. Een bestand dat boven ongeveer 500 regels komt, splits je op onderwerp.
 
@@ -48,7 +51,8 @@ aan de coördinator vóór hij begint; twee threads werken nooit tegelijk in het
 | `server.js`, `services.js` | Express-app en volgorde van de middleware; alle diensten en achtergrondtaken | **opgesplitst**: `server.js` koppelt, `services.js` maakt de diensten per module aan en start de timers; een nieuwe dienst is een paar regels bij zijn module in `services.js` |
 | `crm/layout.js` | menu van het CRM (`CRM_MENU`) | blijft gedeeld: één regel per nieuw scherm |
 | `public/css/site.css`, `public/css/crm.css` | alle opmaak | blijft gedeeld tot het minificeren (plan PR 6.6) |
-| `README.md`, `CLAUDE.md` | documentatie van elke feature | wordt per map verdeeld (stap 5) |
+| `CLAUDE.md` | werkgeheugen | **opgesplitst**: per map een eigen `app/src/<map>/CLAUDE.md` met de bestanden van die map; de root bevat de algemene regels en één regel per map |
+| `README.md` | beschrijving van elke feature | blijft gedeeld: voeg een feature toe bij haar eigen onderdeel, niet onderaan |
 
 ## 3a. Routes van het CRM
 
