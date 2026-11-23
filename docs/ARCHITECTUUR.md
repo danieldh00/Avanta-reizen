@@ -55,9 +55,12 @@ aan de coördinator vóór hij begint; twee threads werken nooit tegelijk in het
 - `database/migrations.js` is alleen de lader: hij leest de map op volgorde en weigert te starten bij een gat, een
   dubbel nummer, een afwijkend `id` of een verkeerde bestandsnaam (`test/migrations.test.js`). Een nieuwe migratie
   raakt dit bestand dus niet.
-- Migraties blijven positioneel. Neem het eerstvolgende vrije nummer op `main`. Is er intussen een andere migratie
-  gemerged, hernoem dan na de rebase je eigen bestand naar het volgende nummer en pas `id` aan; dat is een hernoeming
-  van je eigen bestand, geen conflict in een gedeeld bestand.
+- Migraties blijven positioneel. Neem het eerstvolgende vrije nummer op `main` en zet dat nummer in
+  `migrations/laatste-nummer.txt` (de test eist dat het klopt).
+- Dat ene regeltje is met opzet gedeeld. Twee PR's met elk een bestand `029-…` hebben verschillende bestandsnamen,
+  dus zonder dit bestand zou git geen conflict melden, zouden beide PR's groen zijn en zou de app na de tweede merge
+  niet meer starten. Nu geeft de tweede PR een conflict in `laatste-nummer.txt` en kan hij niet mergen. Oplossen:
+  rebase op `origin/main`, hernoem je eigen bestand naar het volgende nummer, pas `id` en `laatste-nummer.txt` aan.
 - Een migratie die op `main` staat verandert nooit meer. Er loopt hoogstens één migratie-PR tegelijk, omdat twee
   migraties elkaars tabellen kunnen raken.
 

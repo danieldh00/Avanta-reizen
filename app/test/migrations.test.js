@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { MIGRATIONS, loadMigrations, MIGRATIONS_DIR } = require('../src/database/migrations');
+const { MIGRATIONS, loadMigrations, MIGRATIONS_DIR, LAST_NUMBER_FILE } = require('../src/database/migrations');
 
 /**
  * Maakt een tijdelijke map met migratiebestanden.
@@ -35,6 +35,10 @@ test('migraties: de map is een sluitende reeks vanaf 1, één bestand per migrat
   assert.equal(MIGRATIONS[0].name, 'content van de website');
   assert.equal(MIGRATIONS[27].name, 'CRM: online betalen');
   for (const migration of MIGRATIONS) assert.deepEqual(Object.keys(migration), ['id', 'name', 'sql']);
+});
+
+test('migraties: laatste-nummer.txt noemt het nummer van de laatste migratie (dubbel nummer in twee takken = git-conflict)', () => {
+  assert.equal(fs.readFileSync(LAST_NUMBER_FILE, 'utf8'), `${MIGRATIONS.length}\n`);
 });
 
 test('migraties: laden op volgorde van nummer, andere bestanden in de map tellen niet mee', () => {
