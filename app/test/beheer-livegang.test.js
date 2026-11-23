@@ -191,4 +191,10 @@ test('livegang: de pagina in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     const page = await request('/app/beheer/livegang/', { cookie: adminCookie });
     assert.match(page.text, /Balk &quot;in ontwikkeling&quot; uit<\/a><\/td>\s*<td><span class="crm-status crm-status--gepubliceerd">Klaar/);
   });
+
+  await t.test('limiet: na 60 verzoeken per minuut een 429', async () => {
+    let status = 200;
+    for (let i = 0; i < 70 && status === 200; i++) status = (await request('/app/beheer/livegang/', { cookie: adminCookie })).status;
+    assert.equal(status, 429);
+  });
 });
