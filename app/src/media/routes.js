@@ -8,7 +8,7 @@
 const express = require('express');
 const Busboy = require('busboy');
 const { html, raw } = require('../site/html');
-const { searchPatterns } = require('../crm/person-routes');
+const { searchPatterns } = require('../persons/person-routes');
 const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
 const { createRateLimiter } = require('../security/rate-limit');
 const { createMediaLibrary, linkImportedMedia, mediaUrl, TEXT_LIMITS } = require('./library');

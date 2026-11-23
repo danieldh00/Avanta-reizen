@@ -1,5 +1,5 @@
 /**
- * Tests voor de betalingen in het CRM (migratie 26, `crm/payments.js`, `/app/betalingen/<aanmelding>/`): bedragen lezen,
+ * Tests voor de betalingen in het CRM (migratie 26, `payments/payments.js`, `/app/betalingen/<aanmelding>/`): bedragen lezen,
  * saldo, aanbetaling, vervaldatums en achterstand berekenen; de migratie vult bestaande aanmeldingen aan; rechten
  * (zonder sessie naar inloggen, reisleider 403, boekhouding wel), onbekende aanmelding of regel van een andere
  * aanmelding 404; betaling registreren met automatische status, correcties, verouderd formulier 409, bedragen toevoegen
@@ -12,9 +12,9 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const payments = require('../src/crm/payments');
-const { validatePayment, validateCharge } = require('../src/crm/payment-routes');
-const { anonymizeBookings, CANDIDATES } = require('../src/crm/retention');
+const payments = require('../src/payments/payments');
+const { validatePayment, validateCharge } = require('../src/payments/payment-routes');
+const { anonymizeBookings, CANDIDATES } = require('../src/persons/retention');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'payments_test';

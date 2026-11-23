@@ -9,9 +9,9 @@ const { html, raw } = require('../site/html');
 const { formatDate, isoDate } = require('../site/format');
 const { createXlsx, XLSX_TYPE } = require('../export/xlsx');
 const { createRateLimiter } = require('../security/rate-limit');
-const { renderCrmPage, renderAlert } = require('./layout');
-const ui = require('./ui');
-const { STATUSES } = require('./booking-routes');
+const { renderCrmPage, renderAlert } = require('../crm/layout');
+const ui = require('../crm/ui');
+const { STATUSES } = require('../booking/crm-routes');
 const payments = require('./payments');
 
 /** De weergaven van het overzicht. */

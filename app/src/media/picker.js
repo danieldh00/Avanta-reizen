@@ -4,7 +4,7 @@
  * JavaScript. De server controleert de gekozen id's opnieuw en vergrendelt de foto bij het opslaan (`lockMediaForUse`).
  */
 const { html, raw } = require('../site/html');
-const { searchPatterns } = require('../crm/person-routes');
+const { searchPatterns } = require('../persons/person-routes');
 const { mediaUrl } = require('./library');
 
 /** Aantal foto's per pagina in de kiezer. */

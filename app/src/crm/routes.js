@@ -1,7 +1,8 @@
 /**
  * Router van het CRM onder `/app/`: de gedeelde schil (limiet, formuliergrootte per onderdeel, sessie laden) en de
  * routes van alle modules. De routes zelf staan per onderwerp in een eigen bestand: toegang in `crm/login-routes.js`,
- * het overzicht in `crm/dashboard-routes.js`, en per module een ingang `index.js` (`trips/`, `cms/`, `media/`) die
+ * het overzicht in `crm/dashboard-routes.js`, en per module een ingang `index.js` (`persons/`, `booking/`,
+ * `payments/`, `trips/`, `cms/`, `media/`) die
  * de routes van die module koppelt. Een nieuw scherm in een module komt in de ingang van die module, niet hier.
  * Alles onder `/app/` krijgt `Cache-Control: no-store` en `noindex`.
  */
@@ -15,13 +16,10 @@ const { createLoginRoutes, generateSetupCode, normalizeSetupCode, MAX_FAILED_LOG
 const { createDashboardRoutes } = require('./dashboard-routes');
 const { normalizeEmail, textField } = require('./input');
 const { createUserRoutes } = require('./users');
-const { createPersonRoutes } = require('./person-routes');
-const { createPersonMergeRoutes } = require('./person-merge-routes');
-const { createBookingRoutes } = require('./booking-routes');
-const { createPaymentRoutes } = require('./payment-routes');
-const { createPaymentOverviewRoutes } = require('./payment-overview-routes');
-const { createParticipantListRoutes } = require('./participant-list-routes');
-const { createPersons } = require('./persons');
+const { createPersonsModuleRoutes } = require('../persons');
+const { createBookingModuleRoutes } = require('../booking');
+const { createPaymentsModuleRoutes } = require('../payments');
+const { createPersons } = require('../persons/persons');
 const { createTwoFactor, createTwoFactorRoutes } = require('./two-factor');
 const { createVault } = require('../security/vault');
 const { createMediaModuleRoutes } = require('../media');
@@ -78,15 +76,12 @@ function createCrmRouter(options) {
   router.use(createDashboardRoutes({ db, auth, twoFactor, settings: options.settings, monitor: options.monitor, backups: options.backups, systemUpdate: options.systemUpdate, appLog: options.appLog, now: options.now }));
   router.use(createTwoFactorRoutes({ db, auth, twoFactor, now: options.now }));
   router.use(createUserRoutes({ db, auth, twoFactor, passwordCheck, normalizeEmail, textField }));
-  // Boekingen: deelnemers, aanmeldingen, betalingen en deelnemerslijsten.
-  router.use(createPersonRoutes({ db, auth, persons, now: options.now }));
-  router.use(createPersonMergeRoutes({ db, auth, persons }));
-  router.use(createBookingRoutes({ db, auth, settings: options.settings, now: options.now }));
-  router.use(createPaymentRoutes({ db, auth, settings: options.settings, reminders: options.paymentReminders, onlinePayments: options.onlinePayments, now: options.now }));
-  router.use(createPaymentOverviewRoutes({ db, auth, settings: options.settings, now: options.now, maxRows: options.paymentOverviewMaxRows }));
-  router.use(createParticipantListRoutes({ db, auth, persons, now: options.now }));
-  // De modules met een eigen ingang: elk koppelt zijn eigen routes (`<module>/index.js`).
-  const moduleContext = { ...options, db, auth };
+  // De modules met een eigen ingang: elk koppelt zijn eigen routes (`<module>/index.js`). Elke module heeft eigen
+  // adressen (`/deelnemers/`, `/aanmeldingen/`, `/betalingen/`, …), dus de volgorde tussen modules maakt niet uit.
+  const moduleContext = { ...options, db, auth, persons };
+  router.use(createPersonsModuleRoutes(moduleContext));
+  router.use(createBookingModuleRoutes(moduleContext));
+  router.use(createPaymentsModuleRoutes(moduleContext));
   router.use(createMediaModuleRoutes(moduleContext));
   router.use(createTripsModuleRoutes(moduleContext));
   router.use(createCmsModuleRoutes(moduleContext));

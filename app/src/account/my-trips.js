@@ -7,7 +7,7 @@
 const { html } = require('../site/html');
 const { formatDate, isoDate, tripPath } = require('../site/format');
 const { today } = require('../site/content');
-const { STATUSES } = require('../crm/booking-routes');
+const { STATUSES } = require('../booking/crm-routes');
 const { createXlsx } = require('../export/xlsx');
 
 /** Leesbare betaalkeuze. */
@@ -18,7 +18,7 @@ const MAX_BOOKINGS = 500;
 
 /**
  * Betaalstand voor de reiziger, afgeleid van de status van de aanmelding.
- * @param {string} status Status (`crm/booking-routes.js`).
+ * @param {string} status Status (`booking/crm-routes.js`).
  * @returns {string} Tekst, bijv. *Nog te betalen*.
  */
 function paymentState(status) {

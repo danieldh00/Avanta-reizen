@@ -12,8 +12,8 @@ const { html } = require('../site/html');
 const { formatDate } = require('../site/format');
 const { XLSX_TYPE } = require('../export/xlsx');
 const { createRateLimiter } = require('../security/rate-limit');
-const { roleHasRight, TRIP_SCOPED_ROLES } = require('./rights');
-const { renderCrmPage, renderAlert } = require('./layout');
+const { roleHasRight, TRIP_SCOPED_ROLES } = require('../crm/rights');
+const { renderCrmPage, renderAlert } = require('../crm/layout');
 const { CATEGORIES, GUIDE_WINDOW_DAYS, loadParticipants, buildParticipantWorkbook, participantFileName } = require('./participant-lists');
 
 /** Hoogstens zoveel exports per gebruiker per venster (ontsleutelen per persoon is duur). */
@@ -53,7 +53,7 @@ const PARTICIPANT_LIST_ACTION_LABELS = {
 /**
  * Maakt de routes voor deelnemerslijsten.
  * @param {{db: object, auth: object, persons: object, now?: () => number}} options Database, sessie- en rechtenlaag,
- *   personen (`crm/persons.js`) en (voor tests) de klok van de limiet.
+ *   personen (`persons/persons.js`) en (voor tests) de klok van de limiet.
  * @returns {express.Router} Router.
  */
 function createParticipantListRoutes(options) {

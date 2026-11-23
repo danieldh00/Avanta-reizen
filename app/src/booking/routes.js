@@ -1,6 +1,6 @@
 /**
  * Aanmelden voor een reis (`/aanmelden/?id=<oud reis-id>`, zoals op de huidige site). De aanmelding komt in de tabel
- * bookings, de persoon in persons (`crm/persons.js`, ontdubbeld). Bijzondere en paspoortgegevens worden per categorie
+ * bookings, de persoon in persons (`persons/persons.js`, ontdubbeld). Bijzondere en paspoortgegevens worden per categorie
  * versleuteld bij de persoon opgeslagen; art. 9-gegevens alleen met een eigen toestemmingsvinkje (tabel consents). Daarna gaat er een
  * melding naar kantoor en een bevestiging naar de reiziger (`mail/notifications.js`, als die aan staan), beide zonder de
  * bijzondere gegevens.
@@ -14,8 +14,8 @@ const { renderPage, renderPageHeader } = require('../site/layout');
 const { createContent, today } = require('../site/content');
 const { formatPrice, formatDate, isoDate, tripPath } = require('../site/format');
 const { FIELD_GROUPS, validateBooking, SGR_CENTS, BOOKING_FEE_CENTS } = require('./fields');
-const { addInitialCharges } = require('../crm/payments');
-const { createPersons } = require('../crm/persons');
+const { addInitialCharges } = require('../payments/payments');
+const { createPersons } = require('../persons/persons');
 const { createFormGuard } = require('../security/form-guard');
 const { captchaField } = require('../security/captcha');
 const seo = require('../site/seo');
@@ -257,7 +257,7 @@ function createBookingRouter(options) {
   });
 
   /**
-   * Slaat een aanmelding op, in één transactie: de persoon zoeken of aanmaken (`crm/persons.js`, met de bijzondere
+   * Slaat een aanmelding op, in één transactie: de persoon zoeken of aanmaken (`persons/persons.js`, met de bijzondere
    * gegevens versleuteld per blok), de aanmelding zelf (NAW als momentopname, zonder bijzondere gegevens) en de
    * toestemmingen.
    * @param {string} reference Referentie (AV-jjjj-XXXXXXXX).

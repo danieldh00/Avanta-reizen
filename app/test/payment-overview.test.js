@@ -1,5 +1,5 @@
 /**
- * Tests voor het betaaloverzicht (`/app/betalingen/`, `crm/payment-overview-routes.js`): rechten (reisleider en
+ * Tests voor het betaaloverzicht (`/app/betalingen/`, `payments/payment-overview-routes.js`): rechten (reisleider en
  * redacteur 403, boekhouding wel), weergaven nog te betalen / te laat / te veel / alles, filter op reis, totalen,
  * Excel-export met audit en limiet. Draait in een eigen schema.
  */
@@ -10,7 +10,7 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { EXPORT_LIMIT, truncationMessage } = require('../src/crm/payment-overview-routes');
+const { EXPORT_LIMIT, truncationMessage } = require('../src/payments/payment-overview-routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'payment_overview_test';

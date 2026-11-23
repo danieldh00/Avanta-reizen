@@ -3,13 +3,13 @@
  * aanmelding die niet geannuleerd is, met de actuele gegevens van de persoon (of de momentopname van het formulier als
  * er nog geen persoon aan hangt). Bijzondere en identiteitsgegevens gaan alleen mee als de gebruiker ze per categorie
  * aanvinkt én het recht ervoor heeft; art. 9-gegevens (gezondheid, kerkgenootschap) bovendien alleen bij een niet
- * ingetrokken toestemming. De routes (`crm/participant-list-routes.js`) dwingen de rechten af en loggen elke export.
+ * ingetrokken toestemming. De routes (`persons/participant-list-routes.js`) dwingen de rechten af en loggen elke export.
  */
 const { createXlsx } = require('../export/xlsx');
 const { FIELDS } = require('../booking/fields');
 const { formatDate } = require('../site/format');
 const { PLAIN_FIELDS, BLOCK_CONSENTS } = require('./persons');
-const { STATUSES } = require('./booking-routes');
+const { STATUSES } = require('../booking/crm-routes');
 
 /**
  * De categorieën met bijzondere of identiteitsgegevens die een gebruiker los kan aanvinken. `slug` komt in het

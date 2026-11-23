@@ -34,7 +34,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   er geen proxy voor de app staat.** Staat er een proxy in een andere container voor, zet dan het **exacte** adres
   daarvan (bijv. `TRUST_PROXY=172.18.0.5`), nooit een heel subnet: verkeer van buiten kan via het Docker-bridgeadres
   binnenkomen en zou dan met een zelfgekozen `X-Forwarded-For` de limiet op de formulieren kunnen omzeilen.
-- Aanmeldingen komen in de tabel `bookings`, de persoon in `persons` (`app/src/crm/persons.js`, migratie 10): één
+- Aanmeldingen komen in de tabel `bookings`, de persoon in `persons` (`app/src/persons/persons.js`, migratie 10): één
   persoon, meerdere aanmeldingen, ontdubbeld op e-mailadres + geboortedatum via `match_key` (HMAC met een van de
   hoofdsleutel afgeleide sleutel, de geboortedatum zelf blijft versleuteld). Bijzondere gegevens staan per categorie
   versleuteld bij de persoon (`identity_data`, `special_data`, `health_data`, `emergency_data`, AES-256-GCM, gebonden
@@ -275,14 +275,14 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     wijzigen kan niet): reizen en foto's gaan naar de gekozen categorie, de dubbeling
     verdwijnt en zijn adres verwijst door. Verwijderen kan alleen als er geen reizen en foto's aan hangen. Alles in de
     auditlog.
-  - **Aanmeldingen** op `/app/aanmeldingen/` (recht `aanmeldingen`; `app/src/crm/booking-routes.js`, migratie 11):
+  - **Aanmeldingen** op `/app/aanmeldingen/` (recht `aanmeldingen`; `app/src/booking/crm-routes.js`, migratie 11):
     lijst met filter op status en reis en zoeken op referentie, naam, e-mailadres of reiscode; per aanmelding de
     gegevens zoals ingevuld (zonder bijzondere gegevens, die staan bij de deelnemer), de status met vaste overgangen
     (`nieuw → bevestigd → aanbetaald → betaald`, en `geannuleerd` met verplichte reden; daarna niet meer te wijzigen),
     notities en de historie (`booking_events`). Een formulier met een verouderde status geeft 409. Geen wachtlijst
     (komt later, met automatisch doorschuiven).
   - **Betalingen** op `/app/betalingen/<aanmelding>/` (recht `betalingen`: beheerder, kantoor, boekhouding;
-    `app/src/crm/payments.js` en `payment-routes.js`, migratie 26): per aanmelding de verwachte bedragen
+    `app/src/payments/payments.js` en `payment-routes.js`, migratie 26): per aanmelding de verwachte bedragen
     (`booking_charges`: reissom, SGR-garantie € 5 en boekingskosten € 15 bij aanmelden, plus korting,
     annuleringskosten of overig door kantoor) en de ontvangen betalingen (`payments`: bank, iDEAL, contant of correctie).
     Saldo, aanbetaling (aanbetaling van de reis + boekingskosten + SGR; bij het totaalbedrag alles), vervaldatums en
@@ -295,12 +295,12 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     als de status voorloopt op de betaalstand (bijv. betaald terwijl er na annuleringskosten weer iets openstaat). Een dubbel of verouderd formulier geeft 409. De aanmelding toont de betaalstand.
     Bij anonimiseren verdwijnen de toelichtingen; bedragen blijven voor de boekhouding. De inzage-export heeft een blad
     *Betalingen*.
-    **Overzicht** op `/app/betalingen/` (`app/src/crm/payment-overview-routes.js`): weergaven *nog te betalen*
+    **Overzicht** op `/app/betalingen/` (`app/src/payments/payment-overview-routes.js`): weergaven *nog te betalen*
     (standaard), *te laat* (vervallen aanbetaling of restant), *te veel betaald* (ook geannuleerd) en *alle
     aanmeldingen*, filter op reis, aantal en totaal openstaand. Dezelfde lijst als Excel (`/app/betalingen/overzicht.xlsx`,
     nooit CSV; audit `export.betalingen`, hoogstens 30 exports per 10 minuten per gebruiker). Totalen in één query,
     berekening met dezelfde `summarize` als de pagina van een aanmelding.
-    **Herinneringen** (`app/src/crm/payment-reminders.js`, migratie 27): op de betaalpagina *Herinnering sturen* (mail
+    **Herinneringen** (`app/src/payments/payment-reminders.js`, migratie 27): op de betaalpagina *Herinnering sturen* (mail
     aan de reiziger met het openstaande bedrag van de aanbetaling of het restant, de vervaldatum en de betaalinstructie
     uit Beheer > E-mail > Bevestiging; adres van de persoon, anders van het formulier; nooit bijzondere gegevens).
     Elke poging staat in `payment_reminders` (termijn, wie, gelukt of de foutmelding zonder adres) en in het auditlog;
@@ -309,7 +309,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     aanmeldingen die kantoor heeft bevestigd, niet bij status *nieuw*) voor te late
     termijnen, niet vaker dan elke `paymentReminderEveryDays` (7) dagen en hoogstens `paymentReminderMax` (3) keer per
     termijn. Het overzicht toont de laatste herinnering.
-    **Online betalen** (optioneel, migratie 28; `app/src/crm/mollie.js`, `online-payments.js`, `online-payment-routes.js`):
+    **Online betalen** (optioneel, migratie 28; `app/src/payments/mollie.js`, `online-payments.js`, `online-payment-routes.js`):
     met `mollieEnabled` en een Mollie-sleutel (`mollieApiKey`, geheim; Beheer > CRM > Online betalen) én een
     https-basisadres van de site krijgt elke aanmelding een vaste, niet te raden betaallink `/betalen/<id>-<token>/`
     (HMAC uit de hoofdsleutel). De link staat als knop in de betaalherinnering en op de betaalpagina in het CRM. De
@@ -321,7 +321,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     aangemaakte betaling staat in `online_payments`; fouten staan in het logboek (bron `mollie`), nooit de sleutel.
     Naar Mollie gaan geen persoonsgegevens. Terugbetalingen en storno's registreert kantoor met de hand (correctie).
     Zonder Mollie werkt alles met overmaken en handmatige registratie.
-  - **Deelnemerslijsten** op `/app/deelnemerslijsten/` (recht `export.deelnemers`; `app/src/crm/participant-list-routes.js`
+  - **Deelnemerslijsten** op `/app/deelnemerslijsten/` (recht `export.deelnemers`; `app/src/persons/participant-list-routes.js`
     en `participant-lists.js`): per vertrek een Excel-bestand (.xlsx, nooit CSV) met alle aanmeldingen die niet
     geannuleerd zijn, met de actuele NAW van de persoon (anders het formulier). Bijzondere gegevens alleen als je ze
     per categorie aanvinkt én het recht hebt (identiteit, gezondheid + noodnummer, kerkgenootschap alleen beheerder;
@@ -330,18 +330,18 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     De **reisleider** ziet alleen de vertrekken van het reisleidersprofiel dat bij *Gebruikers* aan zijn account hangt
     (`users.guide_id` naar `trip_guides`; andere reis geeft 404), met naam, mobiel en e-mail. Identiteit en gezondheid
     alleen van 14 dagen vóór vertrek tot en met de terugkomst (vertrek + duur - 1).
-  - **Deelnemers** op `/app/deelnemers/` (recht `deelnemers`; `app/src/crm/person-routes.js`): lijst met zoeken op
+  - **Deelnemers** op `/app/deelnemers/` (recht `deelnemers`; `app/src/persons/person-routes.js`): lijst met zoeken op
     naam, e-mailadres of woonplaats (elk woord moet voorkomen) en een filter *mogelijk dubbel*; per persoon NAW,
     aanmeldingen, toestemmingen en de bijzondere gegevens per blok. Een blok staat nooit in de lijst en op de pagina pas
     na **Toon** (een POST, vastgelegd in het auditlog); elk blok vraagt zijn eigen recht (`gegevens.identiteit`,
     `gegevens.gezondheid`, `gegevens.religie`). Wijzigen, blokken bewerken en een art. 9-toestemming intrekken (dat
     wist het blok) vragen `deelnemers.wijzigen` (beheerder, kantoor); art. 9-gegevens opslaan kan alleen met een
-    geldige toestemming. **Mogelijke dubbelen** (`app/src/crm/person-merge-routes.js`): *Samenvoegen* met de
+    geldige toestemming. **Mogelijke dubbelen** (`app/src/persons/person-merge-routes.js`): *Samenvoegen* met de
     oorspronkelijke persoon (per afwijkend NAW-veld kiezen; per bijzonder blok aanvullen, houden of overnemen, alleen
     met het recht op dat blok, de waarden zelf staan niet op dat scherm); aanmeldingen en toestemmingen gaan mee en
     het dubbel wordt verwijderd. Of *Geen dubbel* om de markering weg te halen. Boekhouding ziet NAW alleen-lezen. De reisleider krijgt dit scherm pas als zijn toegang tot de
     eigen vertrekken is gebouwd (tot dan 403).
-    **AVG-verzoeken** (recht `avg`, beheerder en kantoor; `app/src/crm/person-privacy-routes.js`): *Gegevens exporteren*
+    **AVG-verzoeken** (recht `avg`, beheerder en kantoor; `app/src/persons/person-privacy-routes.js`): *Gegevens exporteren*
     geeft een .xlsx (`inzage-deelnemer-<id>-<datum>.xlsx`, zonder naam in de bestandsnaam) met NAW, de blokken waarop de
     exporteur recht heeft (anders staat er "niet opgenomen"), alle aanmeldingen, de historie, de toestemmingen en of er
     een reizigersaccount is; audit `deelnemer.inzage` plus één regel per opgenomen blok, limiet 20 per tien minuten.
@@ -460,7 +460,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     sessieduur (1–30 dagen, standaard 7; korter geldt meteen, ook voor wie al is ingelogd, een langere maximale duur alleen voor nieuwe sessies), bewaartermijn van het
     auditlog (standaard 24 maanden), van de IP-voorvoegsels daarin (standaard 90 dagen, daarna gewist) en van de
     404-lijst (standaard 90 dagen). Opruimen gebeurt bij het starten en daarna dagelijks.
-  - *Toegang en beveiliging > AVG en bewaartermijnen* (migratie 25, `app/src/crm/retention.js`): de dagelijkse
+  - *Toegang en beveiliging > AVG en bewaartermijnen* (migratie 25, `app/src/persons/retention.js`): de dagelijkse
     AVG-opschoning (eerste ronde vijf minuten na het starten). Bijzondere en paspoortgegevens (kerkgenootschap,
     bijzonderheden, noodnummer, paspoort; de geboortedatum blijft) worden gewist na de laatste reisdag + termijn
     (standaard 1 maand; een nieuwe aanmelding schuift de termijn op). Personen worden na de laatste reis of activiteit +
@@ -547,6 +547,10 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `.claude/agents/` | verkenners `map`, `callers`, `tests` |
 | `app/` | de applicatie (`src/`, `public/`, `tools/import-wordpress.js`, `test/`); versie in `app/package.json` |
 | `app/src/beheer/` | Beheer: `instellingen/<groep>.js` (instellingen en secties per groep), `settings.js` (opslag en controle), `indeling.js` (zijbalk en zoeken), `routes.js` (`/app/beheer/`), `mail-routes.js` (testmail, WAN-IP), `backup-routes.js` (back-ups), `drive-routes.js` (Google Drive), `restore-test-routes.js` (hersteltest), `update-routes.js` (updates en onderhoud), `host-task-routes.js` (servertaken), `log-routes.js` (logboek), `monitor-routes.js` (bewaking) |
+| `app/src/crm/` | schil van `/app/` (`routes.js`), toegang (`login-routes.js`, `auth.js`, `two-factor.js`), gebruikers, rechten, opmaak en het overzicht |
+| `app/src/persons/` | personen en deelnemers, samenvoegen, inzage en wissen, deelnemerslijsten, AVG-opschoning (`retention.js`) |
+| `app/src/payments/` | betalingen per aanmelding, betalingsoverzicht, herinneringen, online betalen via Mollie |
+| `app/src/booking/` | aanmeldformulier (`routes.js`, `fields.js`) en de aanmeldingen in het CRM (`crm-routes.js`) |
 | `app/src/system/` | `system-update.js` (updates vanuit de app), `maintenance.js` (onderhoudsmodus), `host-tasks.js` (servertaken), `request-context.js` (context per verzoek), `app-log.js` (logboek, foutcodes), `monitor.js` (bewaking) |
 | `app/src/backup/` | `backups.js` (versleutelde back-ups, planner), `drive.js` (kopie naar Google Drive), `restore-test.js` (hersteltests), `cli.js` (maken, tonen, ontsleutelen op de opdrachtregel) |
 | `app/src/media/` | fotobibliotheek: `images.js` (soort op inhoud, sharp: rechtzetten, EXIF weg, WebP-varianten), `library.js` (opslag en queries, `media_countries`), `routes.js` (`/app/fotobibliotheek/`) |

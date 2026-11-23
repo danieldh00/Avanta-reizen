@@ -1,0 +1,22 @@
+/**
+ * Ingang van de module Boeken voor het CRM: koppelt de routes van de aanmeldingen (`crm-routes.js`). Het openbare
+ * aanmeldformulier (`routes.js`) koppelt `server.js` buiten `/app/`. Een nieuw scherm in deze module krijgt hier een
+ * regel; `crm/routes.js` hoeft daarvoor niet te veranderen.
+ */
+const express = require('express');
+const { createBookingRoutes } = require('./crm-routes');
+
+/**
+ * Bouwt de CRM-routes van de module Boeken.
+ * @param {object} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` (sessies en rechten),
+ *   `persons` (versleutelde persoonsblokken) en de gedeelde diensten uit `server.js`.
+ * @returns {express.Router} Router, te koppelen binnen `/app`.
+ */
+function createBookingModuleRoutes(context) {
+  const { db, auth, settings, now } = context;
+  const router = express.Router();
+  router.use(createBookingRoutes({ db, auth, settings, now }));
+  return router;
+}
+
+module.exports = { createBookingModuleRoutes };

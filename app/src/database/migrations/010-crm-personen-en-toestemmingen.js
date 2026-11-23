@@ -51,7 +51,7 @@ module.exports = {
       CREATE INDEX consents_booking_idx ON consents (booking_id);
 
       -- Aanmeldingen verwijzen naar de persoon; de bijzondere gegevens staan voortaan alleen bij de persoon.
-      -- Bestaande aanmeldingen zet de app bij het starten om (crm/persons.js, backfillPersons).
+      -- Bestaande aanmeldingen zet de app bij het starten om (persons/persons.js, backfillPersons).
       ALTER TABLE bookings ADD COLUMN person_id INTEGER REFERENCES persons(id) ON DELETE SET NULL;
       ALTER TABLE bookings ALTER COLUMN sensitive_data DROP NOT NULL;
       CREATE INDEX bookings_person_idx ON bookings (person_id);

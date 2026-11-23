@@ -155,7 +155,7 @@ async function anonymizePerson(client, personId) {
 /**
  * Maakt de opschoning.
  * @param {{db: object, persons: object, settings: object, today?: () => string}} options Database, de personen
- *   (`crm/persons.js`, voor het openen van het identiteitsblok), de instellingen (termijnen) en (voor tests) de datum van vandaag.
+ *   (`persons/persons.js`, voor het openen van het identiteitsblok), de instellingen (termijnen) en (voor tests) de datum van vandaag.
  * @returns {object} `run`, `preview`, `view`, `refresh` en `start`.
  */
 function createRetention(options) {
