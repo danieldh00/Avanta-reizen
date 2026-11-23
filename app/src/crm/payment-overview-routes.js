@@ -58,6 +58,30 @@ const OVERVIEW_SQL = `SELECT b.id, b.reference, b.trip_id, b.trip_title, b.trip_
   LIMIT $4`;
 
 /**
+ * Het openstaande bedrag per reis: per aanmelding die niet geannuleerd is het verwachte bedrag (regels die niet zijn
+ * weggehaald) min wat betaald is, alleen waar nog iets te betalen is. Dit zijn dezelfde tabellen en voorwaarden als
+ * `OVERVIEW_SQL` in de weergave *Nog te betalen*, dus de som is gelijk aan *openstaand* op `/app/betalingen/?reis=<id>`.
+ * @param {{query: Function}} db Database.
+ * @param {number[]} tripIds Reizen waarvoor het bedrag gevraagd wordt.
+ * @returns {Promise<Map<number, number>>} Per reis het openstaande bedrag in centen; een reis zonder openstaand bedrag ontbreekt.
+ */
+async function outstandingByTrip(db, tripIds) {
+  if (!tripIds.length) return new Map();
+  const rows = await db.query(
+    `SELECT b.trip_id, sum(coalesce(c.total, 0) - coalesce(p.paid, 0))::bigint AS outstanding_cents
+       FROM bookings b
+       LEFT JOIN (SELECT booking_id, sum(amount_cents) AS total FROM booking_charges WHERE removed_at IS NULL GROUP BY booking_id) c ON c.booking_id = b.id
+       LEFT JOIN (SELECT booking_id, sum(amount_cents) AS paid FROM payments GROUP BY booking_id) p ON p.booking_id = b.id
+      WHERE b.trip_id = ANY($1::int[])
+        AND b.status <> 'geannuleerd'
+        AND coalesce(c.total, 0) > coalesce(p.paid, 0)
+      GROUP BY b.trip_id`,
+    [tripIds],
+  );
+  return new Map(rows.map((row) => [row.trip_id, Number(row.outstanding_cents)]));
+}
+
+/**
  * Leest de aanmeldingen voor het overzicht en rekent per aanmelding de stand uit.
  * @param {{query: Function}} db Database.
  * @param {{view: string, tripId: (number|null), terms: object, today: string, maxRows?: number}} filter Weergave, reis,
@@ -271,4 +295,4 @@ function createPaymentOverviewRoutes(options) {
   return router;
 }
 
-module.exports = { createPaymentOverviewRoutes, loadOverview, buildOverviewWorkbook, truncationMessage, VIEWS, MAX_ROWS, EXPORT_LIMIT, PAYMENT_OVERVIEW_ACTION_LABELS };
+module.exports = { createPaymentOverviewRoutes, loadOverview, outstandingByTrip, buildOverviewWorkbook, truncationMessage, VIEWS, MAX_ROWS, EXPORT_LIMIT, PAYMENT_OVERVIEW_ACTION_LABELS };

@@ -349,7 +349,7 @@ function createCrmRouter(options) {
       const [mfa, data] = await Promise.all([
         twoFactor.stateOf(req.user.id),
         loadDashboard(
-          { db, settings: options.settings, monitor: options.monitor, backups: options.backups, systemUpdate: options.systemUpdate },
+          { db, settings: options.settings, monitor: options.monitor, backups: options.backups, systemUpdate: options.systemUpdate, appLog: options.appLog },
           { role: req.user.role, now: (options.now || Date.now)() },
         ),
       ]);

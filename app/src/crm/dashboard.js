@@ -3,8 +3,13 @@
  * openstaand bedrag, recente wijzigingen aan aanmeldingen en, voor de beheerder, de stand van het systeem.
  *
  * Elk onderdeel hoort bij een recht. `loadDashboard` haalt alleen op wat de rol mag zien en `renderDashboard` tekent
- * alleen wat is opgehaald; een onderdeel zonder recht bestaat dus niet in de uitvoer. Bedragen komen uit dezelfde
- * berekening als het betaaloverzicht (`loadOverview`), zodat de aantallen hier en daar gelijk zijn.
+ * alleen wat is opgehaald; een onderdeel zonder recht bestaat dus niet in de uitvoer.
+ *
+ * Elke tegel telt hetzelfde als de lijst waar hij naartoe linkt. *Te laat* komt uit `loadOverview` en het openstaande
+ * bedrag per vertrek uit `outstandingByTrip`, beide uit het betaaloverzicht, zodat de cijfers hier en daar gelijk zijn.
+ *
+ * Mislukt het ophalen van één onderdeel, dan toont alleen dat onderdeel een melding (`FAILED`); de rest van de pagina
+ * blijft werken en de fout komt in het logboek.
  */
 
 const { html } = require('../site/html');
@@ -13,7 +18,7 @@ const { bookedSeatsSql, seatSummary } = require('../trips/seats');
 const { roleHasRight, roleHasGlobalRight } = require('./rights');
 const { formatDateTime } = require('./layout');
 const { STATUSES } = require('./booking-routes');
-const { loadOverview } = require('./payment-overview-routes');
+const { loadOverview, outstandingByTrip } = require('./payment-overview-routes');
 const payments = require('./payments');
 const ui = require('./ui');
 
@@ -25,6 +30,9 @@ const ACTIVITY_LIMIT = 8;
 
 /** Hoogstens zoveel openstaande aanmeldingen doorrekenen voor de tegel *te late betalingen*. */
 const LATE_SCAN_ROWS = 500;
+
+/** Markering voor een onderdeel waarvan het ophalen mislukte (het onderdeel toont dan een melding). */
+const FAILED = Symbol('niet geladen');
 
 /**
  * Wat een rol op het overzicht mag zien.
@@ -64,16 +72,12 @@ async function countPossibleDuplicates(db) {
 }
 
 /**
- * Telt de reizen die nog als concept staan en nog niet vertrokken zijn.
+ * Telt de reizen die als concept staan: dezelfde voorwaarde als het filter *Concept* in de lijst met reizen.
  * @param {{query: Function}} db Database.
- * @param {string} today Vandaag (jjjj-mm-dd, Europe/Amsterdam).
  * @returns {Promise<number>} Aantal.
  */
-async function countDraftTrips(db, today) {
-  const [row] = await db.query(
-    'SELECT count(*)::int AS total FROM trips WHERE NOT published AND (departure_date IS NULL OR departure_date >= $1::date)',
-    [today],
-  );
+async function countDraftTrips(db) {
+  const [row] = await db.query('SELECT count(*)::int AS total FROM trips WHERE NOT published');
   return row.total;
 }
 
@@ -91,27 +95,23 @@ async function countLatePayments(db, { terms, today }) {
 /**
  * De eerstvolgende vertrekken met het aantal bezette plaatsen en, als het mag, het openstaande bedrag per vertrek.
  * @param {{query: Function}} db Database.
- * @param {{today: string, withOutstanding: boolean}} input Vandaag en of het openstaande bedrag meegeteld wordt.
+ * @param {{today: string, withOutstanding: boolean}} input Vandaag en of het openstaande bedrag erbij komt.
  * @returns {Promise<object[]>} Vertrekken (id, title, trip_code, departure_date, capacity, fully_booked, published,
  *   booked_seats en, met `withOutstanding`, outstanding_cents).
  */
 async function loadDepartures(db, { today, withOutstanding }) {
-  // Openstaand per vertrek: per aanmelding (niet geannuleerd) verwacht min betaald, alleen wat nog te betalen is.
-  const outstandingSql = `(SELECT coalesce(sum(greatest(due.total - due.paid, 0)), 0)::bigint
-       FROM (SELECT coalesce((SELECT sum(c.amount_cents) FROM booking_charges c WHERE c.booking_id = b.id AND c.removed_at IS NULL), 0) AS total,
-                    coalesce((SELECT sum(p.amount_cents) FROM payments p WHERE p.booking_id = b.id), 0) AS paid
-               FROM bookings b
-              WHERE b.trip_id = t.id AND b.status <> 'geannuleerd') due)`;
-  return db.query(
+  const trips = await db.query(
     `SELECT t.id, t.title, t.trip_code, t.departure_date, t.capacity, t.fully_booked, t.published,
-            ${bookedSeatsSql('t')} AS booked_seats,
-            CASE WHEN $3::boolean THEN ${outstandingSql} ELSE NULL END AS outstanding_cents
+            ${bookedSeatsSql('t')} AS booked_seats
        FROM trips t
       WHERE t.departure_date >= $1::date
       ORDER BY t.departure_date, t.id
       LIMIT $2`,
-    [today, DEPARTURE_LIMIT, withOutstanding],
+    [today, DEPARTURE_LIMIT],
   );
+  if (!withOutstanding) return trips;
+  const outstanding = await outstandingByTrip(db, trips.map((trip) => trip.id));
+  return trips.map((trip) => ({ ...trip, outstanding_cents: outstanding.get(trip.id) || 0 }));
 }
 
 /**
@@ -153,40 +153,64 @@ function systemState({ monitor, backups, systemUpdate }) {
 
 /**
  * Haalt alles op wat de gebruiker op het overzicht mag zien.
- * @param {{db: object, settings: object, monitor?: object, backups?: object, systemUpdate?: object}} sources Database,
- *   instellingen (betaaltermijnen) en de bronnen voor de stand van het systeem.
+ * @param {{db: object, settings: object, monitor?: object, backups?: object, systemUpdate?: object, appLog?: object}} sources
+ *   Database, instellingen (betaaltermijnen), de bronnen voor de stand van het systeem en het logboek.
  * @param {{role: string, now: number}} input Rol van de gebruiker en het huidige tijdstip in ms.
  * @returns {Promise<object>} `access` plus per toegestaan onderdeel de gegevens: `newBookings`, `latePayments`,
- *   `duplicates`, `draftTrips`, `departures`, `activity` en `system`; een onderdeel zonder recht ontbreekt.
+ *   `duplicates`, `draftTrips`, `departures`, `activity` en `system`. Een onderdeel zonder recht is `undefined`; een
+ *   onderdeel dat niet geladen kon worden is `FAILED`.
  */
 async function loadDashboard(sources, { role, now }) {
   const { db, settings } = sources;
   const access = dashboardAccess(role);
   const today = payments.localDay(now);
-  const showDepartures = access.trips || access.bookings;
-  const [newBookings, latePayments, duplicates, draftTrips, departures, activity] = await Promise.all([
-    access.bookings ? countNewBookings(db) : undefined,
-    access.payments ? countLatePayments(db, { terms: payments.termsFrom(settings), today }) : undefined,
-    access.persons ? countPossibleDuplicates(db) : undefined,
-    access.trips ? countDraftTrips(db, today) : undefined,
-    showDepartures ? loadDepartures(db, { today, withOutstanding: access.payments }) : undefined,
-    access.bookings ? loadActivity(db) : undefined,
-  ]);
-  return {
-    access, newBookings, latePayments, duplicates, draftTrips, departures, activity,
-    system: access.system ? systemState(sources) : undefined,
+  /**
+   * Haalt één onderdeel op als de rol het mag zien; een fout raakt alleen dit onderdeel.
+   * @param {boolean} allowed Of de rol het onderdeel mag zien.
+   * @param {string} name Naam van het onderdeel voor het logboek.
+   * @param {() => (Promise<*>|*)} load Haalt de gegevens op.
+   * @returns {Promise<*>} De gegevens, `undefined` zonder recht, of `FAILED` na een fout.
+   */
+  const part = async (allowed, name, load) => {
+    if (!allowed) return undefined;
+    try {
+      return await load();
+    } catch (error) {
+      // Alleen het onderdeel en de soort fout: de melding van de database kan waarden bevatten.
+      if (sources.appLog) sources.appLog.error('overzicht', `onderdeel ${name} niet geladen (${error.code || error.name})`);
+      return FAILED;
+    }
   };
+  const [newBookings, latePayments, duplicates, draftTrips, departures, activity, system] = await Promise.all([
+    part(access.bookings, 'nieuwe aanmeldingen', () => countNewBookings(db)),
+    part(access.payments, 'te late betalingen', () => countLatePayments(db, { terms: payments.termsFrom(settings), today })),
+    part(access.persons, 'mogelijke dubbelen', () => countPossibleDuplicates(db)),
+    part(access.trips, 'reizen in concept', () => countDraftTrips(db)),
+    part(access.trips || access.bookings, 'komende vertrekken', () => loadDepartures(db, { today, withOutstanding: access.payments })),
+    part(access.bookings, 'recente activiteit', () => loadActivity(db)),
+    part(access.system, 'systeem', () => systemState(sources)),
+  ]);
+  return { access, newBookings, latePayments, duplicates, draftTrips, departures, activity, system };
+}
+
+/**
+ * De melding in een onderdeel dat niet geladen kon worden.
+ * @returns {object} HTML.
+ */
+function renderFailed() {
+  return html`<p class="crm-empty" role="status">Dit onderdeel kon niet worden geladen. Probeer het later opnieuw.</p>`;
 }
 
 /**
  * Eén tegel van *Te doen*: een getal met een omschrijving, als link naar de lijst met dat filter.
- * @param {{count: number, label: string, href: string, atLeast?: boolean}} tile Aantal, omschrijving, adres en of het
- *   aantal een ondergrens is.
+ * @param {{count: (number|symbol), label: string, href: string, atLeast?: boolean}} tile Aantal (of `FAILED`),
+ *   omschrijving, adres en of het aantal een ondergrens is.
  * @returns {object} HTML.
  */
 function renderTile(tile) {
-  return html`<li><a class="crm-tile${tile.count ? ' crm-tile--open' : ''}" href="${tile.href}">
-    <span class="crm-tile-count">${tile.atLeast ? `${tile.count}+` : tile.count}</span>
+  const failed = tile.count === FAILED;
+  return html`<li><a class="crm-tile${!failed && tile.count ? ' crm-tile--open' : ''}" href="${tile.href}"${failed ? html` title="Dit aantal kon niet worden geladen"` : ''}>
+    <span class="crm-tile-count">${failed ? '?' : (tile.atLeast ? `${tile.count}+` : tile.count)}</span>
     <span class="crm-tile-label">${tile.label}</span>
   </a></li>`;
 }
@@ -199,7 +223,7 @@ function renderTile(tile) {
 function renderTodo(data) {
   const tiles = [
     data.newBookings === undefined ? null : { count: data.newBookings, label: 'Nieuwe aanmeldingen', href: '/app/aanmeldingen/?status=nieuw' },
-    data.latePayments === undefined ? null : { count: data.latePayments.count, atLeast: data.latePayments.atLeast, label: 'Te late betalingen', href: '/app/betalingen/?weergave=te-laat' },
+    data.latePayments === undefined ? null : { count: data.latePayments === FAILED ? FAILED : data.latePayments.count, atLeast: data.latePayments !== FAILED && data.latePayments.atLeast, label: 'Te late betalingen', href: '/app/betalingen/?weergave=te-laat' },
     data.duplicates === undefined ? null : { count: data.duplicates, label: 'Mogelijk dubbele deelnemers', href: '/app/deelnemers/?dubbel=1' },
     data.draftTrips === undefined ? null : { count: data.draftTrips, label: 'Reizen in concept', href: '/app/reizen/?status=concept' },
   ].filter(Boolean);
@@ -238,7 +262,7 @@ function renderDepartures(data) {
   ].filter(Boolean);
   return html`<section class="crm-panel" aria-labelledby="overzicht-vertrekken">
     <h2 id="overzicht-vertrekken">Komende vertrekken</h2>
-    ${ui.renderTable({ caption: 'Komende vertrekken', empty: 'Er staan geen vertrekken gepland.', rows: data.departures, columns })}
+    ${data.departures === FAILED ? renderFailed() : ui.renderTable({ caption: 'Komende vertrekken', empty: 'Er staan geen vertrekken gepland.', rows: data.departures, columns })}
     ${access.trips ? html`<p class="crm-panel-more"><a href="/app/reizen/">Alle reizen</a></p>` : ''}
   </section>`;
 }
@@ -264,7 +288,7 @@ function renderActivity(data) {
   if (data.activity === undefined) return '';
   return html`<section class="crm-panel" aria-labelledby="overzicht-activiteit">
     <h2 id="overzicht-activiteit">Recente activiteit</h2>
-    ${data.activity.length ? html`<ol class="crm-activity">${data.activity.map((event) => html`<li>
+    ${data.activity === FAILED ? renderFailed() : data.activity.length ? html`<ol class="crm-activity">${data.activity.map((event) => html`<li>
       <a href="/app/aanmeldingen/${event.booking_id}/">${event.reference}</a>: ${describeEvent(event)}
       <span class="crm-activity-meta">${formatDateTime(event.created_at)}${event.user_name ? ` · ${event.user_name}` : ''}</span>
     </li>`)}</ol>` : html`<p class="crm-empty">Nog geen wijzigingen aan aanmeldingen.</p>`}
@@ -278,6 +302,7 @@ function renderActivity(data) {
  */
 function renderSystem(data) {
   if (data.system === undefined) return '';
+  if (data.system === FAILED) return html`<section class="crm-panel" aria-labelledby="overzicht-systeem"><h2 id="overzicht-systeem">Systeem</h2>${renderFailed()}</section>`;
   const { system } = data;
   const monitorStatus = !system.monitorEnabled
     ? ui.renderStatus('geen', 'Uit')
@@ -308,4 +333,4 @@ function renderDashboard(data) {
     </div>` : ''}`;
 }
 
-module.exports = { loadDashboard, renderDashboard, dashboardAccess, describeEvent, systemState, DEPARTURE_LIMIT, ACTIVITY_LIMIT };
+module.exports = { loadDashboard, renderDashboard, dashboardAccess, describeEvent, systemState, FAILED, DEPARTURE_LIMIT, ACTIVITY_LIMIT };
