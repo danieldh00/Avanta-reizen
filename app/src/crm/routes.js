@@ -85,7 +85,7 @@ function createCrmRouter(options) {
   router.use(createMediaModuleRoutes(moduleContext));
   router.use(createTripsModuleRoutes(moduleContext));
   router.use(createCmsModuleRoutes(moduleContext));
-  router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, passwordCheck, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, retention: options.retention, now: options.now }));
+  router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, passwordCheck, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, retention: options.retention, siteContent: options.siteContent, now: options.now }));
 
   router.use((req, res) => {
     res.status(404).send(renderCrmPage({
