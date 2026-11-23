@@ -8,7 +8,6 @@
  *     node tools/design-check/seed.js
  * Schrijft niets weg buiten de database; de inloggegevens staan in `credentials.js` (alleen voor lokaal testen).
  */
-const { chromium } = require('playwright');
 const { createDatabase } = require('../../src/database/db');
 const { hashPassword } = require('../../src/crm/passwords');
 const { ADMIN, CUSTOMER, ROLE_USERS } = require('./credentials');
@@ -131,10 +130,29 @@ async function recordPayment(page, db) {
 }
 
 /**
+ * Weigert te draaien tegen iets anders dan een lokale database: de testaccounts hebben een bekend wachtwoord en horen
+ * nooit op een omgeving met echte gegevens. Alleen met `DESIGN_SEED_TOEGESTAAN=1` mag een andere host (bijv. een
+ * database-container in CI).
+ * @param {string} databaseUrl Verbindings-URL.
+ * @returns {void}
+ */
+function assertLocalDatabase(databaseUrl) {
+  if (process.env.NODE_ENV === 'production') throw new Error('seed.js draait niet met NODE_ENV=production.');
+  const host = new URL(databaseUrl).hostname;
+  if (!['localhost', '127.0.0.1', '::1', '[::1]'].includes(host) && process.env.DESIGN_SEED_TOEGESTAAN !== '1') {
+    throw new Error(`seed.js draait alleen tegen een lokale database (host ${host}); zet DESIGN_SEED_TOEGESTAAN=1 voor een testcontainer.`);
+  }
+}
+
+/**
  * Voert alle stappen uit.
  * @returns {Promise<void>}
  */
 async function main() {
+  assertLocalDatabase(process.env.DATABASE_URL || '');
+  // Playwright is geen dependency van de app; het staat in de ontwikkelomgeving.
+  // eslint-disable-next-line global-require
+  const { chromium } = require('playwright');
   const db = createDatabase(process.env.DATABASE_URL);
   const browser = await chromium.launch();
   try {
@@ -164,4 +182,6 @@ async function main() {
   }
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; });
+if (require.main === module) main().catch((error) => { console.error(error); process.exitCode = 1; });
+
+module.exports = { assertLocalDatabase };

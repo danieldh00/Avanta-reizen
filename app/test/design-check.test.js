@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const { screenType, areaOf, groupFindings } = require('../tools/design-check/check');
 const { buildSheets } = require('../tools/design-check/report');
 const { runPageChecks } = require('../tools/design-check/page-checks');
+const { assertLocalDatabase } = require('../tools/design-check/seed');
 
 /**
  * Laadt Playwright als het beschikbaar is.
@@ -61,6 +62,12 @@ test('bevindingen: dezelfde fout op meerdere pagina\'s wordt één regel, ernsti
   assert.equal(sheets[0].rows[1][0], 'A01');
   assert.equal(sheets[0].rows.length, 3);
   assert.deepEqual(sheets[2].rows[1], ['CRM en Beheer', 'NEE', 403]);
+});
+
+test('testgegevens alleen in een lokale database', () => {
+  assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@localhost:5432/avanta_design'));
+  assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@127.0.0.1/avanta'));
+  assert.throws(() => assertLocalDatabase('postgres://avanta:x@db.example.nl/avanta'), /alleen tegen een lokale database/);
 });
 
 const playwright = loadPlaywright();
