@@ -198,6 +198,18 @@ document.addEventListener('DOMContentLoaded', function setupTabs() {
         window.history.replaceState(null, '', link.getAttribute('href'));
       });
     });
+    // Een verplicht veld in een verborgen paneel: de browser kan het niet aanwijzen en zou het opslaan zonder melding
+    // weigeren. Toon daarom het paneel van het eerste ongeldige veld; de browser zet daar dan zijn melding bij.
+    forms.forEach((form) => {
+      form.addEventListener('invalid', () => {
+        const first = form.querySelector(':invalid');
+        const panel = first ? first.closest('[data-tab-panel]') : null;
+        if (!panel) return;
+        const key = panel.getAttribute('data-tab-panel');
+        links.forEach((link) => { if (link.getAttribute('data-tab') === key) link.classList.add('crm-tabs-error'); });
+        if (panel.hidden) show(key);
+      }, true);
+    });
     const withError = panels.find((panel) => panel.querySelector('[aria-invalid="true"]'));
     show(keyFromAddress() || (withError || panels[0]).getAttribute('data-tab-panel'));
     container.classList.add('crm-tabbed--js');

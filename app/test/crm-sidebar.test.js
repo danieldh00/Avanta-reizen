@@ -143,6 +143,8 @@ test('tabbladen: het script en de opmaak passen bij de bouwstenen uit crm/ui.js'
   const publicDir = path.join(__dirname, '..', 'public');
   const script = fs.readFileSync(path.join(publicDir, 'js', 'crm.js'), 'utf8');
   for (const hook of ['[data-tabs]', '[data-tab-panel]', 'a[data-tab]', 'form[data-tab-form]', 'aria-invalid', 'hashchange']) assert.ok(script.includes(hook), hook);
+  // Een leeg verplicht veld in een verborgen paneel: het script opent dat paneel, anders weigert de browser stil.
+  assert.match(script, /addEventListener\('invalid',[\s\S]*?querySelector\(':invalid'\)[\s\S]*?show\(key\)[\s\S]*?, true\)/);
   const css = fs.readFileSync(path.join(publicDir, 'css', 'crm.css'), 'utf8');
   for (const selector of ['.crm-tabs--edit ', '.crm-tabpanel {', '.crm-savebar {', '.crm-tabbed [hidden] {', '.crm-edit-side {']) assert.ok(css.includes(selector), selector);
 });
