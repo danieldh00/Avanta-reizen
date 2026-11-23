@@ -5,13 +5,15 @@
  * (`[data-slider]`: dia's met stippen of pijlen, automatisch doorschuiven tenzij de bezoeker minder beweging wil) en de
  * schuifrij met bestemmingen (`[data-scroller]`). Zonder JavaScript staat de eerste dia er en schuift de rij met de hand.
  * Videoblokken (`[data-video-consent]`) laden YouTube pas na een klik of een eerder onthouden keuze; zonder JavaScript
- * blijft de link naar YouTube over.
+ * blijft de link naar YouTube over. Op het aanmeldformulier staat het blok *Ouder of voogd* (`[data-guardian]`) alleen
+ * open bij een deelnemer onder de 16; zonder JavaScript staat het altijd open en controleert de server de leeftijd.
  */
 (function setupSite() {
   document.documentElement.classList.add('js');
   setupSliders();
   setupScrollers();
   setupVideoConsent();
+  setupGuardian();
   const header = document.querySelector('.header-main');
   if (!header) return;
 
@@ -266,5 +268,32 @@
         load(block, true);
       });
     });
+  }
+
+  /**
+   * Toont het blok voor de ouder of voogd alleen als de geboortedatum een deelnemer onder de 16 geeft (op vandaag),
+   * dezelfde rekenregel als de server (`ageOn` in `booking/fields.js`). Staat er een foutmelding in het blok, dan
+   * blijft het altijd open.
+   * @returns {void}
+   */
+  function setupGuardian() {
+    const block = document.querySelector('[data-guardian]');
+    const birth = document.getElementById('veld-birth_date');
+    if (!block || !birth) return;
+    const limit = Number(block.getAttribute('data-guardian')) || 16;
+    const update = () => {
+      const value = birth.value;
+      let minor = false;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const years = Number(today.slice(0, 4)) - Number(value.slice(0, 4));
+        minor = (today.slice(5) < value.slice(5) ? years - 1 : years) < limit;
+      }
+      block.hidden = !minor && !block.querySelector('.field__error');
+    };
+    birth.addEventListener('change', update);
+    birth.addEventListener('input', update);
+    update();
   }
 }());

@@ -293,3 +293,23 @@ test('meldingen vanuit het contact- en aanmeldformulier, en Beheer', { skip: !DA
     assert.doesNotMatch(page.text.split('Laatste verzendingen')[1], /anna@example\.nl|kantoor@example\.nl/);
   });
 });
+
+test('bevestiging aan de ouder of voogd: naam van de deelnemer en de reis, nooit bijzondere gegevens', async () => {
+  const trip = { title: '8 dagen Albanië', trip_code: '27-AKO-56', departure_date: '2027-07-01', price_cents: 109900 };
+  const values = { call_name: 'Sam', first_names: 'Samuel', last_name: 'Jansen', email: 'sam@example.nl', church: 'PKN', particulars: 'Notenallergie', birth_date: '2012-05-04', guardian_name: 'Petra Jansen', guardian_email: 'petra@example.nl' };
+  const booking = { reference: 'AV-2027-0000000B', trip, values };
+  const off = fakeMailer();
+  assert.equal(await createNotifications({ mailer: off, settings: fakeSettings({ bookingConfirmEnabled: false }) }).guardianConfirmation(booking), false);
+  assert.equal(off.sent.length, 0);
+  assert.equal(await createNotifications({ mailer: fakeMailer(), settings: fakeSettings({}) }).guardianConfirmation({ ...booking, values: { ...values, guardian_email: '' } }), false, 'zonder adres niets');
+  assert.equal(await createNotifications({ mailer: fakeMailer({ fail: true }), settings: fakeSettings({}) }).guardianConfirmation(booking), false, 'een fout wordt niet gegooid');
+  const mailer = fakeMailer();
+  assert.equal(await createNotifications({ mailer, settings: fakeSettings({}) }).guardianConfirmation(booking), true);
+  const [message] = mailer.sent;
+  assert.equal(message.to, 'petra@example.nl');
+  assert.equal(message.kind, 'bevestiging-ouder');
+  assert.equal(message.subject, 'Aanmelding AV-2027-0000000B met uw toestemming: 8 dagen Albanië');
+  assert.match(message.text, /Beste Petra Jansen,/);
+  assert.match(message.text, /Deelnemer: Sam Jansen/);
+  assert.doesNotMatch(message.text + message.html, /PKN|Notenallergie|2012|sam@example/, 'nooit bijzondere gegevens of het adres van de deelnemer');
+});

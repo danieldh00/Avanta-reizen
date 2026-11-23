@@ -76,6 +76,7 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
       street: 'Markt 1', postal_code: '4331 AA', city: 'Middelburg', occupation: 'Juf', birth_date: '1990-03-04',
       nationality: 'Nederlandse', document_type: 'paspoort', document_number: 'NX99', church: 'PKN', consent_religion: 'ja',
       particulars: 'Astma', consent_health: 'ja', emergency_phone: '0687654321',
+      guardian_name: 'Piet Bakker', guardian_relation: 'ouder', guardian_email: 'piet@example.nl', guardian_phone: '0611111111',
     };
     const id = await db.transaction(async (client) => {
       const { personId } = await persons.savePerson(client, values);
@@ -152,6 +153,7 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.equal(kept.special_data, null);
     assert.equal(kept.health_data, null);
     assert.equal(kept.emergency_data, null);
+    assert.equal(kept.guardian_data, null, 'ook de gegevens van de ouder of voogd');
     assert.deepEqual(persons.openBlock('identity_data', kept), { birth_date: '1990-03-04' });
     assert.equal(kept.last_name, 'Bakker');
     // Toekomstige reis: niets gewist.

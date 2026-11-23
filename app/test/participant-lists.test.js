@@ -231,7 +231,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.deepEqual(actions, ['export.deelnemers.gezondheid', 'export.deelnemers.identiteit', 'export.deelnemers']);
     assert.match((await download(beheer, { religie: 'ja' })).sheet, />PKN</);
     // Het auditlog toont een leesbare naam voor de nieuwe acties.
-    assert.match((await request('/app/auditlog/', { cookie: beheer.cookie })).text, /Deelnemerslijst met medische bijzonderheden en noodnummer geëxporteerd/);
+    assert.match((await request('/app/auditlog/', { cookie: beheer.cookie })).text, /Deelnemerslijst met medische bijzonderheden, noodnummer en ouder of voogd \(onder 16\) geëxporteerd/);
   });
 
   await t.test('ingetrokken art. 9-toestemming: geen gegevens', async () => {

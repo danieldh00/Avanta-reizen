@@ -43,7 +43,13 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   een nieuwe persoon met de markering *mogelijk dubbel* (`duplicate_of`) en beslist kantoor. Een volgende aanmelding
   met dezelfde afwijking komt bij dat dubbel uit, niet bij weer een nieuwe persoon. Kerkgenootschap en
   bijzonderheden (AVG art. 9) zijn vrijwillig en worden alleen opgeslagen met een eigen toestemmingsvinkje; elke
-  toestemming staat met de versie van de tekst in `consents`. Aanmeldingen van vóór migratie 10 zet de app bij het
+  toestemming staat met de versie van de tekst in `consents`. **Deelnemer jonger dan 16** (op de dag van aanmelden,
+  art. 8 AVG en art. 5 UAVG, migratie 29): dan zijn naam, relatie (ouder of voogd), e-mailadres en een eigen
+  toestemmingsvinkje van de ouder verplicht; telefoon is vrijwillig. De gegevens van de ouder staan versleuteld in het
+  blok `guardian_data` (in te zien met `gegevens.gezondheid`, net als het noodnummer; ook in de deelnemerslijst), alle
+  toestemmingen van die aanmelding krijgen `given_by = 'ouder_voogd'` plus een regel `ouder_voogd`, en de ouder krijgt
+  een eigen bevestiging per mail. Bij 16 of ouder worden de oudervelden leeggemaakt en niet bewaard. Op het formulier
+  toont `site.js` het blok alleen onder de 16; zonder JavaScript staat het open en controleert de server. Aanmeldingen van vóór migratie 10 zet de app bij het
   starten zelf om (alleen aantallen in het logboek); hun art. 9-gegevens gaan mee, met een toestemmingsregel met tekstversie
   `oud-formulier, geen losse art. 9-toestemming` (het oude formulier vroeg die niet los). **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.

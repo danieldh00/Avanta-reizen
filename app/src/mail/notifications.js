@@ -16,7 +16,7 @@ const PAYMENT_LABELS = { aanbetaling: 'Aanbetaling', totaal: 'Totaalbedrag' };
 /**
  * Maakt de meldingen.
  * @param {{mailer: object, settings: object}} options De mailer (`mail/mailer.js`) en de instellingen.
- * @returns {{contactMessage: Function, booking: Function, bookingConfirmation: Function, layoutOptions: Function}} Functies die een melding versturen
+ * @returns {{contactMessage: Function, booking: Function, bookingConfirmation: Function, guardianConfirmation: Function, layoutOptions: Function}} Functies die een melding versturen
  *   (en nooit een fout gooien) en de opmaakinstellingen voor `renderMail`.
  */
 function createNotifications(options) {
@@ -150,7 +150,39 @@ function createNotifications(options) {
     }
   };
 
-  return { contactMessage, booking, bookingConfirmation, layoutOptions };
+  /**
+   * Bevestiging aan de ouder of voogd bij een deelnemer onder de 16: wie is aangemeld, voor welke reis, en dat de ouder
+   * toestemming gaf. Zo merkt een ouder het als een kind de toestemming zelf heeft aangevinkt. Alleen de naam van de
+   * deelnemer en de reis, nooit bijzondere gegevens. Valt onder dezelfde instelling als de bevestiging aan de reiziger;
+   * gooit nooit.
+   * @param {{reference: string, trip: object, values: object}} booking Referentie, reis en de gecontroleerde velden
+   *   (met `guardian_name` en `guardian_email`).
+   * @returns {Promise<boolean>} Waar als de bevestiging is verstuurd.
+   */
+  const guardianConfirmation = async (booking) => {
+    const { values, trip } = booking;
+    if (!settings.get('bookingConfirmEnabled') || !values.guardian_email || !mailer.configured()) return false;
+    const participant = `${values.call_name || values.first_names} ${values.last_name}`.trim();
+    try {
+      const rendered = renderMail({
+        ...layoutOptions(),
+        title: 'Aanmelding met uw toestemming',
+        intro: `Beste ${values.guardian_name},\n\n${participant} is aangemeld voor een reis van ${settings.get('siteName')}. Omdat de deelnemer jonger is dan 16 jaar, is bij de aanmelding aangegeven dat u als ouder of voogd toestemming geeft voor de aanmelding en voor het vastleggen van de gegevens.\n\nKlopt dit niet, of wilt u de toestemming intrekken? Antwoord dan op deze mail of neem contact met ons op.`,
+        rows: [
+          ['Referentie', booking.reference],
+          ['Deelnemer', participant],
+          ['Reis', trip.title],
+          ['Vertrek', formatDate(trip.departure_date)],
+        ],
+      });
+      await mailer.send({ kind: 'bevestiging-ouder', to: values.guardian_email, subject: `Aanmelding ${booking.reference} met uw toestemming: ${trip.title}`, text: rendered.text, html: rendered.html, attachments: rendered.attachments });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+
+  return { contactMessage, booking, bookingConfirmation, guardianConfirmation, layoutOptions };
 }
 
 module.exports = { createNotifications };

@@ -17,7 +17,7 @@ const { STATUSES } = require('../booking/crm-routes');
  */
 const CATEGORIES = {
   identiteit: { label: 'Identiteitsgegevens (geboortedatum, nationaliteit, paspoort of ID-kaart)', right: 'gegevens.identiteit', blocks: ['identity_data'] },
-  gezondheid: { label: 'Medische bijzonderheden en noodnummer', right: 'gegevens.gezondheid', blocks: ['health_data', 'emergency_data'] },
+  gezondheid: { label: 'Medische bijzonderheden, noodnummer en ouder of voogd (onder 16)', right: 'gegevens.gezondheid', blocks: ['health_data', 'emergency_data', 'guardian_data'] },
   religie: { label: 'Kerkgenootschap', right: 'gegevens.religie', blocks: ['special_data'] },
 };
 
@@ -98,6 +98,9 @@ const CATEGORY_COLUMNS = {
   gezondheid: [
     { label: 'Medische bijzonderheden', block: 'health_data', field: 'particulars' },
     { label: 'Noodnummer', block: 'emergency_data', field: 'emergency_phone' },
+    { label: 'Ouder of voogd', block: 'guardian_data', field: 'guardian_name' },
+    { label: 'Telefoon ouder of voogd', block: 'guardian_data', field: 'guardian_phone' },
+    { label: 'E-mail ouder of voogd', block: 'guardian_data', field: 'guardian_email' },
   ],
   religie: [
     { label: 'Kerkgenootschap', block: 'special_data', field: 'church' },
@@ -118,7 +121,7 @@ async function loadParticipants(db, tripId, max) {
   const rows = await db.query(
     `SELECT b.id, b.reference, b.status, b.created_at, b.person_id, ${BOOKING_EXTRA.map((name) => `b.${name}`).join(', ')},
             ${PLAIN_FIELDS.map((name) => `b.${name} AS booking_${name}, p.${name} AS person_${name}`).join(', ')},
-            p.identity_data, p.special_data, p.health_data, p.emergency_data,
+            p.identity_data, p.special_data, p.health_data, p.emergency_data, p.guardian_data,
             EXISTS (SELECT 1 FROM consents c WHERE c.person_id = p.id AND c.kind = $2 AND c.withdrawn_at IS NULL) AS consent_special,
             EXISTS (SELECT 1 FROM consents c WHERE c.person_id = p.id AND c.kind = $3 AND c.withdrawn_at IS NULL) AS consent_health
        FROM bookings b LEFT JOIN persons p ON p.id = b.person_id
