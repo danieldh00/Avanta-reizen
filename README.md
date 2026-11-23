@@ -121,6 +121,10 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   - **Eerste beheerder**: zolang er geen CRM-gebruiker is, zet de server bij elke start een eenmalige installatiecode in
     het log (`CRM: nog geen gebruikers … installatiecode XXXXX-…`). Open `/app/installatie/`, vul die code in en maak
     het account aan; daarna is de installatiepagina weg (404).
+  - **Weer toegang als beheerder** (geen tweede beheerder, wachtwoord vergeten of authenticator kwijt):
+    `servertaken.sh beheerder-herstel <e-mailadres>` via het vaste commando, of in de container
+    `node src/crm/cli.js beheerder-herstel <e-mailadres>`: tijdelijk wachtwoord, 2FA uit met een nieuwe activatiecode,
+    alle sessies weg en een auditregel. Stappen: `docs/DRAAIBOEK-VPS-VERHUIZING.md` §7.
   - Sessie: cookie `avanta_sessie` (`HttpOnly`, `Secure`, `SameSite=Strict`, pad `/app`), in de database alleen de
     SHA-256 van het token; verloopt standaard na 1 uur zonder activiteit en uiterlijk na 1 dag (instelbaar in Beheer; audit A07). Het CRM werkt daardoor alleen
     via https (of `http://localhost`).
