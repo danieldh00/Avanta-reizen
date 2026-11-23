@@ -125,6 +125,10 @@ test('analytics: actief meet-ID en Content-Security-Policy', () => {
   assert.match(extended, /img-src 'self' data: https:\/\/\*\.google-analytics\.com https:\/\/\*\.googletagmanager\.com(;|$)/);
   assert.doesNotMatch(extended, /unsafe-inline'[^;]*script|script-src[^;]*unsafe/, 'geen inline scripts');
   assert.match(extended, /frame-ancestors 'none'/);
+  // Geen inline `<style>`-blokken; alleen het style-attribuut mag nog (achtergrondfoto's op de site).
+  assert.match(BASE_CSP, /(^|; )style-src 'self'(;|$)/);
+  assert.match(BASE_CSP, /(^|; )style-src-attr 'unsafe-inline'(;|$)/);
+  assert.match(extended, /(^|; )style-src 'self'(;|$)/, 'analytics voegt geen stijlbron toe');
 });
 
 test('analytics: script laadt niets van Google vóór Accepteren', () => {

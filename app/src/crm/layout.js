@@ -290,7 +290,8 @@ function renderBeheerSidebar(page) {
 
 /**
  * Het kruimelpad van een pagina: de groep en het onderdeel uit het menu, en de titel van de pagina als die afwijkt
- * (bijvoorbeeld een reis onder Reizen). In Beheer: Beheer en de titel. Een pagina buiten het menu heeft alleen de titel.
+ * (bijvoorbeeld een reis onder Reizen). In Beheer: Beheer en de titel; de startpagina van Beheer alleen Beheer. Een
+ * pagina buiten het menu heeft alleen de titel.
  * @param {object} user De ingelogde gebruiker.
  * @param {string} currentPath Huidig pad.
  * @param {string} title Titel van de pagina.
@@ -298,6 +299,7 @@ function renderBeheerSidebar(page) {
  */
 function breadcrumbsFor(user, currentPath, title) {
   const beheerHref = beheerEntryHref(user);
+  if (beheerHref && currentPath === beheerHref && title === 'Beheer') return [{ label: 'Beheer' }];
   if (beheerHref && isBeheerPath(currentPath)) return [{ label: 'Beheer', href: beheerHref }, { label: title }];
   const menu = visibleCrmMenu(user);
   const activeHref = currentHref(menu, currentPath);

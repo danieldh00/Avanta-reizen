@@ -52,6 +52,8 @@ function cspWith(baseCsp) {
     'script-src': ['https://www.google.com/recaptcha/', 'https://www.gstatic.com/recaptcha/'],
     'connect-src': ['https://www.google.com/recaptcha/'],
     'frame-src': ['https://www.google.com/recaptcha/', 'https://recaptcha.google.com/recaptcha/'],
+    // Het script van reCAPTCHA plaatst zijn eigen opmaak voor het label in de pagina; alleen op de formulierpagina's.
+    'style-src-elem': ["'unsafe-inline'"],
   };
   const directives = baseCsp.split('; ');
   for (const [name, sources] of Object.entries(additions)) {

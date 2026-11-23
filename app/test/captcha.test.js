@@ -212,8 +212,11 @@ test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.match(page.text, new RegExp(`name="captchaToken" value="" data-site-key="${SITE_KEY}" data-captcha-action="contact"`));
     assert.match(page.text, /<script src="\/js\/captcha\.js/);
     assert.match(page.headers.get('content-security-policy'), /https:\/\/www\.google\.com\/recaptcha\//);
+    assert.match(page.headers.get('content-security-policy'), /(^|; )style-src-elem 'self' 'unsafe-inline'(;|$)/, 'alleen hier mag het script van reCAPTCHA eigen opmaak plaatsen');
     const other = await request('/reis/');
     assert.doesNotMatch(other.headers.get('content-security-policy'), /google/, 'andere pagina\'s niet');
+    assert.doesNotMatch(other.headers.get('content-security-policy'), /style-src-elem/);
+    assert.match(other.headers.get('content-security-policy'), /(^|; )style-src 'self'(;|$)/);
     assert.doesNotMatch(other.text, /\/js\/captcha\.js/, 'script alleen op de formulierpagina\'s');
     assert.doesNotMatch((await request('/app/inloggen/')).headers.get('content-security-policy'), /google/, 'het CRM niet');
     assert.match((await request('/aanmelden/?id=1001')).text, /data-captcha-action="aanmelden"/);
