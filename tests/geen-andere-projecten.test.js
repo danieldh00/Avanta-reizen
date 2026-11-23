@@ -14,11 +14,11 @@ const ROOT = path.join(__dirname, '..');
 const FORBIDDEN_NAMES = [['aqua', 'tech']];
 const PATTERNS = FORBIDDEN_NAMES.map((parts) => new RegExp(parts.join('[\\s_-]?'), 'i'));
 /**
- * Bestanden die de test overslaat. `app/CHANGELOG.md` mag een PR niet wijzigen (controle `version-must-increase`);
- * de oude regels daarin wachten op een besluit over hoe ze worden gecorrigeerd. Nieuwe notes komen uit `changes/`
- * en vallen wel onder deze test.
+ * Bekende oude vindplaatsen per bestand. `app/CHANGELOG.md` mag een PR niet wijzigen (controle
+ * `version-must-increase`); de vier oude regels daarin wachten op een besluit over hoe ze worden gecorrigeerd.
+ * Meer treffers dan dit aantal laat de test falen, zodat er geen nieuwe bij kan komen; na de correctie gaat het naar 0.
  */
-const SKIPPED_FILES = new Set(['app/CHANGELOG.md']);
+const KNOWN_OLD_HITS = { 'app/CHANGELOG.md': 4 };
 /** Bestanden zonder tekst (afbeeldingen, fonts) worden overgeslagen. */
 const BINARY_FILE = /\.(png|jpe?g|webp|gif|ico|woff2?|ttf|otf|pdf|xlsx|zip)$/i;
 
@@ -30,7 +30,7 @@ function findReferences() {
   const files = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean);
   const hits = [];
   for (const file of files) {
-    if (BINARY_FILE.test(file) || SKIPPED_FILES.has(file)) continue;
+    if (BINARY_FILE.test(file)) continue;
     if (PATTERNS.some((pattern) => pattern.test(file))) hits.push(file);
     let text;
     try {
@@ -38,9 +38,11 @@ function findReferences() {
     } catch {
       continue;
     }
+    const fileHits = [];
     text.split('\n').forEach((line, index) => {
-      if (PATTERNS.some((pattern) => pattern.test(line))) hits.push(`${file}:${index + 1}`);
+      if (PATTERNS.some((pattern) => pattern.test(line))) fileHits.push(`${file}:${index + 1}`);
     });
+    if (fileHits.length > (KNOWN_OLD_HITS[file] || 0)) hits.push(...fileHits);
   }
   return hits;
 }

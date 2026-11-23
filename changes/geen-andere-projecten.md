@@ -3,7 +3,7 @@ titel: Geen verwijzingen naar andere projecten
 ---
 
 ## Changelog
-- Alle verwijzingen naar een ander project zijn uit code, commentaar, en documentatie gehaald; de app zelf
+- Alle verwijzingen naar een ander project zijn uit code, commentaar en documentatie gehaald; de app zelf
   doet hetzelfde als voorheen (alleen commentaar gewijzigd).
 - `deploy/apps01/install.sh` heeft geen vaste naam meer voor de cloudflared-container: de naam komt uit
   `TUNNEL_CONTAINER`, anders uit de `.env` van een eerdere installatie, anders is het de enige draaiende container
