@@ -45,7 +45,7 @@ aan de coördinator vóór hij begint; twee threads werken nooit tegelijk in het
 | `database/migrations/` | elke migratie | **opgesplitst**: één bestand per migratie, zie §3 |
 | `crm/routes.js` | schil van `/app/` (limiet, formuliergrootte, sessie) en de lijst van modules | **opgesplitst**: zie §3a; alleen een nieuwe module of een andere formuliergrootte raakt dit bestand |
 | `beheer/settings.js`, `beheer/indeling.js` | elke nieuwe instelling | **opgesplitst**: instellingen en secties per groep in `beheer/instellingen/<groep>.js`, zie §3b |
-| `server.js` | maakt alle diensten aan en start de timers | wordt opgesplitst (stap 4) |
+| `server.js`, `services.js` | Express-app en volgorde van de middleware; alle diensten en achtergrondtaken | **opgesplitst**: `server.js` koppelt, `services.js` maakt de diensten per module aan en start de timers; een nieuwe dienst is een paar regels bij zijn module in `services.js` |
 | `crm/layout.js` | menu van het CRM (`CRM_MENU`) | blijft gedeeld: één regel per nieuw scherm |
 | `public/css/site.css`, `public/css/crm.css` | alle opmaak | blijft gedeeld tot het minificeren (plan PR 6.6) |
 | `README.md`, `CLAUDE.md` | documentatie van elke feature | wordt per map verdeeld (stap 5) |

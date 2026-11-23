@@ -1,6 +1,7 @@
 /**
  * Webserver van Avanta Reizen: de publieke website op `/` en het CRM op `/app/`.
- * Start met `node src/server.js`; vereist DATABASE_URL.
+ * Start met `node src/server.js`; vereist DATABASE_URL. Dit bestand bouwt de Express-app: beveiligingskoppen, de
+ * volgorde van de middleware en de routes. De diensten die de routes delen staan in `services.js`.
  */
 const express = require('express');
 const fs = require('node:fs');
@@ -9,48 +10,26 @@ const net = require('node:net');
 const { createDatabase } = require('./database/db');
 const { createSiteRouter } = require('./site/routes');
 const { createBookingRouter } = require('./booking/routes');
-const { createAccountRouter, startAccountMaintenance } = require('./account/routes');
-const { createAccounts } = require('./account/accounts');
-const { createSiteContentStore } = require('./site/site-content');
-const { createHomepageStore } = require('./site/homepage');
+const { createAccountRouter } = require('./account/routes');
 const { createContactForm } = require('./contact/routes');
 const { createCrmRouter, generateSetupCode } = require('./crm/routes');
-const { startCrmMaintenance } = require('./crm/auth');
 const seo = require('./site/seo');
 const { loadMasterKey, createVault } = require('./security/vault');
-const { createSettings } = require('./beheer/settings');
 const { siteSettingsOf } = require('./site/site-settings');
-const { createRedirects } = require('./site/redirects');
-const { createMenus } = require('./cms/menus');
 const { cspWith } = require('./site/analytics');
-const { createMailer } = require('./mail/mailer');
-const { createWanIp } = require('./mail/wan-ip');
-const { createNotifications } = require('./mail/notifications');
-const { createCaptcha, cspWith: captchaCspWith, isFormPath } = require('./security/captcha');
+const { cspWith: captchaCspWith, isFormPath } = require('./security/captcha');
 const crypto = require('node:crypto');
-const { createMediaLibrary } = require('./media/library');
-const { PUBLIC_DIR, MEDIA_DIR, DATA_DIR } = require('./paths');
-const { createBackupService } = require('./backup/backups');
-const { createDrive } = require('./backup/drive');
+const { PUBLIC_DIR, MEDIA_DIR } = require('./paths');
+const { createServices, startBackgroundTasks } = require('./services');
 const { roleHasRight } = require('./crm/rights');
 const { createPersons } = require('./persons/persons');
-const { createRetention } = require('./persons/retention');
-const { createPaymentReminders } = require('./payments/payment-reminders');
-const { createMollie } = require('./payments/mollie');
-const { createOnlinePayments } = require('./payments/online-payments');
 const { createOnlinePaymentRoutes } = require('./payments/online-payment-routes');
-const { createRestoreTests } = require('./backup/restore-test');
 const { renderPage, renderPageHeader } = require('./site/layout');
-const { createSystemUpdate } = require('./system/system-update');
-const { createHostTasks } = require('./system/host-tasks');
 const { maintenanceState, maintenanceGuard } = require('./system/maintenance');
 const { runWithContext, currentContext } = require('./system/request-context');
-const { startUpdateSync } = require('./beheer/update-routes');
-const { createMonitor } = require('./system/monitor');
-const { createAppLog, normalizePath, describeError, newErrorCode, newRequestId } = require('./system/app-log');
+const { normalizePath, describeError, newErrorCode, newRequestId } = require('./system/app-log');
 const { html } = require('./site/html');
 const { createHealthRoute } = require('./system/health');
-const { createPasswordCheck } = require('./security/password-check');
 
 /**
  * De standaard Content-Security-Policy: alleen eigen bestanden, geen inline scripts en geen inline `<style>`-blokken.
@@ -115,21 +94,24 @@ function parseTrustProxy(value) {
  */
 function createApp(options) {
   const app = express();
+  // Alle diensten (instellingen, logboek, mail, back-ups, bewaking, …) staan in `services.js`. `app.locals` geeft ze
+  // door aan `start()` en aan de tests.
+  const services = createServices(options);
+  const { vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary, mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, siteContent, homepage, accounts } = services;
+  Object.assign(app.locals, { services, settings, appLog, captcha, passwordCheck, menus, systemUpdate, redirects, mediaLibrary, mailer, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, accounts });
   app.disable('x-powered-by');
   const trustedProxy = parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY);
   app.set('trust proxy', trustedProxy);
   app.use(securityHeaders());
   // Elk verzoek een eigen request-id (nooit een id van buiten) in de context en in de kop X-Request-Id; trage verzoeken
-  // komen in het logboek (genormaliseerd pad, geen querystring). Het logboek zelf wordt verderop gemaakt.
-  let appLog = null;
-  let settingsRef = null;
+  // komen in het logboek (genormaliseerd pad, geen querystring).
   app.use((req, res, next) => {
     const requestId = newRequestId();
     res.set('X-Request-Id', requestId);
     const started = process.hrtime.bigint();
     res.on('finish', () => {
       const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
-      const threshold = appLog && settingsRef ? Number(settingsRef.get('logSlowMs')) || 1500 : Infinity;
+      const threshold = Number(settings.get('logSlowMs')) || 1500;
       if (durationMs >= threshold) {
         appLog.warn('traag', `${req.method} ${normalizePath(req.originalUrl)} ${res.statusCode} in ${Math.round(durationMs)} ms`, { requestId, durationMs });
       }
@@ -140,21 +122,7 @@ function createApp(options) {
   // Gezondheid voor Docker en het updatescript; de versie alleen voor verzoeken van binnen de server (`system/health.js`).
   app.get('/api/health', createHealthRoute({ db: options.db, version: require('../package.json').version, trustedProxy }));
 
-  // Instellingen uit Beheer: één keer geladen, daarna uit het geheugen (Beheer schrijft het geheugen bij). De opties
-  // `indexable` en `siteUrl` (of SITE_INDEXABLE/SITE_URL) zijn alleen de startwaarde; Beheer gaat voor.
-  const vault = createVault(options.masterKey);
-  const startValues = {
-    ...process.env,
-    SITE_INDEXABLE: options.indexable ? 'true' : 'false',
-    SITE_URL: options.siteUrl ?? process.env.SITE_URL ?? '',
-  };
-  const settings = options.settings || createSettings({ db: options.db, vault, env: startValues });
-  settingsRef = settings;
-  appLog = options.appLog || createAppLog({ db: options.db, settings });
-  app.locals.appLog = appLog;
-  // Onzichtbare captcha op de formulieren (tests geven een eigen fetch mee voor de controle bij Google).
-  const captcha = options.captcha || createCaptcha({ settings, fetchImpl: options.captchaFetch });
-  app.locals.captcha = captcha;
+  // Site-instellingen per verzoek (`res.locals.site`), de noindex-kop en de CSP voor Analytics en de captcha.
   app.use(async (req, res, next) => {
     try {
       await settings.ready();
@@ -176,8 +144,6 @@ function createApp(options) {
   });
 
   // Menu's van de site uit het CRM (`cms/menus.js`), één keer geladen; lukt dat niet, dan toont de site het vaste menu.
-  const menus = createMenus({ db: options.db });
-  app.locals.menus = menus;
   app.use(async (req, res, next) => {
     try {
       await menus.ready();
@@ -188,14 +154,6 @@ function createApp(options) {
     next();
   });
 
-  // Updates vanuit de app en servertaken: de gedeelde mappen met het hostscript (leeg = niet ingericht, bijv. lokaal).
-  const updateStatusDir = options.updateStatusDir ?? process.env.UPDATE_STATUS_DIR ?? '';
-  const systemUpdate = options.systemUpdate || createSystemUpdate({
-    statusDir: updateStatusDir, requestDir: options.updateRequestDir ?? process.env.UPDATE_REQUEST_DIR ?? '',
-    currentVersion: require('../package.json').version, now: options.now,
-  });
-  const hostTasks = createHostTasks({ statusDir: updateStatusDir, settings });
-  app.locals.systemUpdate = systemUpdate;
   // Onderhoudsmodus (update of met de hand): de stand per verzoek in de context (voor de balk in de layouts), daarna
   // weigert de bewaker schrijfverzoeken met 503.
   app.use((req, res, next) => {
@@ -205,8 +163,6 @@ function createApp(options) {
   app.use(maintenanceGuard(() => currentContext().maintenance));
 
   // Doorverwijzingen uit Beheer (oude adressen naar nieuwe), vóór de statische bestanden en de site.
-  const redirects = createRedirects({ db: options.db, settings });
-  app.locals.redirects = redirects;
   app.use(redirects.middleware);
 
   app.get('/robots.txt', (req, res) => {
@@ -219,68 +175,15 @@ function createApp(options) {
 
   app.use(express.static(PUBLIC_DIR, { maxAge: '7d', index: false, redirect: false }));
   // Afbeeldingen: import en fotobibliotheek (tests geven een eigen map mee).
-  const mediaDir = options.mediaDir || MEDIA_DIR;
-  const mediaLibrary = createMediaLibrary({ db: options.db, mediaDir, appLog });
-  app.locals.mediaLibrary = mediaLibrary;
   app.use('/media', express.static(mediaDir, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
 
-  // E-mail via de mailserver uit Beheer (tests geven een eigen mailer en WAN-IP-opzoeker mee).
-  const mailer = options.mailer || createMailer({ settings });
-  const wanIp = options.wanIp || createWanIp();
-  app.locals.mailer = mailer;
-  app.locals.settings = settings;
-  const notifications = createNotifications({ mailer, settings });
-  // Versleutelde back-ups (Beheer > Back-ups en herstel); alleen met een verbindings-URL voor pg_dump. Na elke back-up
-  // gaat er een kopie naar Google Drive als die gekoppeld is (tests geven een eigen fetch mee als nep-Google).
-  const backupDir = options.backupDir || path.join(DATA_DIR, 'backups');
-  const drive = createDrive({
-    settings, dir: backupDir, fetchImpl: options.googleFetch, now: options.now,
-    audit: (entry, client) => client.query('INSERT INTO audit_log (user_id, action, entity) VALUES ($1, $2, $3)', [entry.userId ?? null, entry.action, 'google-drive']),
-    isAllowed: async (userId) => {
-      const [user] = await options.db.query('SELECT role, active FROM users WHERE id = $1', [userId]);
-      return Boolean(user && user.active && roleHasRight(user.role, 'systeem'));
-    },
-  });
-  const backups = options.backups || createBackupService({
-    db: options.db, settings, dir: backupDir, masterKey: options.masterKey,
-    connectionString: options.databaseUrl, pgDumpPath: options.pgDumpPath, now: options.now,
-    onCreated: () => drive.sync().catch((error) => console.error(`Google Drive: ${String(error.message).replace(/[\r\n]/g, ' ')}`)),
-  });
-  app.locals.backups = backups;
-  app.locals.drive = drive;
-  const restoreTests = createRestoreTests({ dir: backupDir, masterKey: options.masterKey, drive, now: options.now });
-  app.locals.restoreTests = restoreTests;
-  // Bewaking (Beheer > Systeem > Bewaking): de planner start pas in `start()`; tests geven een eigen statfs/verzender mee.
-  const monitor = createMonitor({
-    db: options.db, settings, mailer, appLog, backups, drive, restoreTests, systemUpdate,
-    dataDir: options.monitorDataDir || DATA_DIR, now: options.now, statfs: options.statfs, request: options.monitorRequest,
-  });
-  app.locals.monitor = monitor;
-  // AVG-opschoning (Beheer > AVG en bewaartermijnen): de dagelijkse ronde start pas in `start()`.
-  const retention = createRetention({ db: options.db, persons: createPersons({ vault }), settings, today: options.retentionToday });
-  app.locals.retention = retention;
-  // Online betalen via Mollie (Beheer > CRM > Online betalen), standaard uit.
-  const mollie = createMollie({ settings, fetchImpl: options.mollieFetch });
-  const onlinePayments = createOnlinePayments({ db: options.db, settings, mollie, masterKey: options.masterKey, appLog, now: options.now });
-  app.locals.onlinePayments = onlinePayments;
-  // Betaalherinneringen (Beheer > CRM > Betalingen): de dagelijkse ronde start pas in `start()`.
-  const paymentReminders = createPaymentReminders({ db: options.db, mailer, settings, onlinePayments, now: options.now });
-  app.locals.paymentReminders = paymentReminders;
 
-  // Vaste inhoud van de homepage en lijstkoppen (DATA_DIR); ook het CRM gebruikt ze (homepage als blokpagina opzetten).
-  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
-  const homepage = options.homepage || createHomepageStore(DATA_DIR);
-  // Controle van nieuwe wachtwoorden op gelekte en veelgebruikte wachtwoorden (CRM en reizigersaccount).
-  const passwordCheck = createPasswordCheck({ settings, appLog, fetchImpl: options.passwordCheckFetch, now: options.now });
-  app.locals.passwordCheck = passwordCheck;
   app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, passwordCheck, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).
   // Reizigersaccount onder /account/ (CMS-pakket J2): eigen sessies en cookie, los van het CRM. Het aanmeldformulier
   // vult bij een ingelogde reiziger de gewone gegevens van de vorige aanmelding alvast in (J4).
-  const accounts = createAccounts({ db: options.db });
-  app.locals.accounts = accounts;
   const accountRouter = createAccountRouter({ db: options.db, masterKey: options.masterKey, formKey, mailer, settings, captcha, accounts, passwordCheck, secureCookies: options.secureCookies, now: options.now });
   app.use(createOnlinePaymentRoutes({ db: options.db, onlinePayments, settings, now: options.now }));
   app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now, siteContent, prefill: accountRouter.prefillFor, customerFor: accountRouter.customerFor }));
@@ -371,18 +274,7 @@ async function start() {
     setTimeout(() => process.exit(1), 3000);
     app.locals.appLog.flush().catch(() => {}).finally(() => process.exit(1));
   });
-  startCrmMaintenance(db, app.locals.settings);
-  startAccountMaintenance(app.locals.accounts);
-  app.locals.redirects.startTimers();
-  app.locals.backups.startTimer();
-  app.locals.drive.startTimer();
-  app.locals.restoreTests.startTimer(() => app.locals.settings.get('driveEnabled'));
-  app.locals.monitor.start();
-  app.locals.retention.start();
-  app.locals.paymentReminders.start();
-  app.locals.mediaLibrary.startCleanupTimer();
-  // Updates: de stand van "automatisch bijwerken" naar het hostscript en een afgeronde uitrol in het auditlog (elke minuut).
-  startUpdateSync({ db, settings: app.locals.settings, systemUpdate: app.locals.systemUpdate });
+  startBackgroundTasks(app.locals.services, db);
   const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
   // Eenmalige installatiecode voor de eerste beheerder; alleen bruikbaar zolang er geen enkele CRM-gebruiker is.
   if (!present) console.log(`CRM: nog geen gebruikers. Maak de eerste beheerder aan op /app/installatie/ met installatiecode ${setupCode}`);
