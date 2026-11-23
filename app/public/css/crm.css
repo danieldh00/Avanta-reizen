@@ -101,6 +101,8 @@
 .crm-panel > h2 { margin: 0 0 .6rem; font-size: 1.05rem; }
 .crm-panel-more { margin: .5rem 0 0; font-size: 14px; }
 .crm-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; margin: 0; padding: 0; list-style: none; }
+/* Zes tegels (startpagina Beheer): drie per rij, zodat er geen losse tegel op een eigen rij staat. */
+.crm-tiles--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .crm-tile { display: grid; gap: .15rem; height: 100%; padding: .9rem 1rem; background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 8px; color: var(--crm-text); text-decoration: none; }
 .crm-tile:hover, .crm-tile:focus-visible { border-color: var(--av-accent); }
 .crm-tile-count { font-size: 1.75rem; font-weight: 700; line-height: 1.1; color: var(--crm-ink); font-variant-numeric: tabular-nums; }

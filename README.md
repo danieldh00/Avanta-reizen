@@ -122,7 +122,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     het log (`CRM: nog geen gebruikers … installatiecode XXXXX-…`). Open `/app/installatie/`, vul die code in en maak
     het account aan; daarna is de installatiepagina weg (404).
   - Sessie: cookie `avanta_sessie` (`HttpOnly`, `Secure`, `SameSite=Strict`, pad `/app`), in de database alleen de
-    SHA-256 van het token; verloopt standaard na 8 uur zonder activiteit en uiterlijk na 7 dagen (instelbaar in Beheer). Het CRM werkt daardoor alleen
+    SHA-256 van het token; verloopt standaard na 1 uur zonder activiteit en uiterlijk na 1 dag (instelbaar in Beheer; audit A07). Het CRM werkt daardoor alleen
     via https (of `http://localhost`).
   - Beveiliging: CSRF-token in elk formulier plus herkomstcontrole, 300 verzoeken per minuut per IP op `/app/`,
     10 inlogpogingen per kwartier per IP, en hoogstens 5 mislukte pogingen per kwartier op één account vanuit één
