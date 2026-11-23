@@ -1,0 +1,342 @@
+/* Opmaak van het CRM en Beheer (/app/), geladen na site.css. Eigen maten en kleuren, los van de publieke site:
+   compacter (15 px), koppen in het gewone lettertype, en een donkerdere tint van de huisstijlkleur zodat knoppen en links
+   het contrast van WCAG AA halen (#a8503f op wit 5,4:1; de terracotta van de site haalt 3,5:1). */
+.crm {
+  --av-accent: #a8503f; --av-accent-dark: #8a3f31;
+  --crm-ink: #2f2e33; --crm-text: #55545b; --crm-line: #e3e2e5; --crm-ground: #f5f5f6;
+  font-size: 15px; line-height: 1.55; color: var(--crm-text); background: var(--crm-ground);
+}
+.crm a:hover { color: var(--av-accent-dark); }
+.crm h1, .crm h2, .crm h3 { font-family: var(--av-font); font-weight: 700; line-height: 1.25; color: var(--crm-ink); }
+.crm h2 { font-size: 1.25rem; margin: 1.75rem 0 .6rem; }
+.crm h3 { font-size: 1.05rem; margin: 1.25rem 0 .4rem; }
+.crm .form legend { font-family: var(--av-font); font-size: 1rem; }
+.crm .btn { padding: .6rem 1.1rem; font: 600 15px/1.3 var(--av-font); text-transform: none; letter-spacing: 0; border-radius: 6px; }
+.crm .btn::after { display: none; }
+.crm .btn--large { padding: .8rem 1rem; }
+.crm .btn--outline { box-shadow: inset 0 0 0 1px var(--av-accent); color: var(--av-accent); background: var(--av-white); }
+.crm .btn--outline:hover, .crm .btn--outline:focus { background: rgba(168, 80, 63, .08); color: var(--av-accent-dark); }
+.btn--small, .crm .btn--small { padding: .3rem .7rem; font-size: 14px; }
+.crm .btn:focus-visible { outline: 2px solid var(--crm-ink); outline-offset: 2px; }
+/* Invoervelden: compacter dan op de site. :where houdt het gewicht laag, zodat een eigen veld (zoekveld van Beheer) wint. */
+.crm :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+  min-height: 40px; padding: .45rem .7rem; border: 1px solid var(--av-line); border-radius: 6px; font-size: 15px; line-height: 1.4;
+  color: var(--crm-ink); background: var(--av-white);
+}
+.crm .form :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) { padding: .45rem .7rem; border-radius: 6px; font-size: 15px; color: var(--crm-ink); }
+.crm :where(input, select, textarea):focus-visible { outline: 2px solid var(--av-accent); outline-offset: 1px; }
+.crm .form { gap: 1.1rem; }
+.crm .field__label { color: var(--crm-ink); }
+@media (max-width: 800px) {
+  /* 16 px voorkomt dat een telefoon inzoomt bij het typen; 44 px blijft goed te raken. */
+  .crm :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea), .crm .form :where(input, select, textarea) { min-height: 44px; font-size: 16px; }
+}
+.crm .notice { border-radius: 6px; border: 1px solid var(--crm-line); border-left: 3px solid var(--av-accent); padding: .75rem 1rem; }
+.crm .form-alert { border-radius: 6px; padding: .75rem 1rem; }
+.crm-main { width: 100%; max-width: 1360px; margin: 0 auto; padding: 1.5rem 2rem 3rem; }
+.crm-title { margin: 0 0 1rem; font-size: 1.6rem; }
+.crm-narrow { max-width: 560px; display: grid; gap: 1rem; }
+.crm-narrow select, .crm-narrow input:not([type="checkbox"]) { width: 100%; max-width: 100%; }
+.crm-table-wrap { position: relative; overflow-x: auto; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); }
+.crm-table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.crm-table th, .crm-table td { padding: .5rem .75rem; text-align: left; border-bottom: 1px solid var(--av-line); white-space: nowrap; }
+.crm-table th { background: #fafafb; font-size: 13px; font-weight: 600; color: var(--av-muted); }
+.crm-table-wrap, .crm-block { border-color: var(--crm-line); border-radius: 8px; }
+.crm-table th, .crm-table td { border-bottom-color: var(--crm-line); }
+.crm-rights { margin: 0; padding-left: 1.25rem; }
+/* Deelnemers: zoeken, twee kolommen (gegevens en bijzondere blokken), feitenlijst en markering. */
+.crm-search { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-bottom: 1rem; }
+.crm-search input[type="search"] { flex: 1 1 16rem; min-width: 0; max-width: 28rem; }
+.crm-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2rem; align-items: start; }
+.crm-columns .crm-narrow { max-width: none; }
+.crm-block { padding: 1rem; margin-bottom: 1rem; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); }
+.crm-block h3 { margin: 0 0 .5rem; font-size: 1.1rem; }
+.crm-block .form { display: grid; gap: .75rem; }
+.crm-block input:not([type="checkbox"]), .crm-block select, .crm-block textarea { width: 100%; max-width: 100%; }
+.crm-facts { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: .25rem 1rem; margin: 0; }
+.crm-facts dt { color: var(--av-muted); overflow-wrap: anywhere; }
+.crm-facts dd { margin: 0; overflow-wrap: anywhere; }
+.crm-badge { display: inline-block; padding: 0 .4rem; font-size: .8rem; background: var(--av-soft); border: 1px solid var(--av-accent); border-radius: var(--av-radius); }
+/* Aanmeldingen: statuslabel en historie. */
+.crm-status { display: inline-block; padding: 0 .5rem; font-size: .85rem; border-radius: var(--av-radius); border: 1px solid var(--av-line); background: var(--av-white); }
+.crm-status--bevestigd, .crm-status--aanbetaald { border-color: var(--av-accent); }
+.crm-status--betaald { background: var(--av-soft); border-color: var(--av-accent); }
+.crm-status--geannuleerd { color: var(--av-muted); text-decoration: line-through; }
+.crm-history { margin: 0; padding-left: 1.25rem; display: grid; gap: .75rem; }
+.crm-history p { margin: .25rem 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.crm-history__when { display: block; color: var(--av-muted); font-size: .9rem; }
+.crm-removed { margin: .75rem 0 0; color: var(--av-muted); font-size: .9rem; }
+.crm-removed summary { cursor: pointer; }
+.crm-removed ul { margin: .5rem 0 0; padding-left: 1.25rem; overflow-wrap: anywhere; }
+.crm-reminders { margin: 0 0 1rem; padding-left: 1.25rem; overflow-wrap: anywhere; }
+.crm-search select { max-width: 100%; }
+@media (max-width: 800px) { .crm-columns { grid-template-columns: minmax(0, 1fr); gap: 1rem; } }
+/* Fotobibliotheek: uploadblok, raster met foto's (vaste verhouding 4:3) en voorbeeld. */
+.media-upload summary { cursor: pointer; }
+.media-upload .form { margin-top: .75rem; }
+.media-upload select, .crm-narrow select[multiple] { width: 100%; max-width: 100%; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 1rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+.media-grid__item { display: grid; gap: .25rem; min-width: 0; padding: .5rem; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); }
+.media-grid__item img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; background: var(--av-soft); }
+.media-grid__title { font-weight: 600; overflow-wrap: anywhere; }
+.media-grid__meta { color: var(--av-muted); font-size: .9rem; overflow-wrap: anywhere; }
+.media-folders { margin: 0 0 1rem; }
+.media-folders ul { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0; padding: 0; list-style: none; }
+.media-folders a { display: inline-block; padding: .2rem .6rem; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); color: var(--av-text); text-decoration: none; font-size: .9rem; }
+.media-folders a[aria-current="page"], .media-folders a:hover { border-color: var(--av-accent); color: var(--av-accent-dark); }
+.media-folders__count { color: var(--av-muted); }
+.media-autolink { display: grid; gap: .5rem; justify-items: start; margin: 0 0 1rem; padding: 1rem; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); }
+.media-autolink p { margin: 0; }
+.media-usage { margin: 0 0 1rem; padding-left: 1.25rem; }
+.media-preview { display: block; width: 100%; height: auto; margin-bottom: 1rem; background: var(--av-white); border: 1px solid var(--av-line); }
+/* Foto kiezen uit de bibliotheek (reistypes, landen, reizen): het hele vak is klikbaar, het gekozen vak krijgt de accentkleur. */
+.media-preview--small { max-width: 400px; }
+.media-pick { display: grid; gap: .25rem; cursor: pointer; }
+.media-pick input { justify-self: start; margin: 0; }
+.media-grid--pick .media-grid__item:has(input:checked) { border-color: var(--av-accent); box-shadow: 0 0 0 2px var(--av-accent); }
+.crm-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.field--checkbox label { display: flex; gap: .5rem; align-items: center; }
+/* Reis: landen en reistypes als vinkjes in kolommen, met een grens aan de hoogte (er zijn ±70 landen). */
+.crm-checklist { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); gap: .25rem 1rem; max-height: 22rem; overflow-y: auto; margin: 0 0 1rem; padding: .75rem; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); }
+.crm-checklist legend { padding: 0 .25rem; font-weight: 600; }
+.crm-checklist label { display: flex; gap: .4rem; align-items: center; overflow-wrap: anywhere; }
+.crm-icon svg { width: 1.5rem; height: 1.5rem; vertical-align: middle; }
+/* Tweestapsverificatie: QR-code, sleutel om over te typen en herstelcodes. */
+.crm-qr { display: block; width: 220px; max-width: 100%; height: auto; border: 1px solid var(--av-line); }
+.crm-secret { font-size: 1rem; word-break: break-all; }
+.crm-steps { margin: 0; padding-left: 1.25rem; }
+.crm-recovery-codes { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.crm-recovery-codes code { font-size: 1rem; letter-spacing: .05em; }
+.crm-logout-inline { margin-top: 1rem; }
+
+/* Kopbalk en zijbalk van het CRM (crm/layout.js, js/crm.js). Zijbalk: donkere balk in de huisstijlkleur met de
+   onderdelen in vaste groepen onder een titel; breed scherm: vast links, in te klappen tot een iconenbalk; smal scherm
+   (≤ 800px): lade van links via de menuknop. Kopbalk: kruimelpad, link naar de site en het gebruikersmenu. Zonder
+   JavaScript staat de zijbalk op een smal scherm boven de inhoud en werkt het gebruikersmenu als <details>. */
+.crm { --crm-nav-w: 240px; --crm-nav-w-compact: 64px; --crm-header-h: 56px; }
+.crm-page { min-height: 100vh; display: flex; flex-direction: column; }
+.crm-page > .crm-main { flex: 1 0 auto; }
+.crm-header { position: sticky; top: 0; z-index: 30; background: var(--av-white); border-bottom: 1px solid var(--crm-line); }
+.crm-header__inner { display: flex; align-items: center; gap: .75rem 1rem; min-height: var(--crm-header-h); padding: .35rem 2rem; }
+.crm-brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; color: var(--av-dark); text-decoration: none; }
+.crm--nav .crm-brand { display: none; }
+.crm-nav-toggle { display: none; }
+.crm-crumbs { flex: 1 1 auto; min-width: 0; font-size: 14px; line-height: 1.4; color: var(--av-muted); }
+.crm-crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 0 .5rem; margin: 0; padding: 0; list-style: none; }
+.crm-crumbs li { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.crm-crumbs li + li::before { content: "/"; color: var(--av-line); }
+.crm-crumbs [aria-current] { color: var(--crm-ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 32rem; }
+.crm-header-site { flex: none; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.crm-user { position: relative; flex: none; font-size: 14px; line-height: 1.3; }
+.crm-user-button {
+  display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 10px; list-style: none; cursor: pointer;
+  color: var(--crm-ink); font-weight: 600; background: var(--av-white); border: 1px solid var(--av-line); border-radius: 6px;
+}
+.crm-user-button::-webkit-details-marker { display: none; }
+.crm-user-button:hover, .crm-user[open] .crm-user-button { background: var(--crm-ground); }
+.crm-user .icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.crm-user .icon__fill { fill: currentColor; stroke: none; }
+.crm-user-ico { display: grid; place-items: center; }
+.crm-user-name { display: block; max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-user-role { margin-left: .35rem; font-weight: 400; color: var(--av-muted); }
+.crm-user .crm-user-chevron { width: 14px; height: 14px; transition: transform .15s; }
+.crm-user[open] .crm-user-chevron { transform: rotate(180deg); }
+.crm-user-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 35; min-width: 240px; padding: 6px; display: grid; gap: 2px;
+  background: var(--av-white); border: 1px solid var(--av-line); border-radius: 8px; box-shadow: 0 12px 28px rgba(47, 46, 51, .16);
+}
+.crm-user-logout { margin: 0; padding-top: 4px; border-top: 1px solid var(--crm-line); }
+.crm-user-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 6px 10px; border: 0; border-radius: 6px;
+  background: none; color: var(--crm-ink); font: inherit; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer;
+}
+/* Op een smal scherm staat de link naar de site in het gebruikersmenu in plaats van in de kopbalk. */
+.crm-user-item--site { display: none; }
+.crm-user-item:hover { background: var(--crm-ground); color: var(--crm-ink); }
+.crm-user-item[aria-current] { background: rgba(168, 80, 63, .1); }
+.crm-user-button:focus-visible, .crm-user-item:focus-visible, .crm-header-site:focus-visible, .crm-crumbs a:focus-visible { outline: 2px solid var(--av-accent); outline-offset: 2px; }
+.crm-nav {
+  display: flex; flex-direction: column; gap: 2px; padding: 10px 10px; background: var(--av-heading); color: var(--av-white);
+  font-size: 14px; line-height: 1.3;
+}
+.crm-nav .icon, .crm-sub .crm-nav-sec-head .icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.crm-nav .icon__fill { fill: currentColor; stroke: none; }
+.crm-nav-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--crm-header-h); margin: -10px -10px 8px; padding: 0 16px; border-bottom: 1px solid rgba(255, 255, 255, .14); }
+.crm-nav-brand { display: flex; align-items: center; gap: .6rem; min-width: 0; color: var(--av-white); text-decoration: none; font-weight: 700; }
+.crm-nav-logo { display: block; height: 34px; width: auto; }
+.crm-nav-app { font-size: 12px; letter-spacing: .12em; color: #c9c8ce; }
+.crm-nav-close { display: none; }
+.crm-nav-list { display: flex; flex-direction: column; gap: 1px; }
+.crm-nav-group { display: flex; flex-direction: column; gap: 1px; margin-top: 14px; }
+.crm-nav-group-title { margin: 0; padding: 0 10px 5px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #b9b8be; }
+.crm-nav-spacer { flex: 1 1 12px; min-height: 12px; }
+.crm-nav-item, .crm-nav-collapse, .crm-nav-sec-head {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 6px 10px; border: 0; border-radius: 6px;
+  background: none; color: #ecebee; font: inherit; font-weight: 500; text-align: left; text-decoration: none;
+  white-space: nowrap; cursor: pointer;
+}
+.crm-nav-item:hover, .crm-nav-collapse:hover, .crm-nav-sec-head:hover { background: rgba(255, 255, 255, .08); color: var(--av-white); }
+.crm-nav-item:focus-visible, .crm-nav-collapse:focus-visible, .crm-nav-sec-head:focus-visible, .crm-nav-close:focus-visible, .crm-nav-toggle:focus-visible { outline: 2px solid var(--av-white); outline-offset: 1px; }
+.crm-nav-beheer { padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, .14); }
+.crm-nav-item[aria-current] { background: rgba(255, 255, 255, .16); color: var(--av-white); font-weight: 700; }
+.crm-nav-item[aria-current] .crm-nav-ico { color: #f0b3a6; }
+.crm-nav-ico { flex: none; display: grid; place-items: center; width: 20px; color: #c9c8ce; }
+.crm-nav-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Inklapbare groepen: alleen nog in de tweede zijbalk van Beheer. */
+.crm-nav-sec { display: flex; flex-direction: column; gap: 1px; }
+.crm-nav-sec-head { font-weight: 700; }
+.crm-nav-sec-head .crm-nav-label { flex: 1; }
+.crm-nav-chevron { width: 14px; height: 14px; flex: none; opacity: .7; transition: transform .15s; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.crm-nav-sec.is-open .crm-nav-chevron { transform: rotate(180deg); }
+.crm-nav-sec-body { margin: 1px 0 3px 19px; padding-left: 6px; border-left: 1px solid var(--av-line-soft); }
+.js .crm-nav-sec:not(.is-open) > .crm-nav-sec-body { display: none; }
+.crm-nav-sec-body .crm-nav-item { min-height: 30px; gap: 8px; padding: 4px 8px; }
+.crm-nav-collapse { margin-top: 2px; font-weight: 400; color: #c9c8ce; }
+.crm-nav-collapse .icon { transition: transform .15s; }
+.crm-nav-collapse, .crm-nav-backdrop { display: none; }
+.js .crm-nav-collapse { display: flex; }
+
+@media (min-width: 801px) {
+  .crm--nav .crm-page { padding-left: var(--crm-nav-w); }
+  .crm-nav { position: fixed; top: 0; left: 0; bottom: 0; z-index: 40; width: var(--crm-nav-w); overflow-x: hidden; overflow-y: auto; }
+  /* Ingeklapt: alleen iconen; de labels blijven voor schermlezers, tussen de groepen staat een streepje. */
+  .crm--nav.nav-compact .crm-page { padding-left: var(--crm-nav-w-compact); }
+  .nav-compact .crm-nav { width: var(--crm-nav-w-compact); }
+  .nav-compact .crm-nav .crm-nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; padding: 0; margin: 0; border: 0; }
+  .nav-compact .crm-nav-logo { height: 26px; }
+  .nav-compact .crm-nav-head { justify-content: center; padding: 0; }
+  .nav-compact .crm-nav-group { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, .16); }
+  .nav-compact .crm-nav-group-title { padding: 0; }
+  .nav-compact .crm-nav .crm-nav-item, .nav-compact .crm-nav-collapse { justify-content: center; padding-left: 0; padding-right: 0; }
+  .nav-compact .crm-nav-collapse .icon { transform: rotate(180deg); }
+}
+
+@media (max-width: 800px) {
+  .crm-main { padding: 1rem var(--av-gutter) 2.5rem; }
+  .crm-header__inner { padding: .35rem var(--av-gutter); gap: .5rem; }
+  .crm--nav .crm-brand { display: flex; }
+  .crm--nav .crm-brand span { display: none; }
+  .crm-brand img { height: 32px; width: auto; }
+  .crm-crumbs li:not(:last-child), .crm-crumbs li::before { display: none; }
+  .crm-header-site { display: none; }
+  .crm-user-item--site { display: flex; }
+  .crm-user-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .crm-user-button { min-width: 44px; min-height: 44px; justify-content: center; }
+  .crm-user-item { min-height: 44px; }
+  .js .crm-nav-toggle {
+    display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; padding: 0;
+    color: var(--av-dark); background: none; border: 1px solid var(--av-line); border-radius: 6px; cursor: pointer;
+  }
+  .crm-nav-toggle .icon { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  .js .crm-nav {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 40; width: min(300px, 85vw); overflow-y: auto;
+    padding-bottom: max(10px, env(safe-area-inset-bottom)); box-shadow: 6px 0 24px rgba(0, 0, 0, .3);
+    transform: translateX(-105%); visibility: hidden; transition: transform .2s ease, visibility 0s .2s;
+  }
+  .js .nav-open .crm-nav { transform: none; visibility: visible; transition: transform .2s ease; }
+  .js .crm-nav-close {
+    display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 40px; padding: 0;
+    color: var(--av-white); background: none; border: 1px solid rgba(255, 255, 255, .35); border-radius: 6px; cursor: pointer;
+  }
+  .js .nav-open .crm-nav-backdrop { display: block; position: fixed; inset: 0; z-index: 39; background: rgba(0, 0, 0, .35); }
+  .js .crm-nav-collapse { display: none; }
+  /* Op een telefoon blijven de rijen groot genoeg om te raken (44px). */
+  .crm-nav-item, .crm-nav-sec-head, .crm-nav-sec-body .crm-nav-item { min-height: 44px; font-size: 15px; }
+}
+
+/* Bewerkscherm van een pagina in het CRM */
+.cms-block-edit > summary { cursor: pointer; }
+.cms-block-edit__summary { color: var(--av-muted); font-weight: 400; }
+.cms-block-edit .form { margin-top: 1rem; display: grid; gap: 1rem; }
+.cms-block-edit__actions { margin-top: 1rem; }
+.cms-block-edit textarea, .cms-block-edit input[type="text"], .cms-add-block select { width: 100%; max-width: 100%; }
+.cms-richtext { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; line-height: 1.5; }
+.cms-repeat { margin: 0; padding: .75rem 1rem; border: 1px solid var(--av-line); display: grid; gap: .75rem; }
+.cms-style > summary { cursor: pointer; font-weight: 600; }
+.cms-style__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: .75rem 1rem; margin-top: .75rem; }
+.cms-style__grid select { width: 100%; }
+.cms-add-block__fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 1rem; }
+.cms-type-help { margin: 1rem 0; padding-left: 1.25rem; font-size: .9rem; line-height: 1.5; }
+.cms-status .crm-actions { margin-bottom: 1rem; }
+.cms-status form { display: inline-block; }
+.cms-toolbar { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .4rem; }
+.cms-photo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: .75rem; margin: 0; padding: 0; list-style: none; }
+.cms-photo-list__item { display: grid; gap: .3rem; font-size: .85rem; }
+.cms-photo-list__item img { width: 100%; height: auto; }
+.cms-photo-list__item input[type="number"] { width: 4.5rem; }
+@media print {
+  .crm-nav, .crm-nav-backdrop, .crm-nav-toggle, .crm-header { display: none !important; }
+  .crm--nav .crm-page { padding-left: 0 !important; }
+}
+
+/* Beheer (/app/beheer/, gebruikers, auditlog): eigen omgeving met een tweede, lichte zijbalk (zoals in Aquatech). Breed
+   scherm: vast naast de inhoud, meeschuivend (sticky). Smal scherm (≤ 800px): een knop met het huidige onderdeel opent
+   de lijst; zonder JavaScript staat de lijst open boven de inhoud. */
+.crm-main--beheer { max-width: none; }
+.crm-beheer { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 2rem; align-items: start; }
+.crm-beheer-main { min-width: 0; max-width: 1100px; }
+.crm-sub {
+  position: sticky; top: calc(var(--crm-header-h) + 1rem); display: flex; flex-direction: column; gap: 4px; max-height: calc(100vh - var(--crm-header-h) - 2rem); overflow-y: auto;
+  padding: 10px 8px; background: var(--av-white); border: 1px solid var(--av-line-soft); font-size: 14px; line-height: 1.3; color: var(--av-heading);
+}
+.crm-sub .icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.crm-sub-head { display: grid; gap: 6px; margin: -10px -8px 4px; padding: 10px 12px; border-bottom: 1px solid var(--av-line-soft); background: var(--av-soil); }
+.crm-sub-back { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; color: var(--av-accent); }
+.crm-sub-back:hover { color: var(--av-accent-dark); text-decoration: underline; }
+.crm-sub-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; font-weight: 700; color: var(--av-heading); }
+.crm-sub-title .icon { width: 18px; height: 18px; color: var(--av-accent); }
+.crm-sub-toggle { display: none; }
+.crm-sub-body { display: flex; flex-direction: column; gap: 2px; }
+.crm-sub-search { position: relative; display: flex; align-items: center; margin: 2px 0 6px; }
+.crm-sub-search > .icon { position: absolute; left: 10px; color: var(--av-muted); pointer-events: none; }
+.crm-sub-search-input { width: 100%; min-height: 34px; padding: 5px 10px 5px 32px; font: inherit; color: var(--av-heading); background: var(--av-soft); border: 1px solid var(--av-line); border-radius: 6px; }
+.crm-sub-empty { margin: 2px 10px; font-size: 13px; color: var(--av-muted); }
+.crm-sub .crm-nav-sec-head, .crm-sub .crm-nav-item { color: var(--av-heading); white-space: normal; }
+.crm-sub .crm-nav-sec-head:hover, .crm-sub .crm-nav-item:hover { background: var(--av-soil); color: var(--av-heading); }
+.crm-sub .crm-nav-sec-head:focus-visible, .crm-sub .crm-nav-item:focus-visible, .crm-sub-toggle:focus-visible, .crm-sub-search-input:focus-visible { outline: 2px solid var(--av-accent); outline-offset: 1px; }
+.crm-sub .crm-nav-sec-body { border-left-color: var(--av-line-soft); }
+.crm-sub .crm-nav-sec-body .crm-nav-ico { display: none; }
+.crm-sub .crm-nav-sec-body .crm-nav-item { padding-left: 10px; color: var(--av-text); }
+.crm-sub .crm-nav-item[aria-current] { background: rgba(168, 80, 63, .1); color: var(--av-heading); font-weight: 700; box-shadow: inset 3px 0 0 var(--av-accent); }
+.crm-sub .crm-nav-sec.has-active > .crm-nav-sec-head .crm-nav-ico, .crm-sub .crm-nav-sec-head .crm-nav-ico { color: var(--av-accent); }
+@media (max-width: 800px) {
+  .crm-beheer { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .crm-sub { position: static; max-height: none; overflow: visible; }
+  .js .crm-sub-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; padding: 6px 10px;
+    font: inherit; font-weight: 700; color: var(--av-heading); text-align: left; background: var(--av-soft); border: 1px solid var(--av-line); border-radius: 6px; cursor: pointer;
+  }
+  .crm-sub-toggle .crm-nav-chevron { width: 14px; height: 14px; transition: transform .15s; }
+  .crm-sub.is-open .crm-sub-toggle .crm-nav-chevron { transform: rotate(180deg); }
+  .js .crm-sub:not(.is-open) .crm-sub-body { display: none; }
+  .crm-sub-search-input { min-height: 44px; font-size: 16px; }
+}
+@media print {
+  .crm-sub { display: none !important; }
+  .crm-beheer { display: block; }
+}
+.beheer-filter { display: flex; gap: .4rem; max-width: 30rem; margin: 0 0 1rem; }
+.beheer-filter input { flex: 1 1 auto; min-width: 0; }
+.beheer-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.beheer-actions form { margin: 0; }
+.beheer-content { display: grid; gap: 1rem; min-width: 0; }
+.beheer-content h2 { margin: .5rem 0 0; }
+.beheer-content p { margin: 0; }
+.beheer-form { max-width: 640px; gap: 1.25rem; }
+.beheer-form input:not([type="checkbox"]), .beheer-form select, .beheer-form textarea { width: 100%; max-width: 100%; }
+.beheer-facts th { width: 11rem; }
+.beheer-content .crm-table td, .beheer-content .crm-table th { white-space: normal; overflow-wrap: anywhere; }
+.beheer-command { margin: 0; padding: .75rem; background: var(--av-soft); border: 1px solid var(--av-line); border-radius: var(--av-radius); white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }
+.beheer-releases { display: grid; gap: .75rem; }
+.beheer-releases h3 { margin: 0; font-size: 1rem; }
+.beheer-releases ul { margin: .25rem 0 0; padding-left: 1.25rem; }
+.beheer-log td { vertical-align: top; }
+.beheer-log pre { margin: .25rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8rem; }
+.beheer-log-filter { flex-wrap: wrap; max-width: 48rem; }
+.beheer-log-filter select { flex: 1 1 9rem; min-width: 0; }
+.beheer-log-filter input { flex-basis: 12rem; }
+.monitor-state { display: inline-block; padding: .05rem .45rem; border-radius: var(--av-radius); font-size: .85rem; white-space: nowrap; }
+.monitor-state--ok { background: #e6f2e6; color: #1e5a1e; }
+.monitor-state--warn { background: #fff3d6; color: #6b4a00; }
+.monitor-state--error { background: #fbe3e3; color: #8a1c1c; }
+.monitor-state--uit { background: var(--av-line); color: inherit; }

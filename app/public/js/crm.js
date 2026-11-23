@@ -1,12 +1,14 @@
 /**
- * Zijbalk van het CRM en Beheer (`crm/layout.js`), zoals in Aquatech. Staat direct na de kopbalk en de zijbalk in de
- * pagina, zodat de ingeklapte stand vóór het tekenen bekend is (geen verspringen).
- * - Breed scherm: in te klappen tot een iconenbalk; de keuze wordt per browser onthouden (localStorage).
- * - Groepen: één groep tegelijk open (accordeon); de groep met de huidige pagina staat bij het laden open. Tijdens
- *   zoeken in Beheer staan alle gevonden groepen open en klappen ze los van elkaar.
- * - Beheer heeft een tweede zijbalk (`#crm-sub`) met dezelfde groepen; op een smal scherm opent een knop de lijst.
+ * Zijbalk en kopbalk van het CRM en Beheer (`crm/layout.js`). Staat direct na de kopbalk en de zijbalk in de pagina,
+ * zodat de ingeklapte stand vóór het tekenen bekend is (geen verspringen).
+ * - Breed scherm: zijbalk in te klappen tot een iconenbalk; de keuze wordt per browser onthouden (localStorage).
+ * - Hoofdzijbalk: vaste groepen, altijd open. Beheer heeft een tweede zijbalk (`#crm-sub`) met inklapbare groepen: één
+ *   groep tegelijk open (accordeon), de groep met de huidige pagina staat bij het laden open; tijdens zoeken staan alle
+ *   gevonden groepen open. Op een smal scherm opent een knop die lijst.
+ * - Gebruikersmenu in de kopbalk (`details.crm-user`): sluit bij een klik ernaast of Esc.
  * - Smal scherm (≤ 800 px): lade van links via de menuknop in de kopbalk; sluiten met de knop, de achtergrond of Esc.
- * Zonder JavaScript staan alle groepen open en staat de zijbalk op een smal scherm boven de inhoud.
+ * Zonder JavaScript staan alle groepen open, werkt het gebruikersmenu als gewone `<details>` en staat de zijbalk op een
+ * smal scherm boven de inhoud.
  */
 (function setupCrmNav() {
   const COMPACT_KEY = 'avanta_nav_compact';
@@ -88,7 +90,18 @@
       });
     });
   }
-  setupGroups(nav);
+  const userMenu = document.querySelector('details.crm-user');
+  if (userMenu) {
+    document.addEventListener('click', (event) => {
+      if (userMenu.open && !userMenu.contains(event.target)) userMenu.open = false;
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !userMenu.open) return;
+      userMenu.open = false;
+      const summary = userMenu.querySelector('summary');
+      if (summary) summary.focus();
+    });
+  }
 
   // Tweede zijbalk van Beheer: dezelfde groepen, en op een smal scherm een knop die de lijst opent of sluit. Die zijbalk
   // staat in de inhoud, ná dit script, dus dit wacht tot de pagina geladen is.

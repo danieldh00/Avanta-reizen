@@ -1,9 +1,10 @@
 /**
- * Paginaopbouw van het CRM onder `/app/`: een vaste zijbalk links (zoals in Aquatech) met het logo, de modules in
- * inklapbare groepen op basis van de rechten van de gebruiker, één ingang naar Beheer, en onderaan de gebruiker met
- * wachtwoord, tweestapsverificatie en uitloggen. Op een breed scherm is de zijbalk in te klappen tot een iconenbalk
- * (per browser onthouden, `public/js/crm.js`); op een smal scherm (≤ 800 px) is het een lade via de menuknop in de
- * kopbalk. Zonder JavaScript staan alle groepen open en staat de zijbalk op een smal scherm boven de inhoud.
+ * Paginaopbouw van het CRM onder `/app/`: een vaste zijbalk links met het logo, de modules in vier vaste groepen
+ * (Boekingen, Reisaanbod, Website en de ingang naar Beheer) op basis van de rechten van de gebruiker, en een kopbalk
+ * met het kruimelpad, een link naar de site en het gebruikersmenu (wachtwoord, tweestapsverificatie, uitloggen). Op een
+ * breed scherm is de zijbalk in te klappen tot een iconenbalk (per browser onthouden, `public/js/crm.js`); op een smal
+ * scherm (≤ 800 px) is het een lade via de menuknop in de kopbalk. Zonder JavaScript staat de zijbalk op een smal scherm
+ * boven de inhoud. De opmaak staat in `public/css/crm.css`, bovenop de basis van `site.css`.
  *
  * Beheer (`/app/beheer/`, gebruikers en auditlog) is een eigen omgeving, zoals in Aquatech: naast de hoofdzijbalk staat
  * een tweede, lichte zijbalk met een weg terug naar het CRM, het zoekveld en de onderdelen van Beheer per onderwerp.
@@ -22,20 +23,30 @@ const ASSET_VERSION = require('../../package.json').version;
 /**
  * Menu van het CRM in groepen; een item verschijnt alleen als de gebruiker het recht heeft (de server controleert
  * opnieuw), een groep zonder zichtbare items verdwijnt. `global`: niet voor rollen die tot eigen vertrekken beperkt
- * zijn. Groep `top` staat los bovenaan, zonder kop. Beheer staat hier niet in: dat is één ingang onderaan
- * (`renderBeheerEntry`) met een eigen zijbalk.
+ * zijn. Groep `top` staat los bovenaan, zonder kop; de andere groepen staan altijd open onder hun titel. Beheer staat
+ * hier niet in: dat is één ingang onderaan (`renderBeheerEntry`) met een eigen zijbalk.
  */
 const CRM_MENU = [
   { key: 'top', items: [{ label: 'Overzicht', href: '/app/', icon: 'home' }] },
   {
-    key: 'reizigers',
-    title: 'Reizigers',
+    key: 'boekingen',
+    title: 'Boekingen',
     icon: 'users',
     items: [
       { label: 'Aanmeldingen', href: '/app/aanmeldingen/', icon: 'clipboard', right: 'aanmeldingen', global: true },
       { label: 'Deelnemers', href: '/app/deelnemers/', icon: 'users', right: 'deelnemers', global: true },
       { label: 'Deelnemerslijsten', href: '/app/deelnemerslijsten/', icon: 'list', right: 'export.deelnemers' },
       { label: 'Betalingen', href: '/app/betalingen/', icon: 'euro', right: 'betalingen', global: true },
+    ],
+  },
+  {
+    key: 'reisaanbod',
+    title: 'Reisaanbod',
+    icon: 'location',
+    items: [
+      { label: 'Reizen', href: '/app/reizen/', icon: 'location', right: 'reizen' },
+      { label: 'Reistypes en landen', href: '/app/reistypes-en-landen/', icon: 'label', right: 'reizen' },
+      { label: 'Reisleiders', href: '/app/reisleiders/', icon: 'user', right: 'reizen' },
     ],
   },
   {
@@ -47,9 +58,6 @@ const CRM_MENU = [
       { label: 'Blog', href: '/app/blog/', icon: 'calendar', right: 'content' },
       { label: 'Veelgestelde vragen', href: '/app/faq/', icon: 'information', right: 'content' },
       { label: 'Menu\'s', href: '/app/menus/', icon: 'menu', right: 'content' },
-      { label: 'Reizen', href: '/app/reizen/', icon: 'location', right: 'reizen' },
-      { label: 'Reistypes en landen', href: '/app/reistypes-en-landen/', icon: 'label', right: 'reizen' },
-      { label: 'Reisleiders', href: '/app/reisleiders/', icon: 'user', right: 'reizen' },
       { label: 'Fotobibliotheek', href: '/app/fotobibliotheek/', icon: 'image', right: 'media' },
     ],
   },
@@ -197,6 +205,21 @@ function renderNavGroup(group, activeHref, forceOpen, idPrefix = 'crm-nav') {
 }
 
 /**
+ * Eén vaste groep in de hoofdzijbalk: de titel met de onderdelen eronder, altijd zichtbaar.
+ * @param {object} group De groep (key, title, items).
+ * @param {string} activeHref De href van het huidige item.
+ * @returns {object} HTML.
+ */
+function renderMainGroup(group, activeHref) {
+  if (group.key === 'top') return html`<div class="crm-nav-list crm-nav-top">${group.items.map((item) => renderNavItem(item, activeHref))}</div>`;
+  const titleId = `crm-nav-${group.key}`;
+  return html`<div class="crm-nav-group${group.items.some((item) => item.href === activeHref) ? ' has-active' : ''}" data-group="${group.key}" role="group" aria-labelledby="${titleId}">
+    <p class="crm-nav-group-title" id="${titleId}"><span class="crm-nav-label">${group.title}</span></p>
+    <div class="crm-nav-list">${group.items.map((item) => renderNavItem(item, activeHref))}</div>
+  </div>`;
+}
+
+/**
  * De ingang naar Beheer in de hoofdzijbalk; op een Beheer-pagina gemarkeerd als huidig onderdeel (`aria-current="true"`,
  * de pagina zelf staat gemarkeerd in de tweede zijbalk).
  * @param {object} user De ingelogde gebruiker.
@@ -211,7 +234,7 @@ function renderBeheerEntry(user, currentPath) {
 
 /**
  * De hoofdzijbalk van het CRM.
- * @param {{user: object, csrf: string, path: string}} page De gebruiker, het CSRF-token en het huidige pad.
+ * @param {{user: object, path: string}} page De gebruiker en het huidige pad.
  * @returns {object} HTML van de zijbalk en de achtergrond van de lade.
  */
 function renderSidebar(page) {
@@ -223,13 +246,9 @@ function renderSidebar(page) {
       <a class="crm-nav-brand" href="/app/"><img class="crm-nav-logo" src="/images/logo-light.png" alt="Avanta reizen" width="68" height="40"><span class="crm-nav-label crm-nav-app">CRM</span></a>
       <button class="crm-nav-close" type="button" data-nav-close aria-label="Menu sluiten">${icon('close')}</button>
     </div>
-    ${menu.map((group) => renderNavGroup(group, activeHref, false))}
+    ${menu.map((group) => renderMainGroup(group, activeHref))}
+    <div class="crm-nav-spacer"></div>
     ${renderBeheerEntry(user, page.path)}
-    <div class="crm-nav-foot crm-nav-list">
-      <a class="crm-nav-item crm-nav-user" href="/app/wachtwoord/"${page.path.startsWith('/app/wachtwoord/') ? html` aria-current="page"` : ''} title="Wachtwoord wijzigen"><span class="crm-nav-ico">${icon('user')}</span><span class="crm-nav-label">${user.name} <span class="crm-nav-role">${roleLabel(user.role)}</span></span></a>
-      <a class="crm-nav-item" href="/app/tweestaps/"${page.path.startsWith('/app/tweestaps/') ? html` aria-current="page"` : ''} title="Tweestapsverificatie"><span class="crm-nav-ico">${icon('lock')}</span><span class="crm-nav-label">Tweestapsverificatie</span></a>
-      <form class="crm-nav-logout" method="post" action="/app/uitloggen/"><input type="hidden" name="_csrf" value="${page.csrf || ''}"><button class="crm-nav-item" type="submit" title="Uitloggen"><span class="crm-nav-ico">${icon('logout')}</span><span class="crm-nav-label">Uitloggen</span></button></form>
-    </div>
     <button class="crm-nav-collapse" type="button" data-nav-compact aria-pressed="false" title="Zijbalk inklappen"><span class="crm-nav-ico">${icon('chevron-left')}</span><span class="crm-nav-label">Inklappen</span></button>
   </nav>
   <div class="crm-nav-backdrop" data-nav-close></div>`;
@@ -270,6 +289,61 @@ function renderBeheerSidebar(page) {
 }
 
 /**
+ * Het kruimelpad van een pagina: de groep en het onderdeel uit het menu, en de titel van de pagina als die afwijkt
+ * (bijvoorbeeld een reis onder Reizen). In Beheer: Beheer en de titel. Een pagina buiten het menu heeft alleen de titel.
+ * @param {object} user De ingelogde gebruiker.
+ * @param {string} currentPath Huidig pad.
+ * @param {string} title Titel van de pagina.
+ * @returns {Array<{label: string, href?: string}>} De kruimels; alleen een kruimel met `href` is een link.
+ */
+function breadcrumbsFor(user, currentPath, title) {
+  const beheerHref = beheerEntryHref(user);
+  if (beheerHref && isBeheerPath(currentPath)) return [{ label: 'Beheer', href: beheerHref }, { label: title }];
+  const menu = visibleCrmMenu(user);
+  const activeHref = currentHref(menu, currentPath);
+  const group = menu.find((candidate) => candidate.items.some((item) => item.href === activeHref));
+  if (!group) return [{ label: title }];
+  const item = group.items.find((candidate) => candidate.href === activeHref);
+  const crumbs = group.title ? [{ label: group.title }] : [];
+  if (item.label === title) return crumbs.concat({ label: title });
+  return crumbs.concat({ label: item.label, href: item.href }, { label: title });
+}
+
+/**
+ * De kopbalk van het CRM: menuknop en logo (smal scherm), het kruimelpad, een link naar de site en het gebruikersmenu.
+ * Het gebruikersmenu is een `<details>` en werkt dus zonder JavaScript; `public/js/crm.js` sluit het bij een klik
+ * ernaast of Esc. Zonder gebruiker (inloggen, installatie) alleen het logo.
+ * @param {{user: (object|null), csrf?: string, path: string, title: string}} page De gebruiker, het CSRF-token voor
+ *   de uitlogknop, het huidige pad en de titel.
+ * @returns {object} HTML.
+ */
+function renderHeader(page) {
+  const { user } = page;
+  if (!user) {
+    return html`<header class="crm-header"><div class="crm-header__inner">
+        <a class="crm-brand" href="/app/"><img src="/images/logo.png" alt="Avanta reizen" width="68" height="40"> <span>CRM</span></a>
+      </div></header>`;
+  }
+  const crumbs = breadcrumbsFor(user, page.path, page.title);
+  const current = (prefix) => (page.path.startsWith(prefix) ? html` aria-current="page"` : '');
+  return html`<header class="crm-header"><div class="crm-header__inner">
+      <button class="crm-nav-toggle" type="button" data-nav-toggle aria-controls="crm-nav" aria-expanded="false" aria-label="Menu openen">${icon('menu')}</button>
+      <a class="crm-brand" href="/app/"><img src="/images/logo.png" alt="Avanta reizen" width="68" height="40"> <span>CRM</span></a>
+      <nav class="crm-crumbs" aria-label="Kruimelpad"><ol>${crumbs.map((crumb, index) => html`<li${index === crumbs.length - 1 ? html` aria-current="location"` : ''}>${crumb.href ? html`<a href="${crumb.href}">${crumb.label}</a>` : crumb.label}</li>`)}</ol></nav>
+      <a class="crm-header-site" href="/">Bekijk de site</a>
+      <details class="crm-user">
+        <summary class="crm-user-button"><span class="crm-user-ico">${icon('user')}</span><span class="crm-user-name">${user.name} <span class="crm-user-role">${roleLabel(user.role)}</span></span>${icon('chevron-down', { className: 'crm-user-chevron' })}</summary>
+        <div class="crm-user-menu">
+          <a class="crm-user-item crm-user-item--site" href="/">${icon('home')}<span>Bekijk de site</span></a>
+          <a class="crm-user-item" href="/app/wachtwoord/"${current('/app/wachtwoord/')}>${icon('user')}<span>Wachtwoord wijzigen</span></a>
+          <a class="crm-user-item" href="/app/tweestaps/"${current('/app/tweestaps/')}>${icon('lock')}<span>Tweestapsverificatie</span></a>
+          <form class="crm-user-logout" method="post" action="/app/uitloggen/"><input type="hidden" name="_csrf" value="${page.csrf || ''}"><button class="crm-user-item" type="submit">${icon('logout')}<span>Uitloggen</span></button></form>
+        </div>
+      </details>
+    </div></header>`;
+}
+
+/**
  * Maakt een volledige CRM-pagina.
  * @param {{title: string, body: object, user?: (object|null), csrf?: string, path?: string, beheer?: object}} page
  *   Titel, inhoud, de ingelogde gebruiker (zonder: geen zijbalk), het CSRF-token voor de uitlogknop, het huidige pad
@@ -289,18 +363,14 @@ function renderCrmPage(page) {
   <title>${page.title} - Avanta CRM</title>
   <link rel="icon" type="image/png" href="/images/favicon.png">
   <link rel="stylesheet" href="/css/site.css?v=${ASSET_VERSION}">
+  <link rel="stylesheet" href="/css/crm.css?v=${ASSET_VERSION}">
 </head>
 <body class="crm${user ? ' crm--nav' : ''}${inBeheer ? ' crm--beheer' : ''}">
   <a class="skip-link" href="#inhoud">Naar de inhoud</a>
   <div class="crm-page">
     ${renderMaintenanceBanner()}
-    <header class="crm-header">
-      <div class="crm-header__inner">
-        ${user ? html`<button class="crm-nav-toggle" type="button" data-nav-toggle aria-controls="crm-nav" aria-expanded="false" aria-label="Menu openen">${icon('menu')}</button>` : ''}
-        <a class="crm-brand" href="/app/"><img src="/images/logo.png" alt="Avanta reizen" width="68" height="40"> <span>CRM</span></a>
-      </div>
-    </header>
-    ${user ? html`${renderSidebar({ user, csrf: page.csrf, path })}
+    ${renderHeader({ user, csrf: page.csrf, path, title: page.title })}
+    ${user ? html`${renderSidebar({ user, path })}
     <script src="/js/crm.js?v=${ASSET_VERSION}"></script>` : ''}
     <main id="inhoud" class="crm-main${inBeheer ? ' crm-main--beheer' : ''}">
       ${inBeheer ? html`<div class="crm-beheer">
@@ -340,4 +410,4 @@ function renderAlert(message) {
   return message ? html`<div class="form-alert" role="alert">${message}</div>` : '';
 }
 
-module.exports = { renderCrmPage, renderInput, renderAlert, formatDateTime, CRM_MENU, isBeheerPath };
+module.exports = { renderCrmPage, renderInput, renderAlert, formatDateTime, CRM_MENU, isBeheerPath, breadcrumbsFor };
