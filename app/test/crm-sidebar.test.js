@@ -176,6 +176,7 @@ test('kopbalk: kruimelpad, link naar de site en gebruikersmenu; zonder gebruiker
   assert.deepEqual(breadcrumbsFor(user, '/app/', 'Overzicht'), [{ label: 'Overzicht' }]);
   assert.deepEqual(breadcrumbsFor(user, '/app/aanmeldingen/', 'Aanmeldingen'), [{ label: 'Boekingen' }, { label: 'Aanmeldingen' }]);
   assert.deepEqual(breadcrumbsFor(user, '/app/beheer/mailserver/', 'Mailserver'), [{ label: 'Beheer', href: '/app/beheer/' }, { label: 'Mailserver' }]);
+  assert.deepEqual(breadcrumbsFor(user, '/app/beheer/', 'Beheer'), [{ label: 'Beheer' }], 'de startpagina van Beheer herhaalt zichzelf niet');
   assert.deepEqual(breadcrumbsFor(user, '/app/wachtwoord/', 'Wachtwoord wijzigen'), [{ label: 'Wachtwoord wijzigen' }]);
   // Zonder recht op het onderdeel geen kruimel ernaartoe (de route zelf geeft 403).
   assert.deepEqual(breadcrumbsFor({ name: 'Eva', role: 'redacteur' }, '/app/reizen/12/', 'Namibië'), [{ label: 'Namibië' }]);

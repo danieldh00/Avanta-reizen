@@ -211,11 +211,25 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
     const overview = await request('/app/beheer/', { cookie: adminCookie });
     assert.equal(overview.status, 200);
     assert.equal(overview.headers.get('cache-control'), 'no-store');
-    assert.match(overview.text, /Systeemoverzicht/);
+    // Startpagina: stand van het systeem en de onderwerpen als kaarten; geen tabel met alle instellingen meer.
+    assert.match(overview.text, /<h1 class="crm-title">Beheer<\/h1>/);
+    assert.match(overview.text, /Stand van het systeem/);
     assert.match(overview.text, new RegExp(require('../package.json').version.replace(/\./g, '\\.')));
-    assert.match(overview.text, /28: CRM: online betalen/);
-    assert.match(overview.text, /Standaardwaarde/);
+    for (const href of ['/app/beheer/bewaking/', '/app/beheer/back-ups/', '/app/beheer/updates/', '/app/beheer/servertaken/']) assert.match(overview.text, new RegExp(`<a class="crm-tile[^"]*" href="${href}">`), href);
+    assert.match(overview.text, /<section class="beheer-card">\s*<h3>Organisatie<\/h3>/);
     assert.match(overview.text, /href="\/app\/beheer\/contact\/"/);
+    assert.doesNotMatch(overview.text, /Standaardwaarde/);
+    const system = await request('/app/beheer/overzicht/', { cookie: adminCookie });
+    assert.match(system.text, /Systeemoverzicht/);
+    assert.match(system.text, /28: CRM: online betalen/);
+    assert.match(system.text, /href="\/app\/beheer\/instellingen\/"/);
+    const settingsList = await request('/app/beheer/instellingen/', { cookie: adminCookie });
+    assert.equal(settingsList.status, 200);
+    assert.match(settingsList.text, /Alle instellingen en hun bron/);
+    assert.match(settingsList.text, /Standaardwaarde/);
+    assert.match(settingsList.text, /href="\/app\/beheer\/contact\/"/);
+    assert.equal((await request('/app/beheer/instellingen/', { cookie: office.cookie })).status, 403);
+    assert.equal((await request('/app/beheer/instellingen/', { cookie: adminCookie, form: { _csrf: adminCsrf } })).status, 404, 'de lijst heeft geen formulier');
     assert.match((await request('/app/', { cookie: adminCookie })).text, /href="\/app\/beheer\/"/);
   });
 

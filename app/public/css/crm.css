@@ -104,6 +104,7 @@
 .crm-tile { display: grid; gap: .15rem; height: 100%; padding: .9rem 1rem; background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 8px; color: var(--crm-text); text-decoration: none; }
 .crm-tile:hover, .crm-tile:focus-visible { border-color: var(--av-accent); }
 .crm-tile-count { font-size: 1.75rem; font-weight: 700; line-height: 1.1; color: var(--crm-ink); font-variant-numeric: tabular-nums; }
+.crm-tile-count--text { font-size: 1.15rem; line-height: 1.3; overflow-wrap: anywhere; }
 .crm-tile--open { border-left: 3px solid var(--av-accent); }
 .crm-tile--open .crm-tile-count { color: var(--av-accent-dark); }
 .crm-tile-label { font-size: 14px; }
@@ -426,3 +427,15 @@
 .monitor-state--warn { background: #fff3d6; color: #6b4a00; }
 .monitor-state--error { background: #fbe3e3; color: #8a1c1c; }
 .monitor-state--uit { background: var(--av-line); color: inherit; }
+/* Startpagina van Beheer: elk onderwerp als kaart met zijn onderdelen. */
+.beheer-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .75rem; }
+.beheer-card { padding: .9rem 1rem; background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 8px; }
+.beheer-card h3 { margin: 0 0 .4rem; font-size: 1rem; }
+.beheer-card ul { margin: 0; padding: 0; list-style: none; display: grid; gap: .1rem; }
+.beheer-card a { display: block; padding: .2rem 0; font-size: 14px; }
+@media (max-width: 800px) { .beheer-card a { display: flex; align-items: center; min-height: 44px; padding: 0; } }
+/* Lijsten die nog niet met crm/ui.js zijn opgebouwd: het oude filter krijgt dezelfde vorm als de filterknoppen. */
+.media-folders a { display: inline-flex; align-items: center; gap: .4rem; min-height: 32px; padding: .2rem .75rem; border-color: var(--crm-line); border-radius: 999px; color: var(--crm-text); font-size: 14px; }
+.media-folders a[aria-current="page"] { background: var(--av-accent); border-color: var(--av-accent); color: var(--av-white); font-weight: 600; }
+.media-folders a[aria-current="page"] .media-folders__count { color: var(--av-white); }
+@media (max-width: 800px) { .media-folders a { min-height: 44px; } }

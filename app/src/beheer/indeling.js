@@ -10,7 +10,8 @@ const GROUPS = [
   {
     title: 'Systeem',
     sections: [
-      { id: 'overzicht', label: 'Systeemoverzicht', view: 'overzicht', words: 'versie database migratie node uptime instellingen bron omgeving status' },
+      { id: 'overzicht', label: 'Systeemoverzicht', view: 'overzicht', words: 'versie database migratie node uptime status' },
+      { id: 'instellingen', label: 'Alle instellingen en hun bron', view: 'instellingen', words: 'instellingen bron omgeving startwaarde standaard standaardwaarde overzicht lijst' },
       { id: 'updates', label: 'Updates en onderhoud', view: 'updates', words: 'update updaten bijwerken versie release releasenotes changelog automatisch onderhoud onderhoudsmodus 503 uitrol' },
       { id: 'logboek', label: 'Logboek', view: 'logboek', words: 'logboek log fout fouten foutcode error waarschuwing traag request-id verzoek console' },
       {

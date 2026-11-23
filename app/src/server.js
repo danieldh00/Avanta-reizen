@@ -50,8 +50,12 @@ const { createMonitor } = require('./system/monitor');
 const { createAppLog, normalizePath, describeError, newErrorCode, newRequestId } = require('./system/app-log');
 const { html } = require('./site/html');
 
-/** De standaard Content-Security-Policy: alleen eigen bestanden, geen inline scripts. */
-const BASE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+/**
+ * De standaard Content-Security-Policy: alleen eigen bestanden, geen inline scripts en geen inline `<style>`-blokken.
+ * Alleen het `style`-attribuut mag nog (`style-src-attr`): de publieke site zet daarmee de achtergrondfoto van een kop,
+ * banner of kaart. Het CRM en Beheer gebruiken geen inline stijlen.
+ */
+const BASE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self'; style-src-attr 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 
 /**
  * Zet de beveiligingskoppen op elk antwoord, met standaard `noindex`: de middleware met de site-instellingen haalt die

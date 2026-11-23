@@ -1,11 +1,14 @@
 /**
  * Routes van Beheer onder `/app/beheer/` (alleen recht `systeem`, rol beheerder): zijbalk met groepen en een zoekveld
- * (`beheer/indeling.js`), het systeemoverzicht en de instellingenformulieren. Elke wijziging komt in het auditlog
+ * (`beheer/indeling.js`), de startpagina (stand van het systeem en de onderwerpen als kaarten), het systeemoverzicht,
+ * de lijst met alle instellingen en hun bron, en de instellingenformulieren. Elke wijziging komt in het auditlog
  * (welke instelling, nooit de waarde); geheimen gaan nooit volledig terug naar de browser.
  */
 const express = require('express');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
+const { systemState } = require('../crm/dashboard');
+const ui = require('../crm/ui');
 const { GROUPS, findSection, filterGroups } = require('./indeling');
 const { SettingsError } = require('./settings');
 const { verifyPassword, MAX_LENGTH } = require('../crm/passwords');
@@ -175,7 +178,54 @@ function createBeheerRoutes(options) {
   });
 
   /**
-   * Het systeemoverzicht: versie, Node, PostgreSQL, laatste migratie, looptijd en de bron van elke instelling.
+   * De meldingen die op de startpagina en het systeemoverzicht bovenaan staan: open incidenten en open servertaken.
+   * @returns {object} HTML (leeg als er niets openstaat).
+   */
+  const renderSystemAlerts = () => html`${options.monitor && options.monitor.view().open.length ? html`<p class="form-alert" role="alert">Er staan incidenten open. Zie <a href="/app/beheer/bewaking/">Bewaking en meldingen</a>.</p>` : ''}
+    ${options.hostTasks && options.hostTasks.view().pending ? html`<p class="notice" role="status">Er staan servertaken open. Zie <a href="/app/beheer/servertaken/">Servertaken</a>.</p>` : ''}`;
+
+  /**
+   * De startpagina van Beheer: de stand van het systeem als tegels en daaronder elk onderwerp als kaart met zijn
+   * onderdelen (met een zoekterm alleen wat erbij past). De gegevens komen uit het geheugen (bewaking, back-uplijst, updates); er is geen databasevraag nodig.
+   * @param {object} req Express-verzoek.
+   * @returns {string} HTML-pagina.
+   */
+  const renderStart = (req) => {
+    const system = systemState({ monitor: options.monitor, backups: options.backups, systemUpdate: options.systemUpdate });
+    const pendingTasks = options.hostTasks ? options.hostTasks.view().pending : 0;
+    // Met een zoekterm (`?zoek=`) tonen de kaarten alleen de onderdelen die erbij passen, net als de zijbalk.
+    const query = typeof req.query.zoek === 'string' ? req.query.zoek.trim().slice(0, 100) : '';
+    const groups = filterGroups(query, settings.fields);
+    const monitorText = !system.monitorEnabled ? 'Uit' : (system.openIncidents ? `${system.openIncidents} open` : 'In orde');
+    const tiles = [
+      { href: '/app/beheer/bewaking/', label: 'Bewaking', value: monitorText, open: system.monitorEnabled && system.openIncidents > 0 },
+      { href: '/app/beheer/back-ups/', label: 'Laatste back-up', value: system.lastBackupAt ? formatDateTime(system.lastBackupAt) : 'Nog geen', open: !system.lastBackupAt },
+      { href: '/app/beheer/updates/', label: system.updateAvailable ? 'Versie (update beschikbaar)' : 'Versie', value: system.version || APP_VERSION, open: system.updateAvailable },
+      { href: '/app/beheer/servertaken/', label: 'Open servertaken', value: String(pendingTasks), open: pendingTasks > 0 },
+    ];
+    return renderBeheerPage(req, {
+      title: 'Beheer',
+      sectionId: '',
+      body: html`${renderSystemAlerts()}
+        <section class="crm-panel" aria-labelledby="beheer-stand">
+          <h2 id="beheer-stand">Stand van het systeem</h2>
+          <ul class="crm-tiles">${tiles.map((tile) => html`<li><a class="crm-tile${tile.open ? ' crm-tile--open' : ''}" href="${tile.href}">
+            <span class="crm-tile-count crm-tile-count--text">${tile.value}</span>
+            <span class="crm-tile-label">${tile.label}</span>
+          </a></li>`)}</ul>
+        </section>
+        ${groups.length ? html`<section class="crm-panel" aria-labelledby="beheer-onderwerpen">
+          <h2 id="beheer-onderwerpen">${query ? 'Gevonden onderdelen' : 'Onderwerpen'}</h2>
+          <div class="beheer-cards">${groups.map((group) => html`<section class="beheer-card">
+            <h3>${group.title}</h3>
+            <ul>${group.sections.map((section) => html`<li><a href="/app/beheer/${section.id}/">${section.label}</a></li>`)}</ul>
+          </section>`)}</div>
+        </section>` : ''}`,
+    });
+  };
+
+  /**
+   * Het systeemoverzicht: versie, Node, PostgreSQL, laatste migratie en looptijd.
    * @param {object} req Express-verzoek.
    * @returns {Promise<string>} HTML-pagina.
    */
@@ -184,11 +234,11 @@ function createBeheerRoutes(options) {
       db.query("SELECT current_setting('server_version') AS version"),
       db.query('SELECT id, name, applied_at FROM schema_migrations ORDER BY id DESC LIMIT 1'),
     ]);
-    const settingRows = GROUPS.flatMap((group) => group.sections.flatMap((section) => (section.fields || []).map((key) => ({ key, section }))));
     return renderBeheerPage(req, {
       title: 'Systeemoverzicht',
       sectionId: 'overzicht',
-      body: html`<div class="crm-table-wrap"><table class="crm-table beheer-facts">
+      body: html`${renderSystemAlerts()}
+        <div class="crm-table-wrap"><table class="crm-table beheer-facts">
           <tbody>
             <tr><th scope="row">Versie</th><td>${APP_VERSION}</td></tr>
             <tr><th scope="row">Node.js</th><td>${process.version}</td></tr>
@@ -197,18 +247,31 @@ function createBeheerRoutes(options) {
             <tr><th scope="row">Draait sinds</th><td>${formatUptime(Math.floor(process.uptime()))}</td></tr>
           </tbody>
         </table></div>
-        ${options.monitor && options.monitor.view().open.length ? html`<p class="form-alert" role="alert">Er staan incidenten open. Zie <a href="/app/beheer/bewaking/">Bewaking en meldingen</a>.</p>` : ''}
-        ${options.hostTasks && options.hostTasks.view().pending ? html`<p class="notice" role="status">Er staan servertaken open. Zie <a href="/app/beheer/servertaken/">Servertaken</a>.</p>` : ''}
-        <h2>Instellingen</h2>
-        <p>Waar elke instelling vandaan komt. Wat in Beheer is opgeslagen gaat voor de omgeving (startwaarde) en de standaard.</p>
-        <div class="crm-table-wrap"><table class="crm-table">
-          <thead><tr><th scope="col">Instelling</th><th scope="col">Sectie</th><th scope="col">Bron</th></tr></thead>
-          <tbody>${settingRows.map((row) => html`<tr>
-            <td>${settings.fields[row.key].label}</td>
-            <td><a href="/app/beheer/${row.section.id}/">${row.section.label}</a></td>
-            <td>${SOURCE_LABELS[settings.source(row.key)]}</td>
-          </tr>`)}</tbody>
-        </table></div>`,
+        <p><a href="/app/beheer/instellingen/">Alle instellingen en hun bron</a></p>`,
+    });
+  };
+
+  /**
+   * Alle instellingen met de sectie waar ze staan en waar de waarde vandaan komt (Beheer, omgeving of standaard).
+   * @param {object} req Express-verzoek.
+   * @returns {string} HTML-pagina.
+   */
+  const renderSettingsList = (req) => {
+    const settingRows = GROUPS.flatMap((group) => group.sections.flatMap((section) => (section.fields || []).map((key) => ({ key, section }))));
+    return renderBeheerPage(req, {
+      title: 'Alle instellingen en hun bron',
+      sectionId: 'instellingen',
+      body: html`<p>Waar elke instelling vandaan komt. Wat in Beheer is opgeslagen gaat voor de omgeving (startwaarde) en de standaard.</p>
+        ${ui.renderTable({
+          caption: 'Instellingen en hun bron',
+          empty: 'Er zijn geen instellingen.',
+          rows: settingRows,
+          columns: [
+            { label: 'Instelling', cell: (row) => settings.fields[row.key].label },
+            { label: 'Sectie', cell: (row) => html`<a href="/app/beheer/${row.section.id}/">${row.section.label}</a>` },
+            { label: 'Bron', cell: (row) => SOURCE_LABELS[settings.source(row.key)] },
+          ],
+        })}`,
     });
   };
 
@@ -268,7 +331,7 @@ function createBeheerRoutes(options) {
   router.get('/beheer/', guard, async (req, res, next) => {
     try {
       await settings.ready();
-      return res.send(await renderOverview(req));
+      return res.send(renderStart(req));
     } catch (error) {
       return next(error);
     }
@@ -280,6 +343,7 @@ function createBeheerRoutes(options) {
       if (!section) return notFound(req, res);
       await settings.ready();
       if (section.view === 'overzicht') return res.send(await renderOverview(req));
+      if (section.view === 'instellingen') return res.send(renderSettingsList(req));
       if (!section.fields) return notFound(req, res);
       return res.send(renderSettingsSection(req, section, { saved: req.query.opgeslagen === '1' }));
     } catch (error) {

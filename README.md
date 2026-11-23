@@ -371,6 +371,14 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   tabblad met het foute veld, en een adres met een anker (bijvoorbeeld `#fotos`) opent het juiste tabblad. Zonder
   JavaScript staan alle onderdelen onder elkaar. Een nieuw bewerkscherm: het omsluitende element krijgt `data-tabs`,
   een formulier dat over meerdere panelen loopt `data-tab-form`.
+- **Startpagina van Beheer** (`/app/beheer/`, `app/src/beheer/routes.js`): de stand van het systeem als tegels
+  (bewaking, laatste back-up, versie, open servertaken) en elk onderwerp als kaart met zijn onderdelen; het zoekveld
+  beperkt ook de kaarten. Het systeemoverzicht staat op `/app/beheer/overzicht/` en de tabel met alle instellingen en
+  hun bron op `/app/beheer/instellingen/`.
+- **Content-Security-Policy**: `style-src 'self'` zonder `'unsafe-inline'`, dus geen inline `<style>`-blokken. Alleen
+  het `style`-attribuut mag nog (`style-src-attr 'unsafe-inline'`), omdat de publieke site daarmee achtergrondfoto's
+  zet; het CRM en Beheer gebruiken geen inline stijlen. Op de formulierpagina's met reCAPTCHA mag het script van Google
+  zijn eigen opmaak plaatsen (`style-src-elem`).
 - **Eigen opmaak van het CRM**: `crm.css` wordt alleen in het CRM geladen, na `site.css`; de publieke site laadt geen
   CRM-opmaak meer. Het CRM is compacter dan de site (15 px, koppen in Open Sans, velden van 40 px en 44 px op een
   telefoon) en gebruikt een donkerdere tint van de huisstijlkleur (`#a8503f`), zodat knoppen en links het contrast van

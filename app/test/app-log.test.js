@@ -161,9 +161,9 @@ test('logboek, foutcodes, debugmodus en Beheer > Logboek', { skip: !DATABASE_URL
 
   // Debugmodus: een beheerder ziet de details; uit = alleen de foutcode.
   await db.query('ALTER TABLE schema_migrations RENAME TO schema_migrations_weg');
-  const debugPage = await request('/app/beheer/', { cookie });
+  const debugPage = await request('/app/beheer/overzicht/', { cookie });
   await app.locals.settings.update({ values: { debugMode: false } });
-  const plainPage = await request('/app/beheer/', { cookie });
+  const plainPage = await request('/app/beheer/overzicht/', { cookie });
   await db.query('ALTER TABLE schema_migrations_weg RENAME TO schema_migrations');
   assert.equal(debugPage.status, 500);
   assert.match(debugPage.text, /Details \(debugmodus\)/);
