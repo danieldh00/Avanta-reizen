@@ -18,13 +18,20 @@ const TOKEN_MESSAGE = 'Het formulier is verlopen of te snel verstuurd. Controlee
 /**
  * Of een verzoek van een andere site komt, volgens `Sec-Fetch-Site` of `Origin`. Ontbreken beide (oude browser,
  * script), dan telt het niet als andere site; formulieren hebben daarnaast hun eigen token.
+ *
+ * `Origin: null` stuurt een browser onder meer bij een formulier op een pagina met `Referrer-Policy: no-referrer`.
+ * Dat telt alleen als eigen site wanneer de browser zelf `Sec-Fetch-Site: same-origin` meldt; die kop kan een
+ * andere site niet vervalsen. Zonder die kop blijft `Origin: null` een verzoek van een andere site.
  * @param {object} req Express-verzoek.
  * @returns {boolean} Waar als het verzoek van een andere site komt.
  */
 function isCrossSite(req) {
   const site = req.get('sec-fetch-site');
   const origin = req.get('origin');
-  return Boolean((site && !['same-origin', 'none'].includes(site)) || (origin && origin !== `${req.protocol}://${req.get('host')}`));
+  if (site && !['same-origin', 'none'].includes(site)) return true;
+  if (!origin) return false;
+  if (origin === 'null') return site !== 'same-origin';
+  return origin !== `${req.protocol}://${req.get('host')}`;
 }
 
 /**

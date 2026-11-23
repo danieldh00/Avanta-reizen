@@ -142,7 +142,9 @@ function createAccountRouter(options) {
 
   router.use('/account', (req, res, next) => {
     // Links met een token in de URL: nooit als Referer naar een andere site, nooit in een cache of zoekmachine.
-    res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow', 'Referrer-Policy': 'no-referrer' });
+    // 'same-origin' en niet 'no-referrer': bij 'no-referrer' stuurt Chrome bij een formulier `Origin: null`, en dan
+    // weigert de herkomstcontrole het inloggen.
+    res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow', 'Referrer-Policy': 'same-origin' });
     if (!generalLimiter.hit(clientKey(req))) return res.status(429).set('Retry-After', '60').type('text').send('Te veel verzoeken. Probeer het over een minuut opnieuw.');
     return next();
   });

@@ -185,7 +185,7 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     const started = await request(path, { form: {} });
     assert.equal(started.status, 200);
     assert.match(started.text, /https:\/\/www\.mollie\.com\/checkout\/select-method\/tr_test\d+ab/);
-    assert.equal(started.headers.get('referrer-policy'), 'no-referrer');
+    assert.equal(started.headers.get('referrer-policy'), 'same-origin');
     const call = fake.calls.slice(before).find((entry) => entry.method === 'POST');
     assert.deepEqual(call.body.amount, { currency: 'EUR', value: '5.00' });
     assert.equal(call.body.webhookUrl, 'https://avanta.example/betalen/webhook/');
