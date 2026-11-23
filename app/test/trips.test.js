@@ -268,7 +268,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     edit = await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie });
     assert.match(edit.text, /16 aanmeldingen \(niet geannuleerd\) van 16 plaatsen, 0 vrij\.\s*<strong>Volgeboekt<\/strong> \(automatisch/);
     const list = await request('/app/reizen/', { cookie: kantoor.cookie });
-    assert.match(list.text, /<td>16 van 16<\/td>\s*<td>volgeboekt<\/td>/);
+    assert.match(list.text, /<td>16 van 16<\/td>\s*<td><span class="crm-status crm-status--vol">Volgeboekt<\/span><\/td>/);
     assert.match(list.text, /<td>0 aangemeld<\/td>/, 'zonder aantal plaatsen alleen het aantal aanmeldingen');
     assert.match((await request('/reis/namibie-juni/')).text, /Volgeboekt/);
     assert.equal((await request('/aanmelden/?reis=namibie-juni')).status, 409);

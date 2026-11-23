@@ -145,6 +145,8 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.doesNotMatch(list.text, /Zwart/);
     assert.doesNotMatch(list.text, /PKN|Astma|NX99|1990/);
     assert.match((await request('/app/deelnemers/?q=%25', { cookie: sessions.kantoor.cookie })).text, /Geen deelnemers gevonden/, '% is geen jokerteken');
+    assert.match((await request('/app/deelnemers/?q=%25', { cookie: sessions.kantoor.cookie })).text, />Alle <span class="crm-tabs-count">0<\/span><\/a>/, 'aantallen volgen de zoektekst');
+    assert.match((await request('/app/deelnemers/', { cookie: sessions.kantoor.cookie })).text, /href="\/app\/deelnemers\/\?dubbel=1">Mogelijk dubbel <span class="crm-tabs-count">\d+<\/span>/);
     assert.match((await request('/app/deelnemers/', { cookie: sessions.kantoor.cookie })).text, /Zwart/);
   });
 

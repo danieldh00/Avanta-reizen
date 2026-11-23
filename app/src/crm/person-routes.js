@@ -13,6 +13,7 @@ const { FIELDS, validateFields } = require('../booking/fields');
 const { roleHasRight } = require('./rights');
 const { PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, LEGACY_ART9_TEXT_VERSION } = require('./persons');
 const { renderCrmPage, renderAlert, formatDateTime } = require('./layout');
+const ui = require('./ui');
 
 /** Aantal personen per pagina van de lijst. */
 const PAGE_SIZE = 50;
@@ -151,44 +152,59 @@ function createPersonRoutes(options) {
       const { text, patterns } = searchPatterns(req.query.q);
       const onlyDuplicates = req.query.dubbel === '1';
       const page = Math.min(Math.max(Number.parseInt(req.query.pagina, 10) || 1, 1), 10000);
-      const rows = await db.query(
-        `SELECT p.id, p.first_names, p.call_name, p.last_name, p.email, p.mobile, p.city, p.duplicate_of, p.last_activity_at, p.anonymized_at,
-                (SELECT count(*)::int FROM bookings b WHERE b.person_id = p.id) AS booking_count
-           FROM persons p
-          WHERE NOT EXISTS (
-                  SELECT 1 FROM unnest($1::text[]) AS term
-                   WHERE lower(p.last_name || ' ' || p.first_names || ' ' || p.call_name || ' ' || p.email || ' ' || p.city) NOT LIKE term
-                )
-            AND ($2::boolean IS FALSE OR p.duplicate_of IS NOT NULL)
-          ORDER BY lower(p.last_name), lower(p.first_names), p.id
-          LIMIT $3 OFFSET $4`,
-        [patterns, onlyDuplicates, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE],
-      );
+      const [rows, [totals]] = await Promise.all([
+        db.query(
+          `SELECT p.id, p.first_names, p.call_name, p.last_name, p.email, p.mobile, p.city, p.duplicate_of, p.last_activity_at, p.anonymized_at,
+                  (SELECT count(*)::int FROM bookings b WHERE b.person_id = p.id) AS booking_count
+             FROM persons p
+            WHERE NOT EXISTS (
+                    SELECT 1 FROM unnest($1::text[]) AS term
+                     WHERE lower(p.last_name || ' ' || p.first_names || ' ' || p.call_name || ' ' || p.email || ' ' || p.city) NOT LIKE term
+                  )
+              AND ($2::boolean IS FALSE OR p.duplicate_of IS NOT NULL)
+            ORDER BY lower(p.last_name), lower(p.first_names), p.id
+            LIMIT $3 OFFSET $4`,
+          [patterns, onlyDuplicates, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE],
+        ),
+        // Aantallen binnen de zoektekst, voor de filterknoppen.
+        db.query(
+          `SELECT count(*)::int AS total, count(p.duplicate_of)::int AS duplicates
+             FROM persons p
+            WHERE NOT EXISTS (
+                    SELECT 1 FROM unnest($1::text[]) AS term
+                     WHERE lower(p.last_name || ' ' || p.first_names || ' ' || p.call_name || ' ' || p.email || ' ' || p.city) NOT LIKE term
+                  )`,
+          [patterns],
+        ),
+      ]);
       const list = rows.slice(0, PAGE_SIZE);
-      const query = (extra) => new URLSearchParams({ ...(text ? { q: text } : {}), ...(onlyDuplicates ? { dubbel: '1' } : {}), ...extra }).toString();
       return res.send(renderCrmPage({
         title: 'Deelnemers',
         user: req.user,
         csrf: req.session.csrf,
         path: '/app/deelnemers/',
-        body: html`<form class="crm-search" method="get" action="/app/deelnemers/" role="search">
-            <label for="veld-q">Zoek op naam, e-mailadres of woonplaats</label>
-            <input id="veld-q" name="q" type="search" value="${text}" maxlength="100">
-            <label class="choice"><input type="checkbox" name="dubbel" value="1"${onlyDuplicates ? raw(' checked') : ''}> <span>Alleen mogelijk dubbel</span></label>
-            <button class="btn btn--small" type="submit">Zoeken</button>
-          </form>
-          ${list.length ? html`<div class="crm-table-wrap"><table class="crm-table">
-            <thead><tr><th scope="col">Naam</th><th scope="col">E-mailadres</th><th scope="col">Mobiel</th><th scope="col">Woonplaats</th><th scope="col">Aanmeldingen</th><th scope="col">Laatste activiteit</th></tr></thead>
-            <tbody>${list.map((person) => html`<tr>
-              <td><a href="/app/deelnemers/${person.id}/">${person.anonymized_at ? person.last_name : html`${person.last_name}, ${person.call_name || person.first_names}`}</a>${person.anonymized_at ? html` <span class="crm-badge">geanonimiseerd</span>` : ''}${person.duplicate_of ? html` <span class="crm-badge">mogelijk dubbel</span>` : ''}</td>
-              <td>${person.email}</td>
-              <td>${person.mobile}</td>
-              <td>${person.city}</td>
-              <td>${person.booking_count}</td>
-              <td>${formatDateTime(person.last_activity_at)}</td>
-            </tr>`)}</tbody>
-          </table></div>` : html`<p>Geen deelnemers gevonden.</p>`}
-          <p>${page > 1 ? html`<a href="/app/deelnemers/?${query({ pagina: String(page - 1) })}">Vorige</a> ` : ''}${rows.length > PAGE_SIZE ? html`<a href="/app/deelnemers/?${query({ pagina: String(page + 1) })}">Volgende</a>` : ''}</p>`,
+        body: html`${ui.renderFilterTabs({
+          base: '/app/deelnemers/',
+          name: 'dubbel',
+          current: onlyDuplicates ? '1' : '',
+          params: { q: text },
+          options: [{ value: '', label: 'Alle', count: totals.total }, { value: '1', label: 'Mogelijk dubbel', count: totals.duplicates }],
+        })}
+          ${ui.renderSearch({ action: '/app/deelnemers/', label: 'Zoek op naam, e-mailadres of woonplaats', value: text, hidden: { dubbel: onlyDuplicates ? '1' : '' } })}
+          ${ui.renderTable({
+          caption: 'Deelnemers',
+          empty: 'Geen deelnemers gevonden.',
+          rows: list,
+          columns: [
+            { label: 'Naam', cell: (person) => html`<a href="/app/deelnemers/${person.id}/">${person.anonymized_at ? person.last_name : html`${person.last_name}, ${person.call_name || person.first_names}`}</a>${person.anonymized_at ? html` <span class="crm-badge">geanonimiseerd</span>` : ''}${person.duplicate_of ? html` <span class="crm-badge">mogelijk dubbel</span>` : ''}` },
+            { label: 'E-mailadres', cell: (person) => person.email },
+            { label: 'Mobiel', cell: (person) => person.mobile },
+            { label: 'Woonplaats', cell: (person) => person.city },
+            { label: 'Aanmeldingen', numeric: true, cell: (person) => person.booking_count },
+            { label: 'Laatste activiteit', cell: (person) => formatDateTime(person.last_activity_at) },
+          ],
+        })}
+          ${ui.renderPager({ base: '/app/deelnemers/', params: { q: text, dubbel: onlyDuplicates ? '1' : '' }, page, hasNext: rows.length > PAGE_SIZE })}`,
       }));
     } catch (error) {
       return next(error);

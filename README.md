@@ -354,6 +354,11 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   kopbalk met het kruimelpad (groep, onderdeel, pagina), *Bekijk de site* en het gebruikersmenu met wachtwoord,
   tweestapsverificatie en uitloggen (een `<details>`, werkt zonder JavaScript). Op een breed scherm is de zijbalk in te
   klappen tot een iconenbalk (per browser onthouden); tot 800 px een lade via de menuknop.
+- **Eén opzet voor lijsten** (`app/src/crm/ui.js`): paginakop met de acties rechts (bijvoorbeeld *Nieuwe reis* of
+  *Excel (.xlsx)*), filterknoppen met aantallen, een zoek- en filterregel, een tabel met statuslabels in kleur en
+  bladeren onderaan. Aanmeldingen, Deelnemers, Betalingen en Reizen gebruiken deze bouwstenen; een nieuwe lijst bouw
+  je met `renderFilterTabs`, `renderSearch`, `renderTable`, `renderStatus` en `renderPager`, en acties geef je mee
+  als `actions` aan `renderCrmPage`.
 - **Eigen opmaak van het CRM**: `crm.css` wordt alleen in het CRM geladen, na `site.css`; de publieke site laadt geen
   CRM-opmaak meer. Het CRM is compacter dan de site (15 px, koppen in Open Sans, velden van 40 px en 44 px op een
   telefoon) en gebruikt een donkerdere tint van de huisstijlkleur (`#a8503f`), zodat knoppen en links het contrast van

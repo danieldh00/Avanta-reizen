@@ -344,8 +344,17 @@ function renderHeader(page) {
 }
 
 /**
+ * De kop van een pagina: de titel met rechts de acties van de pagina (zie `renderActions` in `crm/ui.js`).
+ * @param {{title: string, actions?: object}} page Pagina.
+ * @returns {object} HTML.
+ */
+function renderPageHead(page) {
+  return html`<div class="crm-pagehead"><h1 class="crm-title">${page.title}</h1>${page.actions || ''}</div>`;
+}
+
+/**
  * Maakt een volledige CRM-pagina.
- * @param {{title: string, body: object, user?: (object|null), csrf?: string, path?: string, beheer?: object}} page
+ * @param {{title: string, body: object, user?: (object|null), csrf?: string, path?: string, beheer?: object, actions?: object}} page
  *   Titel, inhoud, de ingelogde gebruiker (zonder: geen zijbalk), het CSRF-token voor de uitlogknop, het huidige pad
  *   (een menu-item is actief op zijn eigen pad en alles eronder; het langste item wint; een pad van Beheer krijgt de
  *   tweede zijbalk) en op instellingenpagina's de gefilterde groepen en zoekterm (`{groups, query}`).
@@ -376,10 +385,10 @@ function renderCrmPage(page) {
       ${inBeheer ? html`<div class="crm-beheer">
         ${renderBeheerSidebar({ user, path, beheer: page.beheer })}
         <div class="crm-beheer-main">
-          <h1 class="crm-title">${page.title}</h1>
+          ${renderPageHead(page)}
           ${page.body}
         </div>
-      </div>` : html`<h1 class="crm-title">${page.title}</h1>
+      </div>` : html`${renderPageHead(page)}
       ${page.body}`}
     </main>
   </div>
