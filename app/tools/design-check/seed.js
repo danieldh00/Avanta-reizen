@@ -135,7 +135,8 @@ const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1', '[::1]'];
 /**
  * Weigert te draaien tegen iets anders dan een lokale test- of ontwerpdatabase: de testaccounts hebben een bekend
  * wachtwoord en horen nooit op een omgeving met echte gegevens. Eisen: geen `NODE_ENV=production`, een lokale host (ook
- * in de query-parameters `host`/`hostaddr`, die de host uit het adres overschrijven) en een databasenaam met `design` of
+ * in de query-parameters `host`/`hostaddr`, die de host uit het adres overschrijven, en in `PGHOST`/`PGHOSTADDR` als het
+ * adres geen host heeft) en een databasenaam met `design` of
  * `test` erin. Alleen met `DESIGN_SEED_TOEGESTAAN=1` mag het afwijken (bijv. een wegwerpcontainer in CI).
  * @param {string} databaseUrl Verbindings-URL.
  * @returns {void} Gooit een fout als de database niet aan de eisen voldoet.
@@ -149,7 +150,9 @@ function assertLocalDatabase(databaseUrl) {
     throw new Error('DATABASE_URL ontbreekt of is ongeldig.');
   }
   if (process.env.DESIGN_SEED_TOEGESTAAN === '1') return;
-  const hosts = [parsed.hostname, ...parsed.searchParams.getAll('host'), ...parsed.searchParams.getAll('hostaddr')]
+  // Zonder host in het adres valt de PostgreSQL-client terug op PGHOST/PGHOSTADDR; die tellen dan ook mee.
+  const fallback = parsed.hostname ? [] : [process.env.PGHOST || '', process.env.PGHOSTADDR || ''];
+  const hosts = [parsed.hostname, ...fallback, ...parsed.searchParams.getAll('host'), ...parsed.searchParams.getAll('hostaddr')]
     .flatMap((value) => value.split(','))
     .map((value) => value.trim())
     .filter(Boolean);

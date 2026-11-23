@@ -74,6 +74,25 @@ test('testgegevens alleen in een lokale test- of ontwerpdatabase', () => {
   assert.throws(() => assertLocalDatabase(''), /DATABASE_URL ontbreekt/);
 });
 
+test('testgegevens: zonder host in het adres tellen PGHOST en PGHOSTADDR mee', (t) => {
+  const saved = { PGHOST: process.env.PGHOST, PGHOSTADDR: process.env.PGHOSTADDR };
+  t.after(() => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  delete process.env.PGHOST;
+  delete process.env.PGHOSTADDR;
+  assert.doesNotThrow(() => assertLocalDatabase('postgres:///avanta_design'), 'geen host: standaard lokaal');
+  process.env.PGHOST = 'db.example.nl';
+  assert.throws(() => assertLocalDatabase('postgres:///avanta_design'), /db\.example\.nl/);
+  process.env.PGHOST = '/var/run/postgresql';
+  assert.doesNotThrow(() => assertLocalDatabase('postgres:///avanta_design'), 'Unix-socket is lokaal');
+  process.env.PGHOSTADDR = '10.0.0.5';
+  assert.throws(() => assertLocalDatabase('postgres:///avanta_design'), /10\.0\.0\.5/);
+});
+
 test('testgegevens: productie weigert altijd, de vlag staat een wegwerpcontainer toe', (t) => {
   const saved = { NODE_ENV: process.env.NODE_ENV, DESIGN_SEED_TOEGESTAAN: process.env.DESIGN_SEED_TOEGESTAAN };
   t.after(() => {
