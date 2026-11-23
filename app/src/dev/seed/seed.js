@@ -147,7 +147,7 @@ async function hasSeed(client) {
 /**
  * Verwijdert alle testdata, en alleen die: aanmeldingen en personen met een `@example.com`-adres (bedragen,
  * betalingen, gebeurtenissen en toestemmingen gaan mee), testgebruikers, en inhoud met een `test-`-slug of -pad.
- * Een FAQ-categorie uit de testdata verdwijnt alleen als er geen vragen meer in staan.
+ * FAQ-categorieën van de testdata (naam eindigt op "(test)") verdwijnen alleen als er geen vragen meer in staan.
  * @param {{query: Function}} client Transactie-client.
  * @returns {Promise<Record<string, number>>} Aantal verwijderde rijen per soort.
  */
@@ -512,7 +512,8 @@ function createSeeder({ vault, today, terms }) {
   };
 
   /**
-   * Schrijft de FAQ-categorieën en -vragen. Een categorie met dezelfde naam die al bestaat, wordt hergebruikt.
+   * Schrijft de FAQ-categorieën (namen met "(test)") en -vragen. Staat een testcategorie er nog (met een echte vraag
+   * erin, zie `removeSeed`), dan wordt die hergebruikt.
    * @param {{query: Function}} client Transactie-client.
    * @param {number} editorUserId Gebruiker met de rol redacteur.
    * @returns {Promise<number>} Aantal vragen.

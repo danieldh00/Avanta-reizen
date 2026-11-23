@@ -595,7 +595,7 @@ data: 7 reistypes en 10 landen, 8 reisleiders, 12 reizen (elk één vertrek met 
 geweest, één vol, één bijna vol, één aanbieding, één concept), ruim 100 personen met ruim 130 aanmeldingen in alle
 statussen, de bedragen en betalingen (open, aanbetaald, betaald, achterstand op aanbetaling en restant), toestemmingen
 (kerkgenootschap en bijzonderheden alleen mét toestemming), één mogelijk dubbel, blog met categorieën en tags
-(gepubliceerd, ingepland, concept), FAQ, twee pagina's en één CRM-gebruiker per rol.
+(gepubliceerd, ingepland, concept), FAQ (categorieën met "(test)" in de naam), twee pagina's en één CRM-gebruiker per rol.
 
 - **Op apps01**: het vaste commando uit Beheer > Systeem > Servertaken, met aan het eind `testdata` in plaats van
   `openstaand` (of `testdata opnieuw`, `testdata verwijderen`). Het script vraagt om bevestiging.

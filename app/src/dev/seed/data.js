@@ -125,10 +125,13 @@ const POSTS = [
   },
 ];
 
-/** Veelgestelde vragen per categorie. */
+/**
+ * Veelgestelde vragen per categorie. De namen eindigen op "(test)", zodat verwijderen nooit een echte categorie raakt
+ * (een categorie heeft geen slug).
+ */
 const FAQ_CATEGORIES = [
   {
-    name: 'Boeken en betalen',
+    name: 'Boeken en betalen (test)',
     questions: [
       { key: 'aanbetaling', question: 'Hoeveel moet ik aanbetalen?', answer: '<p>Bij elke reis staat de aanbetaling vermeld. Daarbij komen de boekingskosten en de bijdrage aan het SGR-garantiefonds. De aanbetaling betaal je binnen 7 dagen na je aanmelding.</p>' },
       { key: 'restbetaling', question: 'Wanneer betaal ik het restant?', answer: '<p>Het restant betaal je uiterlijk 6 weken voor vertrek. Je ontvangt daarvoor een herinnering per e-mail.</p>' },
@@ -136,14 +139,14 @@ const FAQ_CATEGORIES = [
     ],
   },
   {
-    name: 'Onderweg',
+    name: 'Onderweg (test)',
     questions: [
       { key: 'zondag', question: 'Wat doen we op zondag?', answer: '<p>Op zondag houden we een rustdag. We bezoeken waar mogelijk een kerkdienst of houden zelf een korte dienst met de groep.</p>' },
       { key: 'alleen-reizen', question: 'Kan ik ook alleen mee?', answer: '<p>Zeker! De meeste deelnemers reizen alleen. Je deelt een tent of kamer met iemand van hetzelfde geslacht.</p>' },
     ],
   },
   {
-    name: 'Bagage en documenten',
+    name: 'Bagage en documenten (test)',
     questions: [
       { key: 'paspoort', question: 'Heb ik een paspoort nodig?', answer: '<p>Binnen Europa volstaat een geldige ID-kaart. Buiten Europa is een paspoort verplicht, vaak minimaal zes maanden geldig na terugkomst.</p>' },
       { key: 'bagage', question: 'Hoeveel bagage mag ik meenemen?', answer: '<p>Bij busreizen één reistas van maximaal 20 kilo en handbagage. Bij vliegreizen gelden de regels van de luchtvaartmaatschappij.</p>' },

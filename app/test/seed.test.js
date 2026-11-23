@@ -110,6 +110,8 @@ test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
   );
   const [faqCategory] = await db.query("INSERT INTO faq_categories (name, sort_order) VALUES ('Onderweg', 1) RETURNING id");
   await db.query("INSERT INTO faqs (slug, question, answer_html, category, category_id) VALUES ('echte-vraag', 'Echte vraag?', '<p>Ja.</p>', 'Onderweg', $1)", [faqCategory.id]);
+  // Een echte, lege categorie met een naam zoals in de testdata (zonder "(test)") blijft ook staan.
+  const [emptyCategory] = await db.query("INSERT INTO faq_categories (name, sort_order) VALUES ('Boeken en betalen', 2) RETURNING id");
 
   /**
    * Telt de echte gegevens.
@@ -118,9 +120,9 @@ test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
   const realCounts = async () => (await db.query(
     `SELECT (SELECT count(*)::int FROM trips WHERE slug = 'echte-reis') AS trips, (SELECT count(*)::int FROM persons WHERE email = 'echt@voorbeeld.nl') AS persons,
             (SELECT count(*)::int FROM bookings WHERE reference = 'AV-2026-ECHT0001') AS bookings, (SELECT count(*)::int FROM faqs WHERE slug = 'echte-vraag') AS faqs,
-            (SELECT count(*)::int FROM faq_categories WHERE id = ${Number(faqCategory.id)}) AS categories`,
+            (SELECT count(*)::int FROM faq_categories WHERE id IN (${Number(faqCategory.id)}, ${Number(emptyCategory.id)})) AS categories`,
   ))[0];
-  const untouched = { trips: 1, persons: 1, bookings: 1, faqs: 1, categories: 1 };
+  const untouched = { trips: 1, persons: 1, bookings: 1, faqs: 1, categories: 2 };
 
   await t.test('weigert op productie, bij indexeren en zonder bevestiging; er verandert niets', async () => {
     for (const [settings, confirmed] of [[fakeSettings({ siteUrl: 'https://www.avantareizen.nl' }), true], [fakeSettings({ seoIndexing: true }), true], [fakeSettings(), false]]) {
@@ -223,7 +225,7 @@ test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     assert.deepEqual(await realCounts(), untouched);
   });
 
-  await t.test('verwijderen: alle testdata weg, echte gegevens en een gedeelde FAQ-categorie blijven, audit met alleen de opdracht', async () => {
+  await t.test('verwijderen: alle testdata weg, echte gegevens en echte FAQ-categorieën met dezelfde naam blijven, audit met alleen de opdracht', async () => {
     const result = await seed('verwijderen');
     assert.equal(result.ok, true);
     assert.deepEqual(result.added, {});
@@ -233,7 +235,7 @@ test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
             + (SELECT count(*)::int FROM post_terms WHERE slug LIKE 'test-%') + (SELECT count(*)::int FROM pages WHERE path LIKE '/test-%')
             + (SELECT count(*)::int FROM faqs WHERE slug LIKE 'test-%') + (SELECT count(*)::int FROM persons WHERE email LIKE '%@example.com')
             + (SELECT count(*)::int FROM bookings WHERE email LIKE '%@example.com') + (SELECT count(*)::int FROM users WHERE email LIKE '%@example.com') AS total,
-              (SELECT count(*)::int FROM faq_categories WHERE name IN ('Boeken en betalen', 'Bagage en documenten')) AS emptied`,
+              (SELECT count(*)::int FROM faq_categories WHERE name LIKE '%(test)') AS emptied`,
     );
     assert.equal(left.total, 0);
     assert.equal(left.emptied, 0, 'lege testcategorieën weg');
