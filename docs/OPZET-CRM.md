@@ -1,7 +1,7 @@
 # Opzet: CRM achter de website (fase 2)
 
 Status: voorstel ter beslissing (2026-11-19). Eerst kiezen, dan bouwen. Bouwt voort op fase 1 (`docs/OPZET-WEBSITE.md`),
-migraties 1–2 in `app/src/database/migrations.js` en `app/src/security/vault.js`.
+migraties 1–2 in `app/src/database/migrations/` en `app/src/security/vault.js`.
 
 ## 1. Doel en afbakening
 **Wel**
