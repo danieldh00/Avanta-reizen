@@ -261,7 +261,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     const confirmed = await request('/app/tweestaps/bevestigen/', { cookie, form: { _csrf: csrf, code: codeFor(secret, clock) } });
     assert.equal(confirmed.status, 200);
     assert.ok(confirmed.cookie && confirmed.cookie !== cookie, 'nieuw sessietoken');
-    assert.match(confirmed.setCookie, /Max-Age=604800/);
+    assert.match(confirmed.setCookie, /Max-Age=86400/);
     officeRecovery = [...confirmed.text.matchAll(/<li><code>([A-Z2-7]{5}-[A-Z2-7]{5})<\/code><\/li>/g)].map((match) => match[1]);
     assert.equal(officeRecovery.length, 10);
     assert.equal((await request('/app/', { cookie })).status, 303, 'de halve sessie bestaat niet meer');

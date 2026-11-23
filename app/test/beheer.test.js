@@ -219,6 +219,16 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
     assert.match(overview.text, /<section class="beheer-card">\s*<h3>Organisatie<\/h3>/);
     assert.match(overview.text, /href="\/app\/beheer\/contact\/"/);
     assert.doesNotMatch(overview.text, /Standaardwaarde/);
+    // Toegang: 2FA nog optioneel (A05) en maar één beheerder (F07) staan als open tegel en melding bovenaan.
+    assert.match(overview.text, /<a class="crm-tile crm-tile--open" href="\/app\/beheer\/tweestaps\/">\s*<span[^>]*>Optioneel<\/span>/);
+    assert.match(overview.text, /Tweestapsverificatie is nog optioneel/);
+    assert.match(overview.text, /<a class="crm-tile crm-tile--open" href="\/app\/gebruikers\/">\s*<span[^>]*>1<\/span>/);
+    assert.match(overview.text, /maar één actieve beheerder/);
+    const second = await request('/app/gebruikers/nieuw/', { cookie: adminCookie, form: { _csrf: adminCsrf, name: 'Tweede', email: 'tweede@example.nl', role: 'beheerder', active: 'ja', password: 'tweede beheerder wachtwoord' } });
+    assert.equal(second.status, 303);
+    const withTwo = await request('/app/beheer/', { cookie: adminCookie });
+    assert.match(withTwo.text, /<a class="crm-tile" href="\/app\/gebruikers\/">\s*<span[^>]*>2<\/span>/);
+    assert.doesNotMatch(withTwo.text, /maar één actieve beheerder/);
     const system = await request('/app/beheer/overzicht/', { cookie: adminCookie });
     assert.match(system.text, /Systeemoverzicht/);
     assert.match(system.text, /28: CRM: online betalen/);

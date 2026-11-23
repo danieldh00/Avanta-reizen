@@ -1,7 +1,7 @@
 /**
  * Sessies, CSRF-bescherming, rechtencontrole en auditlog van het CRM.
  * - Sessie: willekeurig token in een cookie (`HttpOnly`, `Secure`, `SameSite=Strict`, pad `/app`); in de database staat
- *   alleen de SHA-256 ervan. Verloopt na 8 uur zonder activiteit en uiterlijk na 7 dagen (instelbaar in Beheer >
+ *   alleen de SHA-256 ervan. Verloopt na 1 uur zonder activiteit en uiterlijk na 1 dag (instelbaar in Beheer >
  *   Toegang en beveiliging > Sessies en bewaartermijnen; een kortere duur geldt meteen voor bestaande sessies, een
  *   langere maximale duur alleen voor nieuwe sessies).
  * - CSRF: elk formulier met POST bevat een token dat uit de sessie is afgeleid (HMAC), plus een herkomstcontrole.
@@ -20,9 +20,13 @@ const { isCrossSite } = require('../security/form-guard');
 const COOKIE_NAME = 'avanta_sessie';
 const COOKIE_PATH = '/app';
 
-/** Standaard verloop na inactiviteit en maximale levensduur van een sessie (zonder instellingen). */
-const IDLE_HOURS = 8;
-const MAX_DAYS = 7;
+/**
+ * Standaard verloop na inactiviteit en maximale levensduur van een sessie (zonder instellingen). Het CRM toont
+ * bijzondere gegevens, dus kort (audit A07, ASVS 3.3): na een uur zonder activiteit en uiterlijk na een dag opnieuw
+ * inloggen. Instelbaar in Beheer > Toegang en beveiliging > Sessies en bewaartermijnen.
+ */
+const IDLE_HOURS = 1;
+const MAX_DAYS = 1;
 
 /** Zo lang is een halve sessie (wachtwoord goed, code of 2FA-instelling nog niet) geldig. */
 const PENDING_MINUTES = 15;

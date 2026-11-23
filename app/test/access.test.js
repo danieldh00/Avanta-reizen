@@ -74,7 +74,7 @@ test('toegang: sessieduur en bewaartermijnen', { skip: !DATABASE_URL && 'TEST_DA
 
   await request('/app/installatie/', { form: { code: SETUP_CODE, name: 'Daniël', email: 'beheer@example.nl', password: ADMIN_PASSWORD, password2: ADMIN_PASSWORD } });
   const session = await login();
-  const form = { _csrf: session.csrf, sessionIdleHours: '8', sessionMaxDays: '7', auditRetentionMonths: '24', auditIpRetentionDays: '90', notFoundRetentionDays: '90' };
+  const form = { _csrf: session.csrf, sessionIdleHours: '1', sessionMaxDays: '1', auditRetentionMonths: '24', auditIpRetentionDays: '90', notFoundRetentionDays: '90' };
 
   await t.test('rechten: zonder recht systeem 403, ongeldige waarden 422', async () => {
     const created = await request('/app/gebruikers/nieuw/', { cookie: session.cookie, form: { _csrf: session.csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
@@ -85,16 +85,16 @@ test('toegang: sessieduur en bewaartermijnen', { skip: !DATABASE_URL && 'TEST_DA
     assert.equal((await request('/app/beheer/sessies/', { cookie: office.cookie, form: { ...form, _csrf: officeCsrf, sessionIdleHours: '24' } })).status, 403);
     assert.equal((await request('/app/beheer/sessies/', { cookie: session.cookie, form: { ...form, sessionIdleHours: '0' } })).status, 422);
     assert.equal((await request('/app/beheer/sessies/', { cookie: session.cookie, form: { ...form, auditRetentionMonths: '3' } })).status, 422);
-    assert.equal(settings.get('sessionIdleHours'), 8);
+    assert.equal(settings.get('sessionIdleHours'), 1, 'standaard 1 uur (audit A07)');
   });
 
-  await t.test('sessieduur: kortere duur geldt meteen, ook voor bestaande sessies', async () => {
+  await t.test('sessieduur: instelling geldt meteen, ook voor bestaande sessies', async () => {
     const other = await login();
-    assert.match(other.setCookie, /Max-Age=604800/, 'standaard 7 dagen');
+    assert.match(other.setCookie, /Max-Age=86400/, 'standaard 1 dag (audit A07)');
     assert.equal((await request('/app/beheer/sessies/', { cookie: session.cookie, form: { ...form, sessionIdleHours: '1', sessionMaxDays: '2' } })).status, 303);
     assert.equal(settings.get('sessionIdleHours'), 1);
     const audit = await db.query("SELECT entity_id FROM audit_log WHERE action = 'instelling.gewijzigd' ORDER BY entity_id");
-    assert.deepEqual(audit.map((row) => row.entity_id), ['sessionIdleHours', 'sessionMaxDays']);
+    assert.deepEqual(audit.map((row) => row.entity_id), ['sessionMaxDays'], 'alleen wat echt verandert');
 
     await db.query("UPDATE sessions SET last_seen_at = now() - interval '90 minutes' WHERE token_hash = $1", [hashToken(other.cookie)]);
     assert.equal((await request('/app/', { cookie: other.cookie })).status, 303, 'na een uur zonder activiteit uitgelogd');

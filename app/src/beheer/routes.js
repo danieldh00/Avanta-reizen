@@ -185,13 +185,27 @@ function createBeheerRoutes(options) {
   const renderSystemAlerts = () => html`${options.monitor && options.monitor.view().open.length ? html`<p class="form-alert" role="alert">Er staan incidenten open. Zie <a href="/app/beheer/bewaking/">Bewaking en meldingen</a>.</p>` : ''}
     ${options.hostTasks && options.hostTasks.view().pending ? html`<p class="notice" role="status">Er staan servertaken open. Zie <a href="/app/beheer/servertaken/">Servertaken</a>.</p>` : ''}`;
 
+  /** Tekst op de tegel Tweestapsverificatie per waarde van `mfaRequiredFor`. */
+  const MFA_TILE_TEXT = { niemand: 'Optioneel', gegevens: 'Verplicht (gegevens)', iedereen: 'Verplicht (iedereen)' };
+
+  /**
+   * Hoeveel actieve beheerders er zijn (voor de waarschuwing bij één beheerder, bevinding F07).
+   * @returns {Promise<number>} Aantal actieve gebruikers met de rol beheerder.
+   */
+  const countActiveAdmins = async () => {
+    const [row] = await db.query("SELECT count(*)::int AS admins FROM users WHERE role = 'beheerder' AND active");
+    return row.admins;
+  };
+
   /**
    * De startpagina van Beheer: de stand van het systeem als tegels en daaronder elk onderwerp als kaart met zijn
-   * onderdelen (met een zoekterm alleen wat erbij past). De gegevens komen uit het geheugen (bewaking, back-uplijst, updates); er is geen databasevraag nodig.
+   * onderdelen (met een zoekterm alleen wat erbij past). De gegevens komen uit het geheugen (bewaking, back-uplijst,
+   * updates, instellingen); alleen het aantal beheerders komt uit de database en wordt meegegeven.
    * @param {object} req Express-verzoek.
+   * @param {{activeAdmins: number}} access Aantal actieve beheerders.
    * @returns {string} HTML-pagina.
    */
-  const renderStart = (req) => {
+  const renderStart = (req, access) => {
     const system = systemState({ monitor: options.monitor, backups: options.backups, systemUpdate: options.systemUpdate });
     const pendingTasks = options.hostTasks ? options.hostTasks.view().pending : 0;
     // Met een zoekterm (`?zoek=`) tonen de kaarten alleen de onderdelen die erbij passen, net als de zijbalk.
@@ -203,14 +217,22 @@ function createBeheerRoutes(options) {
       { href: '/app/beheer/back-ups/', label: 'Laatste back-up', value: system.lastBackupAt ? formatDateTime(system.lastBackupAt) : 'Nog geen', open: !system.lastBackupAt },
       { href: '/app/beheer/updates/', label: system.updateAvailable ? 'Versie (update beschikbaar)' : 'Versie', value: system.version || APP_VERSION, open: system.updateAvailable },
       { href: '/app/beheer/servertaken/', label: 'Open servertaken', value: String(pendingTasks), open: pendingTasks > 0 },
+      // Toegang: 2FA is optioneel tot de livegang (besluit 23-11-2026); dan op 'gegevens' zetten (audit A05).
+      { href: '/app/beheer/tweestaps/', label: 'Tweestapsverificatie', value: MFA_TILE_TEXT[settings.get('mfaRequiredFor')] || 'Onbekend', open: settings.get('mfaRequiredFor') === 'niemand' },
+      // Met één beheerder kan niemand anders een vergeten wachtwoord herstellen (F07).
+      { href: '/app/gebruikers/', label: 'Actieve beheerders', value: String(access.activeAdmins), open: access.activeAdmins < 2 },
     ];
     return renderBeheerPage(req, {
       title: 'Beheer',
       sectionId: '',
       body: html`${renderSystemAlerts()}
+        ${access.activeAdmins < 2 ? html`<p class="notice" role="status">Er is maar één actieve beheerder. Maak een tweede beheerder aan onder
+          <a href="/app/gebruikers/">Gebruikers</a>: dan kan die een vergeten wachtwoord of een verloren authenticator herstellen.</p>` : ''}
+        ${settings.get('mfaRequiredFor') === 'niemand' ? html`<p class="notice" role="status">Tweestapsverificatie is nog optioneel. Zet het vóór de
+          livegang verplicht voor de rollen met bijzondere gegevens onder <a href="/app/beheer/tweestaps/">Tweestapsverificatie</a>.</p>` : ''}
         <section class="crm-panel" aria-labelledby="beheer-stand">
           <h2 id="beheer-stand">Stand van het systeem</h2>
-          <ul class="crm-tiles">${tiles.map((tile) => html`<li><a class="crm-tile${tile.open ? ' crm-tile--open' : ''}" href="${tile.href}">
+          <ul class="crm-tiles crm-tiles--three">${tiles.map((tile) => html`<li><a class="crm-tile${tile.open ? ' crm-tile--open' : ''}" href="${tile.href}">
             <span class="crm-tile-count crm-tile-count--text">${tile.value}</span>
             <span class="crm-tile-label">${tile.label}</span>
           </a></li>`)}</ul>
@@ -333,7 +355,7 @@ function createBeheerRoutes(options) {
   router.get('/beheer/', guard, async (req, res, next) => {
     try {
       await settings.ready();
-      return res.send(renderStart(req));
+      return res.send(renderStart(req, { activeAdmins: await countActiveAdmins() }));
     } catch (error) {
       return next(error);
     }

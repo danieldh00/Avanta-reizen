@@ -40,3 +40,5 @@ de opzet van website en CRM in `docs/OPZET-WEBSITE.md`.
 - Elke PR met wijziging in `app/` krijgt een fragment `changes/<naam>.md`; nooit `version` of `app/CHANGELOG.md` aanraken.
 - Reviews: de verplichte checks zijn *Claude code review* en *Claude security review*.
 - De nieuwe site blijft noindex tot go-live; de huidige site blijft tot dan de echte site.
+- Bij de livegang (besluit 23-11-2026): tweestapsverificatie verplicht voor de rollen met bijzondere gegevens (Beheer >
+  Toegang en beveiliging > Tweestapsverificatie op *gegevens*), balk "in ontwikkeling" uit en indexeren aan.
