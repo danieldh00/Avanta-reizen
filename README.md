@@ -407,6 +407,14 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   (bewaking, laatste back-up, versie, open servertaken) en elk onderwerp als kaart met zijn onderdelen; het zoekveld
   beperkt ook de kaarten. Het systeemoverzicht staat op `/app/beheer/overzicht/` en de tabel met alle instellingen en
   hun bron op `/app/beheer/instellingen/`.
+- **Livegang** (`/app/beheer/livegang/`, `beheer/go-live-check.js` en `go-live-routes.js`, plan P6.3 en P6.5): wat de
+  app zelf kan nagaan van het go-live-draaiboek (`docs/GO-LIVE.md`), per onderdeel met stand *Klaar*, *Open*, *Zelf
+  controleren* of *Later* en een link naar waar je het regelt. Instellingen: mailserver, meldadres en heartbeat van de
+  bewaking, captcha, tweestapsverificatie (aangezet door iedereen met bijzondere gegevens, en verplicht), venster van
+  de reisleider, balk "in ontwikkeling", basisadres en indexeren. Vaste inhoud (F09): homepage als blokpagina,
+  reisleiders, tags en uitgelicht bericht van het blog in het CRM of nog uit `homepage.json`/`site-content.json`; de
+  koppen van de lijstpagina's, volgorde en galerij van reisleiders en de fotogalerijen hebben nog geen plek in het CRM
+  (*Later*). Alleen lezen, alleen aantallen.
 - **Content-Security-Policy**: `style-src 'self'` zonder `'unsafe-inline'`, dus geen inline `<style>`-blokken. Alleen
   het `style`-attribuut mag nog (`style-src-attr 'unsafe-inline'`), omdat de publieke site daarmee achtergrondfoto's
   zet; het CRM en Beheer gebruiken geen inline stijlen. Op de formulierpagina's met reCAPTCHA mag het script van Google
@@ -561,7 +569,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `docs/CLAUDE-sjabloon.md` | sjabloon voor `CLAUDE.md` in een volgend project |
 | `.claude/agents/` | verkenners `map`, `callers`, `tests` |
 | `app/` | de applicatie (`src/`, `public/`, `tools/import-wordpress.js`, `tools/minify-public.js` (alleen bij het bouwen van het image), `test/`); versie in `app/package.json` |
-| `app/src/beheer/` | Beheer: `instellingen/<groep>.js` (instellingen en secties per groep), `settings.js` (opslag en controle), `indeling.js` (zijbalk en zoeken), `routes.js` (`/app/beheer/`), `mail-routes.js` (testmail, WAN-IP), `backup-routes.js` (back-ups), `drive-routes.js` (Google Drive), `restore-test-routes.js` (hersteltest), `update-routes.js` (updates en onderhoud), `host-task-routes.js` (servertaken), `log-routes.js` (logboek), `monitor-routes.js` (bewaking) |
+| `app/src/beheer/` | Beheer: `instellingen/<groep>.js` (instellingen en secties per groep), `settings.js` (opslag en controle), `indeling.js` (zijbalk en zoeken), `routes.js` (`/app/beheer/`), `mail-routes.js` (testmail, WAN-IP), `backup-routes.js` (back-ups), `drive-routes.js` (Google Drive), `restore-test-routes.js` (hersteltest), `update-routes.js` (updates en onderhoud), `host-task-routes.js` (servertaken), `log-routes.js` (logboek), `monitor-routes.js` (bewaking), `go-live-check.js` + `go-live-routes.js` (livegang) |
 | `app/src/crm/` | schil van `/app/` (`routes.js`), toegang (`login-routes.js`, `auth.js`, `two-factor.js`), gebruikers, rechten, opmaak en het overzicht |
 | `app/src/persons/` | personen en deelnemers, samenvoegen, inzage en wissen, deelnemerslijsten, AVG-opschoning (`retention.js`) |
 | `app/src/payments/` | betalingen per aanmelding, betalingsoverzicht, herinneringen, online betalen via Mollie |

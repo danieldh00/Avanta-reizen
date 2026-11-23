@@ -25,6 +25,9 @@ const { createHostTaskRoutes } = require('./host-task-routes');
 const { createLogRoutes } = require('./log-routes');
 const { createRetentionRoutes } = require('./retention-routes');
 const { createPasswordCheckPanel } = require('./password-check-panel');
+const { createGoLiveRoutes } = require('./go-live-routes');
+const { createSiteContentStore } = require('../site/site-content');
+const { DATA_DIR } = require('../paths');
 
 /** Versie van de app (voor het systeemoverzicht). */
 const APP_VERSION = require('../../package.json').version;
@@ -347,6 +350,7 @@ function createBeheerRoutes(options) {
 
   if (options.systemUpdate) router.use(createUpdateRoutes({ db, auth, guard, settings, systemUpdate: options.systemUpdate, renderBeheerPage, now: options.now }).router);
   if (options.hostTasks) router.use(createHostTaskRoutes({ auth, guard, settings, hostTasks: options.hostTasks, renderBeheerPage, notFound, now: options.now }));
+  router.use(createGoLiveRoutes({ db, guard, settings, siteContent: options.siteContent || createSiteContentStore(DATA_DIR), renderBeheerPage, now: options.now }));
   router.use(createLogRoutes({ db, guard, settings, appLog: options.appLog, renderBeheerPage, now: options.now }));
   if (options.restoreTests) router.use(createRestoreTestRoutes({ auth, guard, settings, restoreTests: options.restoreTests, renderBeheerPage, now: options.now }));
   // Doorverwijzingen en de 404-lijst hebben eigen routes (vóór de algemene secties).
