@@ -194,8 +194,11 @@ Al open (zie `docs/OPZET-WEBSITE.md`): betaalprovider, hosting, regel voor de aa
   `special_data`, alleen zichtbaar met `gegevens.religie` (beheerder).
 - **Bestaand klantenbestand / WordPress-import (vraag 8)**: niet importeren; het CRM begint blanco. Aanmeldingen die
   het nieuwe formulier al in `bookings` heeft gezet, zet de app bij het starten om naar personen. Kerkgenootschap en
-  bijzonderheden uit die oude aanmeldingen gaan daarbij **wel** mee (besluit Daniël 21-11-2026). De voorwaarden krijgen
-  tekstversie `oud-formulier`, art. 9 een eigen regel `oud-formulier, geen losse art. 9-toestemming`, zodat zichtbaar blijft dat het oude formulier die niet los vroeg.
+  bijzonderheden uit die oude aanmeldingen gaan daarbij **niet** mee: het oude formulier vroeg geen losse toestemming,
+  dus er is geen grondslag (art. 9.2a; audit A10, vervolgplan P3.2, 23-11-2026; dit vervangt het besluit van 21-11-2026
+  om ze wel over te nemen). De voorwaarden krijgen tekstversie `oud-formulier`. Wat eerder wel is overgenomen (regel
+  `oud-formulier, geen losse art. 9-toestemming`), wist de app bij het starten (`purgeLegacyArt9`); die regels blijven
+  ingetrokken staan als bewijs.
 - **Wachtlijst (vraag 6)**: nu niet bouwen. Komt hij later, dan schuift hij automatisch door bij een vrijgekomen plaats.
 - **2FA**: optioneel, aanzetten altijd met een activatiecode van de beheerder (gebouwd, M9).
 

@@ -49,9 +49,12 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   blok `guardian_data` (in te zien met `gegevens.gezondheid`, net als het noodnummer; ook in de deelnemerslijst), alle
   toestemmingen van die aanmelding krijgen `given_by = 'ouder_voogd'` plus een regel `ouder_voogd`, en de ouder krijgt
   een eigen bevestiging per mail. Bij 16 of ouder worden de oudervelden leeggemaakt en niet bewaard. Op het formulier
-  toont `site.js` het blok alleen onder de 16; zonder JavaScript staat het open en controleert de server. Aanmeldingen van vóór migratie 10 zet de app bij het
-  starten zelf om (alleen aantallen in het logboek); hun art. 9-gegevens gaan mee, met een toestemmingsregel met tekstversie
-  `oud-formulier, geen losse art. 9-toestemming` (het oude formulier vroeg die niet los). **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
+  toont `site.js` het blok alleen onder de 16; zonder JavaScript staat het open en controleert de server. Aanmeldingen
+  van vóór migratie 10 zet de app bij het starten zelf om (alleen aantallen in het logboek), **zonder** hun
+  art. 9-gegevens: het oude formulier vroeg daar geen losse toestemming voor (audit A10). Wat een eerdere versie wel
+  overnam (toestemmingsregel `oud-formulier, geen losse art. 9-toestemming`), wist `purgeLegacyArt9` bij het starten,
+  tenzij de deelnemer later zelf toestemming gaf; de oude regels blijven ingetrokken staan als bewijs. **Bewaar de
+  hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.
 - **Reizigersaccount** onder `/account/` (CMS-pakket J2, `app/src/account/`, migratie 23): een reiziger maakt een
   account met e-mailadres en wachtwoord (minimaal 12 tekens, scrypt zoals het CRM) en bevestigt het via de link in de

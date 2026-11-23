@@ -48,7 +48,10 @@ const MAX_CANDIDATES = 20;
 /** Tekstversie voor toestemmingen die uit een aanmelding van vóór de losse vinkjes komen (één vinkje voor alles). */
 const LEGACY_TEXT_VERSION = 'oud-formulier';
 
-/** Tekstversie van art. 9-toestemmingen bij omgezette oude aanmeldingen: het oude formulier vroeg die niet los. */
+/**
+ * Tekstversie van art. 9-toestemmingen die een eerdere versie bij het omzetten van oude aanmeldingen vastlegde (het oude
+ * formulier vroeg die niet los). Nieuwe regels komen er niet meer bij; `purgeLegacyArt9` wist de bijbehorende gegevens.
+ */
 const LEGACY_ART9_TEXT_VERSION = 'oud-formulier, geen losse art. 9-toestemming';
 
 /**
@@ -276,15 +279,16 @@ function createPersons(options) {
   };
 
   /**
-   * Zet aanmeldingen van vóór de personen-tabel om: per aanmelding de persoon zoeken of maken, de bijzondere gegevens
-   * naar de blokken van de persoon en `bookings.sensitive_data` leeg. Art. 9-gegevens (kerkgenootschap,
-   * bijzonderheden) gaan mee (besluit Daniël 21-11-2026), met een toestemmingsregel die laat zien dat het oude
-   * formulier daar geen losse toestemming voor vroeg (`LEGACY_ART9_TEXT_VERSION`). Draait bij het starten; elke aanmelding in een
-   * eigen transactie, dus een onderbreking is veilig. Een aanmelding die niet te ontsleutelen of op te slaan is blijft
-   * staan en wordt geteld.
+   * Zet aanmeldingen van vóór de personen-tabel om: per aanmelding de persoon zoeken of maken, de identiteitsgegevens
+   * en het noodnummer naar de blokken van de persoon en `bookings.sensitive_data` leeg. Art. 9-gegevens (kerkgenootschap,
+   * bijzonderheden) gaan **niet** mee: het oude formulier vroeg daar geen losse toestemming voor, dus er is geen
+   * grondslag (art. 9.2a AVG, bevinding A10). Ze verdwijnen met `sensitive_data`. Draait bij het starten, samen met
+   * `purgeLegacyArt9` voor wat eerder wel is overgenomen; elke aanmelding in een eigen transactie, dus een onderbreking
+   * is veilig. Een aanmelding die niet te ontsleutelen of op te slaan is blijft staan en wordt geteld.
    * @param {{query: Function, transaction: Function}} db Database.
    * @param {{batchSize?: number}} [settings] Aantal per ronde.
-   * @returns {Promise<{converted: number, failed: number}>} Aantallen (nooit persoonsgegevens).
+   * @returns {Promise<{converted: number, failed: number, purged: number}>} Aantallen (nooit persoonsgegevens): omgezet,
+   *   mislukt, en personen bij wie overgenomen art. 9-gegevens zijn gewist.
    */
   const backfillPersons = async (db, settings = {}) => {
     const batchSize = settings.batchSize || 100;
@@ -308,13 +312,8 @@ function createPersons(options) {
           failed++;
           continue;
         }
-        // Het oude formulier had één vinkje voor alles en geen uitdrukkelijke toestemming voor art. 9. De gegevens gaan
-        // wel mee (besluit Daniël); de voorwaarden krijgen 'oud-formulier', art. 9 een eigen regel die dat verschil toont.
-        const values = { ...row, ...sensitive, consent_religion: '', consent_health: '' };
-        const legacyArt9 = [
-          ...(values.church ? [BLOCK_CONSENTS.special_data] : []),
-          ...(values.particulars ? [BLOCK_CONSENTS.health_data] : []),
-        ];
+        // Kerkgenootschap en bijzonderheden leeg: zonder losse toestemming geen art. 9-gegevens overnemen.
+        const values = { ...row, ...sensitive, church: '', particulars: '', consent_religion: '', consent_health: '' };
         try {
           await db.transaction(async (client) => {
             const [current] = await client.query('SELECT id FROM bookings WHERE id = $1 AND person_id IS NULL AND sensitive_data IS NOT NULL FOR UPDATE', [row.id]);
@@ -322,13 +321,6 @@ function createPersons(options) {
             const { personId } = await savePerson(client, values);
             await client.query('UPDATE bookings SET person_id = $2, sensitive_data = NULL WHERE id = $1', [row.id, personId]);
             await recordConsents(client, { personId, bookingId: row.id, values, textVersion: LEGACY_TEXT_VERSION, givenAt: row.consent_at });
-            if (legacyArt9.length) {
-              await client.query(
-                `INSERT INTO consents (person_id, booking_id, kind, text_version, given_at)
-                 SELECT $1, $2, kind, $4, coalesce($5::timestamptz, now()) FROM unnest($3::text[]) AS kind`,
-                [personId, row.id, legacyArt9, LEGACY_ART9_TEXT_VERSION, row.consent_at || null],
-              );
-            }
           });
         } catch (error) {
           // Eén onbruikbare aanmelding houdt de rest niet tegen; hij blijft staan en wordt bij de volgende start opnieuw geprobeerd.
@@ -340,7 +332,46 @@ function createPersons(options) {
         converted++;
       }
     }
-    return { converted, failed };
+    return { converted, failed, purged: await purgeLegacyArt9(db) };
+  };
+
+  /**
+   * Wist art. 9-gegevens die een eerdere versie bij het omzetten van oude aanmeldingen wél overnam (toestemmingsregel
+   * met tekstversie `LEGACY_ART9_TEXT_VERSION`, bevinding A10). Per persoon: het blok van die soort leeg, tenzij er ook
+   * een echte, niet ingetrokken toestemming van dezelfde soort is (dan gaf de deelnemer later zelf toestemming), en de
+   * oude regels krijgen `withdrawn_at`, zodat ze als bewijs blijven staan maar nergens meer tellen. Idempotent: na één
+   * ronde is er niets meer te doen. Elke persoon in een eigen transactie met de rij vergrendeld.
+   * @param {{query: Function, transaction: Function}} db Database.
+   * @returns {Promise<number>} Aantal personen dat is opgeschoond (nooit persoonsgegevens).
+   */
+  const purgeLegacyArt9 = async (db) => {
+    const people = await db.query(
+      'SELECT DISTINCT person_id FROM consents WHERE text_version = $1 AND withdrawn_at IS NULL ORDER BY person_id',
+      [LEGACY_ART9_TEXT_VERSION],
+    );
+    let purged = 0;
+    for (const { person_id: personId } of people) {
+      await db.transaction(async (client) => {
+        await client.query('SELECT id FROM persons WHERE id = $1 FOR UPDATE', [personId]);
+        const kinds = await client.query(
+          `SELECT legacy.kind,
+                  EXISTS (SELECT 1 FROM consents valid WHERE valid.person_id = $1 AND valid.kind = legacy.kind
+                            AND valid.withdrawn_at IS NULL AND valid.text_version <> $2) AS still_valid
+             FROM (SELECT DISTINCT kind FROM consents WHERE person_id = $1 AND text_version = $2 AND withdrawn_at IS NULL) AS legacy`,
+          [personId, LEGACY_ART9_TEXT_VERSION],
+        );
+        for (const { kind, still_valid: stillValid } of kinds) {
+          const block = Object.keys(BLOCK_CONSENTS).find((name) => BLOCK_CONSENTS[name] === kind);
+          if (block && !stillValid) await writeBlock(client, personId, block, {});
+        }
+        await client.query(
+          'UPDATE consents SET withdrawn_at = now() WHERE person_id = $1 AND text_version = $2 AND withdrawn_at IS NULL',
+          [personId, LEGACY_ART9_TEXT_VERSION],
+        );
+      });
+      purged++;
+    }
+    return purged;
   };
 
   /**
@@ -426,7 +457,7 @@ function createPersons(options) {
     await refreshMatchKey(client, keep.id);
   };
 
-  return { matchKey, openBlock, savePerson, recordConsents, backfillPersons, splitValues, writeBlock, refreshMatchKey, findPerson, mergePersons };
+  return { matchKey, openBlock, savePerson, recordConsents, backfillPersons, purgeLegacyArt9, splitValues, writeBlock, refreshMatchKey, findPerson, mergePersons };
 }
 
 module.exports = { createPersons, PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, GUARDIAN_CONSENT, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION };

@@ -20,7 +20,7 @@ const FIELDS = {
   auditIpRetentionDays: { type: 'int', label: 'IP-adressen in het auditlog bewaren (dagen)', help: 'Daarna wordt het (al ingekorte) IP-adres uit de regel gewist; de regel zelf blijft.', default: 90, min: 7, max: 730 },
   notFoundRetentionDays: { type: 'int', label: 'Bewaartermijn 404-lijst (dagen)', help: 'Adressen die zo lang niet meer zijn gevraagd, verdwijnen uit de lijst onder Vindbaarheid > Niet gevonden.', default: 90, min: 7, max: 365 },
   retentionEnabled: { type: 'bool', label: 'Dagelijks automatisch opschonen', help: 'Wist en anonimiseert elke dag wat de bewaartermijnen hieronder voorschrijven. Uitzetten alleen tijdelijk, bijv. bij een geschil of een verzoek van de toezichthouder; Nu opschonen werkt altijd.', default: true },
-  retentionSpecialMonths: { type: 'int', label: 'Bijzondere en paspoortgegevens wissen na terugkomst (maanden)', help: 'Kerkgenootschap, bijzonderheden (gezondheid), noodnummer en paspoortgegevens (de geboortedatum blijft) worden gewist zoveel maanden na de laatste reis. Een nieuwe aanmelding schuift de termijn op. Advies: 1 maand.', default: 1, min: 1, max: 24 },
+  retentionSpecialMonths: { type: 'int', label: 'Bijzondere en paspoortgegevens wissen na terugkomst (maanden)', help: 'Kerkgenootschap, bijzonderheden (gezondheid), noodnummer, gegevens van ouder of voogd en paspoortgegevens (de geboortedatum blijft) worden gewist zoveel maanden na de laatste reis. Een nieuwe aanmelding schuift de termijn op. Advies: 1 maand.', default: 1, min: 1, max: 24 },
   retentionPersonMonths: { type: 'int', label: 'Personen anonimiseren na de laatste reis of activiteit (maanden)', help: 'Naam, adres en contactgegevens van de persoon en van de bijbehorende aanmeldingen worden gewist; de aanmeldingen zelf (reis, bedragen, status) blijven voor de boekhouding. Ook reizigersaccounts die zo lang niet zijn gebruikt verdwijnen. Advies: 24 maanden.', default: 24, min: 6, max: 120 },
   retentionCancelledMonths: { type: 'int', label: 'Geannuleerde aanmeldingen zonder betaling verwijderen na (maanden)', help: 'Een aanmelding die is geannuleerd voordat er iets is betaald, verdwijnt helemaal zoveel maanden na de annulering. Advies: 6 maanden.', default: 6, min: 1, max: 84 },
   retentionBookingYears: { type: 'int', label: 'Aanmeldingen bewaren voor de boekhouding (jaren)', help: 'Daarna worden geanonimiseerde aanmeldingen en hun historie verwijderd. De fiscale bewaarplicht is 7 jaar.', default: 7, min: 7, max: 15 },
@@ -58,7 +58,7 @@ const GROUP = {
       intro: 'Hoe lang het CRM persoonsgegevens bewaart. Elke dag wist de app bijzondere en paspoortgegevens na terugkomst, anonimiseert personen na de bewaartermijn en verwijdert geannuleerde aanmeldingen zonder betaling, oude aanmeldingen en oude contactberichten. Onder het formulier staat wat er per ronde is gewist (alleen aantallen).',
       fields: ['retentionEnabled', 'retentionSpecialMonths', 'retentionPersonMonths', 'retentionCancelledMonths', 'retentionBookingYears', 'retentionContactMonths'],
       extra: 'bewaartermijnen',
-      words: 'avg gdpr privacy bewaartermijn bewaren wissen verwijderen anonimiseren opschonen paspoort medisch gezondheid kerkgenootschap art. 9 geannuleerd contactformulier reizigersaccount',
+      words: 'avg gdpr privacy bewaartermijn bewaren wissen verwijderen anonimiseren opschonen paspoort medisch gezondheid kerkgenootschap ouder voogd art. 9 geannuleerd contactformulier reizigersaccount',
     },
     {
       id: 'tweestaps',
