@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test",
+    "test": "PASSWORD_BREACH_CHECK=false node --test",
     "import": "node tools/import-wordpress.js"
   },
   "dependencies": {

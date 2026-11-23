@@ -113,6 +113,11 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     const weak = await submitPublic('/account/registreren/', { email: 'anna@example.nl', password: 'kort', password2: 'kort' });
     assert.equal(weak.status, 422);
     assert.match(weak.text, /minimaal 12 tekens/);
+    // Veelgebruikt wachtwoord: ook voor reizigers geweigerd (A09).
+    const common = await submitPublic('/account/registreren/', { email: 'anna@example.nl', password: 'Avantareizen2026!', password2: 'Avantareizen2026!' });
+    assert.equal(common.status, 422);
+    assert.match(common.text, /te makkelijk te raden/);
+    clock += 61 * 60 * 1000; // nieuw uur voor de limiet op registreren (5 per uur)
     const mismatch = await submitPublic('/account/registreren/', { email: 'anna@example.nl', password: PASSWORD, password2: `${PASSWORD}!` });
     assert.equal(mismatch.status, 422);
     const done = await submitPublic('/account/registreren/', { email: 'Anna@Example.nl', password: PASSWORD, password2: PASSWORD });

@@ -23,7 +23,8 @@ const { renderPage, renderPageHeader } = require('../site/layout');
 const { clientKey, createRateLimiter } = require('../security/rate-limit');
 const { createFormGuard, isCrossSite } = require('../security/form-guard');
 const { captchaField } = require('../security/captcha');
-const { hashPassword, verifyPassword, needsRehash, passwordProblem, getDummyHash } = require('../crm/passwords');
+const { hashPassword, verifyPassword, needsRehash, getDummyHash } = require('../crm/passwords');
+const { createPasswordCheck } = require('../security/password-check');
 const { readCookie, ipPrefix } = require('../crm/auth');
 const { createAccounts, MAX_DAYS } = require('./accounts');
 const { createAccountMails } = require('./mails');
@@ -107,9 +108,9 @@ function passwordField(value) {
 
 /**
  * Bouwt de router van het reizigersaccount.
- * @param {{db: object, masterKey: Buffer, formKey: Buffer, mailer: object, settings: object, captcha?: object, accounts?: object, secureCookies?: boolean, now?: () => number}} options
+ * @param {{db: object, masterKey: Buffer, formKey: Buffer, mailer: object, settings: object, captcha?: object, accounts?: object, passwordCheck?: object, secureCookies?: boolean, now?: () => number}} options
  *   Database, hoofdsleutel (CSRF-sleutel), sleutel voor het formuliertoken, mailer en instellingen (mails), captcha,
- *   de accountopslag (anders een nieuwe), of de cookie `Secure` krijgt en (voor tests) de klok van de limieten.
+ *   de accountopslag (anders een nieuwe), de wachtwoordcontrole (`security/password-check.js`, anders een nieuwe), of de cookie `Secure` krijgt en (voor tests) de klok van de limieten.
  * @returns {express.Router} De router.
  */
 function createAccountRouter(options) {
@@ -118,6 +119,7 @@ function createAccountRouter(options) {
   const accounts = options.accounts || createAccounts({ db });
   const mails = createAccountMails({ mailer: options.mailer, settings: options.settings });
   const myTrips = createMyTrips({ db });
+  const passwordCheck = options.passwordCheck || createPasswordCheck({ settings: options.settings, now: options.now });
   const csrfKey = crypto.createHmac('sha256', options.masterKey).update('account-csrf').digest();
   const secure = options.secureCookies !== false;
   const now = options.now;
@@ -372,7 +374,7 @@ function createAccountRouter(options) {
     try {
       const password = passwordField(req.body.password);
       const errors = {};
-      const problem = passwordProblem(password, { email: req.customer.email });
+      const problem = await passwordCheck.problem(password, { email: req.customer.email });
       if (problem) errors.password = problem;
       else if (password !== req.body.password2) errors.password2 = 'De wachtwoorden zijn niet gelijk.';
       if (Object.keys(errors).length) return send(res, { title: 'Wachtwoord wijzigen', body: views.passwordView({ csrf: req.customer.csrf, errors }) }, 422);
@@ -462,7 +464,7 @@ function createAccountRouter(options) {
       const values = { email: textField(body.email, 200) };
       const errors = {};
       if (!email) errors.email = 'Vul een geldig e-mailadres in.';
-      const problem = passwordProblem(password, { email });
+      const problem = await passwordCheck.problem(password, { email });
       if (problem) errors.password = problem;
       else if (password !== body.password2) errors.password2 = 'De wachtwoorden zijn niet gelijk.';
       const tokenProblem = registerGuard.tokenProblem(body);
@@ -595,7 +597,7 @@ function createAccountRouter(options) {
       if (!row) return send(res, { title: 'Nieuw wachtwoord', body: views.invalidLinkView('/account/wachtwoord-vergeten/') }, 404);
       const password = passwordField(req.body.password);
       const errors = {};
-      const problem = passwordProblem(password, { email: row.email });
+      const problem = await passwordCheck.problem(password, { email: row.email });
       if (problem) errors.password = problem;
       else if (password !== req.body.password2) errors.password2 = 'De wachtwoorden zijn niet gelijk.';
       if (Object.keys(errors).length) return send(res, { title: 'Nieuw wachtwoord', body: views.resetView({ token, errors }) }, 422);

@@ -6,6 +6,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const passwords = require('../src/crm/passwords');
@@ -88,7 +89,18 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
   await db.migrate();
 
   let clock = Date.now();
-  const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, now: () => clock });
+  // Nep-Have I Been Pwned: kent alleen 'gelekt maar lang wachtwoord'; `breachDown` speelt een storing na.
+  const breachRequests = [];
+  let breachDown = false;
+  const breachedHash = crypto.createHash('sha1').update('gelekt maar lang wachtwoord').digest('hex').toUpperCase();
+  const passwordCheckFetch = async (url, init) => {
+    breachRequests.push({ url, padding: init.headers['Add-Padding'] });
+    if (breachDown) throw new Error('netwerk weg');
+    const lines = [`${'0'.repeat(35)}:0`];
+    if (url.endsWith(breachedHash.slice(0, 5))) lines.push(`${breachedHash.slice(5)}:42`);
+    return new Response(lines.join('\r\n'), { status: 200 });
+  };
+  const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, passwordCheckFetch, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => { server.close(); await db.close(); });
@@ -289,6 +301,49 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal(changed.status, 303);
     assert.equal((await request('/app/', { cookie: adminSession.cookie })).status, 200, 'huidige sessie blijft');
     assert.equal((await request('/app/', { cookie: other.cookie })).status, 303, 'andere sessie is uitgelogd');
+  });
+
+  await t.test('gelekte en veelgebruikte wachtwoorden geweigerd (A09)', async () => {
+    // De limiet op wachtwoord wijzigen (5 per kwartier) telt mee: elke poging een nieuw kwartier.
+    const change = (password) => { clock += 16 * 60 * 1000; return request('/app/wachtwoord/', { cookie: adminSession.cookie, form: { _csrf: adminSession.csrf, current: 'nieuw beheerwachtwoord', password, password2: password } }); };
+    // Lokaal, zonder de dienst te vragen (de controle staat in de tests standaard uit).
+    const common = await change('Wachtwoord2026!');
+    assert.equal(common.status, 422);
+    assert.match(common.text, /te makkelijk te raden/);
+    assert.equal((await change('gelekt maar lang wachtwoord')).status, 303, 'zonder Have I Been Pwned geen controle op lekken');
+    assert.equal(breachRequests.length, 0);
+    // Controle aanzetten in Beheer; het paneel toont de stand.
+    const section = await request('/app/beheer/wachtwoorden/', { cookie: adminSession.cookie });
+    assert.equal(section.status, 200);
+    assert.match(section.text, /alleen lokaal gecontroleerd/);
+    assert.equal((await request('/app/beheer/wachtwoorden/', { cookie: adminSession.cookie, form: { _csrf: adminSession.csrf, passwordBreachCheck: 'ja' } })).status, 303);
+    const changeFrom = (current, password, minutes = 16) => {
+      clock += minutes * 60 * 1000;
+      return request('/app/wachtwoord/', { cookie: adminSession.cookie, form: { _csrf: adminSession.csrf, current, password, password2: password } });
+    };
+    assert.equal((await changeFrom('gelekt maar lang wachtwoord', 'nieuw beheerwachtwoord')).status, 303);
+    const breached = await changeFrom('nieuw beheerwachtwoord', 'gelekt maar lang wachtwoord');
+    assert.equal(breached.status, 422);
+    assert.match(breached.text, /gelekte wachtwoorden/);
+    // Alleen de eerste 5 tekens van de hash gaan de deur uit, met opvulling.
+    assert.deepEqual(breachRequests.at(-1), { url: `https://api.pwnedpasswords.com/range/${breachedHash.slice(0, 5)}`, padding: 'true' });
+    assert.ok(breachRequests.every((entry) => /\/range\/[0-9A-F]{5}$/.test(entry.url)));
+    // Ook bij een nieuwe gebruiker door de beheerder.
+    const newUser = await request('/app/gebruikers/nieuw/', { cookie: adminSession.cookie, form: { _csrf: adminSession.csrf, name: 'Lek', email: 'lek@example.nl', role: 'boekhouding', active: 'ja', password: 'gelekt maar lang wachtwoord' } });
+    assert.equal(newUser.status, 422);
+    // Storing: alleen lokaal, wijzigen lukt, één regel in het logboek.
+    breachDown = true;
+    assert.equal((await changeFrom('nieuw beheerwachtwoord', 'een heel ander wachtwoord')).status, 303);
+    assert.equal((await changeFrom('een heel ander wachtwoord', 'nieuw beheerwachtwoord', 1)).status, 303);
+    breachDown = false;
+    await app.locals.appLog.flush();
+    const [logged] = await db.query("SELECT count(*)::int AS n FROM app_logs WHERE source = 'wachtwoordcontrole'");
+    assert.equal(logged.n, 1, 'hoogstens één logregel per kwartier');
+    const panel = await request('/app/beheer/wachtwoorden/', { cookie: adminSession.cookie });
+    assert.match(panel.text, /lokaal en bij Have I Been Pwned/);
+    assert.match(panel.text, /komt voor in gelekte wachtwoorden/);
+    assert.match(panel.text, /niet bereikbaar/);
+    assert.doesNotMatch(panel.text, /gelekt maar lang wachtwoord/);
   });
 
   await t.test('sessie verloopt na inactiviteit en na de maximale duur', async () => {

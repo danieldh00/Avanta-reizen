@@ -11,7 +11,8 @@ const { clientKey, createRateLimiter } = require('../security/rate-limit');
 const { isCrossSite } = require('../security/form-guard');
 const { createAuth, ipPrefix } = require('./auth');
 const { roleLabel } = require('./rights');
-const { hashPassword, verifyPassword, needsRehash, passwordProblem, getDummyHash, MAX_LENGTH } = require('./passwords');
+const { hashPassword, verifyPassword, needsRehash, getDummyHash, MAX_LENGTH } = require('./passwords');
+const { createPasswordCheck } = require('../security/password-check');
 const { renderCrmPage, renderInput, renderAlert } = require('./layout');
 const { createUserRoutes } = require('./users');
 const { createPersonRoutes } = require('./person-routes');
@@ -98,8 +99,9 @@ function textField(value, max) {
 
 /**
  * Bouwt de CRM-router.
- * @param {{db: object, masterKey: Buffer, settings: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
- *   Database, hoofdsleutel, de instellingen (`beheer/settings.js`), de mailer en WAN-IP-opzoeker (`mail/`), de captcha, de installatiecode voor de eerste beheerder (zonder code geen installatie), of de cookie
+ * @param {{db: object, masterKey: Buffer, settings: object, passwordCheck?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
+ *   Database, hoofdsleutel, de instellingen (`beheer/settings.js`), de wachtwoordcontrole (`security/password-check.js`,
+ *   anders een nieuwe), de mailer en WAN-IP-opzoeker (`mail/`), de captcha, de installatiecode voor de eerste beheerder (zonder code geen installatie), of de cookie
  *   `Secure` krijgt en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router, te koppelen op `/app`.
  */
@@ -109,6 +111,7 @@ function createCrmRouter(options) {
   const vault = createVault(options.masterKey);
   const twoFactor = createTwoFactor({ db, vault, now: options.now });
   const persons = createPersons({ vault });
+  const passwordCheck = options.passwordCheck || createPasswordCheck({ settings: options.settings, appLog: options.appLog, now: options.now });
   const router = express.Router();
   const setupCodeHash = options.setupCode ? crypto.createHash('sha256').update(normalizeSetupCode(options.setupCode)).digest() : null;
   const loginLimiter = createRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000, now: options.now });
@@ -314,7 +317,7 @@ function createCrmRouter(options) {
       if (!values.name) errors.name = 'Vul een naam in.';
       const email = normalizeEmail(req.body.email);
       if (!email) errors.email = 'Vul een geldig e-mailadres in.';
-      const problem = passwordProblem(req.body.password, { email });
+      const problem = await passwordCheck.problem(req.body.password, { email });
       if (problem) errors.password = problem;
       else if (req.body.password !== req.body.password2) errors.password2 = 'De wachtwoorden zijn niet gelijk.';
       if (Object.keys(errors).length) {
@@ -404,7 +407,7 @@ function createCrmRouter(options) {
       const errors = {};
       const [user] = await db.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
       if (!user || !(await verifyPassword(req.body.current, user.password_hash))) errors.current = 'Je huidige wachtwoord klopt niet.';
-      const problem = passwordProblem(req.body.password, { email: req.user.email });
+      const problem = await passwordCheck.problem(req.body.password, { email: req.user.email });
       if (problem) errors.password = problem;
       else if (req.body.password !== req.body.password2) errors.password2 = 'De wachtwoorden zijn niet gelijk.';
       if (Object.keys(errors).length) return res.status(422).send(renderPasswordPage(req, { errors }));
@@ -421,7 +424,7 @@ function createCrmRouter(options) {
   });
 
   router.use(createTwoFactorRoutes({ db, auth, twoFactor, now: options.now }));
-  router.use(createUserRoutes({ db, auth, twoFactor, normalizeEmail, textField }));
+  router.use(createUserRoutes({ db, auth, twoFactor, passwordCheck, normalizeEmail, textField }));
   router.use(createPersonRoutes({ db, auth, persons, now: options.now }));
   router.use(createPersonMergeRoutes({ db, auth, persons }));
   router.use(createBookingRoutes({ db, auth, settings: options.settings, now: options.now }));
@@ -437,7 +440,7 @@ function createCrmRouter(options) {
   router.use(createFaqRoutes({ db, auth }));
   router.use(createPostTermRoutes({ db, auth, redirects: options.redirects, siteContent: options.siteContent }));
   router.use(createPostRoutes({ db, auth, library: options.mediaLibrary, redirects: options.redirects, menus: options.menus, siteContent: options.siteContent }));
-  router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, retention: options.retention, now: options.now }));
+  router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, passwordCheck, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, retention: options.retention, now: options.now }));
 
   router.use((req, res) => {
     res.status(404).send(renderCrmPage({

@@ -7,7 +7,7 @@
 const express = require('express');
 const { html, raw } = require('../site/html');
 const { ROLES, TRIP_SCOPED_ROLES, roleLabel } = require('./rights');
-const { hashPassword, passwordProblem, MAX_LENGTH } = require('./passwords');
+const { hashPassword, MAX_LENGTH } = require('./passwords');
 const { renderCrmPage, renderInput, renderAlert, formatDateTime } = require('./layout');
 const { PERSON_ACTION_LABELS } = require('./person-routes');
 const { MERGE_ACTION_LABELS } = require('./person-merge-routes');
@@ -87,12 +87,13 @@ const ACTION_LABELS = {
 
 /**
  * Maakt de routes voor gebruikersbeheer en het auditlog.
- * @param {{db: object, auth: object, twoFactor: object, normalizeEmail: Function, textField: Function}} options Database,
- *   sessie- en rechtenlaag, de 2FA-opslag (`crm/two-factor.js`) en de invoerhulpen uit `crm/routes.js`.
+ * @param {{db: object, auth: object, twoFactor: object, passwordCheck: {problem: Function}, normalizeEmail: Function, textField: Function}} options
+ *   Database, sessie- en rechtenlaag, de 2FA-opslag (`crm/two-factor.js`), de wachtwoordcontrole
+ *   (`security/password-check.js`) en de invoerhulpen uit `crm/routes.js`.
  * @returns {express.Router} Router.
  */
 function createUserRoutes(options) {
-  const { db, auth, twoFactor, normalizeEmail, textField } = options;
+  const { db, auth, twoFactor, passwordCheck, normalizeEmail, textField } = options;
   const router = express.Router();
   const guard = auth.requireRight('gebruikers');
 
@@ -100,9 +101,9 @@ function createUserRoutes(options) {
    * Leest de velden van het gebruikersformulier en controleert ze.
    * @param {object} body Ingezonden velden.
    * @param {{withPassword: boolean}} mode Of er een wachtwoord bij hoort (nieuwe gebruiker).
-   * @returns {{values: object, errors: object}} Waarden en fouten per veld.
+   * @returns {Promise<{values: object, errors: object}>} Waarden en fouten per veld.
    */
-  const readUserForm = (body, mode) => {
+  const readUserForm = async (body, mode) => {
     const values = {
       name: textField(body.name, 100),
       email: textField(body.email, 200),
@@ -118,7 +119,7 @@ function createUserRoutes(options) {
     else values.email = email;
     if (!values.role) errors.role = 'Kies een rol.';
     if (mode.withPassword) {
-      const problem = passwordProblem(body.password, { email });
+      const problem = await passwordCheck.problem(body.password, { email });
       if (problem) errors.password = problem;
     }
     return { values, errors };
@@ -274,7 +275,7 @@ function createUserRoutes(options) {
 
   router.post('/gebruikers/nieuw/', guard, auth.checkCsrf, async (req, res, next) => {
     try {
-      const { values, errors } = readUserForm(req.body, { withPassword: true });
+      const { values, errors } = await readUserForm(req.body, { withPassword: true });
       if (!(await guideExists(values.guide_id))) errors.guide_id = 'Dit reisleidersprofiel bestaat niet.';
       if (Object.keys(errors).length) return res.status(422).send(await renderNewUser(req, { values, errors }));
       const passwordHash = await hashPassword(req.body.password);
@@ -373,7 +374,7 @@ function createUserRoutes(options) {
 
   router.post('/gebruikers/:id(\\d{1,9})/', guard, auth.checkCsrf, async (req, res, next) => {
     try {
-      const { values, errors } = readUserForm(req.body, { withPassword: false });
+      const { values, errors } = await readUserForm(req.body, { withPassword: false });
       const target = await findUser(req.params.id);
       if (!target) return notFound(req, res);
       if (!(await guideExists(values.guide_id))) errors.guide_id = 'Dit reisleidersprofiel bestaat niet.';
@@ -419,7 +420,7 @@ function createUserRoutes(options) {
     try {
       const target = await findUser(req.params.id);
       if (!target) return notFound(req, res);
-      const problem = passwordProblem(req.body.password, { email: target.email });
+      const problem = await passwordCheck.problem(req.body.password, { email: target.email });
       if (problem) return res.status(422).send(await renderEditUser(req, target, { passwordErrors: { password: problem } }));
       const passwordHash = await hashPassword(req.body.password);
       await db.transaction(async (client) => {

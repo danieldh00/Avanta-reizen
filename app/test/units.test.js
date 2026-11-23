@@ -18,6 +18,7 @@ const { rewriteLink, cacheName } = require('../tools/import-wordpress');
 const { parseTrustProxy } = require('../src/server');
 const { isInternalRequest, isInternalAddress } = require('../src/system/health');
 const { securityTxt } = require('../src/site/seo');
+const { createPasswordCheck, commonPasswordProblem, breachCount } = require('../src/security/password-check');
 const net = require('node:net');
 const { createDatabase, poolOptions, DEFAULT_CONNECT_TIMEOUT_MS } = require('../src/database/db');
 
@@ -277,4 +278,56 @@ test('security.txt: contact, vervaldatum binnen een jaar en canonical', () => {
     'Canonical: https://www.avantareizen.nl/.well-known/security.txt',
     '',
   ].join('\n'));
+});
+
+test('wachtwoordcontrole: lokaal veelgebruikte woorden en reeksen', () => {
+  for (const password of ['Wachtwoord2026!', 'Avantareizen1', 'Avanta-reizen-2026', '1234567890ab', 'Qwertyuiop12!', 'Welkom01welkom',
+    'testtesttest', 'Zomer!Winter#2026', '123456789012', 'welkomwachtwoord', 'Geheim-wachtwoord-1', '0987654321zyx', 'abc1abc2abc3', 'qwe1qwe2qwe3', 'zyx1zyx2zyx3']) {
+    assert.notEqual(commonPasswordProblem(password), '', password);
+  }
+  for (const password of ['Jezus is mijn herder', 'de kat zit op de mat', 'correct-paard-batterij-nietje', 'nieuw beheerwachtwoord', 'Sterk-Wachtwoord-2026!', '197503211985', 'kantoor wachtwoord 1']) {
+    assert.equal(commonPasswordProblem(password), '', password);
+  }
+});
+
+test('wachtwoordcontrole: Have I Been Pwned met k-anonimiteit', async () => {
+  assert.equal(breachCount('ABC:0\r\nDEF:12\r\n', 'DEF'), 12);
+  assert.equal(breachCount('ABC:0\r\n', 'DEF'), 0);
+  let enabled = false;
+  const requests = [];
+  let reply = () => new Response('', { status: 200 });
+  const check = createPasswordCheck({
+    settings: { get: (key) => (key === 'passwordBreachCheck' ? enabled : undefined) },
+    fetchImpl: async (url) => { requests.push(url); return reply(); },
+  });
+  // Uit: geen verzoek; vaste regels en lokale lijst gelden altijd.
+  assert.equal(await check.problem('een prima wachtwoord'), '');
+  assert.match(await check.problem('kort'), /minimaal 12/);
+  assert.match(await check.problem('Wachtwoord2026!'), /te makkelijk/);
+  assert.equal(requests.length, 0);
+  enabled = true;
+  const hash = require('node:crypto').createHash('sha1').update('een prima wachtwoord').digest('hex').toUpperCase();
+  reply = () => new Response(`${hash.slice(5)}:3\r\n`, { status: 200 });
+  assert.match(await check.problem('een prima wachtwoord'), /gelekte wachtwoorden/);
+  assert.equal(requests.at(-1), `https://api.pwnedpasswords.com/range/${hash.slice(0, 5)}`);
+  assert.match(await check.problem('Wachtwoord2026!'), /te makkelijk/, 'lokaal geweigerd zonder verzoek');
+  assert.equal(requests.length, 1);
+  // Fout van de dienst, te groot antwoord of netwerkfout: alleen lokaal, dus goedgekeurd.
+  reply = () => new Response('', { status: 503 });
+  assert.equal(await check.problem('een prima wachtwoord'), '');
+  reply = () => new Response('x', { status: 200, headers: { 'Content-Length': String(2 * 1024 * 1024) } });
+  assert.equal(await check.problem('een prima wachtwoord'), '');
+  // Zonder Content-Length (stroom in stukken): ook dan stopt het lezen bij de grens en wordt de stroom afgebroken.
+  let cancelled = false;
+  let sent = 0;
+  reply = () => new Response(new ReadableStream({
+    pull(controller) { sent += 1; controller.enqueue(new Uint8Array(256 * 1024).fill(65)); },
+    cancel() { cancelled = true; },
+  }), { status: 200 });
+  assert.equal(await check.problem('een prima wachtwoord'), '');
+  assert.equal(cancelled, true);
+  assert.ok(sent <= 6, `afgebroken na ${sent} stukken`);
+  reply = () => { throw new Error('weg'); };
+  assert.equal(await check.problem('een prima wachtwoord'), '');
+  assert.deepEqual(check.recent().map((event) => event.outcome), ['onbereikbaar', 'onbereikbaar', 'onbereikbaar', 'onbereikbaar', 'lokaal', 'gelekt', 'lokaal']);
 });

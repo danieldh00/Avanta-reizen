@@ -257,6 +257,10 @@ const SETTING_FIELDS = {
     labels: { niemand: 'Niemand (optioneel: ieder zet het zelf aan)', gegevens: 'Rollen met toegang tot bijzondere gegevens (beheerder, kantoor, reisleider)', iedereen: 'Iedereen' },
     help: 'Wie het verplicht heeft, stelt het in bij de eerstvolgende keer inloggen, met een activatiecode van de beheerder. Wie het zelf heeft aangezet, geeft bij het inloggen altijd de code.',
   },
+  passwordBreachCheck: {
+    type: 'bool', label: 'Nieuwe wachtwoorden controleren bij Have I Been Pwned', default: true, env: 'PASSWORD_BREACH_CHECK',
+    help: 'Alleen de eerste 5 tekens van een hash van het wachtwoord gaan naar de dienst; het wachtwoord zelf nooit. Is de dienst niet bereikbaar, dan geldt alleen de lokale controle.',
+  },
   sessionIdleHours: { type: 'int', label: 'Uitloggen na inactiviteit (uren)', help: 'Een sessie zonder activiteit vervalt na zoveel uur. Geldt meteen, ook voor wie al is ingelogd.', default: 8, min: 1, max: 24 },
   sessionMaxDays: { type: 'int', label: 'Maximale duur van een sessie (dagen)', help: 'Daarna moet iedereen opnieuw inloggen, ook bij activiteit. Korter geldt meteen, ook voor wie al is ingelogd; langer alleen voor nieuwe sessies.', default: 7, min: 1, max: 30 },
   auditRetentionMonths: { type: 'int', label: 'Bewaartermijn auditlog (maanden)', help: 'Oudere regels worden dagelijks verwijderd. Advies: 24 maanden.', default: 24, min: 6, max: 120 },

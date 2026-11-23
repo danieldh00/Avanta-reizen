@@ -24,6 +24,7 @@ const { createUpdateRoutes } = require('./update-routes');
 const { createHostTaskRoutes } = require('./host-task-routes');
 const { createLogRoutes } = require('./log-routes');
 const { createRetentionRoutes } = require('./retention-routes');
+const { createPasswordCheckPanel } = require('./password-check-panel');
 
 /** Versie van de app (voor het systeemoverzicht). */
 const APP_VERSION = require('../../package.json').version;
@@ -71,9 +72,9 @@ function formatUptime(seconds) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, now?: () => number}} options
+ * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, passwordCheck?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, now?: () => number}} options
  *   Database, sessie- en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`), de mailer en
- *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de back-updienst (`backup/backups.js`), de Drive-koppeling (`backup/drive.js`), de hersteltests
+ *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de wachtwoordcontrole (`security/password-check.js`), de back-updienst (`backup/backups.js`), de Drive-koppeling (`backup/drive.js`), de hersteltests
  *   (`backup/restore-test.js`), de koppeling met het updatescript (`system/system-update.js`), de servertaken
  *   (`system/host-tasks.js`), het logboek (`system/app-log.js`), de bewaking (`system/monitor.js`) en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router, te koppelen binnen de CRM-router.
@@ -315,6 +316,7 @@ function createBeheerRoutes(options) {
     extraPanels.bewaartermijnen = retentionRoutes.renderPanel;
     router.use(retentionRoutes.router);
   }
+  if (options.passwordCheck) extraPanels.wachtwoordcontrole = createPasswordCheckPanel({ passwordCheck: options.passwordCheck });
   if (options.captcha) {
     const captchaRoutes = createCaptchaRoutes({ auth, guard, captcha: options.captcha, renderSettingsSection, now: options.now });
     extraPanels.captcha = captchaRoutes.renderPanel;

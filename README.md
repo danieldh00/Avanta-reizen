@@ -112,6 +112,12 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
 - **CRM** op `/app/` (in opbouw, zie `docs/OPZET-CRM.md`): inloggen met e-mail en wachtwoord (scrypt, minimaal 12
   tekens), rollen `beheerder`, `kantoor`, `reisleider` en `boekhouding` met vaste rechten (`app/src/crm/rights.js`,
   per route gecontroleerd met `requireRight`), gebruikersbeheer en een auditlog op `/app/auditlog/`.
+  - **Nieuwe wachtwoorden** (CRM en reizigersaccount) gaan door `app/src/security/password-check.js`: de vaste regels,
+    een lokale controle op veelgebruikte woorden en reeksen (`Wachtwoord2026!`, `1234567890ab`) en, als Beheer >
+    Toegang en beveiliging > Wachtwoorden aan staat (standaard aan), Have I Been Pwned met k-anonimiteit: alleen de
+    eerste 5 tekens van de SHA-1 gaan naar `api.pwnedpasswords.com`, met `Add-Padding`. Onbereikbaar = alleen lokaal,
+    met een regel in het logboek (bron `wachtwoordcontrole`, hoogstens eens per kwartier). `npm test` zet de controle
+    via `PASSWORD_BREACH_CHECK=false` uit, zodat de tests geen verzoeken naar buiten doen.
   - **Eerste beheerder**: zolang er geen CRM-gebruiker is, zet de server bij elke start een eenmalige installatiecode in
     het log (`CRM: nog geen gebruikers … installatiecode XXXXX-…`). Open `/app/installatie/`, vul die code in en maak
     het account aan; daarna is de installatiepagina weg (404).
