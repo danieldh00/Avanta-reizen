@@ -1,5 +1,5 @@
 /**
- * Tests voor de AVG-verzoeken bij een deelnemer (`crm/person-privacy-routes.js`): inzage-export (.xlsx) met alle
+ * Tests voor de AVG-verzoeken bij een deelnemer (`persons/person-privacy-routes.js`): inzage-export (.xlsx) met alle
  * velden, blokken alleen met recht, audit per blok, limiet; persoon wissen met bevestiging, anonimiseren, het
  * reizigersaccount met hetzelfde adres weg; rechten (zonder recht 403, onbekende persoon 404, CSRF). Eigen schema.
  */
@@ -9,11 +9,11 @@ const zlib = require('node:zlib');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { createVault } = require('../src/security/vault');
-const { createPersons } = require('../src/crm/persons');
+const { createPersons } = require('../src/persons/persons');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { ANONYMIZED_NAME } = require('../src/crm/retention');
-const { inspectionFileName, EXPORT_LIMIT } = require('../src/crm/person-privacy-routes');
+const { ANONYMIZED_NAME } = require('../src/persons/retention');
+const { inspectionFileName, EXPORT_LIMIT } = require('../src/persons/person-privacy-routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'person_privacy_test';

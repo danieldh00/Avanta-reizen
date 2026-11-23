@@ -1,6 +1,6 @@
 /**
  * Betalingen van één aanmelding in het CRM (`/app/betalingen/<aanmelding>/`, recht `betalingen`): de verwachte
- * bedragen, de ontvangen betalingen, het saldo en de vervaldatums (berekend in `crm/payments.js`). Kantoor registreert
+ * bedragen, de ontvangen betalingen, het saldo en de vervaldatums (berekend in `payments/payments.js`). Kantoor registreert
  * een betaling (bank, iDEAL, contant of een correctie), voegt een korting, annuleringskosten of een ander bedrag toe en
  * haalt een bedrag weg (gemarkeerd, blijft zichtbaar). Betalingen worden nooit gewijzigd of verwijderd. Na een betaling
  * of een gewijzigd bedrag schuift de aanmelding automatisch door naar aanbetaald of betaald (alleen vanaf bevestigd, met een regel in de historie).
@@ -10,9 +10,9 @@ const express = require('express');
 const { html, raw } = require('../site/html');
 const { formatDate } = require('../site/format');
 const { isValidDate } = require('../booking/fields');
-const { roleHasGlobalRight } = require('./rights');
-const { renderCrmPage, renderAlert, formatDateTime } = require('./layout');
-const { STATUSES } = require('./booking-routes');
+const { roleHasGlobalRight } = require('../crm/rights');
+const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
+const { STATUSES } = require('../booking/crm-routes');
 const payments = require('./payments');
 const { createRateLimiter } = require('../security/rate-limit');
 const { reminderKind, KIND_LABELS } = require('./payment-reminders');

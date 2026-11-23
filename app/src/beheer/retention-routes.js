@@ -1,7 +1,7 @@
 /**
  * Extra's van Beheer > Toegang en beveiliging > AVG en bewaartermijnen (recht `systeem`): de laatste rondes van de
  * AVG-opschoning met aantallen, een voorbeeld van wat de volgende ronde zou doen en *Nu opschonen*. De termijnen staan
- * in het gewone instellingenformulier (`beheer/routes.js`); de opschoning zelf in `crm/retention.js`. Nooit namen of
+ * in het gewone instellingenformulier (`beheer/routes.js`); de opschoning zelf in `persons/retention.js`. Nooit namen of
  * andere persoonsgegevens in de uitvoer, alleen aantallen.
  */
 const express = require('express');
@@ -9,7 +9,7 @@ const { html } = require('../site/html');
 const { formatDateTime } = require('../crm/layout');
 const { findSection } = require('./indeling');
 const { createRateLimiter } = require('../security/rate-limit');
-const { COUNT_LABELS } = require('../crm/retention');
+const { COUNT_LABELS } = require('../persons/retention');
 
 /** Acties voor het auditlog (zie `ACTION_LABELS` in `crm/users.js`). */
 const RETENTION_ACTION_LABELS = {
@@ -29,7 +29,7 @@ function summarize(counts) {
 /**
  * Maakt de routes en het paneel van de AVG-opschoning.
  * @param {{auth: object, guard: Function, retention: object, renderSettingsSection: Function, now?: () => number}} options
- *   Sessielaag, rechtencontrole, de opschoning (`crm/retention.js`), de weergave van een instellingensectie en (voor
+ *   Sessielaag, rechtencontrole, de opschoning (`persons/retention.js`), de weergave van een instellingensectie en (voor
  *   tests) de klok van de limieten.
  * @returns {{router: express.Router, renderPanel: Function}} Router en paneel (voor onder het formulier).
  */

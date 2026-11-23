@@ -9,12 +9,12 @@ const { html, raw } = require('../site/html');
 const { ROLES, TRIP_SCOPED_ROLES, roleLabel } = require('./rights');
 const { hashPassword, MAX_LENGTH } = require('./passwords');
 const { renderCrmPage, renderInput, renderAlert, formatDateTime } = require('./layout');
-const { PERSON_ACTION_LABELS } = require('./person-routes');
-const { MERGE_ACTION_LABELS } = require('./person-merge-routes');
-const { BOOKING_ACTION_LABELS } = require('./booking-routes');
-const { PAYMENT_ACTION_LABELS } = require('./payment-routes');
-const { PAYMENT_OVERVIEW_ACTION_LABELS } = require('./payment-overview-routes');
-const { PARTICIPANT_LIST_ACTION_LABELS } = require('./participant-list-routes');
+const { PERSON_ACTION_LABELS } = require('../persons/person-routes');
+const { MERGE_ACTION_LABELS } = require('../persons/person-merge-routes');
+const { BOOKING_ACTION_LABELS } = require('../booking/crm-routes');
+const { PAYMENT_ACTION_LABELS } = require('../payments/payment-routes');
+const { PAYMENT_OVERVIEW_ACTION_LABELS } = require('../payments/payment-overview-routes');
+const { PARTICIPANT_LIST_ACTION_LABELS } = require('../persons/participant-list-routes');
 const { MEDIA_ACTION_LABELS } = require('../media/routes');
 const { CATEGORY_ACTION_LABELS } = require('../trips/category-routes');
 const { TRIP_ACTION_LABELS } = require('../trips/trip-routes');
@@ -26,7 +26,7 @@ const { GUIDE_ACTION_LABELS } = require('../trips/guide-routes');
 const { MENU_ACTION_LABELS } = require('../cms/menu-routes');
 const { ACCOUNT_ACTION_LABELS } = require('../account/routes');
 const { RETENTION_ACTION_LABELS } = require('../beheer/retention-routes');
-const { PRIVACY_ACTION_LABELS } = require('./person-privacy-routes');
+const { PRIVACY_ACTION_LABELS } = require('../persons/person-privacy-routes');
 
 /** Aantal regels per pagina van het auditlog. */
 const AUDIT_PAGE_SIZE = 100;

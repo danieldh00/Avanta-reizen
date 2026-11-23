@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createDatabase } = require('../src/database/db');
 const { createVault } = require('../src/security/vault');
-const { createPersons, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION } = require('../src/crm/persons');
+const { createPersons, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION } = require('../src/persons/persons');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'persons_test';

@@ -1,5 +1,5 @@
 /**
- * Tests voor de betaalherinneringen (migratie 27, `crm/payment-reminders.js`): welke termijn, inhoud zonder bijzondere
+ * Tests voor de betaalherinneringen (migratie 27, `payments/payment-reminders.js`): welke termijn, inhoud zonder bijzondere
  * gegevens; met de hand vanaf de betaalpagina (rechten, CSRF, geen mailserver 503, dubbel 409, geannuleerd of niets
  * open 422, mislukt 502 met regel, audit); de dagelijkse ronde (alleen met de schakelaar, interval en maximum, adres
  * van de persoon); laatste herinnering in het overzicht. Draait in een eigen schema met een nep-mailer.
@@ -10,8 +10,8 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { reminderKind, reminderContent } = require('../src/crm/payment-reminders');
-const { REMINDER_LIMIT } = require('../src/crm/payment-routes');
+const { reminderKind, reminderContent } = require('../src/payments/payment-reminders');
+const { REMINDER_LIMIT } = require('../src/payments/payment-routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'payment_reminders_test';

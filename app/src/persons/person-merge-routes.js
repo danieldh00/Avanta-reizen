@@ -8,10 +8,10 @@
 const express = require('express');
 const { html, raw } = require('../site/html');
 const { FIELDS } = require('../booking/fields');
-const { roleHasRight } = require('./rights');
+const { roleHasRight } = require('../crm/rights');
 const { PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS } = require('./persons');
 const { BLOCK_INFO } = require('./person-routes');
-const { renderCrmPage, renderAlert, formatDateTime } = require('./layout');
+const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
 
 /** Keuzes per blok bij samenvoegen. */
 const BLOCK_CHOICES = {

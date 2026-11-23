@@ -1,5 +1,5 @@
 /**
- * Tests voor de AVG-opschoning (`crm/retention.js`, Beheer > AVG en bewaartermijnen): blokken wissen na terugkomst
+ * Tests voor de AVG-opschoning (`persons/retention.js`, Beheer > AVG en bewaartermijnen): blokken wissen na terugkomst
  * (geboortedatum blijft), een nieuwe aanmelding schuift de termijn op, personen en aanmeldingen anonimiseren,
  * geannuleerde aanmeldingen zonder betaling verwijderen, oude aanmeldingen na de fiscale termijn verwijderen, oude
  * contactberichten en ongebruikte reizigersaccounts weg, een tweede ronde doet niets, een onleesbaar blok telt als
@@ -10,10 +10,10 @@ const assert = require('node:assert/strict');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { createVault } = require('../src/security/vault');
-const { createPersons } = require('../src/crm/persons');
+const { createPersons } = require('../src/persons/persons');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { ANONYMIZED_NAME } = require('../src/crm/retention');
+const { ANONYMIZED_NAME } = require('../src/persons/retention');
 const { summarize } = require('../src/beheer/retention-routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;

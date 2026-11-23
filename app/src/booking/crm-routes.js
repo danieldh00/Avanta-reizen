@@ -8,12 +8,12 @@
 const express = require('express');
 const { html, raw } = require('../site/html');
 const { formatDate, formatPrice } = require('../site/format');
-const { FIELDS } = require('../booking/fields');
-const { roleHasGlobalRight } = require('./rights');
-const { searchPatterns } = require('./person-routes');
-const { renderCrmPage, renderAlert, formatDateTime } = require('./layout');
-const ui = require('./ui');
-const payments = require('./payments');
+const { FIELDS } = require('./fields');
+const { roleHasGlobalRight } = require('../crm/rights');
+const { searchPatterns } = require('../persons/person-routes');
+const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
+const ui = require('../crm/ui');
+const payments = require('../payments/payments');
 
 /** De statussen met hun naam op het scherm, in volgorde. */
 const STATUSES = {

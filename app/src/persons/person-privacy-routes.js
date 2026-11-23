@@ -1,7 +1,7 @@
 /**
  * AVG-verzoeken bij een deelnemer (`/app/deelnemers/:id/`, recht `avg`): *Gegevens exporteren* (inzage, art. 15) als
  * .xlsx met alle velden, aanmeldingen, historie en toestemmingen, en *Persoon wissen* (art. 17) = anonimiseren met
- * `anonymizePerson` uit `crm/retention.js`, plus het reizigersaccount met hetzelfde e-mailadres. Bijzondere blokken
+ * `anonymizePerson` uit `persons/retention.js`, plus het reizigersaccount met hetzelfde e-mailadres. Bijzondere blokken
  * komen alleen in de export als de gebruiker het recht van dat blok heeft; anders staat er dat ze zijn weggelaten.
  * Beide acties staan in het auditlog (nooit de waarden), de export eerst: wat niet gelogd kan worden, gaat niet de deur uit.
  */
@@ -10,12 +10,12 @@ const { html } = require('../site/html');
 const { FIELDS } = require('../booking/fields');
 const { createXlsx, XLSX_TYPE } = require('../export/xlsx');
 const { createRateLimiter } = require('../security/rate-limit');
-const { roleHasRight } = require('./rights');
+const { roleHasRight } = require('../crm/rights');
 const { PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS } = require('./persons');
 const { BLOCK_INFO } = require('./person-routes');
 const { anonymizePerson, BOOKING_END_SQL } = require('./retention');
-const { renderCrmPage, renderAlert } = require('./layout');
-const { CHARGE_KINDS, PAYMENT_METHODS } = require('./payments');
+const { renderCrmPage, renderAlert } = require('../crm/layout');
+const { CHARGE_KINDS, PAYMENT_METHODS } = require('../payments/payments');
 
 /** Hoogstens zoveel inzage-exports per gebruiker per tien minuten. */
 const EXPORT_LIMIT = 20;
@@ -165,7 +165,7 @@ function renderPrivacyPanel(req, person, error) {
 /**
  * Maakt de routes voor inzage en wissen.
  * @param {{db: object, auth: object, persons: object, renderPerson: Function, now?: () => number}} options Database,
- *   sessie- en rechtenlaag, de personen (`crm/persons.js`), de weergave van de deelnemerspagina (voor een fout bij
+ *   sessie- en rechtenlaag, de personen (`persons/persons.js`), de weergave van de deelnemerspagina (voor een fout bij
  *   wissen) en (voor tests) de klok.
  * @returns {express.Router} Router.
  */

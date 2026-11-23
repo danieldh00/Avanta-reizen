@@ -1,5 +1,5 @@
 /**
- * Tests voor online betalen via Mollie (`crm/mollie.js`, `crm/online-payments.js`, `crm/online-payment-routes.js`):
+ * Tests voor online betalen via Mollie (`payments/mollie.js`, `payments/online-payments.js`, `payments/online-payment-routes.js`):
  * Mollie-koppeling met een nep-fetch (vast adres, sleutel nooit in fouten), betaallink met token (verkeerd token 404),
  * uit zonder instelling of zonder https-adres, betaling starten (tussenpagina naar Mollie, herkomstcontrole, limiet),
  * webhook (onbekend id 200, afwijkend bedrag niet geregistreerd, geslaagd één keer in payments met status door),
@@ -11,8 +11,8 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { createMollie, isMollieUrl, MollieError, centsFromMollie, mollieAmount } = require('../src/crm/mollie');
-const { START_LIMIT } = require('../src/crm/online-payment-routes');
+const { createMollie, isMollieUrl, MollieError, centsFromMollie, mollieAmount } = require('../src/payments/mollie');
+const { START_LIMIT } = require('../src/payments/online-payment-routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'online_payments_test';

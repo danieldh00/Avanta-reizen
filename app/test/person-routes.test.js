@@ -8,8 +8,8 @@ const assert = require('node:assert/strict');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { createVault } = require('../src/security/vault');
-const { createPersons, LEGACY_ART9_TEXT_VERSION } = require('../src/crm/persons');
-const { searchPatterns } = require('../src/crm/person-routes');
+const { createPersons, LEGACY_ART9_TEXT_VERSION } = require('../src/persons/persons');
+const { searchPatterns } = require('../src/persons/person-routes');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
 

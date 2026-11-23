@@ -17,9 +17,9 @@ const { formatDate } = require('../site/format');
 const { bookedSeatsSql, seatSummary } = require('../trips/seats');
 const { roleHasRight, roleHasGlobalRight } = require('./rights');
 const { formatDateTime } = require('./layout');
-const { STATUSES } = require('./booking-routes');
-const { loadOverview, outstandingByTrip } = require('./payment-overview-routes');
-const payments = require('./payments');
+const { STATUSES } = require('../booking/crm-routes');
+const { loadOverview, outstandingByTrip } = require('../payments/payment-overview-routes');
+const payments = require('../payments/payments');
 const ui = require('./ui');
 
 /** Hoeveel komende vertrekken het overzicht toont. */

@@ -10,10 +10,10 @@ const { html, raw } = require('../site/html');
 const { formatDate } = require('../site/format');
 const { today } = require('../site/content');
 const { FIELDS, validateFields } = require('../booking/fields');
-const { roleHasRight } = require('./rights');
+const { roleHasRight } = require('../crm/rights');
 const { PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, LEGACY_ART9_TEXT_VERSION } = require('./persons');
-const { renderCrmPage, renderAlert, formatDateTime } = require('./layout');
-const ui = require('./ui');
+const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
+const ui = require('../crm/ui');
 
 /** Aantal personen per pagina van de lijst. */
 const PAGE_SIZE = 50;
@@ -89,7 +89,7 @@ function renderEditField(field, value, error) {
 
 /**
  * Maakt de routes voor deelnemers.
- * @param {{db: object, auth: object, persons: object, now?: () => number}} options Database, sessie- en rechtenlaag, de personen (`crm/persons.js`) en (voor tests) de klok van de limieten.
+ * @param {{db: object, auth: object, persons: object, now?: () => number}} options Database, sessie- en rechtenlaag, de personen (`persons/persons.js`) en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router.
  */
 function createPersonRoutes(options) {

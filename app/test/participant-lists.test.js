@@ -11,11 +11,11 @@ const zlib = require('node:zlib');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { createVault } = require('../src/security/vault');
-const { createPersons } = require('../src/crm/persons');
+const { createPersons } = require('../src/persons/persons');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { buildParticipantWorkbook, participantFileName, NO_CONSENT, UNREADABLE } = require('../src/crm/participant-lists');
-const { EXPORT_LIMIT, MAX_ROWS } = require('../src/crm/participant-list-routes');
+const { buildParticipantWorkbook, participantFileName, NO_CONSENT, UNREADABLE } = require('../src/persons/participant-lists');
+const { EXPORT_LIMIT, MAX_ROWS } = require('../src/persons/participant-list-routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'participant_lists_test';
