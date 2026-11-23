@@ -50,7 +50,7 @@ test('bedragen lezen en tonen', () => {
 test('velden van een reis controleren', () => {
   const ok = validateTrip({
     title: ' 20 dagen Namibië ', departure_date: '2027-06-01', price: '1849', deposit: '300', capacity: '16', categorie: ['3', '3', 'x', '7'],
-    reisleider: ['5', '9'], reisleider_2: '9', published: '1', body_html: '<p>Tekst<script>alert(1)</script></p>',
+    reisleider: ['5', '9'], reisleider_1: '7', published: '1', body_html: '<p>Tekst<script>alert(1)</script></p>',
   });
   assert.deepEqual(ok.errors, {});
   assert.equal(ok.values.slug, '20-dagen-namibie');
@@ -58,7 +58,10 @@ test('velden van een reis controleren', () => {
   assert.equal(ok.values.depositCents, 30000);
   assert.equal(ok.values.capacity, 16);
   assert.deepEqual(ok.values.categoryIds, [3, 7]);
-  assert.deepEqual(ok.values.guideIds, [5], 'een reis heeft hoogstens één reisleider');
+  assert.deepEqual(ok.values.guideIds, [5], 'een reis heeft hoogstens één reisleider; het oude veld reisleider_1 telt niet meer');
+  for (const empty of [undefined, '', 'x']) {
+    assert.deepEqual(validateTrip({ title: 'Reis', price: '10', reisleider: empty }).values.guideIds, [], `geen reisleider bij ${empty}`);
+  }
   assert.equal(ok.values.published, true);
   assert.equal(ok.values.bodyHtml, '<p>Tekst</p>');
   const bad = validateTrip({ title: '', slug: 'fout!', departure_date: '2027-13-01', price: 'gratis', capacity: '-1', duration_days: '0', offer_until: 'morgen' });
@@ -304,6 +307,20 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.deepEqual(await linksOf(copyId), await linksOf(tripId));
     const guidesOf = async (id) => (await db.query('SELECT guide_id FROM trip_guides WHERE trip_id = $1 ORDER BY sort_order', [id])).map((row) => row.guide_id);
     assert.deepEqual(await guidesOf(copyId), [eva.id]);
+    // Een oude reis met twee reisleiders: kopiëren neemt alleen de eerste mee, opslaan laat alleen de gekozen over,
+    // en zonder keuze verdwijnt de koppeling.
+    await db.query('INSERT INTO trip_guides (trip_id, guide_id, sort_order) VALUES ($1, $2, 5)', [tripId, martijn.id]);
+    assert.deepEqual(await guidesOf(tripId), [eva.id, martijn.id]);
+    const oneGuide = await request(`/app/reizen/${tripId}/kopieren/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } });
+    assert.equal(oneGuide.status, 303);
+    const oneGuideId = Number(oneGuide.headers.get('location').match(/\/app\/reizen\/(\d+)\//)[1]);
+    assert.deepEqual(await guidesOf(oneGuideId), [eva.id], 'alleen de eerste reisleider gaat mee');
+    const [current] = await db.query('SELECT slug, published FROM trips WHERE id = $1', [tripId]);
+    const keep = { slug: current.slug, published: current.published ? '1' : '0' };
+    assert.equal((await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ ...keep, reisleider: String(martijn.id) }) })).status, 303);
+    assert.deepEqual(await guidesOf(tripId), [martijn.id], 'na opslaan alleen de gekozen reisleider');
+    assert.equal((await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ ...keep, reisleider: '' }) })).status, 303);
+    assert.deepEqual(await guidesOf(tripId), [], 'zonder keuze geen reisleider');
     assert.deepEqual(await db.query('SELECT media_id, role FROM trip_media WHERE trip_id = $1', [copyId]), [{ media_id: photo.id, role: 'kop' }]);
     assert.equal((await db.query('SELECT count(*)::int AS count FROM bookings WHERE trip_id = $1', [copyId]))[0].count, 0);
 

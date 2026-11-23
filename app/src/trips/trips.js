@@ -370,7 +370,11 @@ function createTrips(options) {
       [original.id, slug, context.userId],
     );
     await client.query('INSERT INTO trip_category_links (trip_id, category_id) SELECT $2, category_id FROM trip_category_links WHERE trip_id = $1', [original.id, row.id]);
-    await client.query('INSERT INTO trip_guides (trip_id, guide_id, sort_order) SELECT $2, guide_id, sort_order FROM trip_guides WHERE trip_id = $1', [original.id, row.id]);
+    // Hoogstens één reisleider per reis: van een oude reis met meer rijen gaat alleen de eerste mee.
+    await client.query(
+      'INSERT INTO trip_guides (trip_id, guide_id, sort_order) SELECT $2, guide_id, 0 FROM trip_guides WHERE trip_id = $1 ORDER BY sort_order, guide_id LIMIT 1',
+      [original.id, row.id],
+    );
     await client.query(
       'INSERT INTO trip_media (trip_id, media_id, role, sort_order) SELECT $2, media_id, role, sort_order FROM trip_media WHERE trip_id = $1 ORDER BY id',
       [original.id, row.id],
