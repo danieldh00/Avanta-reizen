@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.29.1 — 2026-11-23 — Inloggen op het reizigersaccount werkt weer in Chrome
+
+- Inloggen, registreren en wachtwoord herstellen op het reizigersaccount werken weer in Chrome, net als de knop
+
+- `/account/` en de betaalpagina `/betalen/` sturen `Referrer-Policy: same-origin` in plaats van `no-referrer`. Bij
+  `no-referrer` stuurt Chrome bij een formulier `Origin: null`, waardoor de herkomstcontrole elke POST weigerde (403).
+  Links met een token lekken nog steeds niet als Referer naar een andere site.
+- `isCrossSite` (`security/form-guard.js`) accepteert `Origin: null` alleen als de browser `Sec-Fetch-Site: same-origin`
+  meldt; zonder die kop blijft het een verzoek van een andere site.
+- Tests bootsen het verzoek van Chrome na (`Origin: null` met en zonder `Sec-Fetch-Site`).
+
 ## 0.29.0 — 2026-11-23 — Eigen overzicht voor de reisleider en instelbaar venster
 
 - De reisleider ziet op het overzicht van het CRM zijn eigen vertrekken: datums, aantal deelnemers, of het venster
