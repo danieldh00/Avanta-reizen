@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.28.1 — 2026-11-23 — Instellingen per groep van Beheer in een eigen bestand
+
+Modulestructuur, stap 3 (geen gedragswijziging): de 91 instellingen en de secties van Beheer staan niet meer in twee
+grote lijsten (`beheer/settings.js` en `beheer/indeling.js`) maar per groep in `app/src/beheer/instellingen/<groep>.js`
+(Systeem, Organisatie, E-mail, CRM, Toegang en beveiliging, Back-ups en herstel, Vindbaarheid), elk met `FIELDS` en
+`GROUP`. `settings.js` voegt ze samen tot `SETTING_FIELDS` en weigert een dubbele naam; `indeling.js` leest `GROUPS`
+uit dezelfde bestanden. Alle instellingen, standaardwaarden, controles, secties en hun volgorde zijn identiek
+(vooraf en achteraf geserialiseerd en vergeleken). Een nieuwe instelling raakt alleen het bestand van haar groep.
+
 ## 0.28.0 — 2026-11-23 — Routes van het CRM per module
 
 Modulestructuur, stap 2 (geen gedragswijziging): `app/src/crm/routes.js` is alleen nog de schil van `/app/` (limiet,
