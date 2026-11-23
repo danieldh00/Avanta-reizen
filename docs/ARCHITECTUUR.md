@@ -42,7 +42,7 @@ aan de coördinator vóór hij begint; twee threads werken nooit tegelijk in het
 |---|---|---|
 | `database/migrations/` | elke migratie | **opgesplitst**: één bestand per migratie, zie §3 |
 | `crm/routes.js` | schil van `/app/` (limiet, formuliergrootte, sessie) en de lijst van modules | **opgesplitst**: zie §3a; alleen een nieuwe module of een andere formuliergrootte raakt dit bestand |
-| `beheer/settings.js`, `beheer/indeling.js` | elke nieuwe instelling | wordt opgesplitst (stap 3) |
+| `beheer/settings.js`, `beheer/indeling.js` | elke nieuwe instelling | **opgesplitst**: instellingen en secties per groep in `beheer/instellingen/<groep>.js`, zie §3b |
 | `server.js` | maakt alle diensten aan en start de timers | wordt opgesplitst (stap 4) |
 | `crm/layout.js` | menu van het CRM (`CRM_MENU`) | blijft gedeeld: één regel per nieuw scherm |
 | `public/css/site.css`, `public/css/crm.css` | alle opmaak | blijft gedeeld tot het minificeren (plan PR 6.6) |
@@ -58,6 +58,14 @@ aan de coördinator vóór hij begint; twee threads werken nooit tegelijk in het
   `context` is wat de schil meegeeft: `db`, `auth` en de gedeelde diensten uit `server.js`.
 - Een nieuw scherm in een bestaande module: een nieuw `<onderwerp>-routes.js` en één regel in de ingang van die
   module. `crm/routes.js` verandert alleen bij een nieuwe module.
+
+## 3b. Instellingen
+
+- Elke groep van Beheer heeft een eigen bestand `beheer/instellingen/<groep>.js` met `FIELDS` (de instellingen) en
+  `GROUP` (de secties in de zijbalk). `beheer/instellingen/index.js` noemt de groepen op volgorde van de zijbalk.
+- `beheer/settings.js` (opslag, controle, kluis) en `beheer/indeling.js` (zoeken) lezen die bestanden en veranderen
+  niet bij een nieuwe instelling. Dezelfde naam in twee groepen weigert de app bij het starten.
+- Een nieuwe instelling: één veld in `FIELDS` en de naam in de `fields` van haar sectie, in hetzelfde bestand.
 
 ## 3. Migraties
 
