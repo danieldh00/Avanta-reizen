@@ -94,6 +94,27 @@
 .crm-status--betaald, .crm-status--gepubliceerd { background: #e2f1e5; color: #1e5a2c; }
 .crm-status--teveel, .crm-status--vol { background: #f7e6e2; color: #8a3f31; }
 .crm-status--geannuleerd { background: #eeeef0; color: #4a4950; text-decoration: line-through; }
+/* Overzicht (crm/dashboard.js): tegels Te doen, panelen en twee kolommen. */
+.crm-panel { margin: 0 0 1.5rem; }
+.crm-panel > h2 { margin: 0 0 .6rem; font-size: 1.05rem; }
+.crm-panel-more { margin: .5rem 0 0; font-size: 14px; }
+.crm-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; margin: 0; padding: 0; list-style: none; }
+.crm-tile { display: grid; gap: .15rem; height: 100%; padding: .9rem 1rem; background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 8px; color: var(--crm-text); text-decoration: none; }
+.crm-tile:hover, .crm-tile:focus-visible { border-color: var(--av-accent); }
+.crm-tile-count { font-size: 1.75rem; font-weight: 700; line-height: 1.1; color: var(--crm-ink); font-variant-numeric: tabular-nums; }
+.crm-tile--open { border-left: 3px solid var(--av-accent); }
+.crm-tile--open .crm-tile-count { color: var(--av-accent-dark); }
+.crm-tile-label { font-size: 14px; }
+.crm-dash { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 1.5rem; align-items: start; }
+.crm-dash--split { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.crm-dash-side .crm-panel > :not(h2) { background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 8px; }
+.crm-dash-side .crm-facts { padding: .75rem 1rem; }
+.crm-activity { margin: 0; padding: .25rem 1rem; list-style: none; }
+.crm-activity li { padding: .5rem 0; border-bottom: 1px solid var(--crm-line); overflow-wrap: anywhere; }
+.crm-activity li:last-child { border-bottom: 0; }
+.crm-activity-meta { display: block; font-size: 13px; color: var(--crm-text); }
+@media (max-width: 1100px) { .crm-dash--split { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 800px) { .crm-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .crm-pager { display: flex; align-items: center; gap: .75rem; margin: 1rem 0 0; }
 .crm-pager-page, .crm-pager-off { font-size: 14px; color: var(--crm-text); }
 .crm-pager-off { padding: .3rem .7rem; opacity: .6; }
