@@ -553,6 +553,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `app/src/trips/` | reizen beheren: `slugs.js` (slug maken, 301 bij een nieuwe slug), `categories.js` en `category-routes.js` (`/app/reistypes-en-landen/`), `trips.js` en `trip-routes.js` (`/app/reizen/`), `trip-media.js` (foto's bij een reis), `seats.js` (plaatsen, volgeboekt) |
 | `app/src/cms/` | pagina's in blokken: `blocks.js` (bloktypes, stijlopties, controle en HTML), `pages.js` (concept, publiceren, versies), `page-routes.js` (`/app/paginas/`), `page-render.js` (inhoud voor site en voorbeeld), `menus.js` + `menu-routes.js` (`/app/menus/`); homepage als blokpagina (`home-*`-blokken); `block-editor.js` (blokeditor, gedeeld); `posts.js` + `post-routes.js` (blog, `/app/blog/`); `post-terms.js` + `post-term-routes.js` (categorieën en tags) |
 | `app/src/mail/` | `mailer.js` (versturen via SMTP of Exchange-connector), `wan-ip.js` (WAN-IP van de server), `layout.js` (opmaak), `notifications.js` (meldingen aan kantoor) |
+| `app/src/dev/seed/` | testdata voor de testomgeving: `data.js` (vaste, verzonnen inhoud), `seed.js` (blokkade op productie, vullen, verwijderen), `cli.js` (opdrachtregel) |
 | `docs/OPZET-WEBSITE.md` | opzet, inventaris van de huidige site, fasering en open vragen |
 | `changes/` | releasenotes-fragmenten, zie `changes/README.md` |
 | `tools/release-notes.js` | verwerkt fragmenten; controleert PR's |
@@ -588,3 +589,25 @@ cd app && TEST_DATABASE_URL=postgres://…/avanta_test npm test   # wist de test
 node --test "tests/*.test.js"                                    # releasescript (vanuit de root)
 node tools/release-notes.js --check                              # fragmenten controleren
 ```
+
+### Testdata (alleen testomgeving)
+Om het CRM en de site met realistische gegevens te testen vult `app/src/dev/seed/cli.js` de database met verzonnen
+data: 7 reistypes en 10 landen, 8 reisleiders, 12 reizen (elk één vertrek met precies één reisleider: komende, twee net
+geweest, één vol, één bijna vol, één aanbieding, één concept), ruim 100 personen met ruim 130 aanmeldingen in alle
+statussen, de bedragen en betalingen (open, aanbetaald, betaald, achterstand op aanbetaling en restant), toestemmingen
+(kerkgenootschap en bijzonderheden alleen mét toestemming), één mogelijk dubbel, blog met categorieën en tags
+(gepubliceerd, ingepland, concept), FAQ (categorieën met "(test)" in de naam), twee pagina's en één CRM-gebruiker per rol.
+
+- **Op apps01**: het vaste commando uit Beheer > Systeem > Servertaken, met aan het eind `testdata` in plaats van
+  `openstaand` (of `testdata opnieuw`, `testdata verwijderen`). Het script vraagt om bevestiging.
+- **Lokaal of in de container**: `node src/dev/seed/cli.js <vullen|opnieuw|verwijderen> --testomgeving`.
+- **Blokkade**: zonder `--testomgeving`, op `avantareizen.nl` (ook subdomeinen; dat is ook de standaard als er geen
+  `SITE_URL` is) en als zoekmachines mogen indexeren (Beheer > Vindbaarheid) weigert de opdracht. NODE_ENV telt niet
+  mee: de testomgeving draait het productie-image. Een hoofdsleutel moet al bestaan (de opdracht maakt er geen).
+- **Herkenbaar en veilig te verwijderen**: slugs en paden beginnen met `test-`, e-mailadressen eindigen op
+  `@example.com` (gereserveerd domein, neemt geen mail aan). `verwijderen` en `opnieuw` halen alleen dat weg; alles
+  gebeurt in één transactie, met een regel in het auditlog (`testdata.<opdracht>`, alleen aantallen).
+- **Testgebruikers**: `beheerder@`, `kantoor@`, `reisleider@` (gekoppeld aan reisleider Marieke), `boekhouding@` en
+  `redacteur@example.com`, met één willekeurig wachtwoord dat alleen in de terminal verschijnt.
+- `vullen` weigert als er al testdata staat; de verzonnen gegevens zijn bij elke run gelijk, de datums schuiven mee
+  met vandaag.

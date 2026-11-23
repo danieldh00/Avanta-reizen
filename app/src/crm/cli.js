@@ -123,4 +123,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { recoverAdmin, temporaryPassword, maskEmail, main };
+module.exports = { recoverAdmin, temporaryPassword, maskEmail, connectionString, main };
