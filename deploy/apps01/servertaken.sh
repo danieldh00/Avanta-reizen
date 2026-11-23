@@ -10,6 +10,9 @@
 #   bash servertaken.sh beheerder-herstel <e-mailadres>
 #                                        weer toegang voor een beheerder die er niet meer in komt: tijdelijk wachtwoord,
 #                                        tweestapsverificatie uit + activatiecode, sessies weg (app/src/crm/cli.js)
+#   bash servertaken.sh testdata [vullen|opnieuw|verwijderen]
+#                                        verzonnen testdata in de database (standaard vullen; app/src/dev/seed/cli.js);
+#                                        weigert op het productiedomein en als zoekmachines de site mogen indexeren
 #   bash servertaken.sh help             deze uitleg
 #
 # Het vaste commando voor Daniël staat in de app (Beheer > Systeem > Servertaken); het haalt de nieuwste commit van main
@@ -149,6 +152,15 @@ remote_beheerder_herstel() {
   (cd "$STACK_DIR" && docker compose exec -T app node src/crm/cli.js beheerder-herstel "$email")
 }
 
+# ---------- testdata ----------
+# Verzonnen testdata (wachtlijstpunt W00). De app zelf weigert op productie; het wachtwoord van de testgebruikers staat
+# alleen in deze terminal.
+remote_testdata() {
+  local mode="${1:-vullen}"
+  [[ "$mode" =~ ^(vullen|opnieuw|verwijderen)$ ]] || { echo "FOUT: kies vullen, opnieuw of verwijderen." >&2; return 2; }
+  (cd "$STACK_DIR" && docker compose exec -T app node src/dev/seed/cli.js "$mode" --testomgeving)
+}
+
 # ---------- update ----------
 # Alleen lezen. Uitgangscode 10 = er staat een nieuwere commit klaar; 0 = niets te doen.
 remote_update_check() {
@@ -277,6 +289,7 @@ remote_main() {
     openstaand-check) remote_openstaand_check ;;
     openstaand-run) remote_openstaand_run ;;
     beheerder-herstel) remote_beheerder_herstel "$@" ;;
+    testdata) remote_testdata "$@" ;;
     *) echo "Onbekende opdracht: $action" >&2; exit 2 ;;
   esac
 }
@@ -291,7 +304,7 @@ fi
 # =====================================================================================================================
 NAME="${APPS01_NAME:-apps01}"
 die() { echo "FOUT: $*" >&2; exit 1; }
-usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 ARGS=()
 for argument in "$@"; do
@@ -303,7 +316,7 @@ for argument in "$@"; do
 done
 ACTION="${ARGS[0]:-status}"
 case "$ACTION" in
-  status | logs | update | openstaand | beheerder-herstel) ;;
+  status | logs | update | openstaand | beheerder-herstel | testdata) ;;
   *) usage ;;
 esac
 [[ $(id -u) -eq 0 ]] || die "Draai dit als root op de Proxmox-host."
@@ -363,5 +376,14 @@ case "$ACTION" in
     [[ "${ARGS[1]:-}" =~ ^[^[:space:]@]+@[^[:space:]@]+$ ]] || die "Geef het e-mailadres van de beheerder: beheerder-herstel naam@voorbeeld.nl"
     confirm "Beheerder ${ARGS[1]} krijgt een nieuw tijdelijk wachtwoord; de tweestapsverificatie gaat uit (met een nieuwe activatiecode) en alle sessies van deze beheerder worden beëindigd."
     remote beheerder-herstel "${ARGS[1]}" ;;
+  testdata)
+    TESTDATA_MODE="${ARGS[1]:-vullen}"
+    [[ "$TESTDATA_MODE" =~ ^(vullen|opnieuw|verwijderen)$ ]] || die "Kies: testdata vullen, testdata opnieuw of testdata verwijderen."
+    case "$TESTDATA_MODE" in
+      vullen) confirm "Er komt verzonnen testdata in de database van de testomgeving: reizen, reisleiders, personen, aanmeldingen, betalingen, blog, FAQ, pagina's en één testgebruiker per rol (<rol>@example.com)." ;;
+      opnieuw) confirm "De bestaande testdata (test-slugs en @example.com-adressen) wordt verwijderd en opnieuw aangemaakt; andere gegevens blijven staan. De testgebruikers krijgen een nieuw wachtwoord." ;;
+      verwijderen) confirm "Alle testdata (test-slugs en @example.com-adressen) wordt verwijderd; andere gegevens blijven staan." ;;
+    esac
+    remote testdata "$TESTDATA_MODE" ;;
   openstaand) two_step openstaand "De openstaande servertaken worden nu uitgevoerd (ze staan hierboven; de app kan daarbij even herstarten). Elke gelukte taak wordt afgevinkt in de app." ;;
 esac
