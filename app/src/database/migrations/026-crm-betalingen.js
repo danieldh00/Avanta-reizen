@@ -7,7 +7,7 @@ module.exports = {
   name: "CRM: betalingen",
   sql: `
       -- Betalingen handmatig (OPZET-CRM §2 F, §3): per aanmelding de verwachte bedragen (booking_charges) en de ontvangen
-      -- betalingen (payments). Saldo en betaalstatus worden berekend (payments/payments.js), nooit opgeslagen. Bedragen in centen.
+      -- betalingen (payments). Saldo en betaalstatus worden berekend (crm/payments.js), nooit opgeslagen. Bedragen in centen.
       -- deposit_cents: de aanbetaling van de reis op het moment van aanmelden.
       ALTER TABLE bookings ADD COLUMN deposit_cents INTEGER CHECK (deposit_cents IS NULL OR deposit_cents >= 0);
       CREATE TABLE booking_charges (
