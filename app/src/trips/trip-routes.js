@@ -1,7 +1,7 @@
 /**
  * Reizen beheren in het CRM (`/app/reizen/`, recht `reizen`, CMS-pakket G2): lijst met filter (komend, vertrokken,
  * concept, alle) en zoeken, een nieuwe reis aanmaken en een reis wijzigen: alle velden van de huidige reis, meerdere
- * landen en reistypes, tot drie reisleiders op volgorde, aantal plaatsen, aanbetaling en concept of gepubliceerd.
+ * landen en reistypes, één reisleider, aantal plaatsen, aanbetaling en concept of gepubliceerd.
  * Een gewijzigde slug krijgt automatisch een 301. Pakket G4: de plaatsen (bezet uit de aanmeldingen, vrij, automatisch
  * volgeboekt) en *Kopiëren naar nieuw vertrek*. Elke wijziging in de auditlog.
  */
@@ -11,7 +11,7 @@ const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
 const { searchPatterns } = require('../crm/person-routes');
 const { formatDate, isoDate, tripPath } = require('../site/format');
 const { KINDS } = require('./categories');
-const { createTrips, validateTrip, eurosText, LIMITS, MAX_GUIDES } = require('./trips');
+const { createTrips, validateTrip, eurosText, LIMITS } = require('./trips');
 const { createTripMedia, ROLES, MAX_GALLERY, GALLERY_TEXT_LIMIT } = require('./trip-media');
 const { createMediaLibrary, mediaUrl } = require('../media/library');
 const { pickerFilter, pickerPhotos, renderPhotoPicker } = require('../media/picker');
@@ -66,7 +66,7 @@ function formValues(trip) {
     trip_code: trip.trip_code || '',
     categorie: (trip.category_ids || []).map(String),
   };
-  (trip.guide_ids || []).forEach((id, index) => { values[`reisleider_${index + 1}`] = String(id); });
+  if ((trip.guide_ids || []).length) values.reisleider = String(trip.guide_ids[0]);
   return values;
 }
 
@@ -168,8 +168,8 @@ function createTripRoutes(options) {
       const items = categories.filter((category) => category.kind === kind);
       return items.length ? html`<fieldset class="crm-checklist"><legend>${title}</legend>${items.map((category) => html`<label><input type="checkbox" name="categorie" value="${category.id}"${chosen.has(String(category.id)) ? raw(' checked') : ''}> ${category.name}</label>`)}</fieldset>` : '';
     };
-    const guideSelect = (index) => html`<div class="field"><span class="field__label"><label for="veld-reisleider_${index}">Reisleider ${index}</label></span>
-      <select id="veld-reisleider_${index}" name="reisleider_${index}"><option value="">–</option>${guides.map((guide) => html`<option value="${guide.id}"${String(values[`reisleider_${index}`] || '') === String(guide.id) ? raw(' selected') : ''}>${guide.name}${guide.published ? '' : ' (niet gepubliceerd)'}</option>`)}</select></div>`;
+    const guideSelect = () => html`<div class="field"><span class="field__label"><label for="veld-reisleider">Reisleider</label></span>
+      <select id="veld-reisleider" name="reisleider"><option value="">–</option>${guides.map((guide) => html`<option value="${guide.id}"${String(values.reisleider || '') === String(guide.id) ? raw(' selected') : ''}>${guide.name}${guide.published ? '' : ' (niet gepubliceerd)'}</option>`)}</select></div>`;
     return renderCrmPage({
       title: trip ? trip.title : 'Nieuwe reis',
       user: req.user,
@@ -211,8 +211,8 @@ function createTripRoutes(options) {
               ${trip ? renderSeats(req, trip) : ''}
               ${checkbox('fully_booked', 'Volgeboekt (ook als er nog plaatsen vrij zijn)')}
               ${checkbox('is_new', 'Nieuw (label op de reis)')}
-              <h2>Reisleiders</h2>
-              ${Array.from({ length: MAX_GUIDES }, (_, index) => guideSelect(index + 1))}
+              <h2>Reisleider</h2>
+              ${guideSelect()}
               <h2>Landen en reistypes</h2>
               ${categoryGroup('bestemming', 'Landen')}
               ${categoryGroup('type', 'Reistypes')}
@@ -224,7 +224,7 @@ function createTripRoutes(options) {
         ${trip ? html`<form class="crm-actions" method="post" action="${BASE}${trip.id}/kopieren/">
           <input type="hidden" name="_csrf" value="${req.session.csrf}">
           <button class="btn btn--small" type="submit">Kopiëren naar nieuw vertrek</button>
-          <span class="field__help">Maakt een concept met dezelfde teksten, prijs, landen, reistypes, reisleiders en foto's. Niet opgeslagen wijzigingen hierboven gaan niet mee.</span>
+          <span class="field__help">Maakt een concept met dezelfde teksten, prijs, landen, reistypes, reisleider en foto's. Niet opgeslagen wijzigingen hierboven gaan niet mee.</span>
         </form>` : ''}
         ${trip ? await renderPhotos(req, trip) : ''}`,
     });

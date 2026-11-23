@@ -1,6 +1,6 @@
 /**
  * Reizen beheren (CMS-pakket G2, migratie 15). Een reis is één vertrek (URL per vertrek, zoals de huidige site) met
- * prijs, reisgegevens, teksten, landen en reistypes (`trip_category_links`), reisleiders op volgorde (`trip_guides`),
+ * prijs, reisgegevens, teksten, landen en reistypes (`trip_category_links`), de reisleider (`trip_guides`, één per reis),
  * aantal plaatsen en concept of gepubliceerd. Een reis die hier is opgeslagen krijgt `managed_in_crm`, zodat de
  * WordPress-import hem niet meer overschrijft. Een gewijzigde slug maakt een 301. Alle vragen met gebonden parameters.
  */
@@ -21,8 +21,6 @@ const MAX_EUROS = 100_000;
 /** Ruimte in de slug voor `-kopie-<n>` bij Kopiëren naar nieuw vertrek. */
 const COPY_SUFFIX_ROOM = 10;
 
-/** Aantal reisleiders dat een reis kan hebben. */
-const MAX_GUIDES = 3;
 
 /** Kolommen van een reis voor het bewerkscherm (nooit `SELECT *`). */
 const TRIP_COLUMNS = `t.id, t.legacy_id, t.slug, t.title, t.tagline, t.summary, t.body_html, t.trip_code, t.departure_date,
@@ -119,11 +117,8 @@ function validateTrip(body) {
   if (summary.length > LIMITS.summary) errors.summary = `Maximaal ${LIMITS.summary} tekens.`;
   const rawBody = text('body_html');
   if (rawBody.length > LIMITS.body) errors.body_html = 'De tekst is te lang.';
-  const guideIds = [];
-  for (let index = 1; index <= MAX_GUIDES; index++) {
-    const [id] = idList(body[`reisleider_${index}`]);
-    if (id && !guideIds.includes(id)) guideIds.push(id);
-  }
+  // Een reis heeft hoogstens één reisleider; de koppeltabel `trip_guides` blijft, met één rij per reis.
+  const guideIds = idList(body.reisleider).slice(0, 1);
   return {
     values: {
       title,
@@ -375,7 +370,11 @@ function createTrips(options) {
       [original.id, slug, context.userId],
     );
     await client.query('INSERT INTO trip_category_links (trip_id, category_id) SELECT $2, category_id FROM trip_category_links WHERE trip_id = $1', [original.id, row.id]);
-    await client.query('INSERT INTO trip_guides (trip_id, guide_id, sort_order) SELECT $2, guide_id, sort_order FROM trip_guides WHERE trip_id = $1', [original.id, row.id]);
+    // Hoogstens één reisleider per reis: van een oude reis met meer rijen gaat alleen de eerste mee.
+    await client.query(
+      'INSERT INTO trip_guides (trip_id, guide_id, sort_order) SELECT $2, guide_id, 0 FROM trip_guides WHERE trip_id = $1 ORDER BY sort_order, guide_id LIMIT 1',
+      [original.id, row.id],
+    );
     await client.query(
       'INSERT INTO trip_media (trip_id, media_id, role, sort_order) SELECT $2, media_id, role, sort_order FROM trip_media WHERE trip_id = $1 ORDER BY id',
       [original.id, row.id],
@@ -387,4 +386,4 @@ function createTrips(options) {
   return { list, get, choices, create, update, copy };
 }
 
-module.exports = { createTrips, validateTrip, parseEuros, eurosText, isDate, LIMITS, MAX_GUIDES };
+module.exports = { createTrips, validateTrip, parseEuros, eurosText, isDate, LIMITS };
