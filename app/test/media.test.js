@@ -502,4 +502,46 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     await db.query('DELETE FROM media WHERE id = $1', [item.id]);
     assert.equal((await db.query('SELECT media_id FROM media_files WHERE media_id = $1', [item.id])).length, 0);
   });
+
+  await t.test("importfoto's in de database: byte voor byte in de back-up en terug na verlies", async () => {
+    const library = app.locals.mediaLibrary;
+    const crypto = require('node:crypto');
+    const hash = (data) => crypto.createHash('sha256').update(data).digest('hex');
+    const jpeg = await sharp({ create: { width: 640, height: 360, channels: 3, background: '#336699' } }).jpeg().toBuffer();
+    const gif = await sharp({ create: { width: 32, height: 16, channels: 3, background: '#ffffff' } }).gif().toBuffer();
+    const files = { 'aaaaaaaaaaaaaaaaaaaa.jpg': jpeg, 'yt-abcdefghijk.jpg': jpeg, 'bbbbbbbbbbbbbbbbbbbb.gif': gif, 'cccccccccccccccccccc.png': Buffer.from('geen foto') };
+    for (const [name, data] of Object.entries(files)) {
+      await fs.writeFile(path.join(mediaDir, name), data);
+      await db.query("INSERT INTO media (original_url, local_name, content_type, bytes) VALUES ($1, $2, 'image/jpeg', $3)", [`https://oud.example/${name}`, name, data.length]);
+    }
+    // Een rij zonder bestand, en een rij met een naam die niet van de import is (wordt nooit gelezen).
+    await db.query("INSERT INTO media (original_url, local_name, content_type, bytes) VALUES ('https://oud.example/weg', 'dddddddddddddddddddd.jpg', 'image/jpeg', 1)");
+    await db.query("INSERT INTO media (original_url, local_name, content_type, bytes) VALUES ('https://oud.example/pad', '../geheim.jpg', 'image/jpeg', 1)");
+    const result = await library.backfillImportFiles();
+    assert.equal(result.stored, 3, JSON.stringify(result));
+    assert.ok(result.missing >= 3, 'kapot bestand, ontbrekend bestand en vreemde naam tellen als ontbrekend');
+    const copies = await db.query("SELECT m.local_name, f.width, f.sha256 FROM media m JOIN media_files f ON f.media_id = m.id WHERE m.source = 'import' ORDER BY m.local_name");
+    assert.deepEqual(copies.map((row) => [row.local_name, row.width]), [['aaaaaaaaaaaaaaaaaaaa.jpg', 640], ['bbbbbbbbbbbbbbbbbbbb.gif', 32], ['yt-abcdefghijk.jpg', 640]]);
+    assert.equal(copies[0].sha256, hash(jpeg));
+    assert.deepEqual(await library.backfillImportFiles(), { stored: 0, missing: result.missing }, 'een tweede ronde zet niets dubbel');
+    // Bestanden kwijt (nieuwe server na het terugzetten van een back-up): de app zet ze ongewijzigd terug.
+    await fs.rm(path.join(mediaDir, 'aaaaaaaaaaaaaaaaaaaa.jpg'));
+    await fs.rm(path.join(mediaDir, 'bbbbbbbbbbbbbbbbbbbb.gif'));
+    assert.deepEqual(await library.restoreMissingFiles(), { restored: 2, failed: 0 });
+    assert.deepEqual(await fs.readFile(path.join(mediaDir, 'aaaaaaaaaaaaaaaaaaaa.jpg')), jpeg, 'JPEG byte voor byte gelijk, niet omgezet');
+    assert.deepEqual(await fs.readFile(path.join(mediaDir, 'bbbbbbbbbbbbbbbbbbbb.gif')), gif);
+    // Beschadigde kopie: niet terugzetten.
+    await fs.rm(path.join(mediaDir, 'yt-abcdefghijk.jpg'));
+    await db.query("UPDATE media_files SET sha256 = 'fout' WHERE media_id = (SELECT id FROM media WHERE local_name = 'yt-abcdefghijk.jpg')");
+    assert.deepEqual(await library.restoreMissingFiles(), { restored: 0, failed: 1 });
+    await assert.rejects(fs.stat(path.join(mediaDir, 'yt-abcdefghijk.jpg')));
+    // Het onderhoud meldt importfoto's in het logboek.
+    await db.query("DELETE FROM media_files WHERE media_id = (SELECT id FROM media WHERE local_name = 'aaaaaaaaaaaaaaaaaaaa.jpg')");
+    const logged = [];
+    const logLibrary = createMediaLibrary({ db, mediaDir, appLog: { info: (source, message) => logged.push(['info', source, message]), error: (source, message) => logged.push(['error', source, message]) } });
+    await logLibrary.startCleanupTimer();
+    assert.ok(logged.some(([level, , message]) => level === 'info' && message === "1 importfoto('s) in de database gezet voor de back-up"), JSON.stringify(logged));
+    assert.ok(logged.some(([level, , message]) => level === 'error' && /importfoto\('s\) zonder bruikbaar bestand/.test(message)), JSON.stringify(logged));
+    await db.query("DELETE FROM media WHERE original_url LIKE 'https://oud.example/%'");
+  });
 });
