@@ -1,6 +1,7 @@
 # AGENTS.md — Avanta Reizen
 
-Korte ingang voor AI-agents. Details: `CLAUDE.md` (volledig werkgeheugen), `README.md` (overzicht).
+Korte ingang voor AI-agents. Details: `CLAUDE.md` (volledig werkgeheugen), `app/src/<map>/CLAUDE.md` (bestanden per map),
+`docs/ARCHITECTUUR.md` (modules en parallel werken), `README.md` (overzicht).
 **Eén bron voor de regels:** staat iets in beide, dan geldt `CLAUDE.md`; dit bestand is de snelle kaart.
 
 ## Kaart van de codebase
