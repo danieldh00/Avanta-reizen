@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.27.1 — 2026-11-23 — Lijsten in het CRM in één opzet
+
+- De lijsten Aanmeldingen, Deelnemers, Betalingen en Reizen zien er nu hetzelfde uit: filterknoppen bovenaan (bij
+- Knoppen als *Nieuwe reis* en *Excel (.xlsx)* staan rechts naast de titel van de pagina.
+
+Gedeelde bouwstenen voor lijsten in `app/src/crm/ui.js` (`renderActions`, `renderFilterTabs`, `renderSearch`,
+`renderTable`, `renderStatus`, `renderPager`, `listUrl`), toegepast op Aanmeldingen, Deelnemers, Betalingen en Reizen
+(vervolgplan P1.2, bevinding B05). `renderCrmPage` kent `actions` voor de knoppen naast de titel. Aanmeldingen en
+Deelnemers tellen per filter binnen de gekozen reis en zoektekst (één extra query per lijst, zelfde voorwaarden en
+gebonden parameters). Adressen, filters en rechten zijn ongewijzigd; geen migratie.
+
 ## 0.27.0 — 2026-11-23 — CRM met kopbalk, menu in vier groepen en eigen opmaak
 
 - Het menu van het CRM is opnieuw ingedeeld in vier groepen: Boekingen, Reisaanbod, Website en Beheer. Reizen, reistypes en reisleiders staan nu onder Reisaanbod.
