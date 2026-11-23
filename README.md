@@ -576,7 +576,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `docs/OPZET-WEBSITE.md` | opzet, inventaris van de huidige site, fasering en open vragen |
 | `changes/` | releasenotes-fragmenten, zie `changes/README.md` |
 | `tools/release-notes.js` | verwerkt fragmenten; controleert PR's |
-| `.github/workflows/` | `ci`, `version`, `release`, `claude-review`, `security` |
+| `.github/workflows/` | `ci`, `version`, `release`, `claude-review`, `security`, `zap` (passieve beveiligingsscan met OWASP ZAP: wekelijks en met de hand tegen het image met testdata, of tegen de testomgeving; rapport als artefact, faalt bij risico Hoog; uitzonderingen in `.github/zap/regels.tsv`) |
 
 ## Werkwijze per wijziging
 1. Branch vers vanaf `origin/main` (`feature/<naam>` of `claude/<naam>`).

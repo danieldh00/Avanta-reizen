@@ -1,0 +1,3 @@
+# Uitzonderingen voor de ZAP-baseline (.github/workflows/zap.yml), één regel per bevinding:
+# <plugin-id>\t<IGNORE|INFO|WARN|FAIL>\t<reden>
+# Alleen een uitzondering met een reden die bij een controle standhoudt; de regels zelf staan in het rapport.
