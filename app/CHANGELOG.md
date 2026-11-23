@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.28.2 — 2026-11-23 — Testdata voor de testomgeving
+
+- De testomgeving kan gevuld worden met verzonnen, realistische testdata (reizen, reisleiders, deelnemers,
+
+- Nieuw: `app/src/dev/seed/` (`data.js`, `seed.js`, `cli.js`) met de opdrachten `vullen`, `opnieuw` en `verwijderen`
+  (`--testomgeving` verplicht). Weigert op `avantareizen.nl` en als zoekmachines mogen indexeren; één transactie;
+  personen via `crm/persons.js` (versleutelde blokken, toestemmingen), bedragen via `crm/payments.js`; statussen
+  passen bij de betalingen; auditregel `testdata.<opdracht>`. Herkenbaar aan `test-`-slugs en `@example.com`-adressen.
+- `deploy/apps01/servertaken.sh testdata [vullen|opnieuw|verwijderen]` met bevestigingsvraag.
+- `crm/cli.js` exporteert `connectionString` voor hergebruik.
+- Tests: `test/seed.test.js` (blokkade, samenhang van statussen en betalingen, echte gegevens blijven staan, site).
+
 ## 0.28.1 — 2026-11-23 — Instellingen per groep van Beheer in een eigen bestand
 
 Modulestructuur, stap 3 (geen gedragswijziging): de 91 instellingen en de secties van Beheer staan niet meer in twee
