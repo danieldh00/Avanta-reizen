@@ -10,7 +10,7 @@ const { html } = require('../site/html');
 const { clientKey, createRateLimiter } = require('../security/rate-limit');
 const { isCrossSite } = require('../security/form-guard');
 const { createAuth, ipPrefix } = require('./auth');
-const { RIGHTS, ROLES, roleHasRight, roleHasGlobalRight, roleLabel } = require('./rights');
+const { roleLabel } = require('./rights');
 const { hashPassword, verifyPassword, needsRehash, passwordProblem, getDummyHash, MAX_LENGTH } = require('./passwords');
 const { renderCrmPage, renderInput, renderAlert } = require('./layout');
 const { createUserRoutes } = require('./users');
@@ -19,6 +19,7 @@ const { createPersonMergeRoutes } = require('./person-merge-routes');
 const { createBookingRoutes } = require('./booking-routes');
 const { createPaymentRoutes } = require('./payment-routes');
 const { createPaymentOverviewRoutes } = require('./payment-overview-routes');
+const { loadDashboard, renderDashboard } = require('./dashboard');
 const { createParticipantListRoutes } = require('./participant-list-routes');
 const { createMediaRoutes } = require('../media/routes');
 const { createCategoryRoutes } = require('../trips/category-routes');
@@ -345,24 +346,21 @@ function createCrmRouter(options) {
 
   router.get('/', auth.requireLogin, async (req, res, next) => {
     try {
-      const rights = ROLES[req.user.role] ? ROLES[req.user.role].rights : [];
-      const mfa = await twoFactor.stateOf(req.user.id);
+      const [mfa, data] = await Promise.all([
+        twoFactor.stateOf(req.user.id),
+        loadDashboard(
+          { db, settings: options.settings, monitor: options.monitor, backups: options.backups, systemUpdate: options.systemUpdate, appLog: options.appLog },
+          { role: req.user.role, now: (options.now || Date.now)() },
+        ),
+      ]);
       return res.send(renderCrmPage({
         title: 'Overzicht',
         user: req.user,
         csrf: req.session.csrf,
         path: '/app/',
-        body: html`<p>Welkom, ${req.user.name}. Je bent ingelogd als <strong>${roleLabel(req.user.role)}</strong>.</p>
-          <p>Het CRM wordt in stappen gebouwd. Reizen, betalingen en deelnemerslijsten volgen.</p>
-          ${roleHasGlobalRight(req.user.role, 'aanmeldingen') ? html`<p><a class="btn" href="/app/aanmeldingen/">Aanmeldingen</a></p>` : ''}
-          ${roleHasGlobalRight(req.user.role, 'deelnemers') ? html`<p><a class="btn" href="/app/deelnemers/">Deelnemers</a></p>` : ''}
+        body: html`<p class="crm-summary">Welkom, ${req.user.name}. Je bent ingelogd als <strong>${roleLabel(req.user.role)}</strong>.</p>
           ${mfa.enabled ? '' : html`<p class="notice">Tweestapsverificatie staat nog uit voor je account${auth.mfaRequiredFor(req.user.role) ? ' en is verplicht vanaf de volgende keer dat je inlogt' : ''}. <a href="/app/tweestaps/">Nu instellen</a></p>`}
-          ${roleHasRight(req.user.role, 'gebruikers') ? html`<p><a class="btn" href="/app/gebruikers/">Gebruikers beheren</a></p>` : ''}
-          ${roleHasRight(req.user.role, 'systeem') ? html`<p><a class="btn btn--outline" href="/app/beheer/">Naar Beheer</a></p>` : ''}
-          <h2>Jouw account</h2>
-          <ul><li><a href="/app/wachtwoord/">Wachtwoord wijzigen</a></li><li><a href="/app/tweestaps/">Tweestapsverificatie</a> (${mfa.enabled ? 'aan' : 'uit'})</li></ul>
-          <h2>Jouw rechten</h2>
-          <ul class="crm-rights">${rights.map((right) => html`<li>${RIGHTS[right]}</li>`)}</ul>`,
+          ${renderDashboard(data)}`,
       }));
     } catch (error) {
       return next(error);

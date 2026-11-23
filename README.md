@@ -354,6 +354,11 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   kopbalk met het kruimelpad (groep, onderdeel, pagina), *Bekijk de site* en het gebruikersmenu met wachtwoord,
   tweestapsverificatie en uitloggen (een `<details>`, werkt zonder JavaScript). Op een breed scherm is de zijbalk in te
   klappen tot een iconenbalk (per browser onthouden); tot 800 px een lade via de menuknop.
+- **Overzicht** op `/app/` (`app/src/crm/dashboard.js`): tegels *Te doen* (nieuwe aanmeldingen, te late betalingen,
+  mogelijk dubbele deelnemers, reizen in concept) die naar de lijst met dat filter gaan, de komende acht vertrekken met
+  bezetting en openstaand bedrag, de laatste wijzigingen aan aanmeldingen en voor de beheerder de stand van het systeem
+  (bewaking, laatste back-up, versie). Elk onderdeel hoort bij een recht (`dashboardAccess`): wat een rol niet mag
+  zien wordt niet opgehaald en niet getekend. *Te laat* gebruikt dezelfde berekening als het betaaloverzicht.
 - **Eén opzet voor lijsten** (`app/src/crm/ui.js`): paginakop met de acties rechts (bijvoorbeeld *Nieuwe reis* of
   *Excel (.xlsx)*), filterknoppen met aantallen, een zoek- en filterregel, een tabel met statuslabels in kleur en
   bladeren onderaan. Aanmeldingen, Deelnemers, Betalingen en Reizen gebruiken deze bouwstenen; een nieuwe lijst bouw
