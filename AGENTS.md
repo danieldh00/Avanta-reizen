@@ -11,7 +11,7 @@ Korte ingang voor AI-agents. Details: `CLAUDE.md` (volledig werkgeheugen), `READ
 | `app/src/booking/` | aanmeldformulier → tabel `bookings` (basis CRM) |
 | `app/src/database/` | `db.js`, `migrations.js` (lader), `migrations/NNN-korte-naam.js` (één bestand per migratie, positioneel) |
 | `app/src/security/` | versleuteling gevoelige velden, rate limit |
-| `app/src/beheer/` | Beheer `/app/beheer/`: instellingen (`settings.js`), zijbalk (`indeling.js`), routes |
+| `app/src/beheer/` | Beheer `/app/beheer/`: instellingen en secties per groep (`instellingen/<groep>.js`), opslag (`settings.js`), zoeken (`indeling.js`), routes |
 | `app/tools/import-wordpress.js` | import van www.avantareizen.nl |
 | `app/test/` | `node --test`; DB-tests met `TEST_DATABASE_URL` |
 | `app/package.json`, `app/CHANGELOG.md` | versie en changelog (beide automatisch, nooit zelf) |
