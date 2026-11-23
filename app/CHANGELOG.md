@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.27.4 — 2026-11-23 — Startpagina van Beheer en een strengere Content-Security-Policy
+
+- Beheer opent met een startpagina: de stand van de bewaking, de laatste back-up, de versie en open servertaken, en
+- De lange tabel met alle instellingen staat nu op een eigen pagina: *Alle instellingen en hun bron*. Het
+
+`/app/beheer/` toont `renderStart` (vervolgplan P1.5, bevinding B04); `/app/beheer/overzicht/` het systeemoverzicht en
+de nieuwe sectie `/app/beheer/instellingen/` de instellingen met hun bron. De Content-Security-Policy heeft
+`style-src 'self'` zonder `'unsafe-inline'` en staat alleen nog het `style`-attribuut toe via `style-src-attr`
+(achtergrondfoto's op de publieke site); op de formulierpagina's met reCAPTCHA komt `style-src-elem 'unsafe-inline'`
+erbij (bevinding A22, deels: het attribuut blijft tot de achtergrondfoto's zijn omgebouwd). Geen migratie.
+
 ## 0.27.3 — 2026-11-23 — Bewerkschermen in het CRM met tabbladen en een vaste opslaanbalk
 
 - Het scherm van een reis is opgedeeld in tabbladen: Algemeen, Prijs, Tekst en programma, Foto's en Aanmeldingen.
