@@ -41,7 +41,7 @@ const ROLES = {
 };
 
 /**
- * Rollen waarvan de rechten alleen gelden voor de eigen vertrekken (via `trip_guides`, komt later). Een scherm zonder
+ * Rollen waarvan de rechten alleen gelden voor de eigen vertrekken (via `trip_guides`, zie `trips/guide-window.js`). Een scherm zonder
  * die beperking in de query (bijv. alle deelnemers) is voor hen dicht: `roleHasGlobalRight` geeft dan false.
  */
 const TRIP_SCOPED_ROLES = ['reisleider'];

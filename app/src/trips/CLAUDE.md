@@ -11,3 +11,4 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `guides.js` + `guide-routes.js` (`/app/reisleiders/`: profiel, foto's, online; `managed_in_crm` → site leest de database via `guideExtra` in `site/site-content.js`, anders `site-content.json`, en de import slaat over)
 - `trip-media.js` (`trip_media`: kop/kaart/galerij; schrijft `hero_image_url`/`card_image_url`/`gallery` als afgeleide kopie)
 - `seats.js` (bezet = aanmeldingen niet geannuleerd; `fullyBookedSql` overal gebruiken voor *volgeboekt*, nooit alleen de kolom `fully_booked`)
+- `guide-window.js` (venster van de reisleider uit Beheer > CRM > Reisleider en `ownTripSql`: beperking tot de reizen van het gekoppelde profiel; gebruikt door de deelnemerslijsten en het overzicht van de reisleider)
