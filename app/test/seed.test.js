@@ -78,6 +78,8 @@ test('testdata: hulpfuncties en opdrachtregel (zonder database)', async () => {
     assert.equal(await main([]), 2);
     assert.equal(await main(['vullen', '--force']), 2);
     assert.equal(await main(['wissen', '--testomgeving']), 2);
+    assert.equal(await main(['verwijderen', 'vullen', '--testomgeving']), 2, 'precies één opdracht');
+    assert.equal(await main(['vullen', 'vullen', '--testomgeving']), 2);
   } finally {
     console.error = original;
   }

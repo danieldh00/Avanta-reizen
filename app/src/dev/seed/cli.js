@@ -55,9 +55,11 @@ function countLines(title, counts) {
  * @returns {Promise<number>} Uitgangscode.
  */
 async function main(args) {
-  const mode = args.find((argument) => MODES.includes(argument));
+  // Strikt: precies één opdracht en verder alleen `--testomgeving`, zodat de volgorde nooit bepaalt wat er gebeurt.
+  const modes = args.filter((argument) => MODES.includes(argument));
   const unknown = args.filter((argument) => !MODES.includes(argument) && argument !== '--testomgeving');
-  if (!mode || unknown.length) {
+  const [mode] = modes;
+  if (modes.length !== 1 || unknown.length) {
     console.error(USAGE);
     return 2;
   }
