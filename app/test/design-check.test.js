@@ -9,6 +9,27 @@ const { screenType, areaOf, groupFindings } = require('../tools/design-check/che
 const { buildSheets } = require('../tools/design-check/report');
 const { runPageChecks } = require('../tools/design-check/page-checks');
 const { assertLocalDatabase, assertLocalBaseUrl } = require('../tools/design-check/seed');
+const { ADMIN } = require('../tools/design-check/credentials');
+
+/** Omgevingsvariabelen die de seed-controle lezen; per test leeg begonnen en daarna teruggezet. */
+const SEED_ENV = ['NODE_ENV', 'DESIGN_SEED_TOEGESTAAN', 'PGHOST', 'PGHOSTADDR'];
+
+/**
+ * Wist de omgevingsvariabelen van de seed-controle voor deze test en zet ze na afloop terug, zodat een CI-omgeving
+ * met bijvoorbeeld `DESIGN_SEED_TOEGESTAAN=1` de uitkomst niet verandert.
+ * @param {object} t Testcontext.
+ * @returns {void}
+ */
+function isolateSeedEnv(t) {
+  const saved = Object.fromEntries(SEED_ENV.map((key) => [key, process.env[key]]));
+  for (const key of SEED_ENV) delete process.env[key];
+  t.after(() => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+}
 
 /**
  * Laadt Playwright als het beschikbaar is.
@@ -64,7 +85,8 @@ test('bevindingen: dezelfde fout op meerdere pagina\'s wordt één regel, ernsti
   assert.deepEqual(sheets[2].rows[1], ['CRM en Beheer', 'NEE', 403]);
 });
 
-test('testgegevens alleen in een lokale test- of ontwerpdatabase', () => {
+test('testgegevens alleen in een lokale test- of ontwerpdatabase', (t) => {
+  isolateSeedEnv(t);
   assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@localhost:5432/avanta_design'));
   assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@127.0.0.1/avanta_test'));
   assert.throws(() => assertLocalDatabase('postgres://avanta:x@db.example.nl/avanta_design'), /alleen tegen een lokale database/);
@@ -76,7 +98,8 @@ test('testgegevens alleen in een lokale test- of ontwerpdatabase', () => {
   assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@localhost/avanta-test'));
 });
 
-test('testgegevens alleen via een lokale app', () => {
+test('testgegevens alleen via een lokale app', (t) => {
+  isolateSeedEnv(t);
   assert.doesNotThrow(() => assertLocalBaseUrl('http://localhost:3400'));
   assert.doesNotThrow(() => assertLocalBaseUrl('http://127.0.0.1:3400/'));
   assert.throws(() => assertLocalBaseUrl('https://www.avantareizen.nl'), /alleen tegen een lokale app/);
@@ -84,15 +107,7 @@ test('testgegevens alleen via een lokale app', () => {
 });
 
 test('testgegevens: zonder host in het adres tellen PGHOST en PGHOSTADDR mee', (t) => {
-  const saved = { PGHOST: process.env.PGHOST, PGHOSTADDR: process.env.PGHOSTADDR };
-  t.after(() => {
-    for (const [key, value] of Object.entries(saved)) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
-  });
-  delete process.env.PGHOST;
-  delete process.env.PGHOSTADDR;
+  isolateSeedEnv(t);
   assert.doesNotThrow(() => assertLocalDatabase('postgres:///avanta_design'), 'geen host: standaard lokaal');
   process.env.PGHOST = 'db.example.nl';
   assert.throws(() => assertLocalDatabase('postgres:///avanta_design'), /db\.example\.nl/);
@@ -103,18 +118,17 @@ test('testgegevens: zonder host in het adres tellen PGHOST en PGHOSTADDR mee', (
 });
 
 test('testgegevens: productie weigert altijd, de vlag staat een wegwerpcontainer toe', (t) => {
-  const saved = { NODE_ENV: process.env.NODE_ENV, DESIGN_SEED_TOEGESTAAN: process.env.DESIGN_SEED_TOEGESTAAN };
-  t.after(() => {
-    for (const [key, value] of Object.entries(saved)) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
-  });
+  isolateSeedEnv(t);
   process.env.DESIGN_SEED_TOEGESTAAN = '1';
   assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@postgres/avanta'), 'vlag: andere host en naam toegestaan');
   assert.throws(() => assertLocalDatabase('niet-een-url'), /DATABASE_URL ontbreekt/, 'ook met de vlag een geldige URL');
   process.env.NODE_ENV = 'production';
   assert.throws(() => assertLocalDatabase('postgres://avanta:x@localhost/avanta_design'), /NODE_ENV=production/, 'productie weigert, ook met de vlag');
+});
+
+test('testaccounts: geen vast wachtwoord in de repository', () => {
+  assert.ok(ADMIN.password.length >= 12, 'minimaal 12 tekens');
+  assert.notEqual(ADMIN.password, 'design-controle-lokaal-2026');
 });
 
 const playwright = loadPlaywright();
