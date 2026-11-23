@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.28.5 — 2026-11-23 — Geen verwijzingen naar andere projecten
+
+- Alle verwijzingen naar een ander project zijn uit code, commentaar en documentatie gehaald; de app zelf
+  doet hetzelfde als voorheen (alleen commentaar gewijzigd).
+- `deploy/apps01/install.sh` heeft geen vaste naam meer voor de cloudflared-container: de naam komt uit
+  `TUNNEL_CONTAINER`, anders uit de `.env` van een eerdere installatie, anders is het de enige draaiende container
+  waarvan de naam op `cloudflared` eindigt (bij geen of meerdere stopt het script met een melding). Een bestaande
+  installatie verandert niet: daar staat de naam al in `.env`. `update.sh` en `pve-setup.sh` volgen dezelfde regel.
+- Vier oude regels in `app/CHANGELOG.md` noemen het andere project nog: een PR mag dat bestand niet wijzigen.
+- Nieuwe harde regel in `CLAUDE.md`, bewaakt door `tests/geen-andere-projecten.test.js`.
+
 ## 0.28.4 — 2026-11-23 — Diensten en achtergrondtaken in services.js
 
 Modulestructuur, stap 4 (geen gedragswijziging). Herstel: de testdata (`src/dev/seed/seed.js` en `test/seed.test.js`)
