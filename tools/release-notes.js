@@ -170,6 +170,32 @@ function checkFragments(directory = CHANGES_DIR) {
   return problems;
 }
 
+/** Label waarmee een PR bij uitzondering bestaande tekst in de changelog mag verbeteren (geen nieuwe notes). */
+const CHANGELOG_CORRECTION_LABEL = 'changelog-correctie';
+const VERSION_HEADING = /^## \d+\.\d+\.\d+ — \d{4}-\d{2}-\d{2}/;
+
+/**
+ * Controleert dat een correctie van de changelog alleen bestaande tekst verbetert: evenveel regels en dezelfde
+ * versies met dezelfde datums op dezelfde plek. Nieuwe notes of een versie erbij of eraf horen niet in een correctie.
+ * @param {string} before Inhoud van de changelog op de basis.
+ * @param {string} after Inhoud van de changelog in de PR.
+ * @returns {string[]} Foutmeldingen (leeg als de correctie in orde is).
+ */
+function checkChangelogCorrection(before, after) {
+  const oldLines = before.split('\n');
+  const newLines = after.split('\n');
+  if (oldLines.length !== newLines.length) {
+    return [`${CHANGELOG_PATH}: een correctie voegt geen regels toe en haalt er geen weg (was ${oldLines.length}, nu ${newLines.length}).`];
+  }
+  const problems = [];
+  oldLines.forEach((line, index) => {
+    const oldVersion = (line.match(VERSION_HEADING) || [''])[0];
+    const newVersion = (newLines[index].match(VERSION_HEADING) || [''])[0];
+    if (oldVersion !== newVersion) problems.push(`${CHANGELOG_PATH} regel ${index + 1}: versie en datum van een release veranderen niet in een correctie.`);
+  });
+  return problems;
+}
+
 /**
  * Beoordeelt de wijzigingen van een pull request (zie .github/workflows/version.yml).
  * @param {{files: {status: string, name: string, similarity?: number}[], versionLineChanged: boolean, labels: string[]}} change Wat de PR wijzigt.
@@ -177,12 +203,15 @@ function checkFragments(directory = CHANGES_DIR) {
  */
 function evaluatePullRequest(change) {
   const problems = [];
+  // Met het label voor een correctie mag bestaande tekst in de changelog worden verbeterd (zie checkPullRequest).
+  const correction = change.labels.includes(CHANGELOG_CORRECTION_LABEL);
   const forbidden = [CHANGELOG_PATH];
   // Een nieuw toegevoegd app/package.json of CHANGELOG.md is het startpunt van de app, geen eigen versiewijziging.
   const startFiles = [PACKAGE_PATH, CHANGELOG_PATH];
   for (const file of change.files) {
     if (file.status === 'R' && file.similarity === 100) continue; // alleen verplaatst, inhoud ongewijzigd
     if (file.status === 'A' && startFiles.includes(file.name)) continue;
+    if (file.name === CHANGELOG_PATH && file.status === 'M' && correction) continue;
     if (forbidden.includes(file.name)) problems.push(`${file.name} wordt na het mergen automatisch bijgewerkt; haal deze wijziging uit de PR en zet de notes in changes/<naam>.md.`);
   }
   if (change.versionLineChanged) problems.push(`Het versienummer in ${PACKAGE_PATH} wordt na het mergen automatisch verhoogd; haal die wijziging uit de PR.`);
@@ -225,7 +254,11 @@ function checkPullRequest(baseRef) {
   const baseVersion = packageEntry ? versionOf(baseRef, packageEntry.oldName) : null;
   const versionLineChanged = baseVersion !== null && baseVersion !== versionOf('HEAD', packageEntry.name);
   const labels = JSON.parse(process.env.PR_LABELS || '[]');
-  return [...evaluatePullRequest({ files, versionLineChanged, labels }), ...checkFragments()];
+  const changelogEntry = files.find((file) => file.name === CHANGELOG_PATH && file.status === 'M');
+  const correctionProblems = changelogEntry && labels.includes(CHANGELOG_CORRECTION_LABEL)
+    ? checkChangelogCorrection(git('show', `${baseRef}:${CHANGELOG_PATH}`), git('show', `HEAD:${CHANGELOG_PATH}`))
+    : [];
+  return [...evaluatePullRequest({ files, versionLineChanged, labels }), ...correctionProblems, ...checkFragments()];
 }
 
 if (require.main === module) {
@@ -249,4 +282,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { parseFragment, nextVersion, renderChangelog, listFragments, applyFragments, checkFragments, evaluatePullRequest };
+module.exports = { parseFragment, nextVersion, renderChangelog, listFragments, applyFragments, checkFragments, evaluatePullRequest, checkChangelogCorrection };

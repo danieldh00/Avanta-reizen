@@ -20,5 +20,7 @@ Technische beschrijving (markdown), komt onder "## <versie>" in app/CHANGELOG.md
 
 - `## Nieuws` mag leeg zijn of ontbreken (een wijziging zonder zichtbaar effect); `## Changelog` is verplicht.
 - Alleen docs/CI zonder effect op de app: geef de PR het label `geen-releasenotes`, dan is geen bestand nodig.
+- Een fout in bestaande tekst van `app/CHANGELOG.md` verbeteren kan alleen met het label `changelog-correctie`: evenveel
+  regels, dezelfde versies en datums; nieuwe notes blijven via `changes/` lopen.
 - Een major-versie verhoogt alleen de beheerder met de hand.
 - Controle lokaal: `node tools/release-notes.js --check`.
