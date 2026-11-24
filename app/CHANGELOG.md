@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.30.7 — 2026-11-24 — Lijsten in het CRM blijven tabellen voor schermlezers
+
+`crm/ui.js` `renderTable`: expliciete rollen (`table`, `rowgroup`, `row`, `columnheader`, `cell`), zodat de
+tabelsemantiek en de kolomnamen behouden blijven in de kaartweergave op mobiel (`display: block`; Safari/VoiceOver).
+Tests bijgewerkt (`crm-ui`, `crm-audit`, `dashboard`, `trips`, `beheer-livegang`).
+
 ## 0.30.6 — 2026-11-24 — Publieke site netjes uitgelijnd en import zonder restcategorieën
 
 - Reizen met een actieprijs: 'Bijkomende kosten' en '* Bij boeking voor …' staan niet meer over elkaar.
