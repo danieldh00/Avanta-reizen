@@ -12,3 +12,5 @@ titel: Logboek in Beheer leesbaar
   op naam gesorteerd).
 - Niveau als label (`monitor-state--info|warn|error`); kolommen Tijd, Niveau en Bron zonder afbreking
   (`beheer-log__*` in `crm.css`), alleen de melding breekt lange woorden; onder 800 px een blok per regel.
+- `backup/cli.js` (`decrypt`): het `.part`-bestand wordt synchroon geopend, zodat het opruimen na een snelle fout
+  (verkeerde sleutel) niet meer kan voorlopen op het aanmaken; dat liet soms een `.part` achter (wisselende testfout).
