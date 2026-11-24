@@ -12,6 +12,7 @@ const { renderCrmPage, renderInput, renderAlert, formatDateTime } = require('./l
 const { PERSON_ACTION_LABELS } = require('../persons/person-routes');
 const { MERGE_ACTION_LABELS } = require('../persons/person-merge-routes');
 const { BOOKING_ACTION_LABELS } = require('../booking/crm-routes');
+const { MANUAL_ACTION_LABELS } = require('../booking/manual-routes');
 const { PAYMENT_ACTION_LABELS } = require('../payments/payment-routes');
 const { PAYMENT_OVERVIEW_ACTION_LABELS } = require('../payments/payment-overview-routes');
 const { PARTICIPANT_LIST_ACTION_LABELS } = require('../persons/participant-list-routes');
@@ -70,6 +71,7 @@ const ACTION_LABELS = {
   ...PERSON_ACTION_LABELS,
   ...MERGE_ACTION_LABELS,
   ...BOOKING_ACTION_LABELS,
+  ...MANUAL_ACTION_LABELS,
   ...PAYMENT_ACTION_LABELS,
   ...PAYMENT_OVERVIEW_ACTION_LABELS,
   ...PARTICIPANT_LIST_ACTION_LABELS,

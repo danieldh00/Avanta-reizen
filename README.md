@@ -315,6 +315,18 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     (`nieuw → bevestigd → aanbetaald → betaald`, en `geannuleerd` met verplichte reden; daarna niet meer te wijzigen),
     notities en de historie (`booking_events`). Een formulier met een verouderde status geeft 409. Geen wachtlijst
     (komt later, met automatisch doorschuiven).
+  - **Aanmelding invoeren** op `/app/aanmeldingen/nieuw/` (knop op de lijst Aanmeldingen; recht `aanmeldingen` plus
+    `deelnemers.wijzigen`, `gegevens.identiteit` en `gegevens.gezondheid`: beheerder en kantoor;
+    `app/src/booking/manual-routes.js`): voor een aanmelding per telefoon, mail of op papier. Eerst de reis (alleen
+    reizen die nog vertrekken, ook concepten; volgeboekt kan niet), dan dezelfde velden en dezelfde controle als het
+    formulier (`validateBooking`, met de toestemmingen per bijzonder gegeven en de ouder of voogd onder de 16), met
+    teksten die zeggen dat kantoor alleen aanvinkt wat de deelnemer zelf gaf. Het kerkgenootschap staat er alleen met
+    `gegevens.religie`; zonder dat recht negeert de server het veld. Opslaan via dezelfde functie als het formulier
+    (`app/src/booking/save-booking.js`: persoon, aanmelding, bedragen en toestemmingen in één transactie, met slot op
+    de reis), plus een regel in de historie (hoe binnengekomen, toelichting) en het auditlog. De bevestiging aan de
+    deelnemer (en ouder) gaat alleen als kantoor dat aanvinkt; kantoor krijgt geen melding van zijn eigen invoer. Staat
+    er al een niet-geannuleerde aanmelding voor die reis met hetzelfde e-mailadres, dezelfde achternaam en voornamen (dubbelklik,
+    opnieuw verzenden), dan slaat het niets op (409, met een link) tot kantoor *Toch opslaan* aanvinkt.
   - **Berichten** op `/app/berichten/` (recht `berichten`: beheerder en kantoor; `app/src/contact/messages.js` en
     `message-routes.js`, migratie 30): de berichten van het contactformulier met filter (nieuw, afgehandeld, alle) en
     zoeken op naam, e-mailadres, telefoon of tekst; per bericht de tekst met regeleinden, de afzender met mail- en

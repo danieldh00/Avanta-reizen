@@ -10,6 +10,7 @@ const { html, raw } = require('../site/html');
 const { formatDate, formatPrice } = require('../site/format');
 const { FIELDS } = require('./fields');
 const { roleHasGlobalRight } = require('../crm/rights');
+const { canEnterManually } = require('./manual-routes');
 const { searchPatterns } = require('../persons/person-routes');
 const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
 const ui = require('../crm/ui');
@@ -174,6 +175,7 @@ function createBookingRoutes(options) {
         csrf: req.session.csrf,
         path: '/app/aanmeldingen/',
         actions: ui.renderActions([
+          canEnterManually(req.user.role) ? { label: 'Aanmelding invoeren', href: `/app/aanmeldingen/nieuw/${tripId ? `?reis=${tripId}` : ''}`, primary: true } : null,
           tripId && roleHasGlobalRight(req.user.role, 'export.deelnemers') ? { label: 'Deelnemerslijst (.xlsx)', href: `/app/deelnemerslijsten/#reis-${tripId}` } : null,
         ]),
         body: html`${ui.renderFilterTabs({
@@ -299,7 +301,7 @@ function createBookingRoutes(options) {
     try {
       const booking = await findBooking(db, req.params.id);
       if (!booking) return notFound(req, res);
-      const notices = { status: 'De status is gewijzigd.', notitie: 'De notitie is opgeslagen.' };
+      const notices = { status: 'De status is gewijzigd.', notitie: 'De notitie is opgeslagen.', handmatig: 'De aanmelding is ingevoerd.' };
       return res.send(await renderBooking(req, booking, { notice: notices[req.query.opgeslagen] || '' }));
     } catch (error) {
       return next(error);

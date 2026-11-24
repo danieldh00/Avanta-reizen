@@ -7,7 +7,8 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 ## Bestanden
 - aanmeldformulier: `fields.js` (velden + validatie)
 - `routes.js` (`/aanmelden/`)
-- aanmeldingen in het CRM (ingang `index.js`): `crm-routes.js` (`/app/aanmeldingen/`: lijst, status met vaste overgangen, notities, `booking_events`)
+- `save-booking.js` (`createBookingSaver`: een aanmelding opslaan, gedeeld door het formulier en kantoor; slot op de reis, persoon, bedragen, toestemmingen, nieuwe referentie bij een botsing)
+- aanmeldingen in het CRM (ingang `index.js`): `crm-routes.js` (`/app/aanmeldingen/`: lijst, status met vaste overgangen, notities, `booking_events`) en `manual-routes.js` (`/app/aanmeldingen/nieuw/`: aanmelding handmatig invoeren met dezelfde controle als het formulier)
 
 ## Regels
 - Deelnemer jonger dan 16 op de dag van aanmelden (`GUARDIAN_AGE`, `needsGuardian` in `fields.js`): de velden met

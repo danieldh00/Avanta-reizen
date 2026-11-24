@@ -20,6 +20,7 @@ Opzet, stand 23-11-2026. Avanta Reizen stelt het register vast en houdt het bij.
 | Doel | Aanmelding verwerken, de reis organiseren (vervoer, verblijf, verzekering, reisdocumenten), contact vóór en tijdens de reis, betalingen |
 | Grondslag | Uitvoering van de overeenkomst (art. 6.1b); voor de boekhouding een wettelijke plicht (art. 6.1c, fiscale bewaarplicht) |
 | Betrokkenen | Deelnemers; bij een deelnemer onder de 16 ook een ouder of voogd |
+| Herkomst | Het aanmeldformulier op de site, of kantoor voert de aanmelding in het CRM in na een telefoontje, mail of papieren formulier (CRM > Aanmeldingen > Aanmelding invoeren). Dezelfde velden en controles; kantoor vinkt een toestemming alleen aan als de deelnemer of ouder die zelf gaf, en legt vast hoe de aanmelding binnenkwam |
 | Gegevens | Naam (volgens paspoort), roepnaam, geslacht, adres, e-mail, telefoon, beroep, geboortedatum, nationaliteit, soort en nummer en geldigheid van paspoort of ID-kaart, noodnummer, reisvoorkeuren (samen reizen, eerder mee, creditcard, chauffeur), betaalkeuze en betalingen |
 | Bijzondere gegevens (art. 9) | Kerkgenootschap (religie) en bijzonderheden over gezondheid: vrijwillig, alleen met een eigen, uitdrukkelijke toestemming per soort (art. 9.2a), vastgelegd met de versie van de tekst |
 | Minderjarigen | Onder de 16 (op de dag van aanmelden) geeft een ouder of voogd de toestemming (art. 8 AVG, art. 5 UAVG); naam, relatie, e-mail en telefoon van de ouder worden versleuteld vastgelegd en de ouder krijgt een eigen bevestiging. Vanaf 16 worden geen oudergegevens bewaard |
