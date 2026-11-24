@@ -68,6 +68,26 @@ function coerce(definition, raw) {
 }
 
 /**
+ * Controleert een webadres en maakt het eenvormig: alleen http(s), zonder gebruikersnaam of wachtwoord, zonder slash
+ * achteraan het pad en zonder anker.
+ * @param {string} key Naam van de instelling (voor de fout).
+ * @param {string} value Ingevoerd adres (niet leeg).
+ * @returns {string} Het adres als `origin` + pad + zoekdeel.
+ * @throws {SettingsError} Bij een ongeldig adres.
+ */
+function normalizeUrl(key, value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch (_) {
+    throw new SettingsError(key, 'Vul een volledig webadres in, beginnend met https://.');
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new SettingsError(key, 'Vul een webadres in dat begint met https://.');
+  if (url.username || url.password) throw new SettingsError(key, 'Een webadres met een gebruikersnaam of wachtwoord kan niet.');
+  return `${url.origin}${url.pathname.replace(/\/+$/, '')}${url.search}`;
+}
+
+/**
  * Controleert een tekstwaarde (tekst, e-mail, URL, tekstvak, geheim) en maakt hem schoon.
  * @param {string} key Naam van de instelling (voor de fout).
  * @param {object} definition Beschrijving uit `SETTING_FIELDS`.
@@ -94,17 +114,7 @@ function validateText(key, definition, raw) {
     value = value.toLowerCase();
     if (!EMAIL_PATTERN.test(value)) throw new SettingsError(key, 'Vul een geldig e-mailadres in.');
   }
-  if (definition.type === 'url') {
-    let url;
-    try {
-      url = new URL(value);
-    } catch (_) {
-      throw new SettingsError(key, 'Vul een volledig webadres in, beginnend met https://.');
-    }
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new SettingsError(key, 'Vul een webadres in dat begint met https://.');
-    if (url.username || url.password) throw new SettingsError(key, 'Een webadres met een gebruikersnaam of wachtwoord kan niet.');
-    value = `${url.origin}${url.pathname.replace(/\/+$/, '')}${url.search}`;
-  }
+  if (definition.type === 'url') value = normalizeUrl(key, value);
   if (definition.pattern && !definition.pattern.test(value)) throw new SettingsError(key, definition.patternMessage || 'Deze waarde klopt niet.');
   const problem = definition.validate ? definition.validate(value) : '';
   if (problem) throw new SettingsError(key, problem);
@@ -263,17 +273,13 @@ function createSettings(options) {
   };
 
   /**
-   * Slaat wijzigingen op. Een geheim: weglaten of lege tekst = ongewijzigd, `clear` = leegmaken. `reset` zet een
-   * instelling terug naar de startwaarde (omgeving of standaard) door de databaseregel te verwijderen. Een waarde die
-   * gelijk is aan wat er al geldt, telt niet als wijziging.
-   * @param {{values?: object, clear?: string[], reset?: string[]}} patch Nieuwe waarden, te legen geheimen en terug te zetten instellingen.
-   * @param {{userId?: (number|null), inTransaction?: Function}} [context] Wie het doet en een functie
-   *   `(client, changed) => Promise` die in dezelfde transactie draait (bijv. het auditlog): mislukt die, dan wordt niets opgeslagen.
-   * @returns {Promise<string[]>} Namen van de gewijzigde instellingen.
-   * @throws {SettingsError} Bij een onbekende instelling of ongeldige waarde (er wordt dan niets opgeslagen).
+   * Bepaalt wat een wijziging in de database doet, zonder iets op te slaan: welke rijen weg moeten (terugzetten) en
+   * welke waarden geschreven worden. Controleert elke naam en waarde.
+   * @param {{values?: object, clear?: string[], reset?: string[]}} patch Zie `update`.
+   * @returns {{writes: Map<string, *>, removals: Set<string>}} Te schrijven waarden en te verwijderen rijen.
+   * @throws {SettingsError} Bij een onbekende instelling of ongeldige waarde.
    */
-  const update = async (patch, context = {}) => {
-    await ready();
+  const planChanges = (patch) => {
     const writes = new Map();
     const removals = new Set();
     // Terugzetten gaat altijd voor: een teruggezette instelling neemt nooit de waarde uit het formulier over, ook niet
@@ -296,6 +302,22 @@ function createSettings(options) {
       if (value === get(key)) continue;
       writes.set(key, value);
     }
+    return { writes, removals };
+  };
+
+  /**
+   * Slaat wijzigingen op. Een geheim: weglaten of lege tekst = ongewijzigd, `clear` = leegmaken. `reset` zet een
+   * instelling terug naar de startwaarde (omgeving of standaard) door de databaseregel te verwijderen. Een waarde die
+   * gelijk is aan wat er al geldt, telt niet als wijziging.
+   * @param {{values?: object, clear?: string[], reset?: string[]}} patch Nieuwe waarden, te legen geheimen en terug te zetten instellingen.
+   * @param {{userId?: (number|null), inTransaction?: Function}} [context] Wie het doet en een functie
+   *   `(client, changed) => Promise` die in dezelfde transactie draait (bijv. het auditlog): mislukt die, dan wordt niets opgeslagen.
+   * @returns {Promise<string[]>} Namen van de gewijzigde instellingen.
+   * @throws {SettingsError} Bij een onbekende instelling of ongeldige waarde (er wordt dan niets opgeslagen).
+   */
+  const update = async (patch, context = {}) => {
+    await ready();
+    const { writes, removals } = planChanges(patch);
     const changed = [...removals, ...writes.keys()];
     if (!changed.length) return [];
     await db.transaction(async (client) => {

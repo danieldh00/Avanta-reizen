@@ -65,14 +65,13 @@ function parseCounts(text) {
 }
 
 /**
- * Bepaalt de uitslag van een hersteltest op de server uit wat het hostscript aanlevert.
- * @param {object} raw Invoer van het hostscript: `state` (`bezig`/`mislukt`) of de metingen (`restored`, `live`, `appOk`).
- * @param {number} [now] Huidig tijdstip in ms.
- * @returns {object} De run: state, trigger, tijden, back-up, schemaversie, tabellen, verschillen, appOk, melding.
+ * De gecontroleerde basisgegevens van een run uit de invoer van het hostscript, nog zonder uitslag.
+ * @param {object} input Invoer (al gecontroleerd op een object).
+ * @param {number} now Huidig tijdstip in ms.
+ * @returns {object} De run met state `mislukt`, zonder tabellen of verschillen.
  */
-function evaluateRun(raw, now = Date.now()) {
-  const input = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
-  const run = {
+function baseRun(input, now) {
+  return {
     state: 'mislukt',
     trigger: TRIGGERS.includes(input.trigger) ? input.trigger : 'schema',
     startedAt: isoOrEmpty(input.startedAt) || new Date(now).toISOString(),
@@ -85,6 +84,41 @@ function evaluateRun(raw, now = Date.now()) {
     appOk: input.appOk === true,
     message: cleanText(input.message),
   };
+}
+
+/**
+ * Vergelijkt de aantallen rijen per tabel van de teruggezette database met die van nu. Een tabel die maar aan één
+ * kant bestaat, telt altijd als verschil; anders alleen een afwijking boven beide toleranties.
+ * @param {Object<string, number>} restored Aantallen in de teruggezette database.
+ * @param {Object<string, number>} live Aantallen nu.
+ * @returns {Array<{table: string, restored: (number|null), live: (number|null)}>} Hoogstens tien verschillen.
+ */
+function rowDifferences(restored, live) {
+  const differences = [];
+  for (const table of Object.keys({ ...live, ...restored }).sort()) {
+    const before = restored[table];
+    const current = live[table];
+    if (before === undefined || current === undefined) {
+      differences.push({ table, restored: before ?? null, live: current ?? null });
+      continue;
+    }
+    const difference = Math.abs(current - before);
+    if (difference > ROW_TOLERANCE_MIN && difference > (Math.max(current, before) * ROW_TOLERANCE_PCT) / 100) {
+      differences.push({ table, restored: before, live: current });
+    }
+  }
+  return differences.slice(0, 10);
+}
+
+/**
+ * Bepaalt de uitslag van een hersteltest op de server uit wat het hostscript aanlevert.
+ * @param {object} raw Invoer van het hostscript: `state` (`bezig`/`mislukt`) of de metingen (`restored`, `live`, `appOk`).
+ * @param {number} [now] Huidig tijdstip in ms.
+ * @returns {object} De run: state, trigger, tijden, back-up, schemaversie, tabellen, verschillen, appOk, melding.
+ */
+function evaluateRun(raw, now = Date.now()) {
+  const input = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const run = baseRun(input, now);
   if (input.state === 'bezig') return { ...run, state: 'bezig', message: run.message || 'Hersteltest loopt.' };
   run.finishedAt = new Date(now).toISOString();
   if (input.state === 'mislukt') return { ...run, message: run.message || 'Hersteltest mislukt.' };
@@ -94,19 +128,7 @@ function evaluateRun(raw, now = Date.now()) {
   run.rows = Object.values(restored).reduce((sum, count) => sum + count, 0);
   if (!run.tables) return { ...run, message: 'Er staan geen tabellen in de teruggezette database.' };
   if (!run.appOk) return { ...run, message: 'De app start niet op de teruggezette database.' };
-  for (const table of Object.keys({ ...live, ...restored }).sort()) {
-    const before = restored[table];
-    const current = live[table];
-    if (before === undefined || current === undefined) {
-      run.differences.push({ table, restored: before ?? null, live: current ?? null });
-      continue;
-    }
-    const difference = Math.abs(current - before);
-    if (difference > ROW_TOLERANCE_MIN && difference > (Math.max(current, before) * ROW_TOLERANCE_PCT) / 100) {
-      run.differences.push({ table, restored: before, live: current });
-    }
-  }
-  run.differences = run.differences.slice(0, 10);
+  run.differences = rowDifferences(restored, live);
   run.state = run.differences.length ? 'waarschuwing' : 'geslaagd';
   run.message = run.differences.length
     ? 'Teruggezet en de app start, maar het aantal rijen wijkt sterk af van nu (zie verschillen).'

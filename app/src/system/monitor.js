@@ -339,6 +339,45 @@ function createMonitor(options) {
   };
 
   /**
+   * Legt een controle met een waarschuwing of fout vast als open incident (nieuw of bijgewerkt) en bepaalt of er een
+   * melding nodig is: bij een nieuw incident, als het erger wordt (van waarschuwing naar fout) of als herinnering na
+   * `monitorRepeatHours`.
+   * @param {object} check Uitkomst van de controle.
+   * @param {{at: number, repeatMs: number}} round Tijdstip van de ronde en de herhaaltermijn (0 = nooit herhalen).
+   * @returns {Promise<{item: (object|null), incidentId: number}>} Het te melden item (of null) en het id van het incident.
+   */
+  const recordProblem = async (check, { at, repeatMs }) => {
+    const atDate = new Date(at);
+    const [previous] = await db.query('SELECT id, severity FROM monitor_incidents WHERE check_key = $1 AND resolved_at IS NULL', [check.key]);
+    const [incident] = await db.query(`INSERT INTO monitor_incidents (check_key, severity, message, opened_at, last_seen_at) VALUES ($1, $2, $3, $4, $4)
+      ON CONFLICT (check_key) WHERE resolved_at IS NULL DO UPDATE SET severity = EXCLUDED.severity, message = EXCLUDED.message, last_seen_at = EXCLUDED.last_seen_at
+      RETURNING id, opened_at, notified_at`, [check.key, check.state, check.message, atDate]);
+    let status = '';
+    if (!incident.notified_at) status = 'geopend';
+    else if (previous && previous.severity === 'warn' && check.state === 'error') status = 'verergerd';
+    else if (repeatMs && at - Date.parse(incident.notified_at) >= repeatMs) status = 'herinnering';
+    if (!previous) log(check.state === 'error' ? 'error' : 'warn', `Incident geopend: ${check.label}: ${check.message}`);
+    const item = status ? { status, key: check.key, severity: check.state, message: check.message, since: incident.opened_at } : null;
+    return { item, incidentId: incident.id };
+  };
+
+  /**
+   * Sluit de open incidenten van een controle die weer in orde is.
+   * @param {object} check Uitkomst van de controle.
+   * @param {Date} atDate Tijdstip van de ronde.
+   * @returns {Promise<object[]>} Items `opgelost` voor de incidenten waarover al gemeld was.
+   */
+  const closeIncidents = async (check, atDate) => {
+    const closed = await db.query('UPDATE monitor_incidents SET resolved_at = $2 WHERE check_key = $1 AND resolved_at IS NULL RETURNING id, severity, opened_at, notified_at', [check.key, atDate]);
+    const items = [];
+    for (const incident of closed) {
+      log('info', `Incident gesloten: ${check.label}`);
+      if (incident.notified_at) items.push({ status: 'opgelost', key: check.key, severity: incident.severity, message: check.message, since: incident.opened_at });
+    }
+    return items;
+  };
+
+  /**
    * Eén ronde: controles, incidenten openen/bijwerken/sluiten, melden, heartbeat en opschonen.
    * @returns {Promise<{checks: object[], notified: number}>} De uitkomsten en het aantal gemelde incidenten.
    */
@@ -358,25 +397,13 @@ function createMonitor(options) {
     const toMark = [];
     for (const check of checks) {
       if (check.state === 'warn' || check.state === 'error') {
-        const [previous] = await db.query('SELECT id, severity FROM monitor_incidents WHERE check_key = $1 AND resolved_at IS NULL', [check.key]);
-        const [incident] = await db.query(`INSERT INTO monitor_incidents (check_key, severity, message, opened_at, last_seen_at) VALUES ($1, $2, $3, $4, $4)
-          ON CONFLICT (check_key) WHERE resolved_at IS NULL DO UPDATE SET severity = EXCLUDED.severity, message = EXCLUDED.message, last_seen_at = EXCLUDED.last_seen_at
-          RETURNING id, opened_at, notified_at`, [check.key, check.state, check.message, atDate]);
-        let status = '';
-        if (!incident.notified_at) status = 'geopend';
-        else if (previous && previous.severity === 'warn' && check.state === 'error') status = 'verergerd';
-        else if (repeatMs && at - Date.parse(incident.notified_at) >= repeatMs) status = 'herinnering';
-        if (status) {
-          items.push({ status, key: check.key, severity: check.state, message: check.message, since: incident.opened_at });
-          toMark.push(incident.id);
+        const { item, incidentId } = await recordProblem(check, { at, repeatMs });
+        if (item) {
+          items.push(item);
+          toMark.push(incidentId);
         }
-        if (!previous) log(check.state === 'error' ? 'error' : 'warn', `Incident geopend: ${check.label}: ${check.message}`);
       } else {
-        const closed = await db.query('UPDATE monitor_incidents SET resolved_at = $2 WHERE check_key = $1 AND resolved_at IS NULL RETURNING id, severity, opened_at, notified_at', [check.key, atDate]);
-        for (const incident of closed) {
-          log('info', `Incident gesloten: ${check.label}`);
-          if (incident.notified_at) items.push({ status: 'opgelost', key: check.key, severity: incident.severity, message: check.message, since: incident.opened_at });
-        }
+        items.push(...await closeIncidents(check, atDate));
       }
     }
     if (items.length) {

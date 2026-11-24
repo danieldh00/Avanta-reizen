@@ -30,6 +30,17 @@ function checkRow(label, state, detail, href) {
 }
 
 /**
+ * Maakt een regel die klaar is of niet, met een eigen uitleg voor beide gevallen.
+ * @param {{label: string, ready: boolean, readyText: string, openText: string, href: string, notReady?: ('open'|'later')}} row
+ *   Wat er gecontroleerd wordt, of het klaar is, de uitleg bij klaar en bij niet klaar, waar je het regelt en de stand
+ *   als het niet klaar is (standaard `open`).
+ * @returns {{label: string, state: string, detail: string, href: string}} Regel.
+ */
+function readinessRow({ label, ready, readyText, openText, href, notReady = 'open' }) {
+  return checkRow(label, ready ? 'klaar' : notReady, ready ? readyText : openText, href);
+}
+
+/**
  * Of een https-adres is ingevuld.
  * @param {*} value Waarde van een instelling.
  * @returns {boolean} Waar als het een niet-lege tekst is.
@@ -63,17 +74,17 @@ function settingsChecks(settings, counts) {
   const mailReady = filled(settings.get('mailFromAddress')) && (settings.get('mailMode') === 'connector' || filled(settings.get('mailHost')));
   const captchaReady = settings.get('captchaEnabled') === true && filled(settings.get('captchaSiteKey'));
   return [
-    checkRow('Mailserver en afzender', mailReady ? 'klaar' : 'open', mailReady ? 'Ingesteld; verstuur een testmail om het te bevestigen.' : 'Geen mailserver of afzender ingesteld: de app verstuurt dan geen mail.', '/app/beheer/mailserver/'),
-    checkRow('Meldadres voor de bewaking', filled(settings.get('monitorEmail')) ? 'klaar' : 'open', filled(settings.get('monitorEmail')) ? 'Ingevuld.' : 'Leeg: meldingen gaan naar het adres van kantoor, als dat er is.', '/app/beheer/bewaking/'),
-    checkRow('Heartbeat naar een externe dienst', filled(settings.get('monitorHeartbeatUrl')) ? 'klaar' : 'open', filled(settings.get('monitorHeartbeatUrl')) ? 'Ingevuld.' : 'Leeg: niemand merkt het als de hele server uit staat.', '/app/beheer/bewaking/'),
-    checkRow('Captcha op de formulieren', captchaReady ? 'klaar' : 'open', captchaReady ? 'Aan met een sitesleutel.' : 'Uit of zonder sitesleutel.', '/app/beheer/captcha/'),
-    checkRow('Iedereen met bijzondere gegevens heeft tweestapsverificatie', counts.usersWithout2fa === 0 ? 'klaar' : 'open', counts.usersWithout2fa === 0 ? 'Alle actieve beheerders, kantoormedewerkers en reisleiders hebben het aan.' : `${counts.usersWithout2fa} actieve gebruiker(s) met rol beheerder, kantoor of reisleider zonder tweestapsverificatie.`, '/app/gebruikers/'),
-    checkRow('Tweestapsverificatie verplicht', mfa === 'niemand' ? 'open' : 'klaar', mfa === 'niemand' ? 'Nog optioneel; zet het op de dag van de overstap op "Rollen met toegang tot bijzondere gegevens".' : `Verplicht voor: ${mfa}.`, '/app/beheer/tweestaps/'),
+    readinessRow({ label: 'Mailserver en afzender', ready: mailReady, readyText: 'Ingesteld; verstuur een testmail om het te bevestigen.', openText: 'Geen mailserver of afzender ingesteld: de app verstuurt dan geen mail.', href: '/app/beheer/mailserver/' }),
+    readinessRow({ label: 'Meldadres voor de bewaking', ready: filled(settings.get('monitorEmail')), readyText: 'Ingevuld.', openText: 'Leeg: meldingen gaan naar het adres van kantoor, als dat er is.', href: '/app/beheer/bewaking/' }),
+    readinessRow({ label: 'Heartbeat naar een externe dienst', ready: filled(settings.get('monitorHeartbeatUrl')), readyText: 'Ingevuld.', openText: 'Leeg: niemand merkt het als de hele server uit staat.', href: '/app/beheer/bewaking/' }),
+    readinessRow({ label: 'Captcha op de formulieren', ready: captchaReady, readyText: 'Aan met een sitesleutel.', openText: 'Uit of zonder sitesleutel.', href: '/app/beheer/captcha/' }),
+    readinessRow({ label: 'Iedereen met bijzondere gegevens heeft tweestapsverificatie', ready: counts.usersWithout2fa === 0, readyText: 'Alle actieve beheerders, kantoormedewerkers en reisleiders hebben het aan.', openText: `${counts.usersWithout2fa} actieve gebruiker(s) met rol beheerder, kantoor of reisleider zonder tweestapsverificatie.`, href: '/app/gebruikers/' }),
+    readinessRow({ label: 'Tweestapsverificatie verplicht', ready: mfa !== 'niemand', readyText: `Verplicht voor: ${mfa}.`, openText: 'Nog optioneel; zet het op de dag van de overstap op "Rollen met toegang tot bijzondere gegevens".', href: '/app/beheer/tweestaps/' }),
     checkRow('Venster voor de reisleider', 'handmatig', `Nu ${settings.get('guideWindowDaysBefore')} dag(en) vóór vertrek tot ${settings.get('guideWindowDaysAfter')} dag(en) na terugkomst; controleer of dit de afspraak met Avanta is.`, '/app/beheer/reisleider/'),
-    checkRow('Balk "in ontwikkeling" uit', settings.get('devBannerEnabled') ? 'open' : 'klaar', settings.get('devBannerEnabled') ? 'De balk staat nog bovenaan de publieke site.' : 'Uit.', '/app/beheer/ontwikkeling/'),
-    checkRow('Basisadres is het productiedomein', siteHost === PRODUCTION_HOST ? 'klaar' : 'open', siteHost === PRODUCTION_HOST ? `https://${PRODUCTION_HOST}` : `Nu ${siteHost || 'ongeldig'}; zet het op de dag van de overstap op https://${PRODUCTION_HOST}.`, '/app/beheer/zoekmachines/'),
-    checkRow('HSTS-preload (na een stabiele periode)', settings.get('hstsPreload') ? 'klaar' : 'later', settings.get('hstsPreload') ? 'Aan; vraag de opname aan op hstspreload.org (stap 4.5).' : 'Uit; pas aanzetten na een stabiele periode in productie, als elk subdomein https heeft (stap 4.5).', '/app/beheer/hsts/'),
-    checkRow('Zoekmachines toegelaten (als laatste stap)', settings.get('seoIndexing') ? 'klaar' : 'open', settings.get('seoIndexing') ? 'Aan.' : 'Uit (noindex). Pas aanzetten als de DNS om is en de rooktest goed is.', '/app/beheer/zoekmachines/'),
+    readinessRow({ label: 'Balk "in ontwikkeling" uit', ready: !settings.get('devBannerEnabled'), readyText: 'Uit.', openText: 'De balk staat nog bovenaan de publieke site.', href: '/app/beheer/ontwikkeling/' }),
+    readinessRow({ label: 'Basisadres is het productiedomein', ready: siteHost === PRODUCTION_HOST, readyText: `https://${PRODUCTION_HOST}`, openText: `Nu ${siteHost || 'ongeldig'}; zet het op de dag van de overstap op https://${PRODUCTION_HOST}.`, href: '/app/beheer/zoekmachines/' }),
+    readinessRow({ label: 'HSTS-preload (na een stabiele periode)', ready: Boolean(settings.get('hstsPreload')), readyText: 'Aan; vraag de opname aan op hstspreload.org (stap 4.5).', openText: 'Uit; pas aanzetten na een stabiele periode in productie, als elk subdomein https heeft (stap 4.5).', href: '/app/beheer/hsts/', notReady: 'later' }),
+    readinessRow({ label: 'Zoekmachines toegelaten (als laatste stap)', ready: Boolean(settings.get('seoIndexing')), readyText: 'Aan.', openText: 'Uit (noindex). Pas aanzetten als de DNS om is en de rooktest goed is.', href: '/app/beheer/zoekmachines/' }),
   ];
 }
 

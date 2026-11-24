@@ -44,6 +44,25 @@ function describeNext({ enabled, hour, now, doneToday }) {
 }
 
 /**
+ * De lijst met back-ups op de server, met een downloadlink per bestand.
+ * @param {Array<{name: string, createdAt: string, size: number}>} items Back-ups, nieuwste eerst.
+ * @returns {object} HTML.
+ */
+function renderBackupList(items) {
+  return html`<h2>Back-ups op de server</h2>
+      ${items.length ? html`<div class="crm-table-wrap"><table class="crm-table">
+        <thead><tr><th scope="col">Gemaakt</th><th scope="col">Bestand</th><th scope="col">Grootte</th><th scope="col"><span class="visually-hidden">Downloaden</span></th></tr></thead>
+        <tbody>${items.map((item) => html`<tr>
+          <td>${formatDateTime(item.createdAt)}</td>
+          <td><code>${item.name}</code></td>
+          <td>${formatBytes(item.size)}</td>
+          <td><a href="/app/beheer/back-ups/download/${item.name}">Downloaden</a></td>
+        </tr>`)}</tbody>
+      </table></div>
+      <p class="field__help">Een download blijft versleuteld; terugzetten staat in het draaiboek (docs/DRAAIBOEK-VPS-VERHUIZING.md). Afbeeldingen (media) zitten niet in de back-up; die zijn opnieuw te importeren.</p>` : html`<p>Er staan nog geen back-ups op de server.</p>`}`;
+}
+
+/**
  * Maakt de routes en het paneel van de back-ups.
  * @param {{auth: object, guard: Function, settings: object, backups: object, renderSettingsSection: Function, notFound: Function, now?: () => number}} options
  *   Sessielaag, rechtencontrole, instellingen, back-updienst (`backup/backups.js`), weergave van een instellingensectie,
@@ -92,17 +111,7 @@ function createBackupRoutes(options) {
         <input type="hidden" name="_csrf" value="${req.session.csrf}">
         <button class="btn btn--outline btn--small" type="submit"${status.running ? raw(' disabled') : ''}>Nu een back-up maken</button>
       </form>
-      <h2>Back-ups op de server</h2>
-      ${items.length ? html`<div class="crm-table-wrap"><table class="crm-table">
-        <thead><tr><th scope="col">Gemaakt</th><th scope="col">Bestand</th><th scope="col">Grootte</th><th scope="col"><span class="visually-hidden">Downloaden</span></th></tr></thead>
-        <tbody>${items.map((item) => html`<tr>
-          <td>${formatDateTime(item.createdAt)}</td>
-          <td><code>${item.name}</code></td>
-          <td>${formatBytes(item.size)}</td>
-          <td><a href="/app/beheer/back-ups/download/${item.name}">Downloaden</a></td>
-        </tr>`)}</tbody>
-      </table></div>
-      <p class="field__help">Een download blijft versleuteld; terugzetten staat in het draaiboek (docs/DRAAIBOEK-VPS-VERHUIZING.md). Afbeeldingen (media) zitten niet in de back-up; die zijn opnieuw te importeren.</p>` : html`<p>Er staan nog geen back-ups op de server.</p>`}`;
+      ${renderBackupList(items)}`;
   };
 
   // Nu maken: de back-up loopt op de achtergrond (een grote dump kan langer duren dan een verzoek); de pagina toont de

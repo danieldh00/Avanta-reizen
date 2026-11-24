@@ -161,6 +161,21 @@ function newRequestId() {
 }
 
 /**
+ * Maakt de details van een logregel schoon: duur begrensd tot een geheel aantal ms, gegevens als JSON zonder
+ * gevoelige velden (te groot = alleen `afgekapt`), foutcode en verzoek-id alleen in hun vaste vorm.
+ * @param {{requestId: string, errorCode: string, durationMs: number, data: (object|null)}} details Ruwe details.
+ * @returns {{duration: number, json: string, cleanCode: string, cleanRequest: string}} Schone details.
+ */
+function cleanDetails({ requestId, errorCode, durationMs, data }) {
+  const duration = Math.max(0, Math.min(2147483647, Math.round(Number(durationMs) || 0)));
+  let json = data ? JSON.stringify(cleanData(data)) : '{}';
+  if (json.length > MAX_DATA) json = JSON.stringify({ afgekapt: true });
+  const cleanCode = /^[0-9a-f]{8}$/.test(errorCode) ? errorCode : '';
+  const cleanRequest = /^[0-9a-f]{12}$/.test(requestId) ? requestId : '';
+  return { duration, json, cleanCode, cleanRequest };
+}
+
+/**
  * Maakt het logboek.
  * @param {{db: object, settings?: object, flushMs?: number, batchSize?: number, perMinuteLimit?: number, now?: () => number, write?: Function}} options
  *   Database, instellingen (`logRetentionDays`), hoe vaak de buffer naar de database gaat (0 = alleen met `flush()`),
@@ -209,11 +224,7 @@ function createAppLog({ db, settings, flushMs = 2000, batchSize = 50, perMinuteL
       const cleanSource = String(source || 'app').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30) || 'app';
       if (limited(cleanSource, cleanLevel)) return;
       const text = cleanText(message) || '(geen melding)';
-      const duration = Math.max(0, Math.min(2147483647, Math.round(Number(durationMs) || 0)));
-      let json = data ? JSON.stringify(cleanData(data)) : '{}';
-      if (json.length > MAX_DATA) json = JSON.stringify({ afgekapt: true });
-      const cleanCode = /^[0-9a-f]{8}$/.test(errorCode) ? errorCode : '';
-      const cleanRequest = /^[0-9a-f]{12}$/.test(requestId) ? requestId : '';
+      const { duration, json, cleanCode, cleanRequest } = cleanDetails({ requestId, errorCode, durationMs, data });
       // Herhalingen zonder eigen foutcode of verzoek worden één regel met een teller.
       const key = cleanCode || cleanRequest ? null : `${cleanSource}|${cleanLevel}|${text}`;
       const same = key ? buffer.find((row) => row.key === key) : null;

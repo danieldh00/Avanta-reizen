@@ -83,6 +83,50 @@ function startUpdateSync({ db, settings, systemUpdate, intervalMs = 60 * 1000 })
 }
 
 /**
+ * De tabel met de draaiende en beschikbare versie, de laatste controle en de laatste uitrol.
+ * @param {object} view Weergave uit `systemUpdate.view()` (ingericht).
+ * @returns {object} HTML.
+ */
+function renderVersionFacts(view) {
+  const { status } = view;
+  return html`<div class="crm-table-wrap"><table class="crm-table beheer-facts"><tbody>
+        <tr><th scope="row">Draaiende versie</th><td>${view.running}${status.currentCommit ? html` <span class="field__help">(${shortCommit(status.currentCommit)})</span>` : ''}</td></tr>
+        <tr><th scope="row">Beschikbaar</th><td>${status.available || '–'}${status.availableCommit ? html` <span class="field__help">(${shortCommit(status.availableCommit)})</span>` : ''}${view.newer ? html` <strong>nieuwer</strong>` : status.availableCommit ? ' (draait al)' : ''}</td></tr>
+        <tr><th scope="row">Laatst gecontroleerd</th><td>${formatDateTime(status.checkedAt)}${view.checking ? ' (controle loopt)' : ''}</td></tr>
+        <tr><th scope="row">Laatste uitrol</th><td>${STATE_LABELS[status.state]}${status.version ? ` (${status.version})` : ''}${status.state === 'bezig' && status.step ? `: ${STEP_LABELS[status.step]}` : ''}${status.finishedAt ? `, ${formatDateTime(status.finishedAt)}` : ''}${status.automatic ? ' (automatisch)' : ''}${status.message ? html`<br><span class="field__help">${status.message}</span>` : ''}</td></tr>
+      </tbody></table></div>`;
+}
+
+/**
+ * Het blok om een nieuwere versie te installeren: releasenotes en het formulier met het wachtwoord.
+ * @param {object} req Express-verzoek.
+ * @param {object} status Stand van de updates (`view.status`).
+ * @param {object[]} releases Releasenotes tussen de draaiende en de beschikbare versie.
+ * @param {{passwordError?: string}} state Fout bij het wachtwoord.
+ * @returns {object} HTML.
+ */
+function renderInstallForm(req, status, releases, state) {
+  const csrf = req.session.csrf;
+  return html`<h2>Versie ${status.available || shortCommit(status.availableCommit)} installeren</h2>
+        ${releases.length ? html`<div class="beheer-releases">${releases.map((release) => html`<section>
+          <h3>${release.version}${release.title ? ` — ${release.title}` : ''}${release.date ? html` <span class="field__help">${release.date}</span>` : ''}</h3>
+          ${release.items.length ? html`<ul>${release.items.map((item) => html`<li>${item}</li>`)}</ul>` : ''}
+        </section>`)}</div>` : html`<p>Geen releasenotes voor deze versie (bijvoorbeeld een wijziging zonder nieuw versienummer).</p>`}
+        <p>Tijdens de update maakt de server eerst een back-up en staat de site ongeveer een minuut in onderhoudsmodus. Start de nieuwe versie niet goed, dan zet de server de vorige versie terug.</p>
+        <form class="form beheer-form" method="post" action="/app/beheer/updates/installeren/">
+          <input type="hidden" name="_csrf" value="${csrf}">
+          <input type="hidden" name="commit" value="${status.availableCommit}">
+          <input type="hidden" name="username" value="${req.user.email}" autocomplete="username">
+          <div class="field">
+            <span class="field__label"><label for="update-wachtwoord">Je wachtwoord</label></span>
+            <input id="update-wachtwoord" type="password" name="password" autocomplete="current-password" maxlength="${MAX_LENGTH}" required${state.passwordError ? raw(' aria-invalid="true" aria-describedby="update-wachtwoord-fout"') : ''}>
+            ${state.passwordError ? html`<span class="field__error" id="update-wachtwoord-fout">${state.passwordError}</span>` : ''}
+          </div>
+          <div><button class="btn" type="submit">Nu updaten</button></div>
+        </form>`;
+}
+
+/**
  * Maakt de routes.
  * @param {{db: object, auth: object, guard: Function, settings: object, systemUpdate: object, renderBeheerPage: Function, now?: () => number}} options
  *   Database, sessielaag, rechtencontrole, instellingen, de koppeling met het hostscript, de weergave van een
@@ -119,35 +163,14 @@ function createUpdateRoutes(options) {
     const { status } = view;
     const busy = view.maintenance.active || status.state === 'bezig';
     const csrf = req.session.csrf;
-    return html`<div class="crm-table-wrap"><table class="crm-table beheer-facts"><tbody>
-        <tr><th scope="row">Draaiende versie</th><td>${view.running}${status.currentCommit ? html` <span class="field__help">(${shortCommit(status.currentCommit)})</span>` : ''}</td></tr>
-        <tr><th scope="row">Beschikbaar</th><td>${status.available || '–'}${status.availableCommit ? html` <span class="field__help">(${shortCommit(status.availableCommit)})</span>` : ''}${view.newer ? html` <strong>nieuwer</strong>` : status.availableCommit ? ' (draait al)' : ''}</td></tr>
-        <tr><th scope="row">Laatst gecontroleerd</th><td>${formatDateTime(status.checkedAt)}${view.checking ? ' (controle loopt)' : ''}</td></tr>
-        <tr><th scope="row">Laatste uitrol</th><td>${STATE_LABELS[status.state]}${status.version ? ` (${status.version})` : ''}${status.state === 'bezig' && status.step ? `: ${STEP_LABELS[status.step]}` : ''}${status.finishedAt ? `, ${formatDateTime(status.finishedAt)}` : ''}${status.automatic ? ' (automatisch)' : ''}${status.message ? html`<br><span class="field__help">${status.message}</span>` : ''}</td></tr>
-      </tbody></table></div>
+    return html`${renderVersionFacts(view)}
       ${busy ? html`<p class="notice" role="status">Er loopt een update. De site staat even in onderhoudsmodus; ververs deze pagina over een minuut.</p>` : ''}
       ${view.pending ? html`<div class="notice" role="status"><p>Update naar ${view.pending.version || shortCommit(view.pending.commit)} aangevraagd${view.pending.byName ? ` door ${view.pending.byName}` : ''} (${formatDateTime(view.pending.requestedAt)}); de server begint binnen een minuut.</p>
         <form method="post" action="/app/beheer/updates/intrekken/"><input type="hidden" name="_csrf" value="${csrf}"><button class="btn btn--outline btn--small" type="submit">Aanvraag intrekken</button></form></div>` : ''}
       <div class="beheer-actions">
         <form method="post" action="/app/beheer/updates/controleren/"><input type="hidden" name="_csrf" value="${csrf}"><button class="btn btn--outline btn--small" type="submit"${busy || view.pending || view.checking ? raw(' disabled') : ''}>Nu controleren</button></form>
       </div>
-      ${view.newer && !busy && !view.pending ? html`<h2>Versie ${status.available || shortCommit(status.availableCommit)} installeren</h2>
-        ${view.releases.length ? html`<div class="beheer-releases">${view.releases.map((release) => html`<section>
-          <h3>${release.version}${release.title ? ` — ${release.title}` : ''}${release.date ? html` <span class="field__help">${release.date}</span>` : ''}</h3>
-          ${release.items.length ? html`<ul>${release.items.map((item) => html`<li>${item}</li>`)}</ul>` : ''}
-        </section>`)}</div>` : html`<p>Geen releasenotes voor deze versie (bijvoorbeeld een wijziging zonder nieuw versienummer).</p>`}
-        <p>Tijdens de update maakt de server eerst een back-up en staat de site ongeveer een minuut in onderhoudsmodus. Start de nieuwe versie niet goed, dan zet de server de vorige versie terug.</p>
-        <form class="form beheer-form" method="post" action="/app/beheer/updates/installeren/">
-          <input type="hidden" name="_csrf" value="${csrf}">
-          <input type="hidden" name="commit" value="${status.availableCommit}">
-          <input type="hidden" name="username" value="${req.user.email}" autocomplete="username">
-          <div class="field">
-            <span class="field__label"><label for="update-wachtwoord">Je wachtwoord</label></span>
-            <input id="update-wachtwoord" type="password" name="password" autocomplete="current-password" maxlength="${MAX_LENGTH}" required${state.passwordError ? raw(' aria-invalid="true" aria-describedby="update-wachtwoord-fout"') : ''}>
-            ${state.passwordError ? html`<span class="field__error" id="update-wachtwoord-fout">${state.passwordError}</span>` : ''}
-          </div>
-          <div><button class="btn" type="submit">Nu updaten</button></div>
-        </form>` : ''}
+      ${view.newer && !busy && !view.pending ? renderInstallForm(req, status, view.releases, state) : ''}
       <h2>Automatisch bijwerken</h2>
       <form class="form beheer-form" method="post" action="/app/beheer/updates/automatisch/">
         <input type="hidden" name="_csrf" value="${csrf}">
