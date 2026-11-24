@@ -39,6 +39,11 @@ const FIELDS = {
     help: 'Uit het Mollie-dashboard (Ontwikkelaars > API-sleutels): begin met een testsleutel (test_…) en zet pas na een proefbetaling de live-sleutel (live_…) erin. Staat versleuteld opgeslagen en gaat nooit naar de browser.',
     default: '', max: 70, pattern: /^(test|live)_[A-Za-z0-9]{20,64}$/, patternMessage: 'Een Mollie-sleutel begint met test_ of live_ gevolgd door letters en cijfers.',
   },
+  tripDefaultCapacity: {
+    type: 'int', label: 'Standaard aantal plaatsen bij een nieuwe reis',
+    help: 'Zoveel deelnemers staan vooraf ingevuld bij Aantal plaatsen als je in Reizen een nieuwe reis aanmaakt. Per reis kun je het daarna aanpassen; bestaande reizen veranderen niet. Normaal 15.',
+    default: 15, min: 1, max: 10000,
+  },
   guideWindowDaysBefore: {
     type: 'int', label: 'Venster opent (dagen vóór vertrek)',
     help: 'Vanaf zoveel dagen vóór vertrek kan de reisleider identiteits- en gezondheidsgegevens van zijn deelnemers in de deelnemerslijst zetten. Daarvoor ziet hij alleen naam, mobiel en e-mail. Standaard 14 dagen; leg de keuze vast met Avanta.',
@@ -68,6 +73,13 @@ const GROUP = {
       intro: 'Optioneel: laat reizigers het openstaande bedrag online betalen via Mollie (iDEAL). Zonder Mollie werkt alles gewoon met overmaken en registreert kantoor de betalingen met de hand. De betaallink staat in de betaalherinnering en op de betaalpagina in het CRM; Mollie meldt een geslaagde betaling terug aan de site, die hem dan zelf registreert. Fouten van de koppeling staan in het logboek (bron mollie).',
       fields: ['mollieEnabled', 'mollieApiKey'],
       words: 'mollie ideal online betalen betaallink betaalprovider api sleutel webhook',
+    },
+    {
+      id: 'reizen',
+      label: 'Reizen',
+      intro: 'Standaardwaarden voor een nieuwe reis in Reizen. Een reis met zoveel aanmeldingen (niet geannuleerd) als plaatsen staat vanzelf op volgeboekt.',
+      fields: ['tripDefaultCapacity'],
+      words: 'reis reizen plaatsen maximum deelnemers groepsgrootte capaciteit standaard volgeboekt',
     },
     {
       id: 'reisleider',

@@ -17,7 +17,7 @@ function createTripsModuleRoutes(context) {
   const { db, auth, redirects } = context;
   const library = context.mediaLibrary;
   const router = express.Router();
-  router.use(createTripRoutes({ db, auth, redirects, library }));
+  router.use(createTripRoutes({ db, auth, redirects, library, settings: context.settings }));
   router.use(createCategoryRoutes({ db, auth, redirects, library }));
   router.use(createGuideRoutes({ db, auth, redirects, library, siteContent: context.siteContent }));
   return router;
