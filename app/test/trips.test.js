@@ -12,6 +12,7 @@ const { createApp } = require('../src/server');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
 const { parseEuros, eurosText, validateTrip, isDate } = require('../src/trips/trips');
+const { defaultCapacity } = require('../src/trips/trip-routes');
 const { store } = require('../tools/import-wordpress');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -29,6 +30,13 @@ function withSchema(url) {
   parsed.searchParams.set('options', `-c search_path=${SCHEMA}`);
   return parsed.toString();
 }
+
+test('standaard aantal plaatsen: instelling, anders 15', () => {
+  assert.equal(defaultCapacity(), 15);
+  assert.equal(defaultCapacity({ get: () => 20 }), 20);
+  assert.equal(defaultCapacity({ get: () => undefined }), 15, 'zonder geldige waarde 15');
+  assert.equal(defaultCapacity({ get: () => 0 }), 15);
+});
 
 test('bedragen lezen en tonen', () => {
   assert.deepEqual(parseEuros('1849'), { cents: 184900, ok: true });
@@ -292,6 +300,10 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     const fresh = await request('/app/reizen/nieuw/', { cookie: kantoor.cookie });
     assert.doesNotMatch(fresh.text, /data-tab="fotos"|data-tab="aanmeldingen"/, 'een nieuwe reis heeft nog geen foto\'s of aanmeldingen');
     assert.match(fresh.text, /<button class="btn" type="submit">Reis aanmaken<\/button>/);
+    assert.match(fresh.text, /name="capacity"[^>]*value="15"/, 'een nieuwe reis heeft standaard 15 plaatsen');
+    await app.locals.settings.update({ values: { tripDefaultCapacity: '12' } });
+    assert.match((await request('/app/reizen/nieuw/', { cookie: kantoor.cookie })).text, /name="capacity"[^>]*value="12"/, 'het standaard aantal komt uit Beheer > CRM > Reizen');
+    await app.locals.settings.update({ values: { tripDefaultCapacity: '15' } });
     assert.doesNotMatch(edit.text, /<strong>Volgeboekt<\/strong>/);
     assert.match(edit.text, new RegExp(`href="/app/aanmeldingen/\\?reis=${tripId}"`));
     assert.doesNotMatch((await request('/reis/namibie-juni/')).text, /Volgeboekt/);

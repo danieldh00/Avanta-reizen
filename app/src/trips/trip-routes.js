@@ -147,9 +147,23 @@ function formValues(trip) {
   return values;
 }
 
+/** Standaard aantal plaatsen van een nieuwe reis zonder instellingen (Beheer > CRM > Reizen). */
+const DEFAULT_CAPACITY = 15;
+
+/**
+ * Het aantal plaatsen dat vooraf ingevuld staat bij een nieuwe reis: de instelling `tripDefaultCapacity`, of 15.
+ * @param {{get: (key: string) => *}} [settings] Instellingen (`beheer/settings.js`).
+ * @returns {number} Aantal plaatsen (1 tot en met 10000).
+ */
+function defaultCapacity(settings) {
+  const value = Number(settings ? settings.get('tripDefaultCapacity') : DEFAULT_CAPACITY);
+  return Number.isInteger(value) && value >= 1 && value <= 10000 ? value : DEFAULT_CAPACITY;
+}
+
 /**
  * Maakt de routes voor reizen.
- * @param {{db: object, auth: object, redirects?: object}} options Database, sessie- en rechtenlaag en doorverwijzingen.
+ * @param {{db: object, auth: object, redirects?: object, settings?: object}} options Database, sessie- en rechtenlaag,
+ *   doorverwijzingen en de instellingen (standaard aantal plaatsen).
  * @returns {express.Router} Router.
  */
 function createTripRoutes(options) {
@@ -252,7 +266,7 @@ function createTripRoutes(options) {
         ${input('departure_date', 'Vertrekdatum', { type: 'date', required: true })}
         ${input('duration_label', 'Reisduur (tekst, bijvoorbeeld 20 dagen)', { max: LIMITS.duration_label })}
         ${input('duration_days', 'Aantal dagen', { inputmode: 'numeric' })}
-        ${input('capacity', 'Aantal plaatsen', { inputmode: 'numeric', help: 'Leeg = onbekend.' })}
+        ${input('capacity', 'Aantal plaatsen', { inputmode: 'numeric', help: 'Maximaal aantal deelnemers; normaal 15 (standaard in Beheer > CRM > Reizen). Leeg = onbekend.' })}
         ${renderGuideSelect(guides, values.reisleider)}
         <h2>Landen en reistypes</h2>
         ${renderCategoryGroup({ categories, chosen, kind: 'bestemming', title: 'Landen' })}
@@ -401,7 +415,7 @@ function createTripRoutes(options) {
 
   router.get('/reizen/nieuw/', guard, async (req, res, next) => {
     try {
-      return res.send(await renderForm(req, { values: { published: false } }));
+      return res.send(await renderForm(req, { values: { published: false, capacity: String(defaultCapacity(options.settings)) } }));
     } catch (error) {
       return next(error);
     }
@@ -553,4 +567,4 @@ function createTripRoutes(options) {
   return router;
 }
 
-module.exports = { createTripRoutes, TRIP_ACTION_LABELS, formValues };
+module.exports = { createTripRoutes, TRIP_ACTION_LABELS, formValues, defaultCapacity };

@@ -218,7 +218,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     concept, alle) en zoeken op titel, reiscode of slug; een reis aanmaken en wijzigen met alle velden van de huidige
     site (titel, slug, reiscode, vertrekdatum, reisduur, inleiding, samenvatting, tekst als opgeschoonde HTML, reissom,
     oude prijs, aanbieding tot, bijkomende kosten, aanbetaling, opmerking, statustekst, gegarandeerd, volgeboekt, nieuw),
-    het aantal plaatsen, meerdere landen en reistypes, één reisleider (`trip_guides`, vervangt
+    het aantal plaatsen (bij een nieuwe reis vooraf 15, instelbaar in **Beheer > CRM > Reizen**, `tripDefaultCapacity`),
+    meerdere landen en reistypes, één reisleider (`trip_guides`, vervangt
     `trips.guide_id`) en *concept* of *gepubliceerd* (een concept staat niet op de site). Bedragen in euro's (`1849`,
     `1.849,50`). De landen van een reis komen uit de koppeling met de landen (`trips.destinations` is vervallen). Een
     reis die in het CRM is opgeslagen krijgt `managed_in_crm`: de WordPress-import laat hem daarna ongemoeid. Een
