@@ -14,7 +14,8 @@ const AUDIT_EXPORT_MAX = 50000;
 
 /**
  * Naam van een soort record op het scherm en het adres van zo'n record in het CRM; `href` ontbreekt als het record geen
- * eigen pagina heeft. Een soort die hier niet staat, verschijnt met zijn technische naam.
+ * eigen pagina heeft. Deze lijst is ook de keuzelijst *Soort record* (vast, zodat het scherm niet het hele log leest); een
+ * nieuwe soort in `auth.audit` krijgt hier een regel. Een soort die hier niet staat, verschijnt met zijn technische naam.
  */
 const ENTITIES = {
   bookings: { label: 'Aanmelding', href: (id) => `/app/aanmeldingen/${id}/` },
@@ -33,6 +34,13 @@ const ENTITIES = {
   settings: { label: 'Instelling' },
   redirects: { label: 'Doorverwijzing' },
   testdata: { label: 'Testdata' },
+  menu_items: { label: 'Menu-item' },
+  post_terms: { label: 'Categorie of tag' },
+  retention_runs: { label: 'AVG-opschoning' },
+  not_found_log: { label: '404-lijst' },
+  servertaak: { label: 'Servertaak' },
+  bewaking: { label: 'Bewaking' },
+  systeem: { label: 'Systeem' },
 };
 
 /** Waarde van het gebruikersfilter voor regels zonder gebruiker (systeem, mislukte inlogpogingen). */

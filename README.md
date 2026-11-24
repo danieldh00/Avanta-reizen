@@ -176,7 +176,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     blijven staan bij *Oudere regels*. **Excel (.xlsx)** exporteert dezelfde selectie (blad *Auditlog* plus *Over deze
     export* met de filters, wie en wanneer), hoogstens 50.000 regels (daarboven een melding in plaats van een onvolledig
     bestand) en 10 exports per 10 minuten per gebruiker; elke export staat zelf in het auditlog (`export.auditlog`).
-    Indexen op `(user_id, id)` en `(action, id)` (migratie 31) houden de filters snel.
+    Indexen op `(user_id, id)`, `(action, id)` en `(entity_id, id)` (migratie 31) houden de filters snel.
   - **Fotobibliotheek** op `/app/fotobibliotheek/` (recht `media`: beheerder, kantoor en de nieuwe rol *Redacteur*;
     `app/src/media/`, migratie 12): foto's per land bekijken, filteren (land, *zonder land*) en zoeken; meerdere foto's
     tegelijk uploaden (JPEG, PNG of WebP, maximaal 10 per keer, 15 MB per foto, 200 per gebruiker per uur, 60

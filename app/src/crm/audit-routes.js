@@ -43,15 +43,16 @@ function createAuditRoutes(options) {
   const labels = { ...ACTION_LABELS, ...AUDIT_ACTION_LABELS };
 
   /**
-   * De keuzes voor de filters: gebruikers (ook uitgeschakelde) en de soorten record die in het log voorkomen.
+   * De keuzes voor de filters: gebruikers (ook uitgeschakelde) en de soorten record uit `ENTITIES` (een vaste lijst, zodat
+   * het scherm niet het hele log hoeft te lezen), gesorteerd op naam; een gekozen soort die daar niet in staat, komt erbij.
+   * @param {string} [current] Gekozen soort record.
    * @returns {Promise<{users: object[], entities: string[]}>} Keuzes.
    */
-  const filterChoices = async () => {
-    const [users, entities] = await Promise.all([
-      db.query('SELECT id, name, active FROM users ORDER BY lower(name), id'),
-      db.query('SELECT DISTINCT entity FROM audit_log WHERE entity IS NOT NULL ORDER BY entity'),
-    ]);
-    return { users, entities: entities.map((row) => row.entity) };
+  const filterChoices = async (current) => {
+    const users = await db.query('SELECT id, name, active FROM users ORDER BY lower(name), id');
+    const entities = Object.keys(audit.ENTITIES).sort((first, second) => audit.ENTITIES[first].label.localeCompare(audit.ENTITIES[second].label, 'nl'));
+    if (current && !audit.ENTITIES[current]) entities.push(current);
+    return { users, entities };
   };
 
   /**
@@ -123,7 +124,7 @@ function createAuditRoutes(options) {
     try {
       const filter = audit.readAuditFilter(req.query);
       const before = /^\d{1,18}$/.test(String(req.query.voor || '')) ? String(req.query.voor) : null;
-      const [page, choices] = await Promise.all([audit.loadAuditPage(db, filter, before), filterChoices()]);
+      const [page, choices] = await Promise.all([audit.loadAuditPage(db, filter, before), filterChoices(filter.entity)]);
       const params = audit.auditFilterParams(filter);
       return res.send(renderCrmPage({
         title: 'Auditlog',

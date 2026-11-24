@@ -14,5 +14,5 @@ Pakket P4.4 (bevinding F06).
   maximum van 50.000 regels, werkboek) en `crm/audit-routes.js` (`/app/auditlog/` en `/app/auditlog/export.xlsx`,
   recht `gebruikers`, 10 exports per 10 minuten per gebruiker, 422 boven het maximum); de oude route uit `crm/users.js`
   is vervallen.
-- Migratie 31: indexen `audit_log (user_id, id)` en `audit_log (action, id)`.
+- Migratie 31: indexen `audit_log (user_id, id)`, `(action, id)` en `(entity_id, id)`; de keuzelijst *Soort record* komt uit `ENTITIES` in plaats van uit het log.
 - Opmaak `.crm-audit-filter` in `crm.css`; design-controle koppelt `crm/audit-*` aan `/app/auditlog/`.

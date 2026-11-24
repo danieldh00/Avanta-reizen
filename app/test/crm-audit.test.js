@@ -160,6 +160,9 @@ test('auditlog in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt
     // Tot en met 15 november NL: de mislukte inlog om 23:30 NL telt nog mee.
     assert.match(rowsOf((await request('/app/auditlog/?van=2026-11-15&tot=2026-11-15', { cookie: beheerder })).text), /Inloggen mislukt/);
     assert.match((await request('/app/auditlog/?actie=bestaat.niet', { cookie: beheerder })).text, /Geen regels bij deze filters/);
+    const unknown = (await request('/app/auditlog/?soort=onbekend_ding', { cookie: beheerder })).text;
+    assert.match(unknown, /<option value="onbekend_ding" selected>onbekend_ding<\/option>/, 'een gekozen soort buiten de vaste lijst blijft gekozen');
+    assert.match(rowsOf((await request('/app/auditlog/?record=42', { cookie: beheerder })).text), /Aanmelding #42/, 'record zonder soort');
   });
 
   await t.test('ongeldige filters vallen weg en komen niet terug in de pagina', async () => {
