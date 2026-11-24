@@ -3,9 +3,9 @@
 # avanta-restore-test.timer (zondag 04:30) of avanta-restore-test-now.path (knop *Nu testen* in de app).
 #
 # Wat het doet:
-#   1. neemt de nieuwste back-up uit de app (`cli.js list`) en ontsleutelt die als stroom (niets onversleuteld op schijf);
+#   1. neemt de nieuwste back-up uit de app (`cli.js list`) en ontsleutelt die als stroom (geen ontsleuteld dumpbestand);
 #   2. zet die terug in een wegwerp-PostgreSQL 17 (eigen container, intern netwerk zonder uitgang, geheugenlimiet,
-#      opslag in tmpfs);
+#      opslag in een anoniem volume dat bij het opruimen met de container verdwijnt);
 #   3. start het huidige app-image tegen die database (zelfde intern netwerk: geen mail of andere verbindingen naar
 #      buiten) en controleert /api/health en de homepage; migraties van een nieuwere versie lopen daarbij mee;
 #   4. telt de rijen per tabel in de teruggezette en de echte database;
@@ -104,8 +104,11 @@ BACKUP="$(app_exec node src/backup/cli.js list | head -n 1 | cut -f 1)"
 log "Hersteltest met $BACKUP ($TRIGGER)."
 
 docker network create --internal "$NETWORK" >/dev/null || fail "Testnetwerk maken mislukt."
+# Opslag op schijf in een anoniem volume (`docker rm -v` in cleanup ruimt het op), niet in tmpfs: tmpfs telt mee in de
+# geheugenlimiet van de container, en met de foto's in de database (enkele honderden MB) stopte de kernel PostgreSQL
+# midden in het terugzetten ("server closed the connection unexpectedly"). De echte database staat ook op schijf.
 docker run -d --name "$DB_CONTAINER" --network "$NETWORK" --network-alias db --memory "$DB_MEMORY" \
-  --tmpfs /var/lib/postgresql/data:rw,size=2g -e POSTGRES_PASSWORD=hersteltest "$PG_IMAGE" >/dev/null \
+  --mount type=volume,dst=/var/lib/postgresql/data -e POSTGRES_PASSWORD=hersteltest "$PG_IMAGE" >/dev/null \
   || fail "Wegwerpdatabase starten mislukt."
 ready=0
 for _ in $(seq 1 60); do

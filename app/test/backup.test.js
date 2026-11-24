@@ -236,6 +236,14 @@ test('hersteltest: de melding noemt de stap die echt mislukte (EPIPE na een fout
   assert.equal(failure(0, 0, '', ''), '');
 });
 
+test('hersteltest: wegwerpdatabase op een anoniem volume, niet in tmpfs binnen de geheugenlimiet', () => {
+  const script = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'apps01', 'restore-test.sh'), 'utf8');
+  // tmpfs telt mee in --memory; met de foto's in de database stopte PostgreSQL midden in het terugzetten.
+  assert.doesNotMatch(script, /--tmpfs\s+\/var\/lib\/postgresql\/data/);
+  assert.match(script, /--mount type=volume,dst=\/var\/lib\/postgresql\/data/);
+  assert.match(script, /docker rm -f -v "\$DB_CONTAINER"/, 'het anonieme volume wordt met de container opgeruimd');
+});
+
 test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
