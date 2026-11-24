@@ -17,7 +17,7 @@ titel: Alle landen van de wereld bij Reistypes en landen
   landen erbij (slug uit de naam; bezet door een reistype: met de code erachter).
 - CRM: kolom *Code* bij de landen en *Landcode (ISO)* op de pagina van een land; zoekveld boven de landen bij een reis
   (`data-checklist-filter` in `public/js/crm.js`; aangevinkte landen blijven zichtbaar; zonder JavaScript de hele lijst).
-- Sitemap: alleen reistypes en landen met reizen of eigen inhoud; `llms.txt`: alleen landen met komende reizen of op de
+- Sitemap: alleen reistypes en landen met komende gepubliceerde reizen of eigen inhoud; `llms.txt`: alleen landen met komende reizen of op de
   homepage.
 - Tests: `countries-migration.test.js` (lijst en migratie op een database zoals na de import); tests die zelf landen
   maken, beginnen zonder de landenlijst.
