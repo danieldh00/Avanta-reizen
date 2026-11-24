@@ -264,7 +264,9 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal(page.status, 200);
     assert.match(page.text, /Nieuweweg 5/);
     assert.doesNotMatch(page.text, /GKV|hooikoorts|PKN/, 'blokwaarden nooit op dit scherm');
-    assert.match((await request(`/app/deelnemers/${removeId}/`, { cookie: sessions.kantoor.cookie })).text, /Samenvoegen/);
+    const personPage = (await request(`/app/deelnemers/${removeId}/`, { cookie: sessions.kantoor.cookie })).text;
+    assert.match(personPage, /Samenvoegen/);
+    assert.match(personPage, /<span class="crm-status crm-status--nieuw">Nieuw<\/span>/, 'status als label, gelijk aan de lijst Aanmeldingen');
     const form = { _csrf: sessions.kantoor.csrf, met: String(keep), veld_street: 'remove', blok_health_data: 'remove', blok_special_data: 'remove' };
     assert.equal((await request(mergePath, { cookie: sessions.kantoor.cookie, form: { ...form, met: String(otherId) } })).status, 409);
     assert.equal((await request(mergePath, { cookie: sessions.kantoor.cookie, form: { ...form, _csrf: 'fout' } })).status, 403);

@@ -41,6 +41,17 @@ function renderStatus(kind, label) {
 }
 
 /**
+ * De tekst bij een statuslabel: de status met een hoofdletter (`nieuw` wordt `Nieuw`). Gelijk aan de labels van de
+ * aanmeldingen, zodat een status overal hetzelfde heet.
+ * @param {string} status Status uit de database.
+ * @returns {string} Label.
+ */
+function statusLabel(status) {
+  const text = String(status || '');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
  * De acties rechts van de paginatitel (knoppen en links).
  * @param {{label: string, href: string, primary?: boolean}[]} actions Acties; lege waarden worden overgeslagen.
  * @returns {(object|string)} HTML, of een lege tekst als er geen acties zijn.
@@ -169,4 +180,4 @@ function renderSaveBar(bar) {
   </div>`;
 }
 
-module.exports = { queryString, listUrl, renderStatus, renderActions, renderFilterTabs, renderSearch, renderTable, renderPager, renderTabNav, renderTabPanel, renderSaveBar };
+module.exports = { queryString, listUrl, renderStatus, statusLabel, renderActions, renderFilterTabs, renderSearch, renderTable, renderPager, renderTabNav, renderTabPanel, renderSaveBar };

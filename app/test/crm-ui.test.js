@@ -20,6 +20,14 @@ test('ui: statuslabel escapet de tekst en accepteert alleen een veilige soort', 
   assert.equal(toString(ui.renderStatus('x" onclick="y', '<b>')), '<span class="crm-status crm-status--onbekend">&lt;b&gt;</span>');
 });
 
+test('ui: statuslabel-tekst met een hoofdletter, gelijk aan de aanmeldingen', () => {
+  assert.equal(ui.statusLabel('nieuw'), 'Nieuw');
+  assert.equal(ui.statusLabel('geannuleerd'), 'Geannuleerd');
+  assert.equal(ui.statusLabel(null), '');
+  const { STATUSES } = require('../src/booking/crm-routes');
+  for (const [status, label] of Object.entries(STATUSES)) assert.equal(ui.statusLabel(status), label);
+});
+
 test('ui: acties naast de titel, zonder acties niets', () => {
   assert.equal(ui.renderActions([]), '');
   assert.equal(ui.renderActions([null, false]), '');

@@ -52,17 +52,6 @@ const PERSON_ACTION_LABELS = {
 const FIELD_BY_NAME = Object.fromEntries(FIELDS.map((field) => [field.name, field]));
 
 /**
- * De tekst van het statuslabel van een aanmelding: de status met een hoofdletter, gelijk aan de labels in de lijst
- * Aanmeldingen (die module laadt deze, dus hier geen import terug).
- * @param {string} status Status uit de database, bijvoorbeeld `nieuw`.
- * @returns {string} Label, bijvoorbeeld `Nieuw`.
- */
-function statusLabel(status) {
-  const text = String(status || '');
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-/**
  * Leest de zoekwoorden uit de querystring en maakt er LIKE-patronen van (met escaping van `%`, `_` en `\`).
  * @param {*} value Invoer `q`.
  * @returns {{text: string, patterns: string[]}} De zoektekst en de patronen (elk woord moet voorkomen).
@@ -301,7 +290,7 @@ function createPersonRoutes(options) {
         <h2>Aanmeldingen</h2>
         ${bookings.length ? html`<div class="crm-table-wrap"><table class="crm-table">
           <thead><tr><th scope="col">Referentie</th><th scope="col">Reis</th><th scope="col">Vertrek</th><th scope="col">Status</th><th scope="col">Aangemeld</th></tr></thead>
-          <tbody>${bookings.map((booking) => html`<tr><td>${canSeeBookings ? html`<a href="/app/aanmeldingen/${booking.id}/">${booking.reference}</a>` : booking.reference}</td><td>${booking.trip_title}${booking.trip_code ? ` (${booking.trip_code})` : ''}</td><td>${formatDate(booking.departure_date)}</td><td>${ui.renderStatus(booking.status, statusLabel(booking.status))}</td><td>${formatDateTime(booking.created_at)}</td></tr>`)}</tbody>
+          <tbody>${bookings.map((booking) => html`<tr><td>${canSeeBookings ? html`<a href="/app/aanmeldingen/${booking.id}/">${booking.reference}</a>` : booking.reference}</td><td>${booking.trip_title}${booking.trip_code ? ` (${booking.trip_code})` : ''}</td><td>${formatDate(booking.departure_date)}</td><td>${ui.renderStatus(booking.status, ui.statusLabel(booking.status))}</td><td>${formatDateTime(booking.created_at)}</td></tr>`)}</tbody>
         </table></div>` : html`<p>Nog geen aanmeldingen.</p>`}
         <h2>Toestemmingen</h2>
         ${consents.length ? html`<div class="crm-table-wrap"><table class="crm-table">

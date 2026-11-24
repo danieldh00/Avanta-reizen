@@ -478,4 +478,7 @@
   .crm-table--cards td.crm-num { text-align: left; }
   .crm-table--cards td::before { content: attr(data-label); position: absolute; top: .4rem; left: 0; width: 7.5rem; color: var(--crm-text); font-size: 13px; font-weight: 600; line-height: 1.4; }
   .crm-table--cards .crm-wrap { min-width: 0; }
+  /* Een kolom zonder kop (bijvoorbeeld alleen een knop) krijgt geen lege ruimte voor een label. */
+  .crm-table--cards td[data-label=""] { padding-left: 0; }
+  .crm-table--cards td[data-label=""]::before { display: none; }
 }
