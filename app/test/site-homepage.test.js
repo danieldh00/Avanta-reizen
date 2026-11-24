@@ -130,8 +130,19 @@ test('homepage.json: inlezen voor de overname; ontbrekend of kapot bestand geeft
     fs.writeFileSync(file, JSON.stringify({ about: { title: 'Eerste titel' } }));
     assert.equal(readHomepageFile(dir).about.title, 'Eerste titel');
     assert.equal(readHomepageFile(dir).slides.length, DEFAULT_HOMEPAGE.slides.length, 'ontbrekende delen: de standaard');
-    fs.writeFileSync(file, '{kapot');
-    assert.equal(readHomepageFile(dir), null);
+    const originalError = console.error;
+    const logged = [];
+    console.error = (line) => logged.push(line);
+    try {
+      fs.writeFileSync(file, '{kapot');
+      assert.equal(readHomepageFile(dir), null);
+      fs.rmSync(file);
+      fs.mkdirSync(file);
+      assert.equal(readHomepageFile(dir), null, 'onleesbaar (een map)');
+    } finally {
+      console.error = originalError;
+    }
+    assert.deepEqual(logged, ['vaste inhoud: homepage.json is geen geldige JSON en wordt niet overgezet', 'vaste inhoud: homepage.json niet leesbaar (EISDIR)']);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

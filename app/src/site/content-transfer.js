@@ -184,17 +184,19 @@ const TRANSFERS = {
 /**
  * Zet de delen over die nog niet zijn gedaan.
  * @param {{db: {transaction: Function}, siteContent: any, homepage?: any}} options Database, de gecontroleerde inhoud van
- *   `site-content.json` (`normalizeSiteContent`), of null als het bestand er niet is (dan gebeurt er niets), en die van
- *   `homepage.json` (`normalizeHomepage`), of null (dan blijft het deel `homepage` staan tot het bestand er is).
+ *   `site-content.json` (`normalizeSiteContent`), of null (dan wachten de delen die dat bestand nodig hebben tot het er
+ *   is), en die van `homepage.json` (`normalizeHomepage`), of null (dan wacht het deel `homepage`).
  * @returns {Promise<Array<{part: string, summary: string}>>} De delen die nu zijn overgezet.
  */
 async function transferFixedContent({ db, siteContent, homepage = null }) {
-  if (!siteContent) return [];
+  // Elk deel heeft zijn eigen bestand nodig: `homepage` alleen `homepage.json`, de rest `site-content.json`.
+  const available = TRANSFER_PARTS.filter((name) => (name === 'homepage' ? homepage : siteContent));
+  if (!available.length) return [];
   return db.transaction(async (/** @type {any} */ client) => {
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['vaste-inhoud-overzetten']);
     const done = new Set((await client.query('SELECT part FROM content_transfers')).map((/** @type {{part: string}} */ row) => row.part));
     const result = [];
-    for (const part of TRANSFER_PARTS.filter((name) => !done.has(name) && (name !== 'homepage' || homepage))) {
+    for (const part of available.filter((name) => !done.has(name))) {
       const summary = await TRANSFERS[/** @type {keyof typeof TRANSFERS} */ (part)](client, siteContent, homepage);
       await client.query('INSERT INTO content_transfers (part, summary) VALUES ($1, $2)', [part, summary]);
       result.push({ part, summary });

@@ -269,7 +269,7 @@ test('lijstkoppen en overzetten', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.ok(!parts.some((part) => part.part === 'homepage'), 'zonder homepage.json wacht dat deel');
     assert.match(parts.find((part) => part.part === 'blog').summary, /tags stonden er al, link naar het blogarchief standaard/);
     await db.query("DELETE FROM content_transfers WHERE part = 'homepage'");
-    const again = await transferFixedContent({ db, siteContent: normalizeSiteContent({}), homepage: normalizeHomepage(null) });
-    assert.deepEqual(again, [{ part: 'homepage', summary: 'pagina / bestond al' }]);
+    const again = await transferFixedContent({ db, siteContent: null, homepage: normalizeHomepage(null) });
+    assert.deepEqual(again, [{ part: 'homepage', summary: 'pagina / bestond al' }], 'alleen homepage.json: dat deel gaat toch door');
   });
 });

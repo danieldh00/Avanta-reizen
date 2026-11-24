@@ -186,7 +186,13 @@ test('site-content.json: inlezen voor de overname; ontbrekend of kapot bestand g
     fs.writeFileSync(path.join(dir, SITE_CONTENT_FILE), JSON.stringify({ archives: { reis: { title: 'Nieuw' } } }));
     assert.equal(readSiteContentFile(dir).archives.reis.title, 'Nieuw');
     fs.writeFileSync(path.join(dir, SITE_CONTENT_FILE), 'kapot');
-    assert.equal(readSiteContentFile(dir), null);
+    const originalError = console.error;
+    console.error = () => {};
+    try {
+      assert.equal(readSiteContentFile(dir), null);
+    } finally {
+      console.error = originalError;
+    }
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
