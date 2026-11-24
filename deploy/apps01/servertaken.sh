@@ -181,7 +181,12 @@ remote_sleutel_roteren() {
   new="$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
   [[ "$new" =~ ^[0-9a-f]{64}$ ]] || { echo "FOUT: nieuwe sleutel maken mislukt; niets veranderd." >&2; return 1; }
   tmp="$(mktemp "$STACK_DIR/.env.XXXXXX")"; chmod 600 -- "$tmp"
-  grep -v -e '^AVANTA_MASTER_KEY=' -e '^AVANTA_MASTER_KEY_PREVIOUS=' "$env_file" > "$tmp" || true
+  # grep geeft 1 als er geen regels over zijn (mag), 2 bij een leesfout: dan niets vervangen.
+  local status=0
+  grep -v -e '^AVANTA_MASTER_KEY=' -e '^AVANTA_MASTER_KEY_PREVIOUS=' "$env_file" > "$tmp" || status=$?
+  if (( status > 1 )) || [[ ! -s "$tmp" ]]; then
+    rm -f -- "$tmp"; echo "FOUT: $env_file lezen mislukt; niets veranderd." >&2; return 1
+  fi
   printf 'AVANTA_MASTER_KEY=%s\nAVANTA_MASTER_KEY_PREVIOUS=%s\n' "$new" "$current${previous:+,$previous}" >> "$tmp"
   mv -f -- "$tmp" "$env_file"
   log "App opnieuw starten met de nieuwe sleutel"

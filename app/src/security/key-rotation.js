@@ -194,7 +194,9 @@ function createKeyRotation(options) {
     await rotateColumn({ table: 'bookings', column: 'sensitive_data', context: () => '' }, counts, 'bookings');
     await rotateColumn({ table: 'users', column: 'totp_secret', context: (id) => `users:totp:${id}` }, counts, 'users');
     await rotateSettings(counts);
-    // Zonder gebruiker en IP-adres: de opdracht komt van de server zelf. Het record is het id van de nieuwe sleutel.
+    // Alleen als er echt iets opnieuw is versleuteld (een herhaalde, lege ronde is geen rotatie). Zonder gebruiker en
+    // IP-adres: de opdracht komt van de server zelf. Het record is het id van de nieuwe sleutel.
+    if (counts.persons + counts.bookings + counts.users + counts.settings === 0) return counts;
     await db.query(
       "INSERT INTO audit_log (user_id, action, entity, entity_id, ip_prefix) VALUES (NULL, 'sleutel.geroteerd', 'systeem', $1, NULL)",
       [vault.keyId],

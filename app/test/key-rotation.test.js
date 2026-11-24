@@ -154,9 +154,11 @@ test('sleutelrotatie in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.deepEqual(audit, { entity: 'systeem', entity_id: keyIdOf(NEW_KEY) });
   });
 
-  await t.test('tweede ronde doet niets meer; status is leeg', async () => {
+  await t.test('tweede ronde doet niets meer; status is leeg en er komt geen tweede auditregel', async () => {
     assert.deepEqual(await rotation.run(), { persons: 0, bookings: 0, users: 0, settings: 0, failed: 0 });
     assert.deepEqual((await rotation.status()).pending, { persons: 0, bookings: 0, users: 0, settings: 0 });
+    const [{ count }] = await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'sleutel.geroteerd'");
+    assert.equal(count, 1);
   });
 
   await t.test('een waarde met een onbekende sleutel blijft staan en telt als mislukt', async () => {
