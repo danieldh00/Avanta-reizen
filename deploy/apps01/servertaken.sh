@@ -16,6 +16,8 @@
 #   bash servertaken.sh sleutel-roteren  nieuwe hoofdsleutel: eerst een back-up, dan een nieuwe AVANTA_MASTER_KEY in .env
 #                                        (de oude naar AVANTA_MASTER_KEY_PREVIOUS), app herstarten en alles opnieuw
 #                                        versleutelen (app/src/security/key-rotation-cli.js); toont nooit een sleutel
+#   bash servertaken.sh schijf           schijfruimte per onderdeel (Docker, back-ups, foto's, database, logs) en daarna,
+#                                        na bevestiging, de Docker-buildcache ouder dan 7 dagen en oude Avanta-images opruimen
 #   bash servertaken.sh help             deze uitleg
 #
 # Het vaste commando voor Daniël staat in de app (Beheer > Systeem > Servertaken); het haalt de nieuwste commit van main
@@ -25,7 +27,7 @@
 # hieronder een functie `hosttask_<id met underscores>` en een regel in HOST_TASK_IDS (een test bewaakt dat beide
 # lijsten gelijk zijn). Wat gedaan is, staat in /opt/apps/avanta/update/status/host-tasks.json (de app vinkt dat af).
 #
-# Opties: --yes (of YES=1) = geen bevestigingsvraag. `update` en `openstaand` vragen eerst om bevestiging;
+# Opties: --yes (of YES=1) = geen bevestigingsvraag. `update`, `openstaand` en `schijf` vragen eerst om bevestiging;
 # `status` en `logs` wijzigen niets.
 #
 # Het script zoekt het gast-systeem apps01 zoals pve-setup.sh (LXC via `pct exec`, anders ssh als daniel@apps01 met
@@ -324,6 +326,66 @@ remote_openstaand_run() {
   echo; echo "Alle servertaken zijn gedaan."
 }
 
+# ---------- schijf ----------
+# Bewaartijd van de Docker-buildcache: wat een week niet gebruikt is, mag weg (een volgende build maakt het opnieuw).
+BUILD_CACHE_KEEP="168h"
+# Grootte van een map, leesbaar (of "?" als de map ontbreekt).
+dir_size() { du -sh "$1" 2>/dev/null | cut -f1 || echo "?"; }
+# Eén regel uit `docker system df` (Images, Containers, Local Volumes, Build Cache): grootte en vrij te maken ruimte.
+docker_df_line() { docker system df --format '{{.Type}}|{{.Size}}|{{.Reclaimable}}' 2>/dev/null | awk -F'|' -v t="$1" '$1==t {print $2 " (vrij te maken: " $3 ")"}'; }
+
+# Toont waar de ruimte zit. Uitgangscode 10 = er is buildcache of een oud Avanta-image om op te ruimen.
+remote_schijf_check() {
+  local root_line volume mountpoint cache_size old_images
+  section "Schijf"
+  root_line="$(df -h --output=size,used,avail,pcent / 2>/dev/null | tail -n1)"
+  info "hele schijf (grootte, gebruikt, vrij, % vol): ${root_line:-onbekend}"
+  section "Docker (alle stacks op deze server)"
+  info "images:        $(docker_df_line Images)"
+  info "containers:    $(docker_df_line Containers)"
+  info "volumes:       $(docker_df_line 'Local Volumes')"
+  info "buildcache:    $(docker_df_line 'Build Cache')"
+  info "Docker totaal: $(dir_size /var/lib/docker)"
+  section "Avanta"
+  # Alleen de volumes van de eigen containers (niet die van andere stacks op deze server).
+  for volume in $(docker inspect -f '{{range .Mounts}}{{if .Name}}{{.Name}} {{end}}{{end}}' avanta-app-1 avanta-db-1 2>/dev/null || true); do
+    mountpoint="$(docker volume inspect -f '{{.Mountpoint}}' "$volume" 2>/dev/null || true)"
+    [[ -n "$mountpoint" ]] && info "volume $volume: $(dir_size "$mountpoint")"
+  done
+  info "back-ups (in de app):      $(docker exec avanta-app-1 du -sh /data/backups 2>/dev/null | cut -f1 || echo '?')"
+  info "foto's (in de app):        $(docker exec avanta-app-1 du -sh /data/media 2>/dev/null | cut -f1 || echo '?')"
+  info "repo en updatebestanden:   $(dir_size "$BASE_DIR")"
+  section "Systeem"
+  info "systeemlogboek (journal):  $(journalctl --disk-usage 2>/dev/null | grep -oE '[0-9.]+[KMGT]?B?' | head -n1 || echo '?')"
+  info "/var/log:                  $(dir_size /var/log)"
+  info "/tmp:                      $(dir_size /tmp)"
+
+  cache_size="$(docker system df --format '{{.Type}}|{{.Size}}' 2>/dev/null | awk -F'|' '$1=="Build Cache" {print $2}')"
+  old_images="$(docker images -q --filter dangling=true --filter label=nl.avantareizen.stack=avanta 2>/dev/null | wc -l)"
+  if [[ -z "$cache_size" || "$cache_size" == "0B" ]] && (( old_images == 0 )); then
+    echo; echo "Geen buildcache of oude Avanta-images om op te ruimen. Niets te doen."
+    return 0
+  fi
+  echo; echo "Op te ruimen: buildcache die 7 dagen niet gebruikt is (nu ${cache_size:-0B} in totaal) en ${old_images} oud(e) Avanta-image(s)."
+  return 10
+}
+
+# Ruimt de oude buildcache en de oude Avanta-images op; volumes, draaiende containers en images in gebruik blijven staan.
+remote_schijf_run() {
+  local before after
+  before="$(df --output=avail -B1M / 2>/dev/null | tail -n1 | tr -dc '0-9')"
+  log "Buildcache ouder dan 7 dagen opruimen."
+  docker builder prune -f --filter "until=$BUILD_CACHE_KEEP" >/dev/null
+  log "Oude Avanta-images opruimen."
+  docker image prune -f --filter label=nl.avantareizen.stack=avanta >/dev/null
+  after="$(df --output=avail -B1M / 2>/dev/null | tail -n1 | tr -dc '0-9')"
+  if [[ -n "$before" && -n "$after" ]]; then
+    echo "Klaar: $(( after - before )) MB vrijgemaakt; nu $(df -h --output=avail / | tail -n1 | tr -d ' ') vrij."
+  else
+    echo "Klaar."
+  fi
+}
+
 remote_main() {
   exec </dev/null
   [[ -d "$BASE_DIR/repo" ]] || { echo "FOUT: $BASE_DIR/repo bestaat niet op de server (zet BASE_DIR)." >&2; exit 1; }
@@ -339,6 +401,8 @@ remote_main() {
     beheerder-herstel) remote_beheerder_herstel "$@" ;;
     testdata) remote_testdata "$@" ;;
     sleutel-roteren) remote_sleutel_roteren ;;
+    schijf-check) remote_schijf_check ;;
+    schijf-run) remote_schijf_run ;;
     *) echo "Onbekende opdracht: $action" >&2; exit 2 ;;
   esac
 }
@@ -353,7 +417,7 @@ fi
 # =====================================================================================================================
 NAME="${APPS01_NAME:-apps01}"
 die() { echo "FOUT: $*" >&2; exit 1; }
-usage() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 ARGS=()
 for argument in "$@"; do
@@ -365,7 +429,7 @@ for argument in "$@"; do
 done
 ACTION="${ARGS[0]:-status}"
 case "$ACTION" in
-  status | logs | update | openstaand | beheerder-herstel | testdata | sleutel-roteren) ;;
+  status | logs | update | openstaand | beheerder-herstel | testdata | sleutel-roteren | schijf) ;;
   *) usage ;;
 esac
 [[ $(id -u) -eq 0 ]] || die "Draai dit als root op de Proxmox-host."
@@ -437,5 +501,6 @@ case "$ACTION" in
   sleutel-roteren)
     confirm "Er komt een nieuwe hoofdsleutel. Eerst wordt een back-up gemaakt, daarna start de app opnieuw (enkele seconden) en worden alle versleutelde gegevens opnieuw versleuteld. Zet daarna de nieuwe sleutel in de wachtwoordkluis."
     remote sleutel-roteren ;;
+  schijf) two_step schijf "De Docker-buildcache die 7 dagen niet gebruikt is en oude Avanta-images worden verwijderd. Volumes (database, foto's, back-ups) en draaiende containers blijven staan; een volgende update bouwt alleen wat nodig is opnieuw." ;;
   openstaand) two_step openstaand "De openstaande servertaken worden nu uitgevoerd (ze staan hierboven; de app kan daarbij even herstarten). Elke gelukte taak wordt afgevinkt in de app." ;;
 esac

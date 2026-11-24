@@ -39,6 +39,7 @@ function createHostTaskRoutes(options) {
         <p>Plak dit als <strong>root</strong> in de shell van de Proxmox-host (pve). Het haalt het script op de nieuwste commit van main op, toont wat er openstaat en vraagt bevestiging voordat het iets doet.</p>
         <pre class="beheer-command"><code>${view.command}</code></pre>
         <p class="field__help">Alleen kijken (verandert niets): vervang <code>openstaand</code> aan het eind door <code>status</code>. Laatste melding van de server: ${formatDateTime(view.checkedAt)}.</p>
+        <p class="field__help">Schijf bijna vol: vervang <code>openstaand</code> door <code>schijf</code>. Dat toont waar de ruimte zit (Docker, back-ups, foto's, database, logs) en ruimt na bevestiging de Docker-buildcache ouder dan 7 dagen en oude images van Avanta op.</p>
         <h2>Taken</h2>
         <div class="crm-table-wrap"><table class="crm-table">
           <thead><tr><th scope="col">Taak</th><th scope="col">Stand</th><th scope="col"><span class="visually-hidden">Actie</span></th></tr></thead>
