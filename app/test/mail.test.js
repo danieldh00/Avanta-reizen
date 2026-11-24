@@ -197,7 +197,7 @@ test('WAN-IP: alleen een openbaar IPv4-adres, een uur bewaard, opnieuw hoogstens
   assert.equal(validIp('2a00:1450::1'), false, 'geen IPv6');
 });
 
-test('Beheer > E-mail: instellingen, testmail, WAN-IP en rechten', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('Beheer > E-mail: instellingen, testmail, WAN-IP en rechten', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -218,7 +218,7 @@ test('Beheer > E-mail: instellingen, testmail, WAN-IP en rechten', { skip: !DATA
   const app = createApp({ db, masterKey, settings, mailer, wanIp, setupCode: SETUP_CODE, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.
@@ -245,7 +245,7 @@ test('Beheer > E-mail: instellingen, testmail, WAN-IP en rechten', { skip: !DATA
   const csrf = csrfFrom((await request('/app/', { cookie })).text);
   const mailForm = { _csrf: csrf, mailMode: 'smtp', mailHost: 'smtp.example.nl', mailPort: '587', mailUser: 'info@example.nl', mailPassword: 'app-wachtwoord-1234', mailFromName: 'Avanta Reizen', mailFromAddress: 'info@example.nl', mailReplyTo: '' };
 
-  await t.test('rechten: zonder sessie 401, zonder recht systeem 403', async () => {
+  await testContext.test('rechten: zonder sessie 401, zonder recht systeem 403', async () => {
     assert.equal((await request('/app/beheer/mailserver/testmail/', { form: { _csrf: 'x', to: 'a@example.nl' } })).status, 401);
     const created = await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
     assert.equal(created.status, 303);
@@ -258,7 +258,7 @@ test('Beheer > E-mail: instellingen, testmail, WAN-IP en rechten', { skip: !DATA
     assert.equal(transport.messages.length, 0);
   });
 
-  await t.test('niet ingesteld: testmail kan niet', async () => {
+  await testContext.test('niet ingesteld: testmail kan niet', async () => {
     const page = await request('/app/beheer/mailserver/', { cookie });
     assert.equal(page.status, 200);
     assert.match(page.text, /Er is nog geen mailserver ingesteld/);
@@ -268,7 +268,7 @@ test('Beheer > E-mail: instellingen, testmail, WAN-IP en rechten', { skip: !DATA
     assert.equal(transport.messages.length, 0);
   });
 
-  await t.test('instellingen opslaan: ongeldige server geweigerd, wachtwoord versleuteld en nooit terug', async () => {
+  await testContext.test('instellingen opslaan: ongeldige server geweigerd, wachtwoord versleuteld en nooit terug', async () => {
     const invalid = await request('/app/beheer/mailserver/', { cookie, form: { ...mailForm, mailHost: 'https://smtp.example.nl:587' } });
     assert.equal(invalid.status, 422);
     assert.doesNotMatch(invalid.text, /app-wachtwoord-1234/, 'het wachtwoord komt niet terug in het formulier');
@@ -282,7 +282,7 @@ test('Beheer > E-mail: instellingen, testmail, WAN-IP en rechten', { skip: !DATA
     assert.doesNotMatch(row.value, /app-wachtwoord/);
   });
 
-  await t.test('testmail: verstuurd, in het auditlog zonder adres, met limiet', async () => {
+  await testContext.test('testmail: verstuurd, in het auditlog zonder adres, met limiet', async () => {
     const invalid = await request('/app/beheer/mailserver/testmail/', { cookie, form: { _csrf: csrf, to: 'geen adres' } });
     assert.equal(invalid.status, 422);
     assert.match(invalid.text, /Vul een geldig e-mailadres in/);
@@ -306,7 +306,7 @@ test('Beheer > E-mail: instellingen, testmail, WAN-IP en rechten', { skip: !DATA
     assert.equal((await request('/app/beheer/mailserver/testmail/', { cookie, form: { _csrf: csrf, to: 'test@example.nl' } })).status, 200, 'na tien minuten weer');
   });
 
-  await t.test('WAN-IP opzoeken en tonen', async () => {
+  await testContext.test('WAN-IP opzoeken en tonen', async () => {
     const found = await request('/app/beheer/mailserver/wan-ip/', { cookie, form: { _csrf: csrf } });
     assert.equal(found.status, 200);
     assert.match(found.text, /<strong>8\.8\.8\.8<\/strong>/);

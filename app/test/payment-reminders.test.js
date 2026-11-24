@@ -29,11 +29,11 @@ function withSchema(url) {
   return parsed.toString();
 }
 
-test('dagelijkse ronde: databasefout wordt gemeld met alleen de foutcode, de timers lopen door', async (t) => {
+test('dagelijkse ronde: databasefout wordt gemeld met alleen de foutcode, de timers lopen door', async (testContext) => {
   const errors = [];
   // Alleen de meldingen van de ronde; Node meldt via console.error ook dat MockTimers experimenteel is.
-  t.mock.method(console, 'error', (message) => { if (String(message).startsWith('betaalherinneringen')) errors.push(message); });
-  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  testContext.mock.method(console, 'error', (message) => { if (String(message).startsWith('betaalherinneringen')) errors.push(message); });
+  testContext.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   let calls = 0;
   const db = {
     query: async () => {
@@ -45,11 +45,11 @@ test('dagelijkse ronde: databasefout wordt gemeld met alleen de foutcode, de tim
   const reminders = createPaymentReminders({ db, mailer: { configured: () => true }, settings });
   const timers = reminders.start();
   assert.equal(timers.length, 2);
-  t.mock.timers.tick(10 * 60 * 1000);
+  testContext.mock.timers.tick(10 * 60 * 1000);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(calls, 1, 'eerste ronde na tien minuten');
   assert.deepEqual(errors, ['betaalherinneringen mislukt (57P01)'], 'geen foutmelding met persoonsgegevens');
-  t.mock.timers.tick(24 * 60 * 60 * 1000);
+  testContext.mock.timers.tick(24 * 60 * 60 * 1000);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(calls, 2, 'volgende dag opnieuw, ook na een fout');
   assert.equal(errors[1], 'betaalherinneringen mislukt (57P01)');
@@ -74,7 +74,7 @@ test('termijn en inhoud van een herinnering', () => {
   assert.match(mail.content.body, /NL00 TEST[\s\S]*AV-2027-X/);
 });
 
-test('betaalherinneringen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('betaalherinneringen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -96,7 +96,7 @@ test('betaalherinneringen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreek
   const app = createApp({ db, masterKey: MASTER_KEY, mailer, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
   const { settings, paymentReminders } = app.locals;
 
   const hash = await hashPassword(PASSWORD);
@@ -151,7 +151,7 @@ test('betaalherinneringen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreek
   const leider = await login('leider@example.nl');
   const remind = (id, session = kantoor) => request(`/app/betalingen/${id}/herinnering/`, { cookie: session.cookie, form: { _csrf: session.csrf } });
 
-  await t.test('met de hand: rechten, CSRF, geen mailserver, geannuleerd', async () => {
+  await testContext.test('met de hand: rechten, CSRF, geen mailserver, geannuleerd', async () => {
     assert.equal((await remind(lateId, leider)).status, 403);
     assert.equal((await request(`/app/betalingen/${lateId}/herinnering/`, { cookie: kantoor.cookie, form: {} })).status, 403, 'zonder CSRF-token');
     assert.equal((await remind(999999)).status, 404);
@@ -163,7 +163,7 @@ test('betaalherinneringen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreek
     assert.equal(mailer.sent.length, 0);
   });
 
-  await t.test('met de hand: verstuurd, met regel en audit; dubbel 409', async () => {
+  await testContext.test('met de hand: verstuurd, met regel en audit; dubbel 409', async () => {
     const page = await request(`/app/betalingen/${lateId}/`, { cookie: kantoor.cookie });
     assert.match(page.text, /Herinnering sturen/);
     const response = await remind(lateId);
@@ -186,7 +186,7 @@ test('betaalherinneringen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreek
     assert.match((await request('/app/betalingen/?weergave=te-laat', { cookie: kantoor.cookie })).text, /01-03-2027/, 'laatste herinnering in het overzicht');
   });
 
-  await t.test('mislukt: 502, regel zonder adres', async () => {
+  await testContext.test('mislukt: 502, regel zonder adres', async () => {
     clock += 60 * 60 * 1000;
     mailer.fail = true;
     const failed = await remind(lateId);
@@ -198,14 +198,14 @@ test('betaalherinneringen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreek
     assert.doesNotMatch(row.error, /jan@example\.nl/);
   });
 
-  await t.test('niets open: 422', async () => {
+  await testContext.test('niets open: 422', async () => {
     const paidId = await booking('AV-2027-KLAAR003');
     await db.query("INSERT INTO payments (booking_id, amount_cents, method, received_on) VALUES ($1, 50500, 'bank', '2027-02-01')", [paidId]);
     assert.equal((await remind(paidId)).status, 422);
     assert.doesNotMatch((await request(`/app/betalingen/${paidId}/`, { cookie: kantoor.cookie })).text, /Herinnering sturen/);
   });
 
-  await t.test('dagelijkse ronde: alleen met de schakelaar, interval en maximum', async () => {
+  await testContext.test('dagelijkse ronde: alleen met de schakelaar, interval en maximum', async () => {
     await db.query('DELETE FROM payment_reminders');
     mailer.sent.length = 0;
     const personId = (await db.query("INSERT INTO persons (first_names, call_name, last_name, email, match_key) VALUES ('Piet', 'Piet', 'Bakker', 'nieuw@example.nl', 'x') RETURNING id"))[0].id;
@@ -231,7 +231,7 @@ test('betaalherinneringen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreek
     assert.equal(rows[0].total, 4);
   });
 
-  await t.test('dagelijkse ronde: handmatige en mislukte pogingen tellen mee, geen dubbele mail bij overlap', async () => {
+  await testContext.test('dagelijkse ronde: handmatige en mislukte pogingen tellen mee, geen dubbele mail bij overlap', async () => {
     await db.query('DELETE FROM payment_reminders');
     await db.query("UPDATE bookings SET status = 'geannuleerd' WHERE reference = 'AV-2027-PERS0004'");
     mailer.sent.length = 0;
@@ -254,7 +254,7 @@ test('betaalherinneringen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreek
     mailer.fail = false;
   });
 
-  await t.test('limiet op herinneringen met de hand per medewerker', async () => {
+  await testContext.test('limiet op herinneringen met de hand per medewerker', async () => {
     let last;
     for (let i = 0; i < REMINDER_LIMIT; i++) last = await remind(lateId);
     assert.notEqual(last.status, 429);

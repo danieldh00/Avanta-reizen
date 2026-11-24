@@ -86,7 +86,7 @@ test('testdata: hulpfuncties en opdrachtregel (zonder database)', async () => {
   assert.match(errors.join('\n'), /<vullen\|opnieuw\|verwijderen> --testomgeving/);
 });
 
-test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -96,7 +96,7 @@ test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
   const vault = createVault(MASTER_KEY);
   const passwordHash = await hashPassword(PASSWORD);
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'avanta-seed-'));
-  t.after(async () => { await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  testContext.after(async () => { await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
   const seed = (mode, settings = fakeSettings(), confirmed = true) => runSeed({ db, vault, settings, mode, confirmed, passwordHash, today: TODAY });
 
   // Echte gegevens die nooit geraakt mogen worden: een reis, een persoon met aanmelding en een FAQ-categorie met
@@ -126,7 +126,7 @@ test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
   ))[0];
   const untouched = { trips: 1, persons: 1, bookings: 1, faqs: 1, categories: 2 };
 
-  await t.test('weigert op productie, bij indexeren en zonder bevestiging; er verandert niets', async () => {
+  await testContext.test('weigert op productie, bij indexeren en zonder bevestiging; er verandert niets', async () => {
     for (const [settings, confirmed] of [[fakeSettings({ siteUrl: 'https://www.avantareizen.nl' }), true], [fakeSettings({ seoIndexing: true }), true], [fakeSettings(), false]]) {
       const result = await seed('vullen', settings, confirmed);
       assert.equal(result.ok, false);
@@ -136,7 +136,7 @@ test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     assert.equal(count, 0);
   });
 
-  await t.test('vullen: alle soorten, met realistische samenhang', async () => {
+  await testContext.test('vullen: alle soorten, met realistische samenhang', async () => {
     const result = await seed('vullen');
     assert.equal(result.ok, true);
     for (const label of ['reistypes en landen', 'reisleiders', 'reizen', 'gebruikers', 'personen', 'aanmeldingen', 'betalingen', 'blogberichten', 'veelgestelde vragen', "pagina's", 'berichten']) {
@@ -190,18 +190,18 @@ test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     assert.deepEqual(await realCounts(), untouched);
   });
 
-  await t.test('niet dubbel vullen', async () => {
+  await testContext.test('niet dubbel vullen', async () => {
     const result = await seed('vullen');
     assert.equal(result.ok, false);
     assert.match(result.reason, /al testdata/);
   });
 
-  await t.test('de site toont de testdata', async () => {
+  await testContext.test('de site toont de testdata', async () => {
     const mediaDir = path.join(dataDir, 'media');
     await fs.mkdir(mediaDir, { recursive: true });
     const app = createApp({ db, masterKey: MASTER_KEY, mediaDir, siteContent: { load: () => normalizeSiteContent({}) } });
     const server = app.listen(0);
-    t.after(() => server.close());
+    testContext.after(() => server.close());
     const base = `http://127.0.0.1:${server.address().port}`;
     const trip = await fetch(`${base}/reis/test-noorwegen-fjorden/`);
     assert.equal(trip.status, 200);
@@ -217,7 +217,7 @@ test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     assert.equal((await fetch(`${base}/test-jongerenweekend/`)).status, 404, 'ingepland bericht nog niet zichtbaar');
   });
 
-  await t.test('opnieuw: dezelfde aantallen, echte gegevens blijven', async () => {
+  await testContext.test('opnieuw: dezelfde aantallen, echte gegevens blijven', async () => {
     const before = await db.query("SELECT (SELECT count(*)::int FROM bookings WHERE email LIKE '%@example.com') AS bookings, (SELECT count(*)::int FROM persons WHERE email LIKE '%@example.com') AS persons");
     const result = await seed('opnieuw');
     assert.equal(result.ok, true);
@@ -227,7 +227,7 @@ test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     assert.deepEqual(await realCounts(), untouched);
   });
 
-  await t.test('verwijderen: alle testdata weg, echte gegevens en echte FAQ-categorieën met dezelfde naam blijven, audit met alleen de opdracht', async () => {
+  await testContext.test('verwijderen: alle testdata weg, echte gegevens en echte FAQ-categorieën met dezelfde naam blijven, audit met alleen de opdracht', async () => {
     const result = await seed('verwijderen');
     assert.equal(result.ok, true);
     assert.deepEqual(result.added, {});

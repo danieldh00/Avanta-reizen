@@ -68,7 +68,7 @@ test('velden van een reis controleren', () => {
   assert.deepEqual(Object.keys(bad.errors).sort(), ['capacity', 'departure_date', 'duration_days', 'offer_until', 'price', 'slug', 'title']);
 });
 
-test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -80,7 +80,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
   const app = createApp({ db, masterKey: MASTER_KEY });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   const hash = await hashPassword(PASSWORD);
   for (const [email, role] of [['kantoor@example.nl', 'kantoor'], ['leider@example.nl', 'reisleider'], ['redactie@example.nl', 'redacteur']]) {
@@ -136,7 +136,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
   });
   let tripId;
 
-  await t.test('rechten: zonder sessie naar inloggen, reisleider en redacteur 403, kantoor wel', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, reisleider en redacteur 403, kantoor wel', async () => {
     assert.equal((await request('/app/reizen/')).status, 303);
     for (const session of [leider, redactie]) {
       assert.equal((await request('/app/reizen/', { cookie: session.cookie })).status, 403);
@@ -150,7 +150,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.match(list.text, />Oude reis</);
   });
 
-  await t.test('aanmaken als concept: alle velden, niet op de site', async () => {
+  await testContext.test('aanmaken als concept: alle velden, niet op de site', async () => {
     const created = await request('/app/reizen/nieuw/', { cookie: kantoor.cookie, form: tripForm({ body_html: '<p onclick="x()">Safari</p><script>alert(1)</script>' }) });
     assert.equal(created.status, 303);
     const [row] = await db.query("SELECT id, slug, price_cents, deposit_cents, capacity, published, managed_in_crm, body_html FROM trips WHERE trip_code = '27-NAM-1'");
@@ -167,7 +167,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.equal(row.managed_in_crm, true);
     assert.equal(row.body_html, '<p>Safari</p>');
     const links = await db.query('SELECT category_id FROM trip_category_links WHERE trip_id = $1 ORDER BY category_id', [tripId]);
-    assert.deepEqual(links.map((link) => link.category_id), [namibia.id, botswana.id, camping.id].sort((a, b) => a - b), 'onbekende categorie genegeerd');
+    assert.deepEqual(links.map((link) => link.category_id), [namibia.id, botswana.id, camping.id].sort((left, right) => left - right), 'onbekende categorie genegeerd');
     const guides = await db.query('SELECT guide_id FROM trip_guides WHERE trip_id = $1 ORDER BY sort_order', [tripId]);
     assert.deepEqual(guides.map((guide) => guide.guide_id), [eva.id]);
     assert.equal((await request('/reis/20-dagen-namibie/')).status, 404, 'concept niet op de site');
@@ -177,7 +177,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.equal(await audits('reis.aangemaakt'), 1);
   });
 
-  await t.test('reisomschrijving: teksteditor op het scherm; volledig formulier met lange tekst wordt opgeslagen', async () => {
+  await testContext.test('reisomschrijving: teksteditor op het scherm; volledig formulier met lange tekst wordt opgeslagen', async () => {
     const edit = await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie });
     assert.match(edit.text, /<label for="veld-body_html">Reisomschrijving<\/label>/);
     assert.match(edit.text, /<textarea id="veld-body_html" name="body_html" rows="14" class="cms-richtext">/);
@@ -191,7 +191,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.equal(row.body_html, longBody);
   });
 
-  await t.test('fouten: verplichte velden, dubbele slug, onbekend id, CSRF', async () => {
+  await testContext.test('fouten: verplichte velden, dubbele slug, onbekend id, CSRF', async () => {
     const invalid = await request('/app/reizen/nieuw/', { cookie: kantoor.cookie, form: tripForm({ title: '', price: 'veel' }) });
     assert.equal(invalid.status, 422);
     assert.match(invalid.text, /Vul een titel in/);
@@ -202,12 +202,12 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.equal((await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ _csrf: 'fout' }) })).status, 403);
   });
 
-  await t.test('ook een concept hernoemen geeft een 301 (het kan eerder gepubliceerd zijn geweest)', async () => {
+  await testContext.test('ook een concept hernoemen geeft een 301 (het kan eerder gepubliceerd zijn geweest)', async () => {
     assert.equal((await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ slug: 'tijdelijk' }) })).status, 303);
     assert.deepEqual(await db.query("SELECT from_path FROM redirects WHERE to_url = '/reis/tijdelijk/'"), [{ from_path: '/reis/20-dagen-namibie/' }]);
   });
 
-  await t.test('publiceren: op de site met landen, reistype en beide reisleiders', async () => {
+  await testContext.test('publiceren: op de site met landen, reistype en beide reisleiders', async () => {
     const saved = await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ published: '1' }) });
     assert.equal(saved.status, 303);
     assert.match(saved.headers.get('location'), /opgeslagen=2/, 'bij publiceren wel een 301 van de vorige slug');
@@ -224,7 +224,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.match(edit.text, new RegExp(`<option value="${eva.id}" selected>Eva`));
   });
 
-  await t.test('wijzigen: andere slug geeft een 301', async () => {
+  await testContext.test('wijzigen: andere slug geeft een 301', async () => {
     const saved = await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ published: '1', slug: 'namibie-juni' }) });
     assert.match(saved.headers.get('location'), /opgeslagen=2/);
     const old = await request('/reis/20-dagen-namibie/');
@@ -234,7 +234,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.equal(await audits('reis.gewijzigd'), 4); // inclusief het opslaan van de reisomschrijving hierboven
   });
 
-  await t.test('gepubliceerd, dan concept, dan hernoemd: het oude adres verwijst door', async () => {
+  await testContext.test('gepubliceerd, dan concept, dan hernoemd: het oude adres verwijst door', async () => {
     assert.equal((await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ slug: 'namibie-juni', published: '0' }) })).status, 303);
     assert.equal((await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ slug: 'namibie-juli', published: '0' }) })).status, 303);
     const old = await request('/reis/namibie-juni/');
@@ -244,7 +244,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.equal((await request('/reis/namibie-juni/')).status, 200, 'terug naar de oude slug: geen lus');
   });
 
-  await t.test('import slaat een in het CRM gewijzigde reis over', async () => {
+  await testContext.test('import slaat een in het CRM gewijzigde reis over', async () => {
     await request(`/app/reizen/${imported.id}/`, { cookie: kantoor.cookie, form: tripForm({ title: 'Oude reis, nieuw', slug: 'oude-reis', trip_code: '' }) });
     const importTrip = (slug, title) => ({
       legacyId: null, slug, title, tagline: '', summary: '', bodyHtml: '', tripCode: null, departureDate: '2099-01-01', durationLabel: '',
@@ -276,7 +276,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     );
   };
 
-  await t.test('plaatsen: bezet uit de aanmeldingen, geannuleerd telt niet, vol is automatisch volgeboekt', async () => {
+  await testContext.test('plaatsen: bezet uit de aanmeldingen, geannuleerd telt niet, vol is automatisch volgeboekt', async () => {
     for (let i = 0; i < 15; i++) await addBooking(tripId, i % 2 ? 'bevestigd' : 'nieuw');
     await addBooking(tripId, 'geannuleerd');
     let edit = await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie });
@@ -307,7 +307,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.equal(row.fully_booked, false, 'het vinkje zelf blijft uit');
   });
 
-  await t.test('kopiëren naar nieuw vertrek: concept met alles behalve vertrek en aanmeldingen', async () => {
+  await testContext.test('kopiëren naar nieuw vertrek: concept met alles behalve vertrek en aanmeldingen', async () => {
     const [photo] = await db.query(
       "INSERT INTO media (local_name, content_type, bytes, source, title, alt_text, variants) VALUES ('kop.webp', 'image/webp', 10, 'upload', 'Kop', '', '{}') RETURNING id",
     );

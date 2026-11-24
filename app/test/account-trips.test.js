@@ -68,7 +68,7 @@ test('xlsx: zip met werkbladen, escaping, getallen en geen formules', () => {
   assert.doesNotMatch(sheet, /<f>/);
 });
 
-test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -81,7 +81,7 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
   const app = createApp({ db, masterKey: MASTER_KEY, mailer, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   const hash = await hashPassword(PASSWORD);
   for (const email of ['anna@example.nl', 'kees@example.nl']) {
@@ -89,16 +89,16 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
   }
   const [future] = await db.query("INSERT INTO trips (slug, title, departure_date) VALUES ('namibie-2099', 'Avontuur in Namibië', '2099-07-01') RETURNING id");
   const [past] = await db.query("INSERT INTO trips (slug, title, departure_date, published) VALUES ('albanie-2020', 'Albanië 2020', '2020-07-01', false) RETURNING id");
-  const insertBooking = (reference, tripId, title, date, email, status) => db.query(
+  const insertBooking = ({ reference, tripId, title, date, email, status }) => db.query(
     `INSERT INTO bookings (reference, trip_id, trip_title, trip_code, departure_date, status, gender, first_names, call_name, last_name, email, mobile,
        street, postal_code, city, earlier_trip, credit_card, driver_interest, driver_before, payment_method, payment_choice, price_cents, sensitive_data, consent_at)
      VALUES ($1, $2, $3, '99-NAM-1', $4, $5, 'vrouw', 'Anna Maria', 'Anna', 'Jansen', $6, '0612345678', 'Dorpsstraat 1', '4331 AB', 'Middelburg',
        false, false, false, false, 'handmatig', 'aanbetaling', 189900, '', now())`,
     [reference, tripId, title, date, status, email],
   );
-  await insertBooking('AV-2099-AAAA0001', future.id, 'Avontuur in Namibië', '2099-07-01', 'Anna@Example.nl', 'aanbetaald');
-  await insertBooking('AV-2020-AAAA0002', past.id, 'Albanië 2020', '2020-07-01', 'anna@example.nl', 'betaald');
-  await insertBooking('AV-2099-KEES0003', future.id, 'Avontuur in Namibië', '2099-07-01', 'kees@example.nl', 'nieuw');
+  await insertBooking({ reference: 'AV-2099-AAAA0001', tripId: future.id, title: 'Avontuur in Namibië', date: '2099-07-01', email: 'Anna@Example.nl', status: 'aanbetaald' });
+  await insertBooking({ reference: 'AV-2020-AAAA0002', tripId: past.id, title: 'Albanië 2020', date: '2020-07-01', email: 'anna@example.nl', status: 'betaald' });
+  await insertBooking({ reference: 'AV-2099-KEES0003', tripId: future.id, title: 'Avontuur in Namibië', date: '2099-07-01', email: 'kees@example.nl', status: 'nieuw' });
 
   /**
    * Doet een verzoek; geeft status, tekst, koppen, nieuwe cookie en de body als buffer.
@@ -134,7 +134,7 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
   const anna = await login('anna@example.nl');
   const kees = await login('kees@example.nl');
 
-  await t.test('Mijn reizen: komende en eerdere reizen van het eigen adres, nooit die van een ander', async () => {
+  await testContext.test('Mijn reizen: komende en eerdere reizen van het eigen adres, nooit die van een ander', async () => {
     const page = await request('/account/', { cookie: anna.cookie });
     assert.equal(page.status, 200);
     const [upcoming, earlier] = page.text.split('id="eerdere-reizen"');
@@ -151,7 +151,7 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.match(other.text, /Nog geen eerdere reizen/);
   });
 
-  await t.test('Mijn gegevens: alleen accountgegevens, nooit naam of adres uit een aanmelding', async () => {
+  await testContext.test('Mijn gegevens: alleen accountgegevens, nooit naam of adres uit een aanmelding', async () => {
     assert.equal((await request('/account/gegevens/')).location, '/account/inloggen/');
     const page = await request('/account/gegevens/', { cookie: anna.cookie });
     assert.equal(page.status, 200);
@@ -160,7 +160,7 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.match(page.text, /href="\/account\/code\/\?verder=gegevens"/, 'zonder code eerst de codestap');
   });
 
-  await t.test('export en wachtwoord wijzigen zonder code: naar de codestap of 403', async () => {
+  await testContext.test('export en wachtwoord wijzigen zonder code: naar de codestap of 403', async () => {
     const exportResponse = await request('/account/gegevens/export.xlsx', { cookie: anna.cookie });
     assert.equal(exportResponse.status, 303);
     assert.equal(exportResponse.location, '/account/code/?verder=gegevens');
@@ -170,7 +170,7 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
   });
 
   let code = '';
-  await t.test('code per e-mail: verkeerde code telt, vijf keer fout is op, nieuwe code werkt één keer', async () => {
+  await testContext.test('code per e-mail: verkeerde code telt, vijf keer fout is op, nieuwe code werkt één keer', async () => {
     assert.equal((await request('/account/code/versturen/', { cookie: anna.cookie, form: { next: 'gegevens' } })).status, 403, 'zonder CSRF');
     const sendCode = await request('/account/code/versturen/', { cookie: anna.cookie, form: { _csrf: anna.csrf, next: 'gegevens' } });
     assert.equal(sendCode.status, 303);
@@ -197,7 +197,7 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.equal((await request('/account/code/', { cookie: anna.cookie, form: { _csrf: anna.csrf, next: 'gegevens', code } })).status, 422, 'code werkt één keer');
   });
 
-  await t.test('Excel-export: account en reizen, geen bijzondere gegevens, in het auditlog', async () => {
+  await testContext.test('Excel-export: account en reizen, geen bijzondere gegevens, in het auditlog', async () => {
     const response = await request('/account/gegevens/export.xlsx', { cookie: anna.cookie });
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -217,13 +217,13 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.equal((await request('/account/gegevens/export.xlsx', { cookie: second.cookie })).status, 303);
   });
 
-  await t.test('code verloopt na een kwartier', async () => {
+  await testContext.test('code verloopt na een kwartier', async () => {
     await db.query("UPDATE customer_sessions SET step_up_until = now() - interval '1 second'");
     assert.equal((await request('/account/gegevens/export.xlsx', { cookie: anna.cookie })).status, 303);
     await db.query("UPDATE customer_sessions SET step_up_until = now() + interval '15 minutes' WHERE account_id = (SELECT id FROM customer_accounts WHERE email = 'anna@example.nl')");
   });
 
-  await t.test('wachtwoord wijzigen na de code: andere sessies vervallen, deze blijft', async () => {
+  await testContext.test('wachtwoord wijzigen na de code: andere sessies vervallen, deze blijft', async () => {
     const other = await login('anna@example.nl');
     assert.equal((await request('/account/wachtwoord/', { cookie: anna.cookie })).status, 200);
     const weak = await request('/account/wachtwoord/', { cookie: anna.cookie, form: { _csrf: anna.csrf, password: 'kort', password2: 'kort' } });
@@ -238,7 +238,7 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.equal((await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: 'een nieuw sterk wachtwoord' } })).status, 303);
   });
 
-  await t.test('hoogstens drie codes per uur per account', async () => {
+  await testContext.test('hoogstens drie codes per uur per account', async () => {
     const before = sent.length;
     for (let i = 0; i < 3; i += 1) await request('/account/code/versturen/', { cookie: kees.cookie, form: { _csrf: kees.csrf, next: 'wachtwoord' } });
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -248,7 +248,7 @@ test('Mijn reizen en Mijn gegevens', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.equal(sent.length - before, 3, 'vierde code: geen mail');
   });
 
-  await t.test('opnieuw boeken: alleen eigen aanmeldingen (ingelogd, zelfde adres) vullen het formulier in, nooit bijzondere', async () => {
+  await testContext.test('opnieuw boeken: alleen eigen aanmeldingen (ingelogd, zelfde adres) vullen het formulier in, nooit bijzondere', async () => {
     const response = await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: 'een nieuw sterk wachtwoord' } });
     assert.equal(response.status, 303);
     const cookie = response.cookie;

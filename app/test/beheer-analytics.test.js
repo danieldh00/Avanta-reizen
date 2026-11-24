@@ -192,7 +192,7 @@ test('analytics: eerdere keuze, weigeren en intrekken', () => {
   assert.equal(JSON.parse(granted.storage.get('avanta_cookie_consent')).analytics, false);
 });
 
-test('analytics: instelling in Beheer en effect op de site', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('analytics: instelling in Beheer en effect op de site', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -202,7 +202,7 @@ test('analytics: instelling in Beheer en effect op de site', { skip: !DATABASE_U
   const app = createApp({ db, masterKey: Buffer.alloc(32, 4), setupCode: SETUP_CODE });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.
@@ -227,13 +227,13 @@ test('analytics: instelling in Beheer en effect op de site', { skip: !DATABASE_U
   const cookie = installed.cookie;
   const csrf = ((await request('/app/', { cookie })).text.match(/name="_csrf" value="([^"]+)"/) || [])[1];
 
-  await t.test('standaard: niets in de pagina en de policy gelijk', async () => {
+  await testContext.test('standaard: niets in de pagina en de policy gelijk', async () => {
     const page = await request('/reis/');
     assert.equal(page.headers.get('content-security-policy'), BASE_CSP);
     assert.doesNotMatch(page.text, /data-analytics|analytics\.js|Cookie-instellingen|googletagmanager/);
   });
 
-  await t.test('aan zonder meet-ID of met een ongeldig ID', async () => {
+  await testContext.test('aan zonder meet-ID of met een ongeldig ID', async () => {
     assert.equal((await request('/app/beheer/analytics/', { cookie, form: { _csrf: csrf, analyticsEnabled: 'ja', analyticsMeasurementId: 'UA-1234-1' } })).status, 422);
     assert.equal((await request('/app/beheer/analytics/', { cookie, form: { _csrf: csrf, analyticsEnabled: 'ja', analyticsMeasurementId: '' } })).status, 303);
     const page = await request('/reis/');
@@ -241,7 +241,7 @@ test('analytics: instelling in Beheer en effect op de site', { skip: !DATABASE_U
     assert.doesNotMatch(page.text, /data-analytics/);
   });
 
-  await t.test('aan met meet-ID: kenmerk, script, knop en policy; CRM blijft gelijk', async () => {
+  await testContext.test('aan met meet-ID: kenmerk, script, knop en policy; CRM blijft gelijk', async () => {
     const saved = await request('/app/beheer/analytics/', { cookie, form: { _csrf: csrf, analyticsEnabled: 'ja', analyticsMeasurementId: 'g-abc123xyz' } });
     assert.equal(saved.status, 303);
     const page = await request('/reis/');
@@ -259,7 +259,7 @@ test('analytics: instelling in Beheer en effect op de site', { skip: !DATABASE_U
     assert.deepEqual([...new Set(audit.map((row) => row.entity_id))], ['analyticsEnabled', 'analyticsMeasurementId']);
   });
 
-  await t.test('uit: weer alles weg', async () => {
+  await testContext.test('uit: weer alles weg', async () => {
     assert.equal((await request('/app/beheer/analytics/', { cookie, form: { _csrf: csrf, analyticsMeasurementId: 'G-ABC123XYZ' } })).status, 303);
     const page = await request('/reis/');
     assert.equal(page.headers.get('content-security-policy'), BASE_CSP);

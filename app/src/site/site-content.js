@@ -181,11 +181,11 @@ function createSiteContentStore(dataDir) {
  */
 function sortGuides(guides, order) {
   const position = new Map(order.map((slug, index) => [slug, index]));
-  return [...guides].sort((a, b) => {
-    const left = position.has(a.slug) ? position.get(a.slug) : Infinity;
-    const right = position.has(b.slug) ? position.get(b.slug) : Infinity;
+  return [...guides].sort((first, second) => {
+    const left = position.has(first.slug) ? position.get(first.slug) : Infinity;
+    const right = position.has(second.slug) ? position.get(second.slug) : Infinity;
     if (left !== right) return left - right;
-    return String(a.name).localeCompare(String(b.name), 'nl');
+    return String(first.name).localeCompare(String(second.name), 'nl');
   });
 }
 

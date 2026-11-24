@@ -65,7 +65,7 @@ test('rechten en verborgen velden per rol', () => {
   assert.deepEqual([...hiddenFieldsFor('beheerder')], []);
 });
 
-test('aanmelding handmatig invoeren', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('aanmelding handmatig invoeren', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -79,7 +79,7 @@ test('aanmelding handmatig invoeren', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
   const app = createApp({ db, masterKey: MASTER_KEY, settings, mailer, wanIp: { peek: () => null, get: async () => ({}) } });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
   await settings.update({ values: { mailHost: 'smtp.example.nl', mailFromAddress: 'info@example.nl' } });
 
   const hash = await hashPassword(PASSWORD);
@@ -117,7 +117,7 @@ test('aanmelding handmatig invoeren', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
    */
   const submit = (form, session = kantoor) => request('/app/aanmeldingen/nieuw/', { cookie: session.cookie, form: { _csrf: session.csrf, reis: String(open.id), ...form } });
 
-  await t.test('rechten: andere rollen 403, zonder sessie naar inloggen; knop alleen met recht', async () => {
+  await testContext.test('rechten: andere rollen 403, zonder sessie naar inloggen; knop alleen met recht', async () => {
     assert.equal((await request('/app/aanmeldingen/nieuw/')).status, 303);
     for (const role of ['reisleider', 'boekhouding', 'redacteur']) {
       const session = await login(role);
@@ -127,7 +127,7 @@ test('aanmelding handmatig invoeren', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.match((await request('/app/aanmeldingen/', { cookie: kantoor.cookie })).text, /href="\/app\/aanmeldingen\/nieuw\/">Aanmelding invoeren/);
   });
 
-  await t.test('reis kiezen: alleen reizen die nog vertrekken; vol uitgeschakeld; vertrokken en onbekend geweigerd', async () => {
+  await testContext.test('reis kiezen: alleen reizen die nog vertrekken; vol uitgeschakeld; vertrokken en onbekend geweigerd', async () => {
     const choice = (await request('/app/aanmeldingen/nieuw/', { cookie: kantoor.cookie })).text;
     assert.match(choice, new RegExp(`<option value="${open.id}">[^<]*Albanië \\(27-ALB-1\\) · concept</option>`));
     assert.match(choice, new RegExp(`<option value="${full.id}" disabled>[^<]*Volle reis[^<]*volgeboekt</option>`));
@@ -144,7 +144,7 @@ test('aanmelding handmatig invoeren', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.match((await request(`/app/aanmeldingen/nieuw/?reis=${open.id}`, { cookie: beheerder.cookie })).text, /name="church"/);
   });
 
-  await t.test('zelfde controle als het formulier: verplicht, bron, toestemming bij bijzonderheden, ouder onder de 16', async () => {
+  await testContext.test('zelfde controle als het formulier: verplicht, bron, toestemming bij bijzonderheden, ouder onder de 16', async () => {
     const empty = await submit({ bron: '' });
     assert.equal(empty.status, 422);
     assert.match(empty.text, /Dit veld is verplicht/);
@@ -160,7 +160,7 @@ test('aanmelding handmatig invoeren', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.equal((await submit({ ...adultForm(), _csrf: 'fout' })).status, 403);
   });
 
-  await t.test('opslaan: aanmelding, persoon, toestemmingen, bedragen, historie, audit en bevestiging', async () => {
+  await testContext.test('opslaan: aanmelding, persoon, toestemmingen, bedragen, historie, audit en bevestiging', async () => {
     const saved = await submit(adultForm({ particulars: 'Astma', consent_health: 'ja', mail_confirmation: 'ja', church: 'Gereformeerd', consent_religion: 'ja' }));
     assert.equal(saved.status, 303);
     const [booking] = await db.query("SELECT id, reference, status, email, payment_method, person_id, deposit_cents FROM bookings WHERE last_name = 'Jansen'");
@@ -189,7 +189,7 @@ test('aanmelding handmatig invoeren', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.match((await request('/app/auditlog/', { cookie: beheerder.cookie })).text, /Aanmelding handmatig ingevoerd/);
   });
 
-  await t.test('dubbel verzenden: 409 met de bestaande aanmelding, niets opgeslagen; bewust toch opslaan kan', async () => {
+  await testContext.test('dubbel verzenden: 409 met de bestaande aanmelding, niets opgeslagen; bewust toch opslaan kan', async () => {
     const [first] = await db.query("SELECT id, reference FROM bookings WHERE last_name = 'Jansen'");
     const again = await submit(adultForm({ email: 'anna@example.nl', last_name: 'JANSEN' }));
     assert.equal(again.status, 409);
@@ -201,13 +201,13 @@ test('aanmelding handmatig invoeren', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.equal((await db.query("SELECT count(*)::int AS total FROM bookings WHERE lower(last_name) = 'jansen'"))[0].total, 2);
   });
 
-  await t.test('broer of zus met hetzelfde mailadres en dezelfde achternaam: gewoon opgeslagen', async () => {
+  await testContext.test('broer of zus met hetzelfde mailadres en dezelfde achternaam: gewoon opgeslagen', async () => {
     const sibling = await submit(adultForm({ first_names: 'Marieke', call_name: 'Marieke' }));
     assert.equal(sibling.status, 303);
     assert.equal((await db.query("SELECT count(*)::int AS total FROM bookings WHERE first_names = 'Marieke'"))[0].total, 1);
   });
 
-  await t.test('zonder vinkje geen mail; ouder onder de 16 met toestemming van de ouder', async () => {
+  await testContext.test('zonder vinkje geen mail; ouder onder de 16 met toestemming van de ouder', async () => {
     sent.length = 0;
     const child = await submit(adultForm({
       first_names: 'Kees', call_name: 'Kees', email: 'kees@example.nl', birth_date: daysFromNow(-365 * 12), bron: 'papier',
@@ -221,7 +221,7 @@ test('aanmelding handmatig invoeren', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.equal(sent.length, 0, 'geen bevestiging zonder vinkje');
   });
 
-  await t.test('volgeboekt tijdens het invullen: 409 en niets opgeslagen', async () => {
+  await testContext.test('volgeboekt tijdens het invullen: 409 en niets opgeslagen', async () => {
     await db.query('UPDATE trips SET fully_booked = true WHERE id = $1', [open.id]);
     const before = (await db.query('SELECT count(*)::int AS total FROM bookings'))[0].total;
     const refused = await submit(adultForm({ email: 'laat@example.nl' }));

@@ -11,6 +11,15 @@ const js = require('@eslint/js');
 const globals = require('globals');
 const security = require('eslint-plugin-security');
 
+/** Mappen waar `complexity` en `max-lines` nog uit staan tot ze in P6a zijn nagelopen. */
+const P6A_NOG_NALOPEN = [
+  'src/crm/**', 'src/persons/**', 'src/payments/**',
+  'src/beheer/**', 'src/system/**', 'src/backup/**', 'src/security/**',
+  'src/site/**', 'src/booking/**', 'src/account/**', 'src/mail/**', 'src/contact/**', 'src/infobrief/**',
+  'src/cms/**', 'src/trips/**', 'src/media/**', 'src/export/**', 'src/dev/**', 'src/services.js', 'src/server.js',
+  'tools/**',
+];
+
 module.exports = [
   {
     ignores: ['node_modules/**', 'public/**/*.min.js', 'coverage/**'],
@@ -41,7 +50,29 @@ module.exports = [
       // De heuristiek van safe-regex keurt ook verankerde patronen met begrensde herhaling af; alle patronen hier zijn
       // nagelopen (24-11-2026) en de invoer is vooraf in lengte begrensd.
       'security/detect-unsafe-regex': 'off',
+      // Leesbaarheid (maatstaf in docs/WERKWIJZE.md, *Leesbare code*): beschrijvende namen (één letter alleen voor
+      // tellers en coördinaten), niet dieper dan vier blokken, hoogstens vijf parameters (anders één object met
+      // namen) en hoogstens vier geneste callbacks.
+      'id-length': ['error', { min: 2, exceptions: ['i', 'j', 'x', 'y', '_'], properties: 'never' }],
+      'max-depth': ['error', 4],
+      'max-params': ['error', 5],
+      'max-nested-callbacks': ['error', 4],
     },
+  },
+  {
+    // Lengte en vertakkingen van de app-code: een functie met meer dan 20 paden of een bestand van meer dan 600
+    // regels code wordt opgesplitst. Geldt per map zodra die in pakket P6a is nagelopen; de mappen in
+    // `P6A_NOG_NALOPEN` (onderaan) volgen nog en vallen tot dan buiten deze twee regels.
+    files: ['src/**/*.js', 'tools/**/*.js'],
+    rules: {
+      complexity: ['error', 20],
+      'max-lines': ['error', { max: 600, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    // Mappen die in P6a nog worden nagelopen (6a.2 t/m 6a.5); elke PR haalt zijn mappen hier weg.
+    files: P6A_NOG_NALOPEN,
+    rules: { complexity: 'off', 'max-lines': 'off' },
   },
   {
     // Hulpmiddelen met Playwright: Node-code met stukken die in de browser draaien (page.evaluate).

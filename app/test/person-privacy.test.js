@@ -54,7 +54,7 @@ test('inzage: bestandsnaam zonder naam', () => {
   assert.equal(inspectionFileName(12, new Date('2027-05-20T22:30:00Z')), 'inzage-deelnemer-12-2027-05-21.xlsx');
 });
 
-test('AVG-verzoeken bij een deelnemer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('AVG-verzoeken bij een deelnemer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -64,7 +64,7 @@ test('AVG-verzoeken bij een deelnemer', { skip: !DATABASE_URL && 'TEST_DATABASE_
   const app = createApp({ db, masterKey: MASTER_KEY });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
   const persons = createPersons({ vault: createVault(MASTER_KEY) });
 
   const hash = await hashPassword(PASSWORD);
@@ -131,7 +131,7 @@ test('AVG-verzoeken bij een deelnemer', { skip: !DATABASE_URL && 'TEST_DATABASE_
   const inzage = `/app/deelnemers/${personId}/inzage/`;
   const wissen = `/app/deelnemers/${personId}/wissen/`;
 
-  await t.test('rechten, 404 en CSRF', async () => {
+  await testContext.test('rechten, 404 en CSRF', async () => {
     assert.equal((await request(inzage, { form: { _csrf: 'x' } })).status, 401);
     assert.equal((await request(inzage, { cookie: boek.cookie, form: { _csrf: boek.csrf } })).status, 403);
     assert.equal((await request(wissen, { cookie: boek.cookie, form: { _csrf: boek.csrf, bevestiging: 'WISSEN' } })).status, 403);
@@ -142,7 +142,7 @@ test('AVG-verzoeken bij een deelnemer', { skip: !DATABASE_URL && 'TEST_DATABASE_
     assert.match(page.text, /AVG-verzoeken/);
   });
 
-  await t.test('inzage-export: alles met recht, kerkgenootschap niet voor kantoor, audit', async () => {
+  await testContext.test('inzage-export: alles met recht, kerkgenootschap niet voor kantoor, audit', async () => {
     const response = await request(inzage, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } });
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-disposition'), /inzage-deelnemer-\d+-\d{4}-\d{2}-\d{2}\.xlsx/);
@@ -167,7 +167,7 @@ test('AVG-verzoeken bij een deelnemer', { skip: !DATABASE_URL && 'TEST_DATABASE_
     assert.match(full['xl/worksheets/sheet1.xml'], /PKN/);
   });
 
-  await t.test('wissen: bevestiging nodig, daarna geanonimiseerd en account weg', async () => {
+  await testContext.test('wissen: bevestiging nodig, daarna geanonimiseerd en account weg', async () => {
     const refused = await request(wissen, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, bevestiging: 'ja' } });
     assert.equal(refused.status, 422);
     assert.match(refused.text, /Typ WISSEN/);
@@ -206,7 +206,7 @@ test('AVG-verzoeken bij een deelnemer', { skip: !DATABASE_URL && 'TEST_DATABASE_
     assert.equal((await db.query("SELECT count(*)::int AS n FROM audit_log WHERE action = 'deelnemer.gewist'"))[0].n, 1);
   });
 
-  await t.test('limiet op de inzage-export', async () => {
+  await testContext.test('limiet op de inzage-export', async () => {
     let status = 200;
     for (let i = 0; i < EXPORT_LIMIT + 2 && status !== 429; i++) {
       status = (await request(inzage, { cookie: beheer.cookie, form: { _csrf: beheer.csrf } })).status;

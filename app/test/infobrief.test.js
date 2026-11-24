@@ -96,7 +96,7 @@ test('formulier van de infobrief en hulpfuncties', () => {
   assert.deepEqual(infobrieven.guardianAddress(persons, { person_id: null, guardian_data: null }), { email: '', unreadable: false });
 });
 
-test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -119,7 +119,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   const sender = app.locals.infobriefSender;
-  t.after(async () => { await sender.idle(); server.close(); await db.close(); });
+  testContext.after(async () => { await sender.idle(); server.close(); await db.close(); });
   const persons = createPersons({ vault: createVault(MASTER_KEY) });
 
   const hash = await hashPassword(PASSWORD);
@@ -178,7 +178,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   const audits = async (action) => (await db.query('SELECT count(*)::int AS total FROM audit_log WHERE action = $1', [action]))[0].total;
   let infobriefId;
 
-  await t.test('rechten: zonder sessie naar inloggen, andere rollen 403 en geen menu-item', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, andere rollen 403 en geen menu-item', async () => {
     assert.equal((await request('/app/infobrieven/')).status, 303);
     const [draft] = await db.query('INSERT INTO infobrieven (trip_id) VALUES ($1) RETURNING id', [trip.id]);
     for (const session of Object.values(others)) {
@@ -197,7 +197,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     await db.query('DELETE FROM infobrieven WHERE id = $1', [draft.id]);
   });
 
-  await t.test('overzicht en nieuw concept; onbekende reis of infobrief 404, CSRF verplicht', async () => {
+  await testContext.test('overzicht en nieuw concept; onbekende reis of infobrief 404, CSRF verplicht', async () => {
     const list = (await request('/app/infobrieven/', { cookie: kantoor.cookie })).text;
     assert.match(list, /Nog geen infobrieven/);
     assert.match(list, /Er is nog geen mailserver ingesteld/);
@@ -219,7 +219,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match((await request(`/app/infobrieven/?reis=${other.id}`, { cookie: kantoor.cookie })).text, /Nog geen infobrieven/);
   });
 
-  await t.test('concept opslaan: opgeschoond, te lang geweigerd, ontvangers geteld', async () => {
+  await testContext.test('concept opslaan: opgeschoond, te lang geweigerd, ontvangers geteld', async () => {
     const tooLong = await post(`/app/infobrieven/${infobriefId}/`, { onderwerp: 'x'.repeat(201), tekst: '<p>Hoi</p>' });
     assert.equal(tooLong.status, 422);
     assert.match(tooLong.text, /hoogstens 200 tekens/);
@@ -241,7 +241,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal(await audits('infobrief.gewijzigd'), 1);
   });
 
-  await t.test('voorbeeld: eigen CSP, aanhef, opgemaakte tekst met volledig adres, versie voor de ouder', async () => {
+  await testContext.test('voorbeeld: eigen CSP, aanhef, opgemaakte tekst met volledig adres, versie voor de ouder', async () => {
     const preview = await request(`/app/infobrieven/${infobriefId}/voorbeeld/`, { cookie: kantoor.cookie });
     assert.equal(preview.status, 200);
     assert.match(preview.headers.get('content-security-policy'), /default-src 'none'.*frame-ancestors 'self'/);
@@ -252,7 +252,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match(guardian.text, /U ontvangt deze infobrief als ouder of voogd van \[roepnaam van de deelnemer\], die meegaat met Albanië/);
   });
 
-  await t.test('testmail: zonder mailserver geweigerd, daarna naar het eigen adres met [Test], limiet', async () => {
+  await testContext.test('testmail: zonder mailserver geweigerd, daarna naar het eigen adres met [Test], limiet', async () => {
     assert.equal((await post(`/app/infobrieven/${infobriefId}/testmail/`)).status, 409);
     mailer.ready = true;
     const sent = await post(`/app/infobrieven/${infobriefId}/testmail/`);
@@ -273,7 +273,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     mailer.sent.length = 0;
   });
 
-  await t.test('versturen: bevestigen en aantal verplicht, één keer, daarna niet meer wijzigen of verwijderen', async () => {
+  await testContext.test('versturen: bevestigen en aantal verplicht, één keer, daarna niet meer wijzigen of verwijderen', async () => {
     assert.equal((await post(`/app/infobrieven/${infobriefId}/versturen/`, { aantal: '4' })).status, 422);
     const changed = await post(`/app/infobrieven/${infobriefId}/versturen/`, { aantal: '3', bevestig: 'ja' });
     assert.equal(changed.status, 409);
@@ -293,7 +293,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await post(`/app/infobrieven/${infobriefId}/versturen/`, { aantal: '4', bevestig: 'ja' })).status, 409);
   });
 
-  await t.test('in de achtergrond: adres bij het versturen opgezocht, ouder en deelnemer, mislukt zonder adres', async () => {
+  await testContext.test('in de achtergrond: adres bij het versturen opgezocht, ouder en deelnemer, mislukt zonder adres', async () => {
     await sender.idle();
     await sender.runOnce();
     const addresses = mailer.sent.map((mail) => mail.to).sort();
@@ -320,7 +320,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match(list, /3 \(1 mislukt\)/);
   });
 
-  await t.test('opnieuw: alleen mislukte, daarna verzonden; geen dubbele mails', async () => {
+  await testContext.test('opnieuw: alleen mislukte, daarna verzonden; geen dubbele mails', async () => {
     mailer.failFor.clear();
     mailer.sent.length = 0;
     assert.equal((await post(`/app/infobrieven/${infobriefId}/opnieuw/`)).status, 303);
@@ -333,7 +333,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal(brief.status, 'verzonden');
   });
 
-  await t.test('verzendoverzicht als .xlsx met audit; gewiste aanmelding zonder naam', async () => {
+  await testContext.test('verzendoverzicht als .xlsx met audit; gewiste aanmelding zonder naam', async () => {
     await db.query("UPDATE bookings SET anonymized_at = now() WHERE id = $1", [grietBooking]);
     const file = await request(`/app/infobrieven/${infobriefId}/verzendoverzicht.xlsx`, { cookie: kantoor.cookie });
     assert.equal(file.status, 200);
@@ -346,7 +346,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await post(`/app/infobrieven/${infobriefId}/opnieuw/`)).status, 409);
   });
 
-  await t.test('concept verwijderen met bevestiging; ook naar status nieuw', async () => {
+  await testContext.test('concept verwijderen met bevestiging; ook naar status nieuw', async () => {
     const created = await post('/app/infobrieven/nieuw/', { reis: String(trip.id) });
     const id = Number(created.headers.get('location').match(/(\d+)\/$/)[1]);
     await post(`/app/infobrieven/${id}/`, { onderwerp: 'Tweede', tekst: '<p>Nog een</p>', nieuw: 'ja' });
@@ -360,7 +360,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await post(`/app/infobrieven/${id}/opnieuw/`)).status, 404);
   });
 
-  await t.test('verzender: limiet per minuut, zonder mailserver blijft de wachtrij staan, afgebroken = niet zeker', async () => {
+  await testContext.test('verzender: limiet per minuut, zonder mailserver blijft de wachtrij staan, afgebroken = niet zeker', async () => {
     const [brief] = await db.query("INSERT INTO infobrieven (trip_id, subject, body_html, status, send_started_at) VALUES ($1, 'Limiet', '<p>x</p>', 'verzenden', now()) RETURNING id", [trip.id]);
     const ids = await db.query("SELECT id FROM bookings WHERE trip_id = $1 AND status <> 'geannuleerd' AND anonymized_at IS NULL AND email <> '' ORDER BY id", [trip.id]);
     for (const row of ids) await db.query("INSERT INTO infobrief_recipients (infobrief_id, booking_id, role) VALUES ($1, $2, 'deelnemer')", [brief.id, row.id]);
@@ -403,7 +403,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     clock += 1;
   });
 
-  await t.test('verzender: fout halverwege een ronde laat de rest in de wachtrij; te veel aanmeldingen = niet versturen', async () => {
+  await testContext.test('verzender: fout halverwege een ronde laat de rest in de wachtrij; te veel aanmeldingen = niet versturen', async () => {
     const [brief] = await db.query("INSERT INTO infobrieven (trip_id, subject, body_html, status, send_started_at) VALUES ($1, 'Halverwege', '<p>x</p>', 'verzenden', now()) RETURNING id", [trip.id]);
     const ids = await db.query("SELECT id FROM bookings WHERE reference IN ('AV-2', 'AV-3', 'AV-7') ORDER BY id");
     for (const row of ids) await db.query("INSERT INTO infobrief_recipients (infobrief_id, booking_id, role) VALUES ($1, $2, 'deelnemer')", [brief.id, row.id]);
@@ -434,7 +434,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.deepEqual(await infobrieven.recipientCandidates(many, { trip_id: 1, include_new: false, include_guardians: true }, persons), { list: [], tooMany: true });
   });
 
-  await t.test('verzender: kick schrijft alleen aantallen of de soort fout in het log', async () => {
+  await testContext.test('verzender: kick schrijft alleen aantallen of de soort fout in het log', async () => {
     const logs = [];
     const originalLog = console.log;
     const originalError = console.error;

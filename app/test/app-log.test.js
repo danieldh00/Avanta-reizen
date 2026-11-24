@@ -91,7 +91,7 @@ test('logboek: buffer met teller, grens per minuut, terugval en console', async 
   assert.match(inserted[inserted.length - 1].params[6], /Back-up mislukt voor \*\*\*@\*\*\*/);
 });
 
-test('logboek, foutcodes, debugmodus en Beheer > Logboek', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('logboek, foutcodes, debugmodus en Beheer > Logboek', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -104,7 +104,7 @@ test('logboek, foutcodes, debugmodus en Beheer > Logboek', { skip: !DATABASE_URL
   const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, backupDir });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); fs.rmSync(backupDir, { recursive: true, force: true }); });
+  testContext.after(async () => { server.close(); await db.close(); fs.rmSync(backupDir, { recursive: true, force: true }); });
   const appLog = app.locals.appLog;
 
   /**

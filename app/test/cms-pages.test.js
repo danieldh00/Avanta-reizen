@@ -303,7 +303,7 @@ test('H4: homepage-secties als blokken (zonder database)', async () => {
   assert.equal((await loadBlockData(normalizeBlocks([newBlock('kop')]), { faqs: () => assert.fail(), categories: () => assert.fail(), upcomingTrips: () => assert.fail() })).home, undefined);
 });
 
-test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -316,7 +316,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   const app = createApp({ db, masterKey: MASTER_KEY, mediaDir });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  testContext.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
 
   const hash = await hashPassword(PASSWORD);
   for (const [email, role] of [['kantoor@example.nl', 'kantoor'], ['leider@example.nl', 'reisleider'], ['redactie@example.nl', 'redacteur'], ['boekhouding@example.nl', 'boekhouding']]) {
@@ -375,7 +375,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     return row.blocks || [];
   };
 
-  await t.test('rechten: zonder sessie naar inloggen, reisleider en boekhouding 403, redacteur en kantoor wel; menu', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, reisleider en boekhouding 403, redacteur en kantoor wel; menu', async () => {
     assert.equal((await request('/app/paginas/')).status, 303);
     for (const session of [leider, boekhouding]) {
       assert.equal((await request('/app/paginas/', { cookie: session.cookie })).status, 403);
@@ -393,7 +393,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.doesNotMatch((await request('/app/', { cookie: boekhouding.cookie })).text, /\/app\/paginas\//, 'geen menu-item zonder recht');
   });
 
-  await t.test('onbekend id of blok → 404, zonder CSRF → 403', async () => {
+  await testContext.test('onbekend id of blok → 404, zonder CSRF → 403', async () => {
     assert.equal((await request('/app/paginas/999999/', { cookie: redactie.cookie })).status, 404);
     assert.equal((await post('/app/paginas/999999/gegevens/', { title: 'x' })).status, 404);
     assert.equal((await post('/app/paginas/999999/publiceren/', {})).status, 404);
@@ -402,7 +402,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await request(`${pageUrl}gegevens/`, { cookie: redactie.cookie, form: { _csrf: 'fout', versie: '0', title: 'x' } })).status, 403);
   });
 
-  await t.test('concept: de site blijft gelijk tot publiceren; voorbeeld toont het concept; verouderd formulier → 409', async () => {
+  await testContext.test('concept: de site blijft gelijk tot publiceren; voorbeeld toont het concept; verouderd formulier → 409', async () => {
     const stale = String(await version());
     const saved = await post(`${pageUrl}gegevens/`, { title: 'Over Avanta', pretitle: 'Wie wij zijn', intro: 'Nieuwe inleiding' });
     assert.equal(saved.status, 303);
@@ -422,7 +422,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match(editor.text, /Concept met wijzigingen/);
   });
 
-  await t.test('blokken toevoegen, wijzigen, verplaatsen, kopiëren en verwijderen', async () => {
+  await testContext.test('blokken toevoegen, wijzigen, verplaatsen, kopiëren en verwijderen', async () => {
     const added = await post(`${pageUrl}blokken/nieuw/`, { type: 'kop', na: 'begin' });
     assert.equal(added.status, 303);
     let blocks = await blocksOf();
@@ -457,7 +457,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await blocksOf())[0].data.html, '<h2>Kop</h2><p>Nieuwe tekst</p>');
   });
 
-  await t.test('foto uit de bibliotheek: blok en kopfoto, gebruikt in, verdwenen foto', async () => {
+  await testContext.test('foto uit de bibliotheek: blok en kopfoto, gebruikt in, verdwenen foto', async () => {
     await post(`${pageUrl}blokken/nieuw/`, { type: 'afbeelding' });
     const imageBlock = (await blocksOf()).find((block) => block.type === 'afbeelding');
     const picker = await request(`${pageUrl}blokken/${imageBlock.id}/foto/`, { cookie: redactie.cookie });
@@ -476,7 +476,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.ok(removal.places.some((place) => place.kind === 'Pagina' && place.href === '/over-ons/'));
   });
 
-  await t.test('publiceren: versies (import als versie 1), site bijgewerkt, verdwenen foto weigert', async () => {
+  await testContext.test('publiceren: versies (import als versie 1), site bijgewerkt, verdwenen foto weigert', async () => {
     // Een foto die toch verdwijnt (bijv. direct in de database) houdt publiceren tegen.
     await db.query("UPDATE pages SET draft = jsonb_set(draft, '{imageMediaId}', '999999') WHERE id = $1", [page.id]);
     assert.equal((await post(`${pageUrl}publiceren/`, {})).status, 409);
@@ -500,7 +500,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await post(`${pageUrl}concept-weggooien/`, {})).status, 409);
   });
 
-  await t.test('versie terugzetten als concept, weggooien en de auditlog', async () => {
+  await testContext.test('versie terugzetten als concept, weggooien en de auditlog', async () => {
     assert.equal((await post(`${pageUrl}versies/99/terugzetten/`, {})).status, 404);
     assert.equal((await post(`${pageUrl}versies/1/terugzetten/`, {})).status, 303);
     const [draft] = await db.query("SELECT draft ->> 'title' AS title, draft -> 'blocks' -> 0 -> 'data' ->> 'html' AS html FROM pages WHERE id = $1", [page.id]);
@@ -520,7 +520,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal(log.status, 403, 'auditlog alleen met recht gebruikers');
   });
 
-  await t.test('H2: galerij met meer foto\'s, video en reizen in het voorbeeld', async () => {
+  await testContext.test('H2: galerij met meer foto\'s, video en reizen in het voorbeeld', async () => {
     const [second] = await db.query(
       `INSERT INTO media (original_url, local_name, content_type, bytes, source, title, alt_text, variants)
        VALUES (NULL, 'bib-00000000000000dd-1600.webp', 'image/webp', 10, 'upload', 'Meer', 'Meer', '{"1600": "bib-00000000000000dd-1600.webp"}') RETURNING id`,
@@ -558,7 +558,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match(tooMany.text, /hoogstens 5 blokken met reizen/);
   });
 
-  await t.test('H3: nieuwe pagina (offline tot publiceren), gereserveerde en bezette adressen', async () => {
+  await testContext.test('H3: nieuwe pagina (offline tot publiceren), gereserveerde en bezette adressen', async () => {
     assert.equal((await request('/app/paginas/nieuw/', { cookie: leider.cookie })).status, 403);
     assert.equal((await request('/app/paginas/nieuw/', { cookie: leider.cookie, form: { _csrf: leider.csrf, title: 'X' } })).status, 403);
     assert.equal((await request('/app/paginas/nieuw/', { cookie: redactie.cookie, form: { _csrf: 'fout', title: 'X' } })).status, 403);
@@ -595,7 +595,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.deepEqual(revisions, [{ version: 1, seo_title: 'Teamdagen bij Avanta' }], 'geen importversie voor een nieuwe pagina');
   });
 
-  await t.test('H3: adres wijzigen met 301 (ook eronder) en menu mee; offline, online en verwijderen', async () => {
+  await testContext.test('H3: adres wijzigen met 301 (ook eronder) en menu mee; offline, online en verwijderen', async () => {
     const [parent] = await db.query("SELECT id FROM pages WHERE path = '/over-ons/'");
     const [child] = await db.query("SELECT id FROM pages WHERE path = '/over-ons/teamdagen-meer/'");
     await db.query(`INSERT INTO menu_items (menu, label, href, sort_order) VALUES ('voet', 'Over ons', '/over-ons/', 99),
@@ -611,7 +611,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     const moved = await moveTo(parent.id, { slug: 'wie-wij-zijn', parent: '/' });
     assert.equal(moved.status, 303);
     assert.match(moved.headers.get('location'), /opgeslagen=8/);
-    assert.deepEqual((await db.query('SELECT path FROM pages WHERE id = ANY($1::int[]) ORDER BY path', [[parent.id, child.id]])).map((r) => r.path), ['/wie-wij-zijn/', '/wie-wij-zijn/teamdagen-meer/']);
+    assert.deepEqual((await db.query('SELECT path FROM pages WHERE id = ANY($1::int[]) ORDER BY path', [[parent.id, child.id]])).map((row) => row.path), ['/wie-wij-zijn/', '/wie-wij-zijn/teamdagen-meer/']);
     const old = await request('/over-ons/teamdagen-meer/');
     assert.equal(old.status, 301);
     assert.equal(old.headers.get('location'), '/wie-wij-zijn/teamdagen-meer/');
@@ -619,7 +619,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await request('/wie-wij-zijn/teamdagen-meer/')).status, 200);
     assert.match((await request('/wie-wij-zijn/')).text, /<a href="\/wie-wij-zijn\/">Over ons<\/a>/, 'menu-item gaat mee');
     assert.equal(await audits('pagina.verplaatst'), 1);
-    assert.deepEqual((await db.query("SELECT href FROM menu_items WHERE label LIKE 'Team %' ORDER BY label")).map((r) => r.href),
+    assert.deepEqual((await db.query("SELECT href FROM menu_items WHERE label LIKE 'Team %' ORDER BY label")).map((row) => row.href),
       ['/wie-wij-zijn/teamdagen-meer/#x', '/wie-wij-zijn/teamdagen-meer/', '/wie-wij-zijn/teamdagen-meer/#y'], 'ook met anker of zonder slash');
     // Terug naar het oude adres: de doorverwijzing vanaf het oude adres vervalt, er ontstaat geen lus.
     assert.equal((await moveTo(parent.id, { slug: 'over-ons', parent: '/' })).status, 303);
@@ -655,7 +655,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     await act(`/app/paginas/${parent.id}/online/`, { stand: 'online' });
   });
 
-  await t.test('H3: menu\'s beheren; de site toont ze', async () => {
+  await testContext.test('H3: menu\'s beheren; de site toont ze', async () => {
     assert.equal((await request('/app/menus/')).status, 303);
     assert.equal((await request('/app/menus/', { cookie: leider.cookie })).status, 403);
     assert.equal((await request('/app/menus/nieuw/', { cookie: boekhouding.cookie, form: { _csrf: boekhouding.csrf, menu: 'hoofd', label: 'X', href: '/x/' } })).status, 403);
@@ -700,12 +700,12 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     // Gelijktijdig wijzigen en toevoegen op hetzelfde menu: geen deadlock (vaste volgorde van sloten).
     const [someVoet] = await db.query("SELECT id FROM menu_items WHERE menu = 'voet' ORDER BY id LIMIT 1");
     const mixed = await Promise.all([
-      ...[1, 2, 3].map((n) => request(`/app/menus/${someVoet.id}/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, menu: 'voet', label: `Gewijzigd ${n}`, href: '/x/' } })),
+      ...[1, 2, 3].map((attempt) => request(`/app/menus/${someVoet.id}/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, menu: 'voet', label: `Gewijzigd ${attempt}`, href: '/x/' } })),
       add({ menu: 'voet', label: 'Tegelijk 0', href: '/x/' }),
     ]);
     assert.deepEqual(mixed.map((response) => response.status), [303, 303, 303, 303]);
     await db.query("DELETE FROM menu_items WHERE label = 'Tegelijk 0'");
-    const parallel = await Promise.all([1, 2, 3].map((n) => add({ menu: 'voet', label: `Tegelijk ${n}`, href: '/x/' })));
+    const parallel = await Promise.all([1, 2, 3].map((attempt) => add({ menu: 'voet', label: `Tegelijk ${attempt}`, href: '/x/' })));
     assert.deepEqual(parallel.map((response) => response.status).sort(), [303, 422, 422], 'gelijktijdig: maar één past');
     assert.equal((await db.query("SELECT count(*)::int AS count FROM menu_items WHERE menu = 'voet'"))[0].count, 40);
     assert.match((await add({ menu: 'voet', label: 'Te veel', href: '/x/' })).text, /hoogstens 40 items/);
@@ -717,7 +717,7 @@ test('pagina\'s in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match((await request('/over-ons/')).text, /<nav aria-label="Voettekst"><ul class="nav"><li><a href="\/avanta-reizen\/">Het Avantateam<\/a>/);
   });
 
-  await t.test('H4: homepage als blokpagina opzetten, publiceren en offline halen', async () => {
+  await testContext.test('H4: homepage als blokpagina opzetten, publiceren en offline halen', async () => {
     assert.equal((await request('/app/paginas/homepage/', { cookie: leider.cookie, form: { _csrf: leider.csrf } })).status, 403);
     assert.equal((await request('/app/paginas/homepage/', { cookie: redactie.cookie, form: { _csrf: 'fout' } })).status, 403);
     assert.match((await request('/app/paginas/', { cookie: redactie.cookie })).text, /Homepage als blokpagina opzetten/);

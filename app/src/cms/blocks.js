@@ -430,6 +430,50 @@ function validateField(field, input) {
 }
 
 /**
+ * Leest een fotoreeks (`images`) uit het formulier. Foto's komen van het fotoscherm; hier kun je ze alleen weghalen
+ * (vinkje `f_<naam>_weg`) of verplaatsen (volgnummer `f_<naam>_<index>_volgorde`).
+ * @param {object} field Velddefinitie.
+ * @param {object[]} images Huidige foto's van het blok.
+ * @param {object} body Ingezonden velden.
+ * @returns {object[]} De overgebleven foto's in de nieuwe volgorde.
+ */
+function imagesFromForm(field, images, body) {
+  const removed = new Set([].concat(body[`f_${field.name}_weg`] || []).filter((value) => typeof value === 'string'));
+  const current = images.map((image, index) => {
+    const position = Number.parseInt(formText(body, `f_${field.name}_${index}_volgorde`), 10);
+    return { image, index, position: Number.isFinite(position) ? position : index + 1 };
+  });
+  return current.filter((item) => !removed.has(String(item.index)))
+    .sort((left, right) => left.position - right.position || left.index - right.index)
+    .map((item) => item.image);
+}
+
+/**
+ * Leest de regels van een herhaalveld (`repeat`) uit het formulier (`f_<naam>_<regel>_<subveld>`). Een regel telt
+ * alleen mee als minstens één subveld dat geen keuzelijst is een waarde heeft.
+ * @param {object} field Velddefinitie met `count` en `fields`.
+ * @param {object} body Ingezonden velden.
+ * @param {object} errors Fouten per veldnaam; deze functie vult ze aan.
+ * @returns {object[]} De ingevulde regels.
+ */
+function repeatRowsFromForm(field, body, errors) {
+  const rows = [];
+  for (let index = 0; index < field.count; index++) {
+    const row = {};
+    let filled = false;
+    for (const sub of field.fields) {
+      const name = `f_${field.name}_${index}_${sub.name}`;
+      const result = validateField(sub, formText(body, name));
+      row[sub.name] = result.value;
+      if (result.error) errors[name] = result.error;
+      if (sub.kind !== 'select' && result.value) filled = true;
+    }
+    if (filled) rows.push(row);
+  }
+  return rows;
+}
+
+/**
  * Controleert de ingezonden velden van een blok. Velden heten `f_<naam>` (bij `repeat`: `f_<naam>_<regel>_<subveld>`),
  * stijlopties `s_<naam>`. Een foto (`image`) wijzigt hier niet: die komt van het fotoscherm en blijft zoals hij was.
  * @param {object} block Het huidige blok.
@@ -444,30 +488,9 @@ function validateBlockForm(block, body) {
     if (field.kind === 'image') {
       data[field.name] = block.data[field.name] || null;
     } else if (field.kind === 'images') {
-      // Foto's komen van het fotoscherm; hier kun je ze alleen weghalen of verplaatsen (vinkje of volgnummer).
-      const removed = new Set([].concat(body[`f_${field.name}_weg`] || []).filter((value) => typeof value === 'string'));
-      const current = (block.data[field.name] || []).map((image, index) => {
-        const position = Number.parseInt(formText(body, `f_${field.name}_${index}_volgorde`), 10);
-        return { image, index, position: Number.isFinite(position) ? position : index + 1 };
-      });
-      data[field.name] = current.filter((item) => !removed.has(String(item.index)))
-        .sort((left, right) => left.position - right.position || left.index - right.index)
-        .map((item) => item.image);
+      data[field.name] = imagesFromForm(field, block.data[field.name] || [], body);
     } else if (field.kind === 'repeat') {
-      const rows = [];
-      for (let index = 0; index < field.count; index++) {
-        const row = {};
-        let filled = false;
-        for (const sub of field.fields) {
-          const input = formText(body, `f_${field.name}_${index}_${sub.name}`);
-          const result = validateField(sub, input);
-          row[sub.name] = result.value;
-          if (result.error) errors[`f_${field.name}_${index}_${sub.name}`] = result.error;
-          if (sub.kind !== 'select' && result.value) filled = true;
-        }
-        if (filled) rows.push(row);
-      }
-      data[field.name] = rows;
+      data[field.name] = repeatRowsFromForm(field, body, errors);
     } else {
       const result = validateField(field, formText(body, `f_${field.name}`));
       data[field.name] = result.value;
@@ -578,8 +601,9 @@ function mediaIdsOf(blocks) {
   const ids = new Set();
   for (const block of blocks) {
     for (const field of BLOCK_TYPES[block.type].fields) {
-      if (field.kind === 'image' && block.data[field.name] && block.data[field.name].mediaId) ids.add(block.data[field.name].mediaId);
-      if (field.kind === 'images') for (const image of block.data[field.name]) if (image.mediaId) ids.add(image.mediaId);
+      const value = block.data[field.name];
+      const images = field.kind === 'image' ? [value] : field.kind === 'images' ? value : [];
+      for (const image of images) if (image && image.mediaId) ids.add(image.mediaId);
     }
   }
   return [...ids];

@@ -88,7 +88,7 @@ test('indeling: secties, zoeken en rechten', () => {
   assert.equal(formatUptime(2 * 86400 + 3 * 3600 + 60), '2 dagen, 3 uur en 1 minuut');
 });
 
-test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -97,7 +97,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
   await db.migrate();
   const vault = createVault(MASTER_KEY);
 
-  await t.test('instellingenlaag: volgorde, opslaan, geheimen en terugzetten', async () => {
+  await testContext.test('instellingenlaag: volgorde, opslaan, geheimen en terugzetten', async () => {
     const env = { TEST_COUNT: '8', TEST_ENABLED: 'true', TEST_SITE: '' };
     const settings = createSettings({ db, vault, env, fields: TEST_FIELDS });
     await settings.ready();
@@ -159,7 +159,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
   const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.
@@ -192,7 +192,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
   const adminCookie = installed.cookie;
   const adminCsrf = csrfFrom((await request('/app/', { cookie: adminCookie })).text);
 
-  await t.test('toegang: zonder sessie naar inloggen, zonder recht 403, beheerder 200', async () => {
+  await testContext.test('toegang: zonder sessie naar inloggen, zonder recht 403, beheerder 200', async () => {
     const anonymous = await request('/app/beheer/');
     assert.equal(anonymous.status, 303);
     assert.equal(anonymous.headers.get('location'), '/app/inloggen/');
@@ -243,7 +243,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
     assert.match((await request('/app/', { cookie: adminCookie })).text, /href="\/app\/beheer\/"/);
   });
 
-  await t.test('zoeken en onbekende sectie', async () => {
+  await testContext.test('zoeken en onbekende sectie', async () => {
     const found = await request('/app/beheer/?zoek=telefoon', { cookie: adminCookie });
     assert.equal(found.status, 200);
     assert.match(found.text, /Contact en organisatie/);
@@ -256,7 +256,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
     assert.equal((await request('/app/beheer/overzicht/', { cookie: adminCookie, form: { _csrf: adminCsrf } })).status, 404, 'het overzicht heeft geen formulier');
   });
 
-  await t.test('contactgegevens: opslaan, fouten, CSRF, auditlog en effect op de site', async () => {
+  await testContext.test('contactgegevens: opslaan, fouten, CSRF, auditlog en effect op de site', async () => {
     const before = await request('/bestaat-niet/');
     assert.match(before.text, /0118 638427/, 'standaard in de voettekst');
     const page = await request('/app/beheer/contact/', { cookie: adminCookie });

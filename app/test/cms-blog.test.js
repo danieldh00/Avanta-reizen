@@ -77,7 +77,7 @@ test('blog: gegevens, datum en tijd in Nederland en de samenvatting (zonder data
   assert.equal(postStatus({ published: false, scheduled: true }), 'offline');
 });
 
-test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -91,7 +91,7 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
   const app = createApp({ db, masterKey: MASTER_KEY, mediaDir, siteContent });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  testContext.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
 
   const hash = await hashPassword(PASSWORD);
   for (const [email, role] of [['kantoor@example.nl', 'kantoor'], ['leider@example.nl', 'reisleider'], ['redactie@example.nl', 'redacteur'], ['boekhouding@example.nl', 'boekhouding']]) {
@@ -151,7 +151,7 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
   };
   const draftBlocks = async (id = imported.id) => ((await db.query("SELECT draft -> 'blocks' AS blocks FROM posts WHERE id = $1", [id]))[0].blocks || []);
 
-  await t.test('migratie 20: categorieën uit de import worden categorieën met koppelingen', async () => {
+  await testContext.test('migratie 20: categorieën uit de import worden categorieën met koppelingen', async () => {
     const [old] = await db.query("INSERT INTO posts (slug, title, categories, published_at) VALUES ('oude-categorieen', 'Oud', $1, now()) RETURNING id", [['Jongerenreizen', 'Café & Kerk', ' ']]);
     await db.query('DROP TABLE post_term_links; DROP TABLE post_terms; DROP INDEX posts_featured_idx; ALTER TABLE posts DROP COLUMN featured; DELETE FROM schema_migrations WHERE id = 20');
     assert.deepEqual(await db.migrate(), [20]);
@@ -161,7 +161,7 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     await db.query('DELETE FROM posts WHERE id = $1', [old.id]);
   });
 
-  await t.test('rechten: zonder sessie naar inloggen, reisleider en boekhouding 403, redacteur en kantoor wel; menu', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, reisleider en boekhouding 403, redacteur en kantoor wel; menu', async () => {
     assert.equal((await request('/app/blog/')).status, 303);
     for (const session of [leider, boekhouding]) {
       assert.equal((await request('/app/blog/', { cookie: session.cookie })).status, 403);
@@ -183,7 +183,7 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.doesNotMatch((await request('/app/', { cookie: boekhouding.cookie })).text, /\/app\/blog\//, 'geen menu-item zonder recht');
   });
 
-  await t.test('onbekend id of blok → 404, zonder CSRF → 403', async () => {
+  await testContext.test('onbekend id of blok → 404, zonder CSRF → 403', async () => {
     assert.equal((await request('/app/blog/999999/', { cookie: redactie.cookie })).status, 404);
     assert.equal((await request('/app/blog/999999/voorbeeld/', { cookie: redactie.cookie })).status, 404);
     assert.equal((await request('/app/blog/999999/gegevens/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf, versie: '0', title: 'x' } })).status, 404);
@@ -193,7 +193,7 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.equal((await request(`${postUrl}gegevens/`, { cookie: redactie.cookie, form: { _csrf: 'fout', versie: '0', title: 'x' } })).status, 403);
   });
 
-  await t.test('concept: site gelijk tot publiceren, voorbeeld, verouderd formulier → 409, homepage-blok geweigerd', async () => {
+  await testContext.test('concept: site gelijk tot publiceren, voorbeeld, verouderd formulier → 409, homepage-blok geweigerd', async () => {
     const editor = await request(postUrl, { cookie: redactie.cookie });
     assert.match(editor.text, /value="2025-08-01T12:00"/, 'publicatiedatum in Nederlandse tijd');
     assert.doesNotMatch(editor.text, /option value="home-slider"/, 'geen homepage-secties');
@@ -215,7 +215,7 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.equal((await send(`${postUrl}blokken/nieuw/`, { type: 'onbekend' })).status, 422);
   });
 
-  await t.test('blokken, uitgelichte afbeelding en publiceren met versies', async () => {
+  await testContext.test('blokken, uitgelichte afbeelding en publiceren met versies', async () => {
     assert.equal((await send(`${postUrl}blokken/nieuw/`, { type: 'citaat' })).status, 303);
     let blocks = await draftBlocks();
     assert.deepEqual(blocks.map((block) => block.type), ['tekst', 'citaat']);
@@ -271,7 +271,7 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.match(usage.text, /Kamp in Zweden 2025/);
   });
 
-  await t.test('nieuw bericht: offline, inplannen, adres wijzigen met 301, offline en verwijderen', async () => {
+  await testContext.test('nieuw bericht: offline, inplannen, adres wijzigen met 301, offline en verwijderen', async () => {
     assert.equal((await request('/app/blog/nieuw/', { cookie: redactie.cookie })).status, 200);
     for (const [slug, message] of [['over-ons', /staat een pagina/], ['kamp-in-zweden', /al een bericht/], ['blog', /gebruikt de site zelf/], ['Hoofd Letters', /kleine letters/]]) {
       const refused = await request('/app/blog/nieuw/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf, title: 'Nieuw', slug } });
@@ -336,7 +336,7 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.equal((await send(`${postUrl}online/`, { stand: 'online' })).status, 303);
   });
 
-  await t.test('geïmporteerd bericht zonder samenvatting houdt na een adreswijziging zijn samenvatting', async () => {
+  await testContext.test('geïmporteerd bericht zonder samenvatting houdt na een adreswijziging zijn samenvatting', async () => {
     const [plain] = await db.query(
       `INSERT INTO posts (legacy_id, slug, title, excerpt, body_html, published_at)
        VALUES (503, 'zonder-samenvatting', 'Zonder samenvatting', '', '<p>Tekst uit WordPress over kanoën</p>', '2025-07-01T10:00:00Z') RETURNING id`,
@@ -346,7 +346,7 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.match((await request('/blog/')).text, /Tekst uit WordPress over kano/);
   });
 
-  await t.test('categorieën en tags: beheren, koppelen, uitgelicht, pagina\'s op de site en tags overnemen', async () => {
+  await testContext.test('categorieën en tags: beheren, koppelen, uitgelicht, pagina\'s op de site en tags overnemen', async () => {
     const termsUrl = '/app/blog/categorieen-en-tags/';
     for (const session of [leider, boekhouding]) {
       assert.equal((await request(termsUrl, { cookie: session.cookie })).status, 403);
@@ -423,7 +423,7 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.deepEqual(validateTermFields({ name: ' Café ', sort_order: '-3' }).values, { name: 'Café', slug: 'cafe', intro: '', sortOrder: -3 });
   });
 
-  await t.test('de WordPress-import laat een bericht uit het CRM staan', async () => {
+  await testContext.test('de WordPress-import laat een bericht uit het CRM staan', async () => {
     const data = {
       guides: [], categories: [], trips: [], pages: [], faqs: [],
       posts: [

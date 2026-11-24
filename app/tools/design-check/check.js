@@ -327,7 +327,7 @@ function groupFindings(pages) {
   const order = { hoog: 0, midden: 1, laag: 2 };
   return [...groups.values()]
     .map((group) => ({ ...group, count: group.urls.size, urls: [...group.urls].slice(0, 20), types: [...group.types] }))
-    .sort((a, b) => order[a.severity] - order[b.severity] || b.count - a.count);
+    .sort((left, right) => order[left.severity] - order[right.severity] || right.count - left.count);
 }
 
 /**

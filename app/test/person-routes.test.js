@@ -36,7 +36,7 @@ test('zoekpatronen: per woord, met escaping van LIKE-tekens, begrensd', () => {
   assert.deepEqual(searchPatterns(['x']), { text: '', patterns: [] });
 });
 
-test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -46,7 +46,7 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
   const app = createApp({ db, masterKey: MASTER_KEY });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
   const persons = createPersons({ vault: createVault(MASTER_KEY) });
 
   const hash = await hashPassword(PASSWORD);
@@ -104,7 +104,7 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
   /** Alleen de NAW-velden, zoals het wijzigformulier ze verstuurt. */
   const plain = Object.fromEntries(['gender', 'first_names', 'call_name', 'last_name', 'email', 'mobile', 'phone', 'street', 'postal_code', 'city', 'occupation'].map((name) => [name, values[name]]));
 
-  await t.test('rechten: zonder sessie naar inloggen, reisleider 403, boekhouding alleen lezen, kantoor wel', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, reisleider 403, boekhouding alleen lezen, kantoor wel', async () => {
     assert.equal((await request('/app/deelnemers/')).status, 303);
     assert.equal((await request('/app/deelnemers/', { cookie: sessions.leider.cookie })).status, 403, 'reisleider: nog geen eigen-vertrekbeperking');
     assert.equal((await request(path, { cookie: sessions.leider.cookie })).status, 403);
@@ -130,7 +130,7 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action LIKE 'deelnemer.%'"))[0].total, 0);
   });
 
-  await t.test('onbekende deelnemer of toestemming van een ander: 404', async () => {
+  await testContext.test('onbekende deelnemer of toestemming van een ander: 404', async () => {
     assert.equal((await request('/app/deelnemers/999999/', { cookie: sessions.kantoor.cookie })).status, 404);
     const [consent] = await db.query("SELECT id FROM consents WHERE person_id = $1 AND kind = 'art9_gezondheid'", [personId]);
     const other = await request(`/app/deelnemers/${otherId}/toestemming/${consent.id}/intrekken/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } });
@@ -138,7 +138,7 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal((await db.query('SELECT withdrawn_at FROM consents WHERE id = $1', [consent.id]))[0].withdrawn_at, null);
   });
 
-  await t.test('lijst en zoeken: geen bijzondere gegevens, woorden in elke volgorde', async () => {
+  await testContext.test('lijst en zoeken: geen bijzondere gegevens, woorden in elke volgorde', async () => {
     const list = await request('/app/deelnemers/?q=middelburg+bakker', { cookie: sessions.kantoor.cookie });
     assert.equal(list.status, 200);
     assert.match(list.text, /Bakker, Griet/);
@@ -150,7 +150,7 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.match((await request('/app/deelnemers/', { cookie: sessions.kantoor.cookie })).text, /Zwart/);
   });
 
-  await t.test('detail toont bijzondere gegevens pas na Toon (POST met CSRF), met audit', async () => {
+  await testContext.test('detail toont bijzondere gegevens pas na Toon (POST met CSRF), met audit', async () => {
     const page = await request(path, { cookie: sessions.kantoor.cookie });
     assert.doesNotMatch(page.text, /PKN|Astma|NX99|0687654321/);
     assert.equal((await request(`${path}toon/`, { cookie: sessions.kantoor.cookie, form: { block: 'health_data' } })).status, 403, 'zonder CSRF');
@@ -169,7 +169,7 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.doesNotMatch(log.text, /Astma|PKN/);
   });
 
-  await t.test('NAW wijzigen: gecontroleerd, match_key mee, audit', async () => {
+  await testContext.test('NAW wijzigen: gecontroleerd, match_key mee, audit', async () => {
     const bad = await request(path, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, ...plain, email: 'geen-adres' } });
     assert.equal(bad.status, 422);
     assert.match(bad.text, /geldig e-mailadres/);
@@ -184,7 +184,7 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action = 'deelnemer.gewijzigd'"))[0].total, 1);
   });
 
-  await t.test('blok wijzigen: eigen recht nodig, art. 9 alleen met toestemming', async () => {
+  await testContext.test('blok wijzigen: eigen recht nodig, art. 9 alleen met toestemming', async () => {
     const health = await request(`${path}blok/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, block: 'health_data', particulars: 'Astma, puffer mee' } });
     assert.equal(health.status, 303);
     const [person] = await db.query('SELECT id, health_data FROM persons WHERE id = $1', [personId]);
@@ -199,7 +199,7 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal((await db.query('SELECT match_key FROM persons WHERE id = $1', [personId]))[0].match_key, persons.matchKey('griet.nieuw@example.nl', '1990-03-05'));
   });
 
-  await t.test('toestemming intrekken wist het blok en geldt voor de persoon', async () => {
+  await testContext.test('toestemming intrekken wist het blok en geldt voor de persoon', async () => {
     const [consent] = await db.query("SELECT id FROM consents WHERE person_id = $1 AND kind = 'art9_gezondheid'", [personId]);
     const response = await request(`${path}toestemming/${consent.id}/intrekken/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } });
     assert.equal(response.status, 303);
@@ -242,7 +242,7 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal((await db.query('SELECT special_data FROM persons WHERE id = $1', [personId]))[0].special_data, null);
   });
 
-  await t.test('samenvoegen: rechten, 404 zonder markering, keuzes per veld en blok, alles gaat mee', async () => {
+  await testContext.test('samenvoegen: rechten, 404 zonder markering, keuzes per veld en blok, alles gaat mee', async () => {
     const base = { ...values, email: 'dubbel@example.nl', church: 'PKN', particulars: 'Astma', consent_religion: 'ja', consent_health: 'ja' };
     const keep = await db.transaction(async (client) => {
       const { personId: id } = await persons.savePerson(client, base);
@@ -293,7 +293,7 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal((await request(mergePath, { cookie: sessions.kantoor.cookie, form })).status, 404, 'tweede keer');
   });
 
-  await t.test('geen dubbel: markering weg, alleen bij een gemarkeerde persoon', async () => {
+  await testContext.test('geen dubbel: markering weg, alleen bij een gemarkeerde persoon', async () => {
     const { personId } = await db.transaction((client) => persons.savePerson(client, { ...values, email: 'kees@example.nl', first_names: 'Kees', last_name: 'Zwart', church: '', particulars: '', street: 'Elders 1' }));
     assert.equal((await persons.findPerson(db, personId)).duplicate_of, otherId);
     const response = await request(`/app/deelnemers/${personId}/niet-dubbel/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } });
@@ -303,7 +303,7 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal((await request(`/app/deelnemers/${personId}/niet-dubbel/`, { cookie: sessions.boek.cookie, form: { _csrf: sessions.boek.csrf } })).status, 403);
   });
 
-  await t.test('toestemming uit een oud formulier telt niet als gegeven, intrekken kan wel', async () => {
+  await testContext.test('toestemming uit een oud formulier telt niet als gegeven, intrekken kan wel', async () => {
     const [legacy] = await db.query("INSERT INTO consents (person_id, kind, text_version, given_at) VALUES ($1, 'art9_gezondheid', $2, '2026-01-02T10:00:00Z') RETURNING id", [otherId, LEGACY_ART9_TEXT_VERSION]);
     const page = await request(`/app/deelnemers/${otherId}/`, { cookie: sessions.kantoor.cookie });
     assert.match(page.text, /niet los gegeven/);
@@ -314,7 +314,7 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.ok((await db.query('SELECT withdrawn_at FROM consents WHERE id = $1', [legacy.id]))[0].withdrawn_at);
   });
 
-  await t.test('samenvoegen: zelfverwijzing 404, wederzijdse verwijzing tegelijk zonder deadlock', async () => {
+  await testContext.test('samenvoegen: zelfverwijzing 404, wederzijdse verwijzing tegelijk zonder deadlock', async () => {
     const create = (email) => db.transaction(async (client) => (await persons.savePerson(client, { ...values, email, church: '', particulars: '' })).personId);
     const self = await create('zelf@example.nl');
     await db.query('UPDATE persons SET duplicate_of = id WHERE id = $1', [self]);

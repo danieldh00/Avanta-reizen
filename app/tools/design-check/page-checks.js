@@ -207,7 +207,7 @@ function runPageChecks(context) {
     if (inFixedLayer(element)) continue;
     for (const rect of inkRects(element)) boxes.push({ element, rect });
   }
-  boxes.sort((a, b) => a.rect.top - b.rect.top);
+  boxes.sort((left, right) => left.rect.top - right.rect.top);
   const reported = new Set();
   // Vegen van boven naar beneden: alleen vakken vergelijken die verticaal kunnen overlappen.
   for (let i = 0; i < boxes.length; i++) {
@@ -264,7 +264,7 @@ function runPageChecks(context) {
     const stacked = rects.every((rect, index) => index === 0 || rect.top >= rects[index - 1].bottom - 1);
     if (!stacked) continue;
     const lefts = rects.map((rect) => rect.left);
-    const reference = lefts.slice().sort((a, b) => lefts.filter((value) => value === b).length - lefts.filter((value) => value === a).length)[0];
+    const reference = lefts.slice().sort((left, right) => lefts.filter((value) => value === right).length - lefts.filter((value) => value === left).length)[0];
     children.forEach((child, index) => {
       const difference = Math.abs(lefts[index] - reference);
       if (difference >= THRESHOLDS.nearEdgeMinPx && difference <= THRESHOLDS.nearEdgeMaxPx) {

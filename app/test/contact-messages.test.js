@@ -47,7 +47,7 @@ test('teller in het menu: alleen bij een GET, alleen met het recht, fout = geen 
   }
 });
 
-test('berichten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('berichten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -57,7 +57,7 @@ test('berichten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   const app = createApp({ db, masterKey: MASTER_KEY });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   const hash = await hashPassword(PASSWORD);
   for (const role of ['kantoor', 'beheerder', 'reisleider', 'boekhouding', 'redacteur']) {
@@ -97,7 +97,7 @@ test('berichten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   const beheerder = await login('beheerder');
   const others = { reisleider: await login('reisleider'), boekhouding: await login('boekhouding'), redacteur: await login('redacteur') };
 
-  await t.test('rechten: zonder sessie naar inloggen, andere rollen 403 en geen menu-item', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, andere rollen 403 en geen menu-item', async () => {
     assert.equal((await request('/app/berichten/')).status, 303);
     for (const session of Object.values(others)) {
       assert.equal((await request('/app/berichten/', { cookie: session.cookie })).status, 403);
@@ -108,13 +108,13 @@ test('berichten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await request('/app/berichten/', { cookie: beheerder.cookie })).status, 200);
   });
 
-  await t.test('teller in het menu met het aantal nieuwe berichten', async () => {
+  await testContext.test('teller in het menu met het aantal nieuwe berichten', async () => {
     const page = (await request('/app/', { cookie: kantoor.cookie })).text;
     assert.match(page, /href="\/app\/berichten\/"[^>]*title="Berichten \(3 nieuw\)"/);
     assert.match(page, /<span class="crm-nav-count"><span aria-hidden="true">3<\/span><span class="visually-hidden">, 3 nieuw<\/span><\/span>/);
   });
 
-  await t.test('lijst: standaard nieuw, filter en zoeken', async () => {
+  await testContext.test('lijst: standaard nieuw, filter en zoeken', async () => {
     const list = (await request('/app/berichten/', { cookie: kantoor.cookie })).text;
     assert.match(list, /href="\/app\/berichten\/"[^>]*aria-current="page"/);
     assert.ok(list.indexOf('Spammer') < list.indexOf('Jansen'), 'nieuwste eerst');
@@ -127,7 +127,7 @@ test('berichten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match((await request('/app/berichten/?status=afgehandeld', { cookie: kantoor.cookie })).text, /Geen berichten gevonden/);
   });
 
-  await t.test('één bericht: tekst ge-escaped met regeleinden, reis, links', async () => {
+  await testContext.test('één bericht: tekst ge-escaped met regeleinden, reis, links', async () => {
     const page = await request(`/app/berichten/${question}/`, { cookie: kantoor.cookie });
     assert.equal(page.status, 200);
     assert.match(page.text, /<div class="crm-message">Regel 1\nRegel 2 &lt;b&gt;vet&lt;\/b&gt;<\/div>/);
@@ -138,7 +138,7 @@ test('berichten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await request('/app/berichten/999999/', { cookie: kantoor.cookie })).status, 404);
   });
 
-  await t.test('afhandelen met notitie en audit; dubbel afhandelen geeft 409; CSRF verplicht', async () => {
+  await testContext.test('afhandelen met notitie en audit; dubbel afhandelen geeft 409; CSRF verplicht', async () => {
     assert.equal((await request(`/app/berichten/${question}/afhandelen/`, { cookie: kantoor.cookie, form: { _csrf: 'fout' } })).status, 403);
     const done = await request(`/app/berichten/${question}/afhandelen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, notitie: 'Gebeld\u0000 op maandag' } });
     assert.equal(done.status, 303);
@@ -159,7 +159,7 @@ test('berichten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match((await request('/app/berichten/?status=afgehandeld', { cookie: kantoor.cookie })).text, /Jansen/);
   });
 
-  await t.test('weer openen', async () => {
+  await testContext.test('weer openen', async () => {
     const reopened = await request(`/app/berichten/${question}/heropenen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } });
     assert.equal(reopened.status, 303);
     const [row] = await db.query('SELECT status FROM contact_messages WHERE id = $1', [question]);
@@ -168,7 +168,7 @@ test('berichten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action = 'bericht.heropend'"))[0].total, 1);
   });
 
-  await t.test('verwijderen alleen met bevestiging; daarna 404', async () => {
+  await testContext.test('verwijderen alleen met bevestiging; daarna 404', async () => {
     assert.equal((await request(`/app/berichten/${spam}/verwijderen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })).status, 422);
     const removed = await request(`/app/berichten/${spam}/verwijderen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, bevestig: 'ja' } });
     assert.equal(removed.status, 303);
@@ -177,7 +177,7 @@ test('berichten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action = 'bericht.verwijderd'"))[0].total, 1);
   });
 
-  await t.test('auditlog toont de acties met hun omschrijving', async () => {
+  await testContext.test('auditlog toont de acties met hun omschrijving', async () => {
     const log = (await request('/app/auditlog/', { cookie: beheerder.cookie })).text;
     assert.match(log, /Bericht afgehandeld/);
     assert.match(log, /Bericht verwijderd/);

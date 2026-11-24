@@ -97,7 +97,7 @@ test('overzicht: een onderdeel dat niet laadt toont een melding, de rest blijft 
   assert.equal((failedTile.match(/<span class="crm-tile-count">\?<\/span>/g) || []).length, 2);
 });
 
-test('overzicht in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('overzicht in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -107,7 +107,7 @@ test('overzicht in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   const app = createApp({ db, masterKey: MASTER_KEY, now: () => NOW });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   const hash = await hashPassword(PASSWORD);
   const users = {};
@@ -174,7 +174,7 @@ test('overzicht in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
    */
   const tile = (page, label) => (page.match(new RegExp(`<span class="crm-tile-count">([^<]+)</span>\\s*<span class="crm-tile-label">${label}</span>`)) || [])[1] || null;
 
-  await t.test('kantoor: tegels, vertrekken met plaatsen en openstaand, activiteit; geen systeem', async () => {
+  await testContext.test('kantoor: tegels, vertrekken met plaatsen en openstaand, activiteit; geen systeem', async () => {
     const page = await overviewFor('kantoor');
     assert.equal(tile(page, 'Nieuwe aanmeldingen'), '1');
     assert.equal(tile(page, 'Te late betalingen'), '2', 'beide openstaande aanmeldingen zijn over de termijn');
@@ -197,7 +197,7 @@ test('overzicht in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.doesNotMatch(page, /Het CRM wordt in stappen gebouwd/);
   });
 
-  await t.test('beheerder: ook de stand van het systeem', async () => {
+  await testContext.test('beheerder: ook de stand van het systeem', async () => {
     const page = await overviewFor('beheerder');
     assert.match(page, /id="overzicht-systeem"/);
     assert.match(page, /href="\/app\/beheer\/bewaking\/"/);
@@ -205,7 +205,7 @@ test('overzicht in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match(page, /Nog geen/);
   });
 
-  await t.test('boekhouding: alleen betalingen en dubbelen, geen vertrekken of activiteit', async () => {
+  await testContext.test('boekhouding: alleen betalingen en dubbelen, geen vertrekken of activiteit', async () => {
     const page = await overviewFor('boekhouding');
     assert.equal(tile(page, 'Te late betalingen'), '2');
     assert.equal(tile(page, 'Mogelijk dubbele deelnemers'), '1');
@@ -214,7 +214,7 @@ test('overzicht in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.doesNotMatch(page, /overzicht-vertrekken|overzicht-activiteit|overzicht-systeem|AV-2027/);
   });
 
-  await t.test('reisleider en redacteur: geen cijfers of gegevens', async () => {
+  await testContext.test('reisleider en redacteur: geen cijfers of gegevens', async () => {
     for (const role of ['reisleider', 'redacteur']) {
       const page = await overviewFor(role);
       assert.match(page, /Welkom, /);

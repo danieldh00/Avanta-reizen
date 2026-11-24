@@ -57,13 +57,13 @@ test('match_key: genormaliseerd e-mailadres, geboortedatum telt mee, andere sleu
   assert.notEqual(createPersons({ vault: createVault(Buffer.alloc(32, 12)) }).matchKey('piet@example.nl', '1980-02-03'), key);
 });
 
-test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
   await admin.close();
   const db = createDatabase(withSchema(DATABASE_URL));
-  t.after(() => db.close());
+  testContext.after(() => db.close());
   await db.migrate();
   const vault = createVault(MASTER_KEY);
   const persons = createPersons({ vault });
@@ -72,7 +72,7 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
   const personById = async (id) => (await db.query('SELECT id, first_names, email, postal_code, mobile, duplicate_of, identity_data, special_data, health_data, emergency_data FROM persons WHERE id = $1', [id]))[0];
 
   let firstId;
-  await t.test('nieuwe persoon: NAW leesbaar, blokken versleuteld per categorie', async () => {
+  await testContext.test('nieuwe persoon: NAW leesbaar, blokken versleuteld per categorie', async () => {
     const result = await save(bookingValues({ church: 'Hersteld Hervormd', consent_religion: 'ja' }));
     assert.equal(result.outcome, 'nieuw');
     firstId = result.personId;
@@ -88,7 +88,7 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.throws(() => persons.openBlock('onbekend', person));
   });
 
-  await t.test('zelfde persoon: lege velden worden aangevuld, niets overschreven', async () => {
+  await testContext.test('zelfde persoon: lege velden worden aangevuld, niets overschreven', async () => {
     const result = await save(bookingValues({ email: 'piet@example.nl', first_names: 'pieter  jan', emergency_phone: '0622222222', document_number: 'AB12' }));
     assert.deepEqual(result, { personId: firstId, outcome: 'bestaand' });
     assert.equal(await count(), 1);
@@ -99,7 +99,7 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal(persons.openBlock('special_data', person).church, 'Hersteld Hervormd', 'leeg veld wist niets');
   });
 
-  await t.test('afwijkend ingevuld veld: nieuwe persoon, gemarkeerd als mogelijk dubbel', async () => {
+  await testContext.test('afwijkend ingevuld veld: nieuwe persoon, gemarkeerd als mogelijk dubbel', async () => {
     const result = await save(bookingValues({ street: 'Andere straat 9' }));
     assert.equal(result.outcome, 'mogelijk-dubbel');
     assert.notEqual(result.personId, firstId);
@@ -107,7 +107,7 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal((await db.query('SELECT street FROM persons WHERE id = $1', [firstId]))[0].street, 'Kerkstraat 2', 'origineel onaangetast');
   });
 
-  await t.test('nog een aanmelding met hetzelfde afwijkende adres: hetzelfde dubbel, geen nieuwe persoon', async () => {
+  await testContext.test('nog een aanmelding met hetzelfde afwijkende adres: hetzelfde dubbel, geen nieuwe persoon', async () => {
     const before = await count();
     const [duplicate] = await db.query('SELECT id FROM persons WHERE duplicate_of = $1 ORDER BY id', [firstId]);
     const result = await save(bookingValues({ street: 'Andere straat 9', mobile: '0611111111' }));
@@ -117,7 +117,7 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal((await personById(third.personId)).duplicate_of, firstId, 'nieuw afwijkend adres: dubbel van het origineel');
   });
 
-  await t.test('blok van de bestaande persoon niet te openen: aanmelding gaat door als mogelijk dubbel', async () => {
+  await testContext.test('blok van de bestaande persoon niet te openen: aanmelding gaat door als mogelijk dubbel', async () => {
     const values = bookingValues({ email: 'kapotblok@example.nl' });
     const { personId } = await save(values);
     await db.query('UPDATE persons SET identity_data = $2 WHERE id = $1', [personId, createVault(Buffer.alloc(32, 98)).seal({ birth_date: '1980-02-03' })]);
@@ -126,23 +126,23 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal((await personById(result.personId)).duplicate_of, personId);
   });
 
-  await t.test('zelfde e-mailadres, andere geboortedatum: mogelijk dubbel', async () => {
+  await testContext.test('zelfde e-mailadres, andere geboortedatum: mogelijk dubbel', async () => {
     const result = await save(bookingValues({ birth_date: '1981-02-03', first_names: 'Partner' }));
     assert.equal(result.outcome, 'mogelijk-dubbel');
     assert.equal((await personById(result.personId)).duplicate_of, firstId);
   });
 
-  await t.test('ander e-mailadres: gewoon nieuw', async () => {
+  await testContext.test('ander e-mailadres: gewoon nieuw', async () => {
     assert.equal((await save(bookingValues({ email: 'ander@example.nl' }))).outcome, 'nieuw');
   });
 
-  await t.test('gelijktijdige aanmeldingen van een nieuwe persoon maken één persoon', async () => {
+  await testContext.test('gelijktijdige aanmeldingen van een nieuwe persoon maken één persoon', async () => {
     const values = bookingValues({ email: 'tegelijk@example.nl' });
     const results = await Promise.all([save(values), save(values), save(values)]);
     assert.equal(new Set(results.map((result) => result.personId)).size, 1);
   });
 
-  await t.test('toestemmingen: voorwaarden altijd, art. 9 alleen met vinkje én ingevuld veld', async () => {
+  await testContext.test('toestemmingen: voorwaarden altijd, art. 9 alleen met vinkje én ingevuld veld', async () => {
     const [booking] = await db.query(
       `INSERT INTO bookings (reference, trip_title, gender, first_names, call_name, last_name, email, mobile, street, postal_code, city,
          earlier_trip, credit_card, driver_interest, driver_before, payment_method, payment_choice, consent_at, person_id)
@@ -156,7 +156,7 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.deepEqual(kinds, ['voorwaarden', 'art9_religie'], 'vinkje gezondheid zonder bijzonderheden telt niet');
   });
 
-  await t.test('oude aanmeldingen omzetten: persoon, blokken, toestemming; niet te ontsleutelen blijft staan', async () => {
+  await testContext.test('oude aanmeldingen omzetten: persoon, blokken, toestemming; niet te ontsleutelen blijft staan', async () => {
     const insertOld = (reference, email, sealed) => db.query(
       `INSERT INTO bookings (reference, trip_title, gender, first_names, call_name, last_name, email, mobile, street, postal_code, city,
          occupation, earlier_trip, credit_card, driver_interest, driver_before, payment_method, payment_choice, sensitive_data, consent_at)
@@ -192,7 +192,7 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.deepEqual(plainConsents.map((consent) => consent.kind), ['voorwaarden'], 'lege art. 9-velden: geen art. 9-toestemming');
   });
 
-  await t.test('eerder overgenomen art. 9-gegevens worden gewist, tenzij er later echte toestemming is (A10)', async () => {
+  await testContext.test('eerder overgenomen art. 9-gegevens worden gewist, tenzij er later echte toestemming is (A10)', async () => {
     const legacy = async (email, values) => {
       const personId = await db.transaction(async (client) => (await persons.savePerson(client, bookingValues({ email, ...values }))).personId);
       await db.query(
@@ -227,7 +227,7 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal(open[0].total, 0, 'oude regels ingetrokken, als bewijs bewaard');
     assert.deepEqual(await persons.purgeLegacyArt9(db), { purged: 0, failed: 0 }, 'daarna niets meer te doen');
     const audit = await db.query('SELECT user_id, entity, entity_id FROM audit_log WHERE action = $1 ORDER BY entity_id::int', [LEGACY_ART9_PURGE_ACTION]);
-    assert.deepEqual(audit, [oldOnly, laterConsent].sort((a, b) => a - b).map((id) => ({ user_id: null, entity: 'persons', entity_id: String(id) })),
+    assert.deepEqual(audit, [oldOnly, laterConsent].sort((left, right) => left - right).map((id) => ({ user_id: null, entity: 'persons', entity_id: String(id) })),
       'per persoon één auditregel door het systeem, zonder gegevens; de mislukte poging laat geen regel achter');
   });
 });

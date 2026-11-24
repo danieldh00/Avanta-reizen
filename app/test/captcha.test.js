@@ -119,7 +119,7 @@ test('captcha: CSP-uitbreiding en formulierpaden', () => {
   assert.equal(isFormPath('/reis/'), false);
 });
 
-test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -139,7 +139,7 @@ test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DA
   const settings = app.locals.settings;
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.
@@ -177,7 +177,7 @@ test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DA
   const cookie = installed.cookie;
   const csrf = csrfFrom((await request('/app/', { cookie })).text);
 
-  await t.test('uit: niets van Google in de pagina, de CSP en de verwerking', async () => {
+  await testContext.test('uit: niets van Google in de pagina, de CSP en de verwerking', async () => {
     const page = await request('/contact/');
     assert.doesNotMatch(page.text, /captchaToken|captcha\.js/);
     assert.doesNotMatch(page.headers.get('content-security-policy'), /google/);
@@ -185,7 +185,7 @@ test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.equal(google.calls.length, 0);
   });
 
-  await t.test('Beheer: rechten, opslaan en sleutelcontrole', async () => {
+  await testContext.test('Beheer: rechten, opslaan en sleutelcontrole', async () => {
     const created = await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
     assert.equal(created.status, 303);
     const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: { cookie, csrf } });
@@ -207,7 +207,7 @@ test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DA
     google.calls.length = 0;
   });
 
-  await t.test('aan: veld en script op de formulierpagina, CSP alleen daar', async () => {
+  await testContext.test('aan: veld en script op de formulierpagina, CSP alleen daar', async () => {
     const page = await request('/contact/');
     assert.match(page.text, new RegExp(`name="captchaToken" value="" data-site-key="${SITE_KEY}" data-captcha-action="contact"`));
     assert.match(page.text, /<script src="\/js\/captcha\.js/);
@@ -223,7 +223,7 @@ test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.doesNotMatch(page.text, /goed-geheim/);
   });
 
-  await t.test('contact: zonder token of met lage score geweigerd, als mens opgeslagen', async () => {
+  await testContext.test('contact: zonder token of met lage score geweigerd, als mens opgeslagen', async () => {
     const before = await messages();
     const missing = await request('/contact/', { form: await contactForm() });
     assert.equal(missing.status, 422);
@@ -239,7 +239,7 @@ test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.equal(google.calls.length, 2, 'zonder token of met een ongeldig formulier geen controle bij Google');
   });
 
-  await t.test('Google onbereikbaar: blokkeren geeft 503, doorlaten slaat op', async () => {
+  await testContext.test('Google onbereikbaar: blokkeren geeft 503, doorlaten slaat op', async () => {
     clock += 11 * 60 * 1000; // nieuw limietvenster van het contactformulier
     google.state.down = true;
     await settings.update({ values: { captchaOnUnreachable: 'block' } });
@@ -251,7 +251,7 @@ test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DA
     google.state.down = false;
   });
 
-  await t.test('aanmelden: geweigerd zonder token, opgeslagen als mens', async () => {
+  await testContext.test('aanmelden: geweigerd zonder token, opgeslagen als mens', async () => {
     /**
      * Haalt het aanmeldformulier op en vult het in.
      * @param {object} [extra] Extra velden.
@@ -277,7 +277,7 @@ test('captcha op de formulieren en in Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.equal((await db.query('SELECT count(*)::int AS count FROM bookings'))[0].count, 1);
   });
 
-  await t.test('Beheer: overzicht zonder tokens en limiet op de sleutelcontrole', async () => {
+  await testContext.test('Beheer: overzicht zonder tokens en limiet op de sleutelcontrole', async () => {
     const page = await request('/app/beheer/captcha/', { cookie });
     assert.match(page.text, /Geweigerd: score te laag/);
     assert.match(page.text, /<td>Aanmelden<\/td>\s*<td>Doorgelaten<\/td>\s*<td>0,8<\/td>/);

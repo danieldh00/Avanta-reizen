@@ -287,7 +287,7 @@ function createMediaRoutes(options) {
    */
   const renderItem = async (req, item, state = {}) => {
     const [countries, places] = await Promise.all([library.countries(), library.usage(db, item)]);
-    const variantWidths = Object.keys(item.variants || {}).map(Number).sort((a, b) => a - b);
+    const variantWidths = Object.keys(item.variants || {}).map(Number).sort((left, right) => left - right);
     const facts = [
       ['Afmetingen', item.width && item.height ? `${item.width} × ${item.height} px` : 'onbekend'],
       ['Varianten', variantWidths.length ? variantWidths.map((width) => `${width} px`).join(', ') : 'alleen het origineel'],

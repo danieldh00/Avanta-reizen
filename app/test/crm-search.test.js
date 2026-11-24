@@ -39,7 +39,7 @@ test('bronnen per rol', () => {
   assert.equal(canSearch('onbekend'), false);
 });
 
-test('zoeken in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('zoeken in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -49,7 +49,7 @@ test('zoeken in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
   const app = createApp({ db, masterKey: MASTER_KEY });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   const hash = await hashPassword(PASSWORD);
   for (const role of ['kantoor', 'beheerder', 'reisleider', 'boekhouding', 'redacteur']) {
@@ -85,14 +85,14 @@ test('zoeken in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
   const sessions = {};
   for (const role of ['kantoor', 'beheerder', 'reisleider', 'boekhouding', 'redacteur']) sessions[role] = await login(role);
 
-  await t.test('zoekveld in de kopbalk; zonder sessie naar inloggen; reisleider 403 zonder zoekveld', async () => {
+  await testContext.test('zoekveld in de kopbalk; zonder sessie naar inloggen; reisleider 403 zonder zoekveld', async () => {
     assert.equal((await request('/app/zoeken/?q=noor')).status, 303);
     assert.match((await request('/app/', sessions.kantoor)).text, /<form class="crm-header-search" method="get" action="\/app\/zoeken\/" role="search">/);
     assert.doesNotMatch((await request('/app/', sessions.reisleider)).text, /crm-header-search/);
     assert.equal((await request('/app/zoeken/?q=noor', sessions.reisleider)).status, 403);
   });
 
-  await t.test('kantoor: treffers per bron, hoogstens vijf met link naar de lijst, ge-escaped, geanonimiseerd niet', async () => {
+  await testContext.test('kantoor: treffers per bron, hoogstens vijf met link naar de lijst, ge-escaped, geanonimiseerd niet', async () => {
     const page = await request('/app/zoeken/?q=noor', sessions.kantoor);
     assert.equal(page.status, 200);
     assert.match(page.text, /id="crm-zoek"[^>]*value="noor"/, 'zoekterm blijft in de kopbalk staan');
@@ -109,7 +109,7 @@ test('zoeken in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.match(anonymized.text, /zoek-aanmeldingen/);
   });
 
-  await t.test('rechten: redacteur alleen website, boekhouding alleen deelnemers, beheerder ook gebruikers', async () => {
+  await testContext.test('rechten: redacteur alleen website, boekhouding alleen deelnemers, beheerder ook gebruikers', async () => {
     const editor = (await request('/app/zoeken/?q=noor', sessions.redacteur)).text;
     assert.match(editor, /zoek-paginas/);
     assert.doesNotMatch(editor, /zoek-deelnemers|zoek-aanmeldingen|zoek-berichten|zoek-reizen/);
@@ -119,7 +119,7 @@ test('zoeken in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.match((await request('/app/zoeken/?q=gebruiker%20kantoor', sessions.beheerder)).text, /href="\/app\/gebruikers\/\d+\/">Gebruiker kantoor/);
   });
 
-  await t.test('te kort, niets gevonden, % als gewone tekst, leeg', async () => {
+  await testContext.test('te kort, niets gevonden, % als gewone tekst, leeg', async () => {
     assert.match((await request('/app/zoeken/?q=n', sessions.kantoor)).text, /Typ minstens 2 tekens/);
     assert.match((await request('/app/zoeken/?q=xyzzy', sessions.kantoor)).text, /Niets gevonden voor “xyzzy”/);
     assert.match((await request('/app/zoeken/?q=%25%25', sessions.kantoor)).text, /Niets gevonden/);

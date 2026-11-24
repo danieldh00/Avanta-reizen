@@ -63,13 +63,13 @@ test('migratie 33: de vaste landenlijst', () => {
   assert.equal(byCode.get('BS').slug, 'bahamas');
 });
 
-test('migratie 33 op een database zoals na de import', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('migratie 33 op een database zoals na de import', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
   await admin.close();
   const db = createDatabase(withSchema(DATABASE_URL));
-  t.after(() => db.close());
+  testContext.after(() => db.close());
   await db.migrate();
 
   // Terug naar de stand van vóór migratie 33, met categorieën zoals de import ze achterliet.

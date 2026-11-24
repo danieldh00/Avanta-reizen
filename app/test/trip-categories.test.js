@@ -66,7 +66,7 @@ test('icoon van een reistype: gekozen, anders op de slug', () => {
   assert.equal(categoryIconName({ slug: 'onbekend' }), 'verre-reizen');
 });
 
-test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -81,7 +81,7 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
   const app = createApp({ db, masterKey: MASTER_KEY, mediaDir });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  testContext.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
 
   const hash = await hashPassword(PASSWORD);
   for (const [email, role] of [['kantoor@example.nl', 'kantoor'], ['leider@example.nl', 'reisleider'], ['redactie@example.nl', 'redacteur']]) {
@@ -138,7 +138,7 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
   const audits = async (action) => (await db.query('SELECT count(*)::int AS count FROM audit_log WHERE action = $1', [action]))[0].count;
   const fields = (extra) => ({ _csrf: kantoor.csrf, name: 'Hostel', slug: 'hostel', kind: 'type', icon: '', intro: '', body_html: '', sort_order: '0', ...extra });
 
-  await t.test('rechten: zonder sessie naar inloggen, reisleider en redacteur 403, kantoor wel; menu', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, reisleider en redacteur 403, kantoor wel; menu', async () => {
     assert.equal((await request('/app/reistypes-en-landen/')).status, 303);
     for (const session of [leider, redactie]) {
       assert.equal((await request('/app/reistypes-en-landen/', { cookie: session.cookie })).status, 403);
@@ -160,7 +160,7 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
     assert.doesNotMatch((await request('/app/', { cookie: redactie.cookie })).text, /reistypes-en-landen/, 'redacteur ziet het menu-item niet');
   });
 
-  await t.test('onbekend id → 404, zonder CSRF → 403', async () => {
+  await testContext.test('onbekend id → 404, zonder CSRF → 403', async () => {
     assert.equal((await request('/app/reistypes-en-landen/999999/', { cookie: kantoor.cookie })).status, 404);
     assert.equal((await request('/app/reistypes-en-landen/999999/', { cookie: kantoor.cookie, form: fields() })).status, 404);
     assert.equal((await request('/app/reistypes-en-landen/999999/foto/', { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, media_id: String(photo.id) } })).status, 404);
@@ -169,7 +169,7 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
     assert.equal((await request(`/app/reistypes-en-landen/${hostel.id}/`, { cookie: kantoor.cookie, form: { ...fields(), _csrf: 'fout' } })).status, 403);
   });
 
-  await t.test('aanmaken: slug uit de naam, dubbele slug geweigerd, audit', async () => {
+  await testContext.test('aanmaken: slug uit de naam, dubbele slug geweigerd, audit', async () => {
     const form = await request('/app/reistypes-en-landen/', { cookie: kantoor.cookie });
     assert.match(form.text, /<textarea id="veld-body_html" name="body_html" rows="10" class="cms-richtext">/, 'teksteditor');
     const created = await request('/app/reistypes-en-landen/nieuw/', { cookie: kantoor.cookie, form: fields({ name: 'Wintersport', slug: '', icon: 'wintersport' }) });
@@ -185,7 +185,7 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
     assert.equal((await request('/app/reistypes-en-landen/nieuw/', { cookie: kantoor.cookie, form: fields({ name: '', slug: 'x' }) })).status, 422);
   });
 
-  await t.test('wijzigen: andere slug geeft een 301, HTML opgeschoond, homepage-keuze', async () => {
+  await testContext.test('wijzigen: andere slug geeft een 301, HTML opgeschoond, homepage-keuze', async () => {
     const saved = await request(`/app/reistypes-en-landen/${hostel.id}/`, {
       cookie: kantoor.cookie,
       form: fields({ name: 'Hostelreizen', slug: 'hostelreizen', icon: 'ov', body_html: '<p>Tekst<img src="x" onerror="alert(1)"></p><script>alert(1)</script>', show_on_home: '1', sort_order: '2' }),
@@ -212,7 +212,7 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
     assert.equal(await audits('categorie.gewijzigd'), 2);
   });
 
-  await t.test('foto uit de bibliotheek: standaard de foto\'s van het land, opslaan, gebruikt in, verdwenen foto', async () => {
+  await testContext.test('foto uit de bibliotheek: standaard de foto\'s van het land, opslaan, gebruikt in, verdwenen foto', async () => {
     const page = await request(`/app/reistypes-en-landen/${double.id}/`, { cookie: kantoor.cookie });
     assert.match(page.text, new RegExp(`name="media_id" value="${photo.id}"`), 'foto van dit land in de kiezer');
     const other = await request(`/app/reistypes-en-landen/${namibia.id}/`, { cookie: kantoor.cookie });
@@ -231,7 +231,7 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
     assert.equal(await audits('categorie.foto'), 2);
   });
 
-  await t.test('een categorie die geen land meer is, kan geen foto\'s krijgen', async () => {
+  await testContext.test('een categorie die geen land meer is, kan geen foto\'s krijgen', async () => {
     const [former] = await db.query("INSERT INTO trip_categories (slug, name, kind) VALUES ('was-land', 'Was land', 'bestemming') RETURNING id");
     const changed = await request(`/app/reistypes-en-landen/${former.id}/`, { cookie: kantoor.cookie, form: fields({ name: 'Was land', slug: 'was-land', kind: 'type' }) });
     assert.equal(changed.status, 303, 'zonder foto\'s mag de soort wijzigen');
@@ -242,7 +242,7 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
     await db.query('DELETE FROM trip_categories WHERE id = $1', [former.id]);
   });
 
-  await t.test('verwijderen alleen als ongebruikt', async () => {
+  await testContext.test('verwijderen alleen als ongebruikt', async () => {
     assert.equal((await request(`/app/reistypes-en-landen/${double.id}/verwijderen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })).status, 409);
     const [unused] = await db.query("SELECT id FROM trip_categories WHERE slug = 'wintersport'");
     assert.equal((await request(`/app/reistypes-en-landen/${unused.id}/verwijderen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })).status, 303);
@@ -250,7 +250,7 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
     assert.equal(await audits('categorie.verwijderd'), 1);
   });
 
-  await t.test('samenvoegen: reizen en foto\'s naar het doel, bron weg, 301', async () => {
+  await testContext.test('samenvoegen: reizen en foto\'s naar het doel, bron weg, 301', async () => {
     assert.equal((await request(`/app/reistypes-en-landen/${double.id}/samenvoegen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, doel: String(double.id) } })).status, 422);
     assert.equal((await request(`/app/reistypes-en-landen/${double.id}/samenvoegen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, doel: '999999' } })).status, 409);
     // Een land samenvoegen met een reistype mag niet (de foto's zouden aan een reistype gaan hangen).

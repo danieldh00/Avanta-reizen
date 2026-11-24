@@ -51,7 +51,7 @@ test('faq: velden controleren (zonder database)', () => {
   assert.ok(validateQuestionFields({ question: ['lijst'], category_id: '1', answer: '<p>a</p>' }).errors.question, 'geen lijst');
 });
 
-test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -65,7 +65,7 @@ test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
   const app = createApp({ db, masterKey: MASTER_KEY, mediaDir, siteContent });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  testContext.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
 
   const hash = await hashPassword(PASSWORD);
   for (const [email, role] of [['leider@example.nl', 'reisleider'], ['redactie@example.nl', 'redacteur'], ['boekhouding@example.nl', 'boekhouding']]) {
@@ -108,7 +108,7 @@ test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
   const post = (url, form, session = redactie) => request(url, { cookie: session.cookie, form: { _csrf: session.csrf, ...form } });
   const audits = async (action) => (await db.query('SELECT count(*)::int AS count FROM audit_log WHERE action = $1', [action]))[0].count;
 
-  await t.test('migratie 21: bestaande categorieën worden categorieën, alfabetisch', async () => {
+  await testContext.test('migratie 21: bestaande categorieën worden categorieën, alfabetisch', async () => {
     await db.query(`INSERT INTO faqs (slug, question, answer_html, category, sort_order) VALUES
       ('oud-1', 'Paspoort nodig?', '<p>Ja</p>', 'Reizen', 2), ('oud-2', 'Hoe betaal ik?', '<p>Via de bank</p>', 'Betalen', 1),
       ('oud-3', 'Kan ik annuleren?', '<p>Soms</p>', 'reizen', 1), ('oud-4', 'Zonder?', '<p>Ja</p>', '', 0)`);
@@ -119,7 +119,7 @@ test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.deepEqual(rows.map((row) => [row.slug, row.category, row.name]), [['oud-1', 'Reizen', 'Reizen'], ['oud-2', 'Betalen', 'Betalen'], ['oud-3', 'Reizen', 'Reizen'], ['oud-4', 'Algemeen', 'Algemeen']]);
   });
 
-  await t.test('rechten: zonder sessie naar inloggen, reisleider en boekhouding 403, redacteur wel; menu', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, reisleider en boekhouding 403, redacteur wel; menu', async () => {
     const [question] = await db.query("SELECT id FROM faqs WHERE slug = 'oud-1'");
     const [category] = await db.query("SELECT id FROM faq_categories WHERE name = 'Reizen'");
     assert.equal((await request('/app/faq/')).status, 303);
@@ -143,7 +143,7 @@ test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.equal((await request('/app/faq/categorieen/nieuw/', { cookie: redactie.cookie, form: { _csrf: 'fout', name: 'X' } })).status, 403, 'CSRF');
   });
 
-  await t.test('categorie en vraag toevoegen, wijzigen en verwijderen; volgorde op de site', async () => {
+  await testContext.test('categorie en vraag toevoegen, wijzigen en verwijderen; volgorde op de site', async () => {
     assert.equal((await post('/app/faq/categorieen/nieuw/', { name: 'betalen' })).status, 422, 'bestaat al (hoofdletters tellen niet)');
     const created = await post('/app/faq/categorieen/nieuw/', { name: 'Voorbereiding', sort_order: '5' });
     assert.equal(created.status, 303);
@@ -195,7 +195,7 @@ test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     }
   });
 
-  await t.test('de WordPress-import laat vragen uit het CRM staan en vult categorieën', async () => {
+  await testContext.test('de WordPress-import laat vragen uit het CRM staan en vult categorieën', async () => {
     const before = await db.query('SELECT slug FROM faqs WHERE managed_in_crm ORDER BY slug');
     const counts = await store(db, {
       guides: [], categories: [], trips: [], posts: [], pages: [],

@@ -37,9 +37,9 @@ function withSchema(url) {
  * @param {object} t Testcontext.
  * @returns {string} Pad.
  */
-function tempDir(t) {
+function tempDir(testContext) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'avanta-drive-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  testContext.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
 
@@ -153,14 +153,14 @@ function writeBackups(dir, stamps) {
   for (const stamp of stamps) fs.writeFileSync(path.join(dir, `avanta-${stamp}.dump.enc`), `inhoud ${stamp}`);
 }
 
-test('Drive: koppelen met eenmalige state', async (t) => {
+test('Drive: koppelen met eenmalige state', async (testContext) => {
   const google = fakeGoogle();
   const settings = fakeSettings();
   const audits = [];
-  const drive = createDrive({ settings, dir: tempDir(t), fetchImpl: google.fetchImpl, audit: (entry) => audits.push(entry) });
+  const drive = createDrive({ settings, dir: tempDir(testContext), fetchImpl: google.fetchImpl, audit: (entry) => audits.push(entry) });
   assert.equal(drive.redirectUri(), 'https://avanta.example.nl/app/beheer/google-drive/terug/');
   assert.equal(drive.connected(), false);
-  assert.throws(() => createDrive({ settings: fakeSettings({ driveClientSecret: '' }), dir: tempDir(t) }).startAuthorization(1), /client-ID en het client-secret/);
+  assert.throws(() => createDrive({ settings: fakeSettings({ driveClientSecret: '' }), dir: tempDir(testContext) }).startAuthorization(1), /client-ID en het client-secret/);
 
   const url = new URL(drive.startAuthorization(7));
   assert.equal(url.origin + url.pathname, GOOGLE.authorize);
@@ -184,17 +184,17 @@ test('Drive: koppelen met eenmalige state', async (t) => {
   await assert.rejects(drive.finishAuthorization({ state: badCode, code: 'fout' }), /koppel opnieuw/);
 
   let clock = Date.now();
-  const timed = createDrive({ settings, dir: tempDir(t), fetchImpl: google.fetchImpl, now: () => clock });
+  const timed = createDrive({ settings, dir: tempDir(testContext), fetchImpl: google.fetchImpl, now: () => clock });
   const expired = new URL(timed.startAuthorization(7)).searchParams.get('state');
   clock += 16 * 60 * 1000;
   await assert.rejects(timed.finishAuthorization({ state: expired, code: 'goede-code' }), /verlopen/);
 });
 
-test('Drive: synchroniseren, bewaartermijn, opnieuw koppelen en ontkoppelen', async (t) => {
+test('Drive: synchroniseren, bewaartermijn, opnieuw koppelen en ontkoppelen', async (testContext) => {
   const google = fakeGoogle();
   google.state.refreshTokens.add('refresh-geheim-1');
   const settings = fakeSettings({ driveRefreshToken: 'refresh-geheim-1' });
-  const dir = tempDir(t);
+  const dir = tempDir(testContext);
   const drive = createDrive({ settings, dir, fetchImpl: google.fetchImpl });
   writeBackups(dir, ['20261118-020000', '20261119-020000', '20261120-020000']);
 
@@ -285,11 +285,11 @@ function blockingGoogle() {
   return { google, fetchImpl, started, release };
 }
 
-test('Drive: gelijktijdig synchroniseren, ontkoppelen en opnieuw koppelen', async (t) => {
+test('Drive: gelijktijdig synchroniseren, ontkoppelen en opnieuw koppelen', async (testContext) => {
   // Een nieuwe back-up tijdens een lopende ronde gaat in een extra ronde direct mee.
   const first = blockingGoogle();
   first.google.state.refreshTokens.add('refresh-geheim-1');
-  const dir = tempDir(t);
+  const dir = tempDir(testContext);
   const drive = createDrive({ settings: fakeSettings({ driveRefreshToken: 'refresh-geheim-1', driveKeepCount: 5 }), dir, fetchImpl: first.fetchImpl });
   writeBackups(dir, ['20261119-020000']);
   const running = drive.sync();
@@ -305,7 +305,7 @@ test('Drive: gelijktijdig synchroniseren, ontkoppelen en opnieuw koppelen', asyn
   // Ontkoppelen tijdens een lopende ronde: de ronde zet de oude koppeling niet terug.
   const second = blockingGoogle();
   second.google.state.refreshTokens.add('refresh-geheim-1');
-  const otherDir = tempDir(t);
+  const otherDir = tempDir(testContext);
   const settings = fakeSettings({ driveRefreshToken: 'refresh-geheim-1' });
   const other = createDrive({ settings, dir: otherDir, fetchImpl: second.fetchImpl });
   writeBackups(otherDir, ['20261120-020000']);
@@ -322,7 +322,7 @@ test('Drive: gelijktijdig synchroniseren, ontkoppelen en opnieuw koppelen', asyn
   // upload, niets verwijderd) en de nieuwe koppeling blijft in de stand staan.
   const third = blockingGoogle();
   third.google.state.refreshTokens.add('refresh-geheim-1');
-  const thirdDir = tempDir(t);
+  const thirdDir = tempDir(testContext);
   const relink = createDrive({ settings: fakeSettings({ driveRefreshToken: 'refresh-geheim-1', driveKeepCount: 1 }), dir: thirdDir, fetchImpl: third.fetchImpl });
   writeBackups(thirdDir, ['20261119-020000']);
   const oldRound = relink.sync();
@@ -344,10 +344,10 @@ test('Drive: gelijktijdig synchroniseren, ontkoppelen en opnieuw koppelen', asyn
   assert.deepEqual((await relink.sync()).uploaded, ['avanta-20261120-020000.dump.enc']);
 });
 
-test('Drive: één mapzoekactie tegelijk', async (t) => {
+test('Drive: één mapzoekactie tegelijk', async (testContext) => {
   const google = fakeGoogle();
   google.state.refreshTokens.add('refresh-geheim-1');
-  const dir = tempDir(t);
+  const dir = tempDir(testContext);
   const drive = createDrive({ settings: fakeSettings({ driveRefreshToken: 'refresh-geheim-1' }), dir, fetchImpl: google.fetchImpl });
   writeBackups(dir, ['20261120-020000']);
   await Promise.all([drive.listRemote(), drive.listRemote(), drive.sync()]);
@@ -355,20 +355,20 @@ test('Drive: één mapzoekactie tegelijk', async (t) => {
   assert.equal(folders.length, 1, 'geen dubbele map op Drive');
 });
 
-test('Drive in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('Drive in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
   await admin.close();
   const db = createDatabase(withSchema(DATABASE_URL));
   await db.migrate();
-  const dir = tempDir(t);
+  const dir = tempDir(testContext);
   writeBackups(dir, ['20261120-020000']);
   const google = fakeGoogle();
   const app = createApp({ db, masterKey: Buffer.alloc(32, 5), setupCode: SETUP_CODE, backupDir: dir, googleFetch: google.fetchImpl, siteUrl: 'https://avanta.example.nl' });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.

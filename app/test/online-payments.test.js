@@ -114,7 +114,7 @@ test('Mollie-koppeling: netwerkfout, onleesbaar antwoord en ongeldig betaalscher
   await assert.rejects(serverError.createPayment(input), (error) => error.code === 'http_503');
 });
 
-test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -132,7 +132,7 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
   const app = createApp({ db, masterKey: MASTER_KEY, mailer, mollieFetch: fake.fetch, now: () => Date.parse('2027-03-01T10:00:00Z') });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
   const { settings, onlinePayments, paymentReminders } = app.locals;
 
   const hash = await hashPassword(PASSWORD);
@@ -178,7 +178,7 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
   };
   const path = onlinePayments.pathFor(openId);
 
-  await t.test('uit: geen knop, wel de betaalinstructie; starten 503', async () => {
+  await testContext.test('uit: geen knop, wel de betaalinstructie; starten 503', async () => {
     assert.equal(onlinePayments.enabled(), false);
     assert.equal(onlinePayments.linkFor(openId), '');
     const page = await request(path);
@@ -193,7 +193,7 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.equal(onlinePayments.enabled(), true);
   });
 
-  await t.test('betaallink: verkeerd token of id 404, geen naam op de pagina', async () => {
+  await testContext.test('betaallink: verkeerd token of id 404, geen naam op de pagina', async () => {
     assert.equal((await request(`/betalen/${openId}-${'A'.repeat(22)}/`)).status, 404);
     assert.equal((await request(`/betalen/${cancelledId}-${path.split('-').pop().replace('/', '')}/`)).status, 404, 'token van een andere aanmelding');
     assert.equal((await request('/betalen/999999-abc/')).status, 404);
@@ -209,7 +209,7 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.equal((await request(onlinePayments.pathFor(cancelledId), { form: {} })).status, 409);
   });
 
-  await t.test('starten: herkomstcontrole, tussenpagina naar Mollie, regel in de database, geen persoonsgegevens naar Mollie', async () => {
+  await testContext.test('starten: herkomstcontrole, tussenpagina naar Mollie, regel in de database, geen persoonsgegevens naar Mollie', async () => {
     assert.equal((await request(path, { form: {}, headers: { origin: 'https://evil.example' } })).status, 403);
     const before = fake.calls.length;
     const started = await request(path, { form: {} });
@@ -239,7 +239,7 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     await db.query("UPDATE online_payments SET status = 'open', created_at = $2 WHERE booking_id = $1", [openId, '2027-03-01T10:00:00Z']);
   });
 
-  await t.test('webhook: onbekend 200, afwijkend bedrag niet geregistreerd, geslaagd één keer met status door', async () => {
+  await testContext.test('webhook: onbekend 200, afwijkend bedrag niet geregistreerd, geslaagd één keer met status door', async () => {
     assert.equal((await request('/betalen/webhook/', { form: { id: 'tr_onbekend1' } })).status, 200);
     assert.equal((await request('/betalen/webhook/', { form: { id: '../x' } })).status, 200);
     const [{ provider_ref: ref }] = await db.query('SELECT provider_ref FROM online_payments WHERE booking_id = $1', [openId]);
@@ -271,7 +271,7 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.ok(log.every((row) => !row.message.includes(API_KEY)));
   });
 
-  await t.test('terugkeerpagina: betaald, en daarna het restant online', async () => {
+  await testContext.test('terugkeerpagina: betaald, en daarna het restant online', async () => {
     const back = await request(`${path}klaar/`);
     assert.match(back.text, /je betaling is ontvangen/);
     const page = await request(path);
@@ -279,7 +279,7 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.match(page.text, /€500,-/);
   });
 
-  await t.test('betaallink in de herinnering en op de betaalpagina in het CRM', async () => {
+  await testContext.test('betaallink in de herinnering en op de betaalpagina in het CRM', async () => {
     await db.query('DELETE FROM payments WHERE booking_id = $1', [openId]);
     const outcome = await paymentReminders.send({ bookingId: openId, trigger: 'automatisch', kind: 'aanbetaling' });
     assert.equal(outcome.status, 'ok');
@@ -293,7 +293,7 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.match(crm.text, /Betaald op/);
   });
 
-  await t.test('foutpaden starten: Mollie weigert (502) en opslaan mislukt na het aanmaken (500, gelogd)', async () => {
+  await testContext.test('foutpaden starten: Mollie weigert (502) en opslaan mislukt na het aanmaken (500, gelogd)', async () => {
     const failId = await booking('AV-2027-FOUT0003');
     const failPath = onlinePayments.pathFor(failId);
     fake.failNext = true;
@@ -318,7 +318,7 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.ok(log.every((row) => !/Jansen|jan@example/.test(row.message)), 'geen persoonsgegevens in het logboek');
   });
 
-  await t.test('terugkeerpagina: nog open, Mollie onbereikbaar, mislukt of afgebroken', async () => {
+  await testContext.test('terugkeerpagina: nog open, Mollie onbereikbaar, mislukt of afgebroken', async () => {
     const [row] = await db.query("SELECT id FROM bookings WHERE reference = 'AV-2027-FOUT0003'");
     const failPath = onlinePayments.pathFor(row.id);
     assert.equal((await request(`${failPath}klaar/`)).text.includes('Zodra de betaling bij ons binnen is'), true, 'nog geen betaling');
@@ -340,7 +340,7 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.equal(fake.calls.length, calls);
   });
 
-  await t.test('limiet op starten per aanmelding', async () => {
+  await testContext.test('limiet op starten per aanmelding', async () => {
     let last;
     for (let i = 0; i < START_LIMIT + 1; i++) last = await request(path, { form: {} });
     assert.equal(last.status, 429);

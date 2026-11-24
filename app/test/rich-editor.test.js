@@ -128,7 +128,7 @@ test('editor: script en opmaak passen bij elkaar en zetten nooit ongeschoonde HT
 });
 
 test('blokveld met opgemaakte tekst: tekstvak voor de editor met uitleg', () => {
-  const control = toString(fieldControl({ name: 'html', kind: 'richtext', max: 100 }, 'f_html', 'blok-1-f_html', '<p>a</p>'));
+  const control = toString(fieldControl({ name: 'html', kind: 'richtext', max: 100 }, { name: 'f_html', id: 'blok-1-f_html', value: '<p>a</p>' }));
   assert.match(control, /<textarea id="blok-1-f_html" name="f_html" rows="14" class="cms-richtext">&lt;p&gt;a&lt;\/p&gt;<\/textarea>/);
   assert.match(RICHTEXT_HELP, /Enter begint een nieuwe alinea/);
 });

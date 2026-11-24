@@ -64,7 +64,7 @@ test('balk in ontwikkeling: instellingen, site-instellingen en pagina', () => {
   assert.doesNotMatch(renderPage({ title: 'Test', body: html`<p>inhoud</p>` }), BANNER_PATTERN, 'zonder site-instellingen geen balk');
 });
 
-test('balk in ontwikkeling: Beheer-route en effect op de site', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('balk in ontwikkeling: Beheer-route en effect op de site', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -75,7 +75,7 @@ test('balk in ontwikkeling: Beheer-route en effect op de site', { skip: !DATABAS
   const app = createApp({ db, masterKey: Buffer.alloc(32, 7), setupCode: SETUP_CODE, siteUrl: 'https://start.example.nl' });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.
@@ -100,7 +100,7 @@ test('balk in ontwikkeling: Beheer-route en effect op de site', { skip: !DATABAS
   const cookie = installed.cookie;
   const csrf = csrfFrom((await request('/app/', { cookie })).text);
 
-  await t.test('standaard aan op de site, ook op een 404, nooit in het CRM', async () => {
+  await testContext.test('standaard aan op de site, ook op een 404, nooit in het CRM', async () => {
     assert.match((await request('/')).text, BANNER_PATTERN);
     assert.match((await request('/bestaat-niet/')).text, BANNER_PATTERN);
     assert.doesNotMatch((await request('/app/inloggen/')).text, BANNER_PATTERN);
@@ -111,7 +111,7 @@ test('balk in ontwikkeling: Beheer-route en effect op de site', { skip: !DATABAS
     assert.match(section.text, /name="devBannerText"/);
   });
 
-  await t.test('tekst wijzigen en uitzetten, met audit', async () => {
+  await testContext.test('tekst wijzigen en uitzetten, met audit', async () => {
     const invalid = await request('/app/beheer/ontwikkeling/', { cookie, form: { _csrf: csrf, devBannerEnabled: 'ja', devBannerText: '' } });
     assert.equal(invalid.status, 422, 'lege tekst kan niet');
     const changed = await request('/app/beheer/ontwikkeling/', { cookie, form: { _csrf: csrf, devBannerEnabled: 'ja', devBannerText: 'Proefversie <b>van</b> de site' } });
@@ -125,7 +125,7 @@ test('balk in ontwikkeling: Beheer-route en effect op de site', { skip: !DATABAS
     assert.deepEqual(audit.map((row) => row.entity_id), ['devBannerText', 'devBannerEnabled']);
   });
 
-  await t.test('zonder recht systeem geen toegang', async () => {
+  await testContext.test('zonder recht systeem geen toegang', async () => {
     const created = await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
     assert.equal(created.status, 303);
     const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: { cookie, csrf } });

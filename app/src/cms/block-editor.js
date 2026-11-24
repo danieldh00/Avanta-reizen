@@ -38,14 +38,12 @@ function invalidAttributes(id, error) {
 /**
  * Het invoerelement van één blokveld.
  * @param {object} field Velddefinitie uit `BLOCK_TYPES`.
- * @param {string} name Naam in het formulier.
- * @param {string} id Id.
- * @param {*} value Huidige waarde.
- * @param {string} [error] Fout.
+ * @param {{name: string, id: string, value: *, error?: string}} control Naam in het formulier, id, huidige waarde en
+ *   eventuele foutmelding.
  * @param {object} [options] Keuzes voor velden met een bron (`source`): `{types, countries, faq}` als `[waarde, naam][]`.
  * @returns {object} HTML.
  */
-function fieldControl(field, name, id, value, error, options = {}) {
+function fieldControl(field, { name, id, value, error }, options = {}) {
   const invalid = invalidAttributes(id, error);
   if (field.kind === 'source') {
     const choices = options[field.source] || [];
@@ -110,7 +108,7 @@ function blockFields(block, errors, photoUrl, options) {
         ${field.fields.map((sub) => {
           const name = `f_${field.name}_${index}_${sub.name}`;
           const value = values[index] ? values[index][sub.name] : (sub.kind === 'select' ? Object.keys(sub.choices)[0] : '');
-          return fieldRow({ id: `${prefix}-${name}`, label: sub.label, error: errors[name], control: fieldControl(sub, name, `${prefix}-${name}`, value, errors[name]) });
+          return fieldRow({ id: `${prefix}-${name}`, label: sub.label, error: errors[name], control: fieldControl(sub, { name, id: `${prefix}-${name}`, value, error: errors[name] }) });
         })}
       </fieldset>`)}`;
     }
@@ -120,7 +118,7 @@ function blockFields(block, errors, photoUrl, options) {
       label: field.label,
       error: errors[name],
       help: FIELD_HELP[field.kind] || '',
-      control: fieldControl(field, name, `${prefix}-${name}`, block.data[field.name], errors[name], options),
+      control: fieldControl(field, { name, id: `${prefix}-${name}`, value: block.data[field.name], error: errors[name] }, options),
     });
   });
   const styleRows = Object.entries(STYLE_OPTIONS).map(([name, option]) => fieldRow({

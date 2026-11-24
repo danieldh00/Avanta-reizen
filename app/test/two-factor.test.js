@@ -87,7 +87,7 @@ test('kluis met context: alleen te openen bij hetzelfde record', () => {
   assert.equal(vault.open(vault.seal({ a: 1 })).a, 1, 'zonder context werkt als vanouds');
 });
 
-test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -100,7 +100,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
   const settings = app.locals.settings;
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.
@@ -153,7 +153,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
   let officeRecovery = [];
   let adminAfterSetup = '';
 
-  await t.test('standaard optioneel: inloggen zonder 2FA, aanzetten alleen met een activatiecode', async () => {
+  await testContext.test('standaard optioneel: inloggen zonder 2FA, aanzetten alleen met een activatiecode', async () => {
     assert.equal(adminHome.status, 200);
     assert.match(adminHome.text, /Tweestapsverificatie staat nog uit voor je account\./, 'herinnering, niet verplicht');
     const direct = await firstStep('kees@example.nl', OFFICE_PASSWORD);
@@ -169,7 +169,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     await settings.update({ values: { mfaRequiredFor: 'iedereen' } });
   });
 
-  await t.test('halve sessie na het wachtwoord: alleen 2FA instellen bereikbaar', async () => {
+  await testContext.test('halve sessie na het wachtwoord: alleen 2FA instellen bereikbaar', async () => {
     const first = await firstStep('kees@example.nl', OFFICE_PASSWORD);
     assert.equal(first.status, 303);
     assert.equal(first.headers.get('location'), '/app/tweestaps/');
@@ -204,13 +204,13 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.equal((await db.query('SELECT count(*)::int AS count FROM sessions WHERE token_hash = $1', [hashToken(cookie)]))[0].count, 0);
   });
 
-  await t.test('halve sessie verloopt na 15 minuten', async () => {
+  await testContext.test('halve sessie verloopt na 15 minuten', async () => {
     const first = await firstStep('kees@example.nl', OFFICE_PASSWORD);
     await db.query("UPDATE sessions SET expires_at = now() - interval '1 second' WHERE token_hash = $1", [hashToken(first.cookie)]);
     assert.equal((await request('/app/tweestaps/', { cookie: first.cookie })).headers.get('location'), '/app/inloggen/');
   });
 
-  await t.test('activatiecode: alleen van de beheerder, verloopt, hoort bij de sessie die hem gaf', async () => {
+  await testContext.test('activatiecode: alleen van de beheerder, verloopt, hoort bij de sessie die hem gaf', async () => {
     const first = await firstStep('kees@example.nl', OFFICE_PASSWORD);
     const csrf = csrfFrom((await request('/app/tweestaps/', { cookie: first.cookie })).text);
     const wrong = await request('/app/tweestaps/activeren/', { cookie: first.cookie, form: { _csrf: csrf, activation: 'ABCDE-FGHJK-LMNPQ-RSTUV' } });
@@ -243,7 +243,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.equal(consumed.totp_activation_hash, null, 'gewist bij activeren');
   });
 
-  await t.test('instellen: QR-code, verkeerde code geweigerd, daarna nieuwe sessie en herstelcodes', async () => {
+  await testContext.test('instellen: QR-code, verkeerde code geweigerd, daarna nieuwe sessie en herstelcodes', async () => {
     const first = await firstStep('kees@example.nl', OFFICE_PASSWORD);
     const cookie = first.cookie;
     const csrf = csrfFrom((await request('/app/tweestaps/', { cookie })).text);
@@ -276,7 +276,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     officeSecret = secret;
   });
 
-  await t.test('inloggen met code: halve sessie, geen hergebruik, nieuwe sessie', async () => {
+  await testContext.test('inloggen met code: halve sessie, geen hergebruik, nieuwe sessie', async () => {
     const first = await firstStep('kees@example.nl', OFFICE_PASSWORD);
     assert.equal(first.headers.get('location'), '/app/inloggen/code/');
     assert.equal((await request('/app/', { cookie: first.cookie })).headers.get('location'), '/app/inloggen/code/');
@@ -301,7 +301,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.ok(last);
   });
 
-  await t.test('herstelcode werkt één keer', async () => {
+  await testContext.test('herstelcode werkt één keer', async () => {
     const first = await firstStep('kees@example.nl', OFFICE_PASSWORD);
     const csrf = csrfFrom((await request('/app/inloggen/code/', { cookie: first.cookie })).text);
     const used = await request('/app/inloggen/code/', { cookie: first.cookie, form: { _csrf: csrf, code: officeRecovery[0].toLowerCase() } });
@@ -315,7 +315,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.equal((await request('/app/inloggen/code/', { cookie: second.cookie, form: { _csrf: secondCsrf, code: officeRecovery[0] } })).status, 401);
   });
 
-  await t.test('blokkade per account na vijf verkeerde codes, ook vanaf veel IP-adressen, en verloopt', async () => {
+  await testContext.test('blokkade per account na vijf verkeerde codes, ook vanaf veel IP-adressen, en verloopt', async () => {
     clock += 60 * 60 * 1000;
     // Eerdere verkeerde codes uit de tests hierboven tellen niet mee (het venster is om).
     await db.query('UPDATE users SET totp_failures = 0, totp_failures_reset_at = NULL WHERE id = $1', [officeId]);
@@ -342,7 +342,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     clock += 60 * 60 * 1000;
   });
 
-  await t.test('nieuwe herstelcodes alleen met een code uit de app; de oude vervallen', async () => {
+  await testContext.test('nieuwe herstelcodes alleen met een code uit de app; de oude vervallen', async () => {
     clock += 60 * 1000;
     const session = await loginWithTwoFactor(request, 'kees@example.nl', OFFICE_PASSWORD, { secret: officeSecret, now: clock });
     const wrong = await request('/app/tweestaps/herstelcodes/', { cookie: session.cookie, form: { _csrf: session.csrf, code: officeRecovery[1] } });
@@ -357,7 +357,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.equal((await request('/app/inloggen/code/', { cookie: first.cookie, form: { _csrf: csrf, code: fresh[0] } })).status, 303);
   });
 
-  await t.test('verplicht voor kantoor: zelf uitzetten kan niet', async () => {
+  await testContext.test('verplicht voor kantoor: zelf uitzetten kan niet', async () => {
     clock += 60 * 1000;
     const session = await loginWithTwoFactor(request, 'kees@example.nl', OFFICE_PASSWORD, { secret: officeSecret, now: clock });
     const page = await request('/app/tweestaps/', { cookie: session.cookie });
@@ -368,7 +368,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.ok((await db.query('SELECT totp_enabled_at FROM users WHERE id = $1', [officeId]))[0].totp_enabled_at);
   });
 
-  await t.test('instelling "alleen bijzondere gegevens": boekhouding zonder 2FA, aanzetten en uitzetten kan', async () => {
+  await testContext.test('instelling "alleen bijzondere gegevens": boekhouding zonder 2FA, aanzetten en uitzetten kan', async () => {
     const forced = await firstStep('bea@example.nl', BOOKKEEPER_PASSWORD);
     assert.equal(forced.headers.get('location'), '/app/tweestaps/', 'verplicht voor iedereen');
     await settings.update({ values: { mfaRequiredFor: 'gegevens' } });
@@ -399,7 +399,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     await settings.update({ values: { mfaRequiredFor: 'iedereen' } });
   });
 
-  await t.test('beheerder zet 2FA van een collega uit: sessies weg; zonder recht 403, onbekend 404', async () => {
+  await testContext.test('beheerder zet 2FA van een collega uit: sessies weg; zonder recht 403, onbekend 404', async () => {
     clock += 60 * 1000;
     const office = await loginWithTwoFactor(request, 'kees@example.nl', OFFICE_PASSWORD, { secret: officeSecret, now: clock });
     assert.equal((await request(`/app/gebruikers/${officeId}/tweestaps/`, { cookie: office.cookie, form: { _csrf: office.csrf } })).status, 403);
@@ -416,7 +416,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.equal((await firstStep('kees@example.nl', OFFICE_PASSWORD)).headers.get('location'), '/app/tweestaps/', 'opnieuw instellen bij het inloggen');
   });
 
-  await t.test('eerste beheerder: installatiecode is de activatiecode', async () => {
+  await testContext.test('eerste beheerder: installatiecode is de activatiecode', async () => {
     clock += 60 * 60 * 1000; // nieuwe periode voor de inloglimiet per IP
     const first = await firstStep('beheer@example.nl', ADMIN_PASSWORD);
     assert.equal(first.headers.get('location'), '/app/tweestaps/');
@@ -426,7 +426,7 @@ test('CRM: tweestapsverificatie', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     adminAfterSetup = session.cookie;
   });
 
-  await t.test('auditlog: alle 2FA-acties, zonder codes of geheimen', async () => {
+  await testContext.test('auditlog: alle 2FA-acties, zonder codes of geheimen', async () => {
     const rows = await db.query('SELECT action, entity, entity_id, ip_prefix FROM audit_log ORDER BY id');
     const actions = new Set(rows.map((row) => row.action));
     for (const action of ['inloggen.wachtwoord', 'inloggen.code-mislukt', 'inloggen.code-geblokkeerd', 'inloggen', 'tweestaps.aan',

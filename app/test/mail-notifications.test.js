@@ -159,7 +159,7 @@ test('bevestiging aan de reiziger: bedragen, betaalinstructie, alleen als hij aa
   assert.throws(() => validateValue('bookingPaymentText', SETTING_FIELDS.bookingPaymentText, '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11'), /10 regels/);
 });
 
-test('meldingen vanuit het contact- en aanmeldformulier, en Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('meldingen vanuit het contact- en aanmeldformulier, en Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -187,7 +187,7 @@ test('meldingen vanuit het contact- en aanmeldformulier, en Beheer', { skip: !DA
   const app = createApp({ db, masterKey, settings, mailer, wanIp: { peek: () => null, get: async () => ({}) }, setupCode: SETUP_CODE, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.
@@ -214,7 +214,7 @@ test('meldingen vanuit het contact- en aanmeldformulier, en Beheer', { skip: !DA
   const csrf = ((await request('/app/', { cookie })).text.match(/name="_csrf" value="([^"]+)"/) || [])[1];
   await settings.update({ values: { mailHost: 'smtp.example.nl', mailFromAddress: 'info@example.nl' } });
 
-  await t.test('Beheer: meldingen en opmaak instellen, voorbeeld bekijken', async () => {
+  await testContext.test('Beheer: meldingen en opmaak instellen, voorbeeld bekijken', async () => {
     assert.equal((await request('/app/beheer/meldingen/', { cookie, form: { _csrf: csrf, notifyEmail: 'geen adres', notifyContact: 'ja', notifyBooking: 'ja' } })).status, 422);
     assert.equal((await request('/app/beheer/meldingen/', { cookie, form: { _csrf: csrf, notifyEmail: 'Kantoor@Example.nl', notifyContact: 'ja', notifyBooking: 'ja' } })).status, 303);
     assert.equal(settings.get('notifyEmail'), 'kantoor@example.nl');
@@ -233,7 +233,7 @@ test('meldingen vanuit het contact- en aanmeldformulier, en Beheer', { skip: !DA
     assert.equal((await request('/app/beheer/meldingen/', { cookie: office.cookie })).status, 403);
   });
 
-  await t.test('contactformulier: bericht opgeslagen en melding naar kantoor met antwoordadres van de afzender', async () => {
+  await testContext.test('contactformulier: bericht opgeslagen en melding naar kantoor met antwoordadres van de afzender', async () => {
     const page = await request('/contact/?reis=8-dagen-albanie');
     clock += 5000;
     const response = await request('/contact/', { form: { reis: '8-dagen-albanie', token: tokenFrom(page.text), website: '', name: 'Test Persoon', phone: '0612345678', email: 'Test@Example.nl', subject: '', message: 'Hallo,\nIk heb een vraag.', consent: 'ja' } });
@@ -248,7 +248,7 @@ test('meldingen vanuit het contact- en aanmeldformulier, en Beheer', { skip: !DA
     assert.equal(message.attachments[0].cid, LOGO_CID);
   });
 
-  await t.test('aanmelding: melding zonder bijzondere gegevens; een mislukte melding laat de aanmelding staan', async () => {
+  await testContext.test('aanmelding: melding zonder bijzondere gegevens; een mislukte melding laat de aanmelding staan', async () => {
     const fill = async () => {
       const page = await request('/aanmelden/?id=1001');
       return {

@@ -105,7 +105,7 @@ test('sitemap is geldige XML met ge-escapete URL\'s en zonder dubbele adressen',
   assert.equal(seo.escapeXml('a&b<c>"d\''), 'a&amp;b&lt;c&gt;&quot;d&apos;');
 });
 
-test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -136,7 +136,7 @@ test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TES
   const apps = [createApp({ db, masterKey: Buffer.alloc(32, 4) }), createApp({ db, masterKey: Buffer.alloc(32, 4), indexable: true })];
   const servers = apps.map((app) => app.listen(0));
   const [base, indexableBase] = servers.map((server) => `http://127.0.0.1:${server.address().port}`);
-  t.after(async () => {
+  testContext.after(async () => {
     for (const server of servers) server.close();
     await db.close();
     if (previousSiteUrl === undefined) delete process.env.SITE_URL; else process.env.SITE_URL = previousSiteUrl;
@@ -153,7 +153,7 @@ test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TES
     return { status: response.status, text: await response.text(), type: response.headers.get('content-type') || '' };
   };
 
-  await t.test('canonical per paginasoort gebruikt het echte pad', async () => {
+  await testContext.test('canonical per paginasoort gebruikt het echte pad', async () => {
     const expected = [
       ['/', '/'], ['/reis/', '/reis/'], ['/reis/?bestemming=albanie', '/reis/'], ['/reis/8-dagen-albanie/', '/reis/8-dagen-albanie/'],
       ['/reis/oude-reis/', '/reis/oude-reis/'], ['/reis-categorie/albanie/', '/reis-categorie/albanie/'], ['/reisleider/', '/reisleider/'],
@@ -171,7 +171,7 @@ test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TES
     }
   });
 
-  await t.test('homepage: TravelAgency met contactgegevens', async () => {
+  await testContext.test('homepage: TravelAgency met contactgegevens', async () => {
     const page = (await get('/')).text;
     const agency = jsonLdBlocks(page).find((data) => data['@type'] === 'TravelAgency');
     assert.equal(agency.telephone, '0118 638427');
@@ -181,7 +181,7 @@ test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TES
     assert.match(page, /<meta property="og:type" content="website">/);
   });
 
-  await t.test('reispagina: Trip en BreadcrumbList; titel kan het script-blok niet sluiten', async () => {
+  await testContext.test('reispagina: Trip en BreadcrumbList; titel kan het script-blok niet sluiten', async () => {
     const page = (await get('/reis/8-dagen-albanie/')).text;
     assert.doesNotMatch(page, /<script>alert/);
     const blocks = jsonLdBlocks(page);
@@ -198,7 +198,7 @@ test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TES
     assert.equal(old.offers.availability, 'https://schema.org/SoldOut');
   });
 
-  await t.test('categorie en blog: BreadcrumbList, BlogPosting en og:type article', async () => {
+  await testContext.test('categorie en blog: BreadcrumbList, BlogPosting en og:type article', async () => {
     const categoryPage = (await get('/reis-categorie/albanie/')).text;
     assert.ok(jsonLdBlocks(categoryPage).some((data) => data['@type'] === 'BreadcrumbList'));
     assert.match(categoryPage, new RegExp(`og:image" content="${SITE_URL.replace(/\./g, '\\.')}/media/albanie\\.jpg"`));
@@ -210,7 +210,7 @@ test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TES
     assert.match(postPage, /<meta property="og:type" content="article">/);
   });
 
-  await t.test('sitemap: alle openbare adressen, ook vertrokken reizen', async () => {
+  await testContext.test('sitemap: alle openbare adressen, ook vertrokken reizen', async () => {
     const response = await get('/sitemap.xml');
     assert.equal(response.status, 200);
     assert.match(response.type, /application\/xml/);
@@ -221,7 +221,7 @@ test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TES
     assert.match(response.text, /<loc>[^<]*\/op-avantuur\/<\/loc><lastmod>2026-05-04T08:00:00\.000Z<\/lastmod>/);
   });
 
-  await t.test('404 en aanmeldpagina: canonical, maar wel noindex', async () => {
+  await testContext.test('404 en aanmeldpagina: canonical, maar wel noindex', async () => {
     for (const origin of [base, indexableBase]) {
       const missing = await get('/bestaat-niet/', origin);
       assert.equal(missing.status, 404);
@@ -240,7 +240,7 @@ test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TES
     assert.match(contact.text, /action="\/contact\/"/);
   });
 
-  await t.test('robots.txt: alleen bij indexeren een verwijzing naar de sitemap', async () => {
+  await testContext.test('robots.txt: alleen bij indexeren een verwijzing naar de sitemap', async () => {
     const closed = await get('/robots.txt');
     assert.match(closed.text, /Disallow: \//);
     assert.doesNotMatch(closed.text, /Sitemap:/);

@@ -136,7 +136,7 @@ function withSchema(url) {
   return parsed.toString();
 }
 
-test('pagina Wat is er nieuw in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('pagina Wat is er nieuw in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -146,7 +146,7 @@ test('pagina Wat is er nieuw in het CRM', { skip: !DATABASE_URL && 'TEST_DATABAS
   const app = createApp({ db, masterKey: Buffer.alloc(32, 43) });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   const hash = await hashPassword(PASSWORD);
   const roles = ['beheerder', 'kantoor', 'reisleider', 'redacteur'];
@@ -163,13 +163,13 @@ test('pagina Wat is er nieuw in het CRM', { skip: !DATABASE_URL && 'TEST_DATABAS
   };
   const version = require('../package.json').version;
 
-  await t.test('zonder sessie naar inloggen', async () => {
+  await testContext.test('zonder sessie naar inloggen', async () => {
     const response = await request('/app/wat-is-er-nieuw/');
     assert.equal(response.status, 303);
     assert.match(response.location, /\/app\/inloggen\//);
   });
 
-  await t.test('elke rol ziet de pagina en de link in het gebruikersmenu; details alleen met recht systeem', async () => {
+  await testContext.test('elke rol ziet de pagina en de link in het gebruikersmenu; details alleen met recht systeem', async () => {
     for (const role of roles) {
       const cookie = await login(role);
       const page = await request('/app/wat-is-er-nieuw/', cookie);

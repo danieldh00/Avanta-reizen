@@ -62,10 +62,10 @@ function applyRole(password) {
   });
 }
 
-test('databaserol avanta_app: overdracht, herhaalbaar en beperkte rechten', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('databaserol avanta_app: overdracht, herhaalbaar en beperkte rechten', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = urlFor(new URL(DATABASE_URL).pathname.slice(1));
   // Opruimen eerst registreren, zodat het ook gebeurt als het aanmaken halverwege mislukt.
-  t.after(() => withClient(admin, async (client) => {
+  testContext.after(() => withClient(admin, async (client) => {
     await client.query(`DROP DATABASE IF EXISTS ${DATABASE} WITH (FORCE)`);
     await client.query(`DROP ROLE IF EXISTS ${ROLE}`);
   }));
@@ -108,7 +108,7 @@ test('databaserol avanta_app: overdracht, herhaalbaar en beperkte rechten', { sk
 
   // Als de app: migreren en gewoon werken mag, rollen maken en de server aanspreken niet.
   const db = createDatabase(urlFor(DATABASE, { user: ROLE, password }));
-  t.after(() => db.close());
+  testContext.after(() => db.close());
   assert.ok((await db.migrate()).length > 0, 'migraties draaien als de app-rol');
   assert.deepEqual(await db.query('SELECT dubbel(aantal) AS uitkomst FROM proef'), [{ uitkomst: 6 }]);
   await db.query('INSERT INTO proef (stand) VALUES ($1)', ['dicht']);
