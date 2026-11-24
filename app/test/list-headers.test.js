@@ -44,6 +44,29 @@ test('lijstkoppen: velden en standaard (zonder database)', async () => {
   assert.deepEqual(headers.get('blog'), DEFAULT_LIST_HEADERS.blog, 'zonder geladen kopie de standaard');
 });
 
+test('lijstkoppen: een databasefout breekt de site niet (vorige kopie of standaard)', async () => {
+  let clock = 0;
+  let failing = false;
+  const row = { key: 'blog', pretitle: 'P', title: 'Eigen blogkop', introduction: '', image_url: null, source: 'crm', updated_at: null };
+  const db = { query: async () => { if (failing) throw Object.assign(new Error('weg'), { code: 'ECONNREFUSED' }); return [row]; } };
+  const headers = createListHeaders({ db, now: () => clock });
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    await headers.load();
+    assert.equal(headers.get('blog').title, 'Eigen blogkop');
+    failing = true;
+    clock = 61_000;
+    await headers.load();
+    assert.equal(headers.get('blog').title, 'Eigen blogkop', 'vorige kopie blijft');
+    const empty = createListHeaders({ db, now: () => clock });
+    await empty.load();
+    assert.deepEqual(empty.get('blog'), DEFAULT_LIST_HEADERS.blog, 'nooit geladen: de standaard');
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('lijstkoppen en overzetten', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);

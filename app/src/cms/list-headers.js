@@ -104,11 +104,18 @@ function createListHeaders(options) {
   };
 
   /**
-   * Zorgt dat de kopie in het geheugen actueel is (hooguit `CACHE_MS` oud).
+   * Zorgt dat de kopie in het geheugen actueel is (hooguit `CACHE_MS` oud). Een databasefout breekt de site niet: dan
+   * blijft de vorige kopie staan (of gelden de standaardteksten) en volgt na `CACHE_MS` een nieuwe poging.
    * @returns {Promise<void>}
    */
   const load = async () => {
-    if (!cache || now() - cache.loadedAt > CACHE_MS) await reload();
+    if (cache && now() - cache.loadedAt <= CACHE_MS) return;
+    try {
+      await reload();
+    } catch (error) {
+      console.error(`lijstkoppen: laden mislukt, vorige kopie blijft (${error.code || error.name})`);
+      cache = { loadedAt: now(), headers: cache ? cache.headers : new Map() };
+    }
   };
 
   /**
