@@ -198,8 +198,19 @@ async function writeAtomic(file, data) {
 }
 
 /**
- * Maakt de afgeleide bestanden van één importfoto. Eerst de JPEG (als die genoeg scheelt), daarna de WebP-versies:
- * een foto met WebP-versies is daarmee klaar.
+ * Of de set WebP-versies van een foto af is. De versies worden van groot naar klein geschreven en de kleinste is
+ * altijd hoogstens de kleinste vaste breedte, dus een set is pas af als die kleinste er staat. Een halve set (taak
+ * gestopt tussen twee bestanden) wordt in de volgende ronde opnieuw gemaakt.
+ * @param {(ImageEntry|undefined)} entry Versies van de foto.
+ * @returns {boolean} Waar als de foto klaar is.
+ */
+function isComplete(entry) {
+  return Boolean(entry && entry.widths.length && entry.widths[0] <= IMPORT_WIDTHS[0]);
+}
+
+/**
+ * Maakt de afgeleide bestanden van één importfoto. Eerst de JPEG (als die genoeg scheelt), daarna de WebP-versies van
+ * groot naar klein: met de kleinste is de foto klaar (zie `isComplete`).
  * @param {Buffer} original Inhoud van het origineel.
  * @param {string} key Naam zonder extensie.
  * @param {string} formatDir Map voor de afgeleide bestanden.
@@ -220,11 +231,11 @@ async function convertOne(original, key, formatDir) {
       entry.jpeg = true;
     }
   }
-  const targets = [...new Set(IMPORT_WIDTHS.map((target) => Math.min(target, width)))];
+  const targets = [...new Set(IMPORT_WIDTHS.map((target) => Math.min(target, width)))].reverse();
   for (const target of targets) {
     const { data, info } = await input().rotate().resize({ width: target, withoutEnlargement: true }).webp({ quality: WEBP_QUALITY }).toBuffer({ resolveWithObject: true });
     await writeAtomic(path.join(formatDir, `${key}-${info.width}.webp`), data);
-    entry.widths.push(info.width);
+    entry.widths.unshift(info.width);
   }
   return entry;
 }
@@ -278,7 +289,7 @@ function createImageFormats(options) {
   };
 
   /**
-   * Zet alle importfoto's zonder WebP-versies om, één tegelijk. Stopt als de schijf bijna vol raakt. Een foto die
+   * Zet alle importfoto's zonder volledige set WebP-versies om, één tegelijk. Stopt als de schijf bijna vol raakt. Een foto die
    * niet te lezen is, wordt overgeslagen en geteld.
    * @returns {Promise<{converted: number, failed: number, removed: number, stoppedForDisk: boolean}>} Resultaat.
    */
@@ -298,7 +309,7 @@ function createImageFormats(options) {
         const match = IMPORT_NAME.exec(row.local_name);
         if (!match) continue;
         keys.add(match[1]);
-        if (index.get(match[1])?.widths.length) continue;
+        if (isComplete(index.get(match[1]))) continue;
         if (!(await enoughDisk())) {
           result.stoppedForDisk = true;
           break;

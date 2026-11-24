@@ -123,6 +123,8 @@ test('importfoto\'s omzetten en de lichtere JPEG uitserveren', { skip: !DATABASE
   await fs.mkdir(path.join(mediaDir, FORMAT_DIR));
   await fs.writeFile(path.join(mediaDir, FORMAT_DIR, `${NAME_D}-400.webp`), 'x');
   await fs.writeFile(path.join(mediaDir, FORMAT_DIR, `${NAME_B}-400.webp.tmp`), 'x');
+  // Een halve set van een eerdere, onderbroken ronde: alleen de grootste versie. Die wordt afgemaakt.
+  await fs.writeFile(path.join(mediaDir, FORMAT_DIR, `${NAME_A}-1600.webp`), 'half');
 
   const appLog = { info: () => {}, error: () => {} };
 
@@ -143,6 +145,8 @@ test('importfoto\'s omzetten en de lichtere JPEG uitserveren', { skip: !DATABASE
   assert.equal((await sharp(jpeg).metadata()).width, 2000, 'niet breder dan 2000');
   assert.deepEqual(await fs.readFile(path.join(mediaDir, `${NAME_A}.jpg`)), bigJpeg, 'origineel ongewijzigd');
   assert.deepEqual(formats.index.get(NAME_B), { widths: [300], jpeg: false }, 'kleine foto niet vergroot, PNG zonder JPEG');
+  assert.deepEqual(formats.index.get(NAME_A), { widths: [400, 800, 1600], jpeg: true }, 'halve set afgemaakt');
+  assert.notEqual((await fs.readFile(path.join(mediaDir, FORMAT_DIR, `${NAME_A}-1600.webp`))).toString(), 'half');
 
   // Een tweede ronde doet niets opnieuw.
   assert.deepEqual(await formats.convertPending(), { converted: 0, failed: 2, removed: 0, stoppedForDisk: false });
