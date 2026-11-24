@@ -12,6 +12,7 @@ const { icon, categoryIconName } = require('../site/icons');
 const { createMediaLibrary } = require('../media/library');
 const { pickerFilter, pickerPhotos, renderPhotoPicker } = require('../media/picker');
 const { createCategories, validateCategory, KINDS, ICON_CHOICES, LIMITS } = require('./categories');
+const { RICHTEXT_HELP } = require('../cms/block-editor');
 
 /** Basispad van het scherm. */
 const BASE = '/app/reistypes-en-landen/';
@@ -79,8 +80,9 @@ function createCategoryRoutes(options) {
         <select id="veld-icon" name="icon"${invalid('icon')}><option value="">Automatisch (op de slug)</option>${ICON_CHOICES.map((name) => html`<option value="${name}"${values.icon === name ? raw(' selected') : ''}>${name}</option>`)}</select>${error('icon')}</div>
       <div class="field"><span class="field__label"><label for="veld-intro">Inleiding</label></span>
         <textarea id="veld-intro" name="intro" rows="3" maxlength="${LIMITS.intro}"${invalid('intro')}>${values.intro || ''}</textarea>${error('intro')}</div>
-      <div class="field"><span class="field__label"><label for="veld-body_html">Tekst (HTML; alleen veilige opmaak blijft over)</label></span>
-        <textarea id="veld-body_html" name="body_html" rows="10"${invalid('body_html')}>${values.body_html || ''}</textarea>${error('body_html')}</div>
+      <div class="field"><span class="field__label"><label for="veld-body_html">Tekst</label></span>
+        <textarea id="veld-body_html" name="body_html" rows="10" class="cms-richtext"${invalid('body_html')}>${values.body_html || ''}</textarea>${error('body_html')}
+        <span class="field__help">${RICHTEXT_HELP}</span></div>
       <div class="field"><span class="field__label"><label for="veld-sort_order">Volgorde (laag eerst)</label></span>
         <input id="veld-sort_order" name="sort_order" type="number" min="-9999" max="9999" step="1" value="${String(values.sort_order ?? 0)}"${invalid('sort_order')}>${error('sort_order')}</div>
       <div class="field field--checkbox"><label><input type="checkbox" name="show_on_home" value="1"${values.show_on_home ? raw(' checked') : ''}> Tonen op de homepage</label>

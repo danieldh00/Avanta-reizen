@@ -64,7 +64,7 @@ function fieldControl(field, name, id, value, error, options = {}) {
 }
 
 /** Uitleg bij opgemaakte tekst. */
-const RICHTEXT_HELP = 'Gebruik de knoppen boven het vak of HTML: <p>, <h2>, <h3>, <strong>, <em>, <a href="…">, <ul>/<ol> met <li>, <blockquote>, tabellen en <img>. Andere opmaak, scripts en stijlen verdwijnen bij het opslaan.';
+const RICHTEXT_HELP = 'Typ de tekst zoals hij op de site komt: Enter begint een nieuwe alinea, Shift+Enter een nieuwe regel. Kopjes, vet, cursief, lijsten en links maak je met de knoppen boven het vak; met HTML zie en wijzig je de code. Andere opmaak, scripts en stijlen verdwijnen bij het opslaan.';
 
 /** Uitleg per soort veld. */
 const FIELD_HELP = {

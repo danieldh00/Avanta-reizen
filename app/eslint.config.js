@@ -59,6 +59,13 @@ module.exports = [
     },
   },
   {
+    // De opschoner van de teksteditor draait in de browser én in de tests (Node, via `module.exports`).
+    files: ['public/js/rich-text-clean.js'],
+    languageOptions: {
+      globals: { ...globals.browser, module: 'readonly' },
+    },
+  },
+  {
     // analytics.js is bewust in ES5-stijl geschreven (var), zodat het ook in oude browsers niets breekt.
     files: ['public/js/analytics.js'],
     rules: { 'no-var': 'off' },

@@ -64,6 +64,9 @@ function createCrmRouter(options) {
   const mediaForms = express.urlencoded({ extended: false, limit: '64kb', parameterLimit: 400 });
   // Pagina's, blogberichten, FAQ-antwoorden en reisleiders: een tekstblok mag lang zijn (100.000 tekens opgemaakte tekst); velden per blok blijven beperkt.
   const pageForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 100 });
+  // Reizen en reistypes/landen: een lange omschrijving uit de teksteditor, ruim 30 velden en een vinkje per land en
+  // reistype (zoals de keuzelijst van de fotobibliotheek).
+  const tripForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 400 });
   // Blog: als pagina's, plus een vinkje per categorie en tag (hoogstens 2 × 200).
   const blogForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 450 });
   // Aanmelding handmatig invoeren: alle velden van het aanmeldformulier (zoals `/aanmelden/`).
@@ -72,6 +75,7 @@ function createCrmRouter(options) {
     if (req.path.startsWith('/beheer/')) return beheerForms(req, res, next);
     if (req.path.startsWith('/paginas/') || req.path.startsWith('/faq/') || req.path.startsWith('/reisleiders/')) return pageForms(req, res, next);
     if (req.path.startsWith('/blog/')) return blogForms(req, res, next);
+    if (req.path.startsWith('/reizen/') || req.path.startsWith('/reistypes-en-landen/')) return tripForms(req, res, next);
     if (req.path === '/aanmeldingen/nieuw/') return bookingForms(req, res, next);
     if (req.path.startsWith('/fotobibliotheek/')) return mediaForms(req, res, next);
     return smallForms(req, res, next);

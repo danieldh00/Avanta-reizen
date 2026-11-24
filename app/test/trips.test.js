@@ -171,6 +171,20 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.equal(await audits('reis.aangemaakt'), 1);
   });
 
+  await t.test('reisomschrijving: teksteditor op het scherm; volledig formulier met lange tekst wordt opgeslagen', async () => {
+    const edit = await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie });
+    assert.match(edit.text, /<label for="veld-body_html">Reisomschrijving<\/label>/);
+    assert.match(edit.text, /<textarea id="veld-body_html" name="body_html" rows="14" class="cms-richtext">/);
+    assert.match(edit.text, /Enter begint een nieuwe alinea/);
+    // Zoals de browser het formulier verstuurt: ruim twintig velden en een lange tekst (vroeger te veel voor de limiet).
+    const longBody = `<h2>Programma</h2>${'<p>Dag met <strong>kanoën</strong> en kamperen.</p>'.repeat(600)}`;
+    const extra = Object.fromEntries(['tagline', 'summary', 'duration_label', 'duration_days', 'price_note', 'age_label', 'level', 'extra_1', 'extra_2', 'extra_3', 'extra_4', 'extra_5', 'extra_6', 'extra_7', 'extra_8'].map((name) => [name, '']));
+    const saved = await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie, form: tripForm({ ...extra, body_html: longBody }) });
+    assert.equal(saved.status, 303);
+    const [row] = await db.query('SELECT body_html FROM trips WHERE id = $1', [tripId]);
+    assert.equal(row.body_html, longBody);
+  });
+
   await t.test('fouten: verplichte velden, dubbele slug, onbekend id, CSRF', async () => {
     const invalid = await request('/app/reizen/nieuw/', { cookie: kantoor.cookie, form: tripForm({ title: '', price: 'veel' }) });
     assert.equal(invalid.status, 422);
@@ -211,7 +225,7 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.equal(old.status, 301);
     assert.equal(old.headers.get('location'), '/reis/namibie-juni/');
     assert.equal((await request('/reis/namibie-juni/')).status, 200);
-    assert.equal(await audits('reis.gewijzigd'), 3);
+    assert.equal(await audits('reis.gewijzigd'), 4); // inclusief het opslaan van de reisomschrijving hierboven
   });
 
   await t.test('gepubliceerd, dan concept, dan hernoemd: het oude adres verwijst door', async () => {
