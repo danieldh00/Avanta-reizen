@@ -379,6 +379,22 @@ function createBeheerRoutes(options) {
     }
   });
 
+  /**
+   * Controleert het wachtwoord waarmee de beheerder het aanzetten van een instelling met `confirmOn` bevestigt.
+   * Telt elke poging mee in de limiet per gebruiker; een geslaagde bevestiging zet de teller terug.
+   * @param {object} req Verzoek met `body._password` en `user`.
+   * @returns {Promise<string>} Foutmelding, of een lege tekst als het wachtwoord klopt.
+   */
+  async function passwordConfirmationProblem(req) {
+    const password = formText(req.body, '_password') || '';
+    if (!password) return 'Bevestig het aanzetten met je wachtwoord.';
+    if (!passwordLimiter.hit(`gebruiker:${req.user.id}`)) return 'Te veel pogingen. Probeer het over een kwartier opnieuw.';
+    const [user] = await db.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+    if (!user || !(await verifyPassword(password, user.password_hash))) return 'Je wachtwoord klopt niet.';
+    passwordLimiter.clear(`gebruiker:${req.user.id}`);
+    return '';
+  }
+
   router.post(routePath('/beheer/:section([a-z0-9-]{1,40})/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const section = findSection(req.params.section);
@@ -403,17 +419,10 @@ function createBeheerRoutes(options) {
       // Ook terugzetten telt als aanzetten als de startwaarde (bijvoorbeeld SITE_INDEXABLE=true) aan is.
       const turningOn = confirmableKeys(section).filter((key) => (reset.includes(key) ? settings.startValue(key) === true : values[key] === true));
       if (turningOn.length) {
-        const password = formText(req.body, '_password') || '';
-        let problem = '';
-        if (!password) problem = 'Bevestig het aanzetten met je wachtwoord.';
-        else if (!passwordLimiter.hit(`gebruiker:${req.user.id}`)) problem = 'Te veel pogingen. Probeer het over een kwartier opnieuw.';
-        else {
-          const [user] = await db.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
-          if (!user || !(await verifyPassword(password, user.password_hash))) problem = 'Je wachtwoord klopt niet.';
-          else passwordLimiter.clear(`gebruiker:${req.user.id}`);
-        }
+        const problem = await passwordConfirmationProblem(req);
         if (problem) {
-          for (const key of section.fields) if (settings.fields[key].type === 'secret') delete values[key];
+          // Ingevulde geheimen gaan niet terug naar de browser.
+          section.fields.filter((key) => settings.fields[key].type === 'secret').forEach((key) => delete values[key]);
           return res.status(problem.startsWith('Te veel') ? 429 : 422).send(renderSettingsSection(req, section, { values, errors: { [turningOn[0]]: problem } }));
         }
       }

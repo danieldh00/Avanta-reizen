@@ -60,6 +60,30 @@ Algemene afspraken voor samenwerken met Claude in een project met een coördinat
 - Geen modelnamen of -ID's in commits, PR's, code of docs. Nooit secrets, wachtwoorden of persoonsgegevens in repo, chat of geheugen (zeker niet in een publieke repo).
 - Een nieuwe externe koppeling: instelling in de app, status en logboek zichtbaar, nooit tokens in de uitvoer.
 
+## Leesbare code
+Maatstaf voor elke PR en voor het nalopen van bestaande code. Wat een linter kan controleren, controleert hij ook
+(ESLint in CI); de rest is afspraak bij het schrijven en de review.
+- **Namen** zeggen wat iets is of doet, in het Engels in de code en zonder cryptische afkortingen. Eén letter alleen voor
+  tellers (`i`, `j`) en coördinaten (`x`, `y`); een vergelijker heet `(left, right)` of `(first, second)`, een
+  testcontext `testContext`, een rij uit de database `row`. Een functie begint met een werkwoord (`load…`, `render…`,
+  `validate…`), een waarheidswaarde met `is`/`has`/`can`.
+- **Functies**: één taak per functie. Richtwaarden: hoogstens 20 paden (complexiteit), 4 niveaus diep, 5 parameters
+  (daarboven één object met namen) en 4 geneste callbacks; een functie die niet meer op één scherm past (±60 regels
+  eigen code, geneste functies niet meegeteld), wordt opgesplitst.
+- **Bestanden**: één onderwerp per bestand, hoogstens 600 regels code (zonder lege regels en commentaar); daarboven
+  splitsen per onderwerp. Een fabrieksfunctie (`create…`) die de diensten van een module bundelt, mag langer zijn,
+  zolang de functies erin klein blijven.
+- **Routebestand**: kopcommentaar met de adressen en het recht; dan per scherm drie delen: *laden* (queries,
+  eigenaar of recht controleren), *controleren* (invoer valideren, fouten verzamelen) en *tekenen* (een eigen
+  `render…`-functie die alleen HTML maakt). Een routehandler zelf is kort en leest als een samenvatting van die
+  stappen.
+- **Commentaar**: elk bestand een kopcommentaar (wat staat hier en waarom), elke functie een documentatieblok (wat,
+  parameters, uitkomst), in de taal van het project. Commentaar in een functie legt het *waarom* uit (een
+  bedrijfsregel, een beveiligingsreden, een randgeval), niet wat de code al zegt.
+- **Nalopen zonder gedragswijziging**: alleen hernoemen, opsplitsen en documenteren; dezelfde URL's, dezelfde
+  uitvoer, geen migratie. De bestaande tests blijven ongewijzigd groen (alleen namen van variabelen in de tests mogen
+  mee veranderen); dat is het bewijs.
+
 ## Standaardvoorkeuren (pas aan per gebruiker)
 - Taal en tijdzone: Nederlands, Europe/Amsterdam.
 - Exports als Excel (.xlsx), geen CSV, tenzij daar expliciet om gevraagd wordt.

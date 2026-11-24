@@ -63,7 +63,7 @@ function titleFromFilename(filename) {
  * @returns {string} Pad onder `/media/`.
  */
 function mediaUrl(media, minWidth = 0) {
-  const widths = Object.keys(media.variants || {}).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  const widths = Object.keys(media.variants || {}).map(Number).filter(Number.isFinite).sort((left, right) => left - right);
   const width = widths.find((candidate) => candidate >= minWidth) ?? widths[widths.length - 1];
   const name = width !== undefined ? media.variants[String(width)] : media.local_name;
   return `/media/${encodeURIComponent(name)}`;

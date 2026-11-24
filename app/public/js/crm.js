@@ -179,6 +179,14 @@ document.addEventListener('DOMContentLoaded', function setupTabs() {
     }
 
     /**
+     * Markeert de tab van een paneel met een ongeldig veld.
+     * @param {string} key Sleutel van het paneel (`data-tab-panel`).
+     */
+    function markTabError(key) {
+      links.forEach((link) => { if (link.getAttribute('data-tab') === key) link.classList.add('crm-tabs-error'); });
+    }
+
+    /**
      * Zoekt het paneel dat bij het anker in het adres hoort: het paneel zelf of het paneel om het doel heen.
      * @returns {(string|null)} Sleutel van het paneel, of null als het anker niet in een paneel ligt.
      */
@@ -206,7 +214,7 @@ document.addEventListener('DOMContentLoaded', function setupTabs() {
         const panel = first ? first.closest('[data-tab-panel]') : null;
         if (!panel) return;
         const key = panel.getAttribute('data-tab-panel');
-        links.forEach((link) => { if (link.getAttribute('data-tab') === key) link.classList.add('crm-tabs-error'); });
+        markTabError(key);
         if (panel.hidden) show(key);
       }, true);
     });

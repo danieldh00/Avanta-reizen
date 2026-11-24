@@ -660,6 +660,54 @@ async function store(db, data) {
 }
 
 /**
+ * Leest een reeks pagina's van de huidige site en zet elke pagina om met `parser`. Een pagina die niet te lezen is,
+ * wordt overgeslagen met een waarschuwing.
+ * @param {(url: string) => Promise<string>} fetchText Haalt de HTML van een adres op.
+ * @param {string[]|undefined} urls Adressen uit de sitemap.
+ * @param {(html: string, url: string) => object} parser Zet de HTML om.
+ * @param {string[]} warnings Waarschuwingen; deze functie vult ze aan.
+ * @returns {Promise<object[]>} De omgezette pagina's.
+ */
+async function readParsedPages(fetchText, urls, parser, warnings) {
+  const items = [];
+  for (const url of urls || []) {
+    try {
+      items.push(parser(await fetchText(url), url));
+    } catch (error) {
+      warnings.push(`${url}: ${error.message}`);
+    }
+  }
+  return items;
+}
+
+/**
+ * Importeert alleen de vaste inhoud, altijd vers (niet uit de cache): homepage, lijstkoppen, reisleiders en de
+ * fotogalerijen onder berichten en pagina's. Schrijft `homepage.json` en `site-content.json` en meldt de uitkomst.
+ * @param {object} db Database (voor de categorieën van de homepage en de fotobibliotheek).
+ * @param {object} media Afbeeldingen van de import (`createMediaStore`).
+ * @param {object} options Opties van de opdrachtregel.
+ * @returns {Promise<void>}
+ */
+async function importFixedContent(db, media, options) {
+  const fetchText = createFreshFetcher(options);
+  const warnings = [];
+  const categories = await db.query('SELECT legacy_id, slug FROM trip_categories WHERE legacy_id IS NOT NULL');
+  const slugByLegacyId = new Map(categories.map((category) => [category.legacy_id, category.slug]));
+  const homepage = homepageData(parsers.parseHome(await fetchText(`${SITE}/`)), media, slugByLegacyId);
+  const groups = await readSitemaps(fetchText);
+  const guides = (await readParsedPages(fetchText, groups.guide, parsers.parseGuide, warnings))
+    .filter((guide) => guide.slug !== 'reisleider' && guide.name);
+  // Berichten en pagina's alleen voor hun fotogalerij (de tekst staat al in de database).
+  const posts = await readParsedPages(fetchText, groups.post, parsers.parsePost, warnings);
+  const pages = await readParsedPages(fetchText, groups.page, parsers.parsePage, warnings);
+  const siteContent = siteContentData(await collectArchives(fetchText, warnings), guides, media, galleriesOf(posts, pages));
+  const result = await media.download(db);
+  console.log(`Vaste inhoud: ${homepage.slides.length} dia's, ${Object.keys(siteContent.guides).length} reisleiders, ${Object.keys(siteContent.galleries).length} fotogalerijen, afbeeldingen lokaal: ${result.ok}, mislukt: ${result.failed.length}`);
+  console.log(`Opgeslagen in ${writeHomepage(withExistingImages(homepage))} en ${writeSiteContent(withExistingSiteImages(siteContent))}`);
+  for (const line of [...warnings, ...result.failed].slice(0, 20)) console.warn(`  let op: ${line}`);
+}
+
+/**
  * Voert de hele import uit.
  * @returns {Promise<void>}
  */
@@ -670,41 +718,7 @@ async function main() {
     await db.migrate();
     const media = createMediaStore(options);
     if (options.fixedOnly) {
-      // Alleen de vaste inhoud, altijd vers (niet uit de cache): homepage, lijstkoppen en reisleiders.
-      const fetchText = createFreshFetcher(options);
-      const warnings = [];
-      const categories = await db.query('SELECT legacy_id, slug FROM trip_categories WHERE legacy_id IS NOT NULL');
-      const slugByLegacyId = new Map(categories.map((category) => [category.legacy_id, category.slug]));
-      const homepage = homepageData(parsers.parseHome(await fetchText(`${SITE}/`)), media, slugByLegacyId);
-      const groups = await readSitemaps(fetchText);
-      const guides = [];
-      for (const url of groups.guide || []) {
-        try {
-          const guide = parsers.parseGuide(await fetchText(url), url);
-          if (guide.slug !== 'reisleider' && guide.name) guides.push(guide);
-        } catch (error) {
-          warnings.push(`${url}: ${error.message}`);
-        }
-      }
-      // Berichten en pagina's alleen voor hun fotogalerij (de tekst staat al in de database).
-      const readGalleries = async (urls, parser) => {
-        const items = [];
-        for (const url of urls || []) {
-          try {
-            items.push(parser(await fetchText(url), url));
-          } catch (error) {
-            warnings.push(`${url}: ${error.message}`);
-          }
-        }
-        return items;
-      };
-      const posts = await readGalleries(groups.post, parsers.parsePost);
-      const pages = await readGalleries(groups.page, parsers.parsePage);
-      const siteContent = siteContentData(await collectArchives(fetchText, warnings), guides, media, galleriesOf(posts, pages));
-      const result = await media.download(db);
-      console.log(`Vaste inhoud: ${homepage.slides.length} dia's, ${Object.keys(siteContent.guides).length} reisleiders, ${Object.keys(siteContent.galleries).length} fotogalerijen, afbeeldingen lokaal: ${result.ok}, mislukt: ${result.failed.length}`);
-      console.log(`Opgeslagen in ${writeHomepage(withExistingImages(homepage))} en ${writeSiteContent(withExistingSiteImages(siteContent))}`);
-      for (const line of [...warnings, ...result.failed].slice(0, 20)) console.warn(`  let op: ${line}`);
+      await importFixedContent(db, media, options);
       return;
     }
     const data = await collect(createFetcher(options), media);

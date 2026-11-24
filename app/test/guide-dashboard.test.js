@@ -65,7 +65,7 @@ test('overzicht reisleider: zonder profiel een uitleg, waarden ge-escaped', () =
   assert.match(page, /<span class="crm-tile-count">1<\/span><span class="crm-tile-label">Venster open/);
 });
 
-test('overzicht reisleider in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('overzicht reisleider in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -75,7 +75,7 @@ test('overzicht reisleider in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_
   const app = createApp({ db, masterKey: MASTER_KEY });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   const hash = await hashPassword(PASSWORD);
   const [guide] = await db.query("INSERT INTO guides (slug, name) VALUES ('henk', 'Henk') RETURNING id");
@@ -151,7 +151,7 @@ test('overzicht reisleider in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_
   };
   const leider = await login('leider@example.nl');
 
-  await t.test('eigen vertrekken met aantallen en venster, standaardvenster', async () => {
+  await testContext.test('eigen vertrekken met aantallen en venster, standaardvenster', async () => {
     const html = await page(leider, '/app/');
     assert.match(html, /Mijn vertrekken/);
     for (const title of ['Binnenkort', 'Later', 'Zonder datum']) assert.match(html, new RegExp(title));
@@ -168,19 +168,19 @@ test('overzicht reisleider in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_
     assert.match(html, /van 14 dagen vóór vertrek tot en met de terugkomst/);
   });
 
-  await t.test('zonder gekoppeld profiel: uitleg, geen reizen', async () => {
+  await testContext.test('zonder gekoppeld profiel: uitleg, geen reizen', async () => {
     const html = await page(await login('los@example.nl'), '/app/');
     assert.match(html, /hangt nog niet aan een reisleidersprofiel/);
     assert.doesNotMatch(html, /Binnenkort|Reis van Piet/);
   });
 
-  await t.test('kantoor houdt het gewone overzicht', async () => {
+  await testContext.test('kantoor houdt het gewone overzicht', async () => {
     const html = await page(await login('kantoor@example.nl'), '/app/');
     assert.match(html, /overzicht-vertrekken/);
     assert.doesNotMatch(html, /overzicht-mijn-vertrekken/);
   });
 
-  await t.test('venster uit Beheer: overzicht en deelnemerslijst volgen', async () => {
+  await testContext.test('venster uit Beheer: overzicht en deelnemerslijst volgen', async () => {
     const csrfOf = (html) => /name="_csrf" value="([^"]+)"/.exec(html)[1];
     // Standaard: "Net terug" valt buiten het venster; de lijst biedt geen gezondheid aan en weigert die met 403.
     let lists = await page(leider, '/app/deelnemerslijsten/');

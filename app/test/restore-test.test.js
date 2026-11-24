@@ -40,9 +40,9 @@ function withSchema(url) {
  * @param {object} t Testcontext.
  * @returns {string} Pad.
  */
-function tempDir(t) {
+function tempDir(testContext) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'avanta-hersteltest-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  testContext.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
 
@@ -76,8 +76,8 @@ test('hersteltest: uitslag uit de metingen van het hostscript', () => {
   assert.equal(odd.message, 'a b');
 });
 
-test('hersteltest: runs vastleggen en terugzien', (t) => {
-  const dir = tempDir(t);
+test('hersteltest: runs vastleggen en terugzien', (testContext) => {
+  const dir = tempDir(testContext);
   assert.deepEqual(readRuns(dir, HOST_FILE), []);
   const startedAt = new Date().toISOString();
   recordHostRun(dir, { trigger: 'handmatig', startedAt, state: 'bezig' });
@@ -101,8 +101,8 @@ test('hersteltest: runs vastleggen en terugzien', (t) => {
   assert.equal(readRuns(dir, HOST_FILE).length, 12, 'hoogstens 12 runs');
 });
 
-test('hersteltest: opdrachtregel legt de uitslag vast', (t) => {
-  const dataDir = tempDir(t);
+test('hersteltest: opdrachtregel legt de uitslag vast', (testContext) => {
+  const dataDir = tempDir(testContext);
   const run = spawnSync(process.execPath, [CLI, 'restore-test-result'], {
     input: JSON.stringify({ trigger: 'schema', startedAt: new Date().toISOString(), backup: 'avanta-20261122-020000.dump.enc', restored: 'pages=3', live: 'pages=3', appOk: true }),
     env: { ...process.env, DATA_DIR: dataDir },
@@ -114,8 +114,8 @@ test('hersteltest: opdrachtregel legt de uitslag vast', (t) => {
   assert.equal(broken.status, 1);
 });
 
-test('hersteltest: Google Drive-kopie', async (t) => {
-  const dir = tempDir(t);
+test('hersteltest: Google Drive-kopie', async (testContext) => {
+  const dir = tempDir(testContext);
   const name = 'avanta-20261122-020000.dump.enc';
   // Een echte, versleutelde "dump" zonder pg_dump: kop + versleutelde PGDMP-inhoud via een eigen kleine back-up.
   const fakeDump = path.join(dir, 'echt.dump');
@@ -175,23 +175,23 @@ test('hersteltest: Google Drive-kopie', async (t) => {
   bytes[bytes.length - 30] ^= 0xff;
   fs.writeFileSync(path.join(dir, 'avanta-20200101-000000.dump.enc'), bytes);
   assert.equal(spawnSync(process.execPath, [CLI, 'decrypt', path.join(dir, 'avanta-20200101-000000.dump.enc'), '-'], { env }).status, 1);
-  const noKey = spawnSync(process.execPath, [CLI, 'decrypt', path.join(dir, name), '-'], { env: { ...process.env, DATA_DIR: tempDir(t), AVANTA_MASTER_KEY: '' } });
+  const noKey = spawnSync(process.execPath, [CLI, 'decrypt', path.join(dir, name), '-'], { env: { ...process.env, DATA_DIR: tempDir(testContext), AVANTA_MASTER_KEY: '' } });
   assert.equal(noKey.status, 1);
   assert.match(noKey.stderr.toString(), /Geen hoofdsleutel/);
 });
 
-test('hersteltest in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('hersteltest in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
   await admin.close();
   const db = createDatabase(withSchema(DATABASE_URL));
   await db.migrate();
-  const dir = tempDir(t);
+  const dir = tempDir(testContext);
   const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, backupDir: dir });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.

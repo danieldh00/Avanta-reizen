@@ -47,9 +47,11 @@ async function hashPassword(password) {
 function parseHash(stored) {
   const parts = String(stored || '').split('$');
   if (parts.length !== 6 || parts[0] !== 'scrypt') return null;
-  const [N, r, p] = parts.slice(1, 4).map(Number);
-  if (![N, r, p].every(Number.isSafeInteger) || N < 2 || N > 2 ** 20 || r < 1 || r > 32 || p < 1 || p > 16) return null;
-  return { parameters: { N, r, p }, salt: Buffer.from(parts[4], 'base64url'), key: Buffer.from(parts[5], 'base64url') };
+  // Volgorde in de hash: kosten (N), blokgrootte (r), parallellisatie (p); de sleutels heten zoals scrypt ze verwacht.
+  const [cost, blockSize, parallelization] = parts.slice(1, 4).map(Number);
+  if (![cost, blockSize, parallelization].every(Number.isSafeInteger)) return null;
+  if (cost < 2 || cost > 2 ** 20 || blockSize < 1 || blockSize > 32 || parallelization < 1 || parallelization > 16) return null;
+  return { parameters: { N: cost, r: blockSize, p: parallelization }, salt: Buffer.from(parts[4], 'base64url'), key: Buffer.from(parts[5], 'base64url') };
 }
 
 /**

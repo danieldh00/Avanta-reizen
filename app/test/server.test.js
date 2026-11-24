@@ -29,7 +29,7 @@ function daysFromNow(days) {
   return date.toISOString().slice(0, 10);
 }
 
-test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const db = createDatabase(DATABASE_URL);
   await db.query('DROP SCHEMA public CASCADE');
   await db.query('CREATE SCHEMA public');
@@ -91,7 +91,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   const app = createApp({ db: collidingDb, masterKey: MASTER_KEY, now: () => clock, siteContent });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Haalt een pagina op zonder redirects te volgen.
@@ -104,7 +104,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     return { status: response.status, text: await response.text(), headers: response.headers };
   };
 
-  await t.test('pagina’s geven 200 met de juiste inhoud', async () => {
+  await testContext.test('pagina’s geven 200 met de juiste inhoud', async () => {
     const checks = [
       ['/', '8 dagen Albanië'], ['/reis/', '27-AKO-56'], ['/reis/8-dagen-albanie/', 'Ik meld me aan!'],
       ['/reis-categorie/albanie/', '8 dagen Albanië'], ['/reis-categorie/kamperen/', '8 dagen Albanië'],
@@ -119,7 +119,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     }
   });
 
-  await t.test('homepage: last-minutes, reistypes, bestemmingen en blog uit de database; nieuwe reizen bovenaan', async () => {
+  await testContext.test('homepage: last-minutes, reistypes, bestemmingen en blog uit de database; nieuwe reizen bovenaan', async () => {
     await db.query("INSERT INTO trip_categories (slug, name, kind) VALUES ('hostel', 'Hostelreizen', 'type')");
     await insertTrip([1004, 'nieuw-ijsland', 'Nieuw IJsland', '', '27-IJS-1', daysFromNow(90), 99900, false, null, []]);
     await db.query("UPDATE trips SET is_new = TRUE WHERE slug = 'nieuw-ijsland'");
@@ -142,7 +142,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.ok(normal.indexOf('8 dagen Albanië') < normal.indexOf('Nieuw IJsland'), 'standaard op vertrekdatum');
   });
 
-  await t.test('reispagina\'s in de opmaak van de huidige site; video alleen op de homepage in de CSP', async () => {
+  await testContext.test('reispagina\'s in de opmaak van de huidige site; video alleen op de homepage in de CSP', async () => {
     const detail = (await get('/reis/8-dagen-albanie/')).text;
     assert.match(detail, /<div class="trip__single">/);
     assert.match(detail, /<span class="block-ghost__label">Reisleider<\/span>[\s\S]*href="\/reisleider\/harmen\/">Harmen/);
@@ -167,7 +167,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.doesNotMatch((await get('/reis/')).headers.get('content-security-policy'), /youtube/);
   });
 
-  await t.test('weblog, tags, bericht met video, pagina met galerij, FAQ en zoeken in de opmaak van de huidige site', async () => {
+  await testContext.test('weblog, tags, bericht met video, pagina met galerij, FAQ en zoeken in de opmaak van de huidige site', async () => {
     const blog = await get('/blog/');
     assert.match(blog.text, /<p class="page-header__pretitle">campfire stories<\/p>\s*<h1 class="page-header__title">Weblog<\/h1>/);
     assert.match(blog.text, /<a class="tags__item" href="\/tag\/avontuur\/">Avontuur<\/a>/);
@@ -203,14 +203,14 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match(search, /post-teaser--landscape" href="\/op-avantuur\/"/);
   });
 
-  await t.test('lijsten tonen geen vertrokken reizen; volle en oude reizen tonen geen aanmeldknop', async () => {
+  await testContext.test('lijsten tonen geen vertrokken reizen; volle en oude reizen tonen geen aanmeldknop', async () => {
     const list = await get('/reis/');
     assert.doesNotMatch(list.text, /Oude reis/);
     assert.match((await get('/reis/vol-albanie/')).text, /btn--inactive">Volgeboekt/);
     assert.match((await get('/reis/oude-reis/')).text, /Vertrokken/);
   });
 
-  await t.test('oude adressen worden doorgestuurd', async () => {
+  await testContext.test('oude adressen worden doorgestuurd', async () => {
     assert.equal((await get('/reis')).headers.get('location'), '/reis/');
     assert.equal((await get('/reisleider/500/')).headers.get('location'), '/reisleider/harmen/');
     assert.equal((await get('/faq/paspoort/')).headers.get('location'), '/faq/');
@@ -220,7 +220,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await get('//evil.example')).headers.get('location'), '/evil.example/');
   });
 
-  await t.test('onbekend adres is 404; filters accepteren geen rare invoer', async () => {
+  await testContext.test('onbekend adres is 404; filters accepteren geen rare invoer', async () => {
     assert.equal((await get('/bestaat-niet/')).status, 404);
     assert.equal((await get('/reis/%3Cscript%3E/')).status, 404);
     const filtered = await get('/reis/?bestemming=%3Cscript%3E');
@@ -228,7 +228,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.doesNotMatch(filtered.text, /<script>/i);
   });
 
-  await t.test('beveiligingskoppen en noindex tot go-live', async () => {
+  await testContext.test('beveiligingskoppen en noindex tot go-live', async () => {
     const response = await get('/');
     assert.match(response.headers.get('content-security-policy'), /default-src 'self'/);
     assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
@@ -241,7 +241,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal(viaProxy.headers.get('strict-transport-security'), 'max-age=31536000');
   });
 
-  await t.test('/api/health: versie alleen van binnen de server (A23)', async () => {
+  await testContext.test('/api/health: versie alleen van binnen de server (A23)', async () => {
     const local = await get('/api/health');
     assert.equal(local.status, 200);
     assert.equal(local.headers.get('cache-control'), 'no-store');
@@ -253,7 +253,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     }
   });
 
-  await t.test('security.txt met het contactadres uit Beheer (V01)', async () => {
+  await testContext.test('security.txt met het contactadres uit Beheer (V01)', async () => {
     const response = await get('/.well-known/security.txt');
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-type'), /^text\/plain/);
@@ -295,13 +295,13 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     body: form.toString(),
   });
 
-  await t.test('POST zonder formulierinhoud: nette weigering, geen fout (Express 5 laat req.body anders leeg)', async () => {
+  await testContext.test('POST zonder formulierinhoud: nette weigering, geen fout (Express 5 laat req.body anders leeg)', async () => {
     const response = await get('/aanmelden/', { method: 'POST', headers: { 'sec-fetch-site': 'same-origin' } });
     assert.ok(response.status >= 300 && response.status < 500, `status ${response.status}`);
     assert.doesNotMatch(response.text, /foutcode/);
   });
 
-  await t.test('aanmelding wordt opgeslagen met versleutelde bijzondere gegevens', async () => {
+  await testContext.test('aanmelding wordt opgeslagen met versleutelde bijzondere gegevens', async () => {
     const form = await formFor(1001);
     clock += 5000;
     const response = await post(form);
@@ -334,7 +334,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.deepEqual(charges.map((row) => [row.kind, row.amount_cents]), [['boekingskosten', 1500], ['reissom', 79900], ['sgr', 500]]);
   });
 
-  await t.test('art. 9: kerkgenootschap of bijzonderheden zonder eigen toestemming geeft 422; leeg laten mag', async () => {
+  await testContext.test('art. 9: kerkgenootschap of bijzonderheden zonder eigen toestemming geeft 422; leeg laten mag', async () => {
     const withoutConsent = await formFor(1001);
     withoutConsent.delete('consent_religion');
     withoutConsent.delete('consent_health');
@@ -357,7 +357,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     await db.query('DELETE FROM bookings WHERE id = $1', [booking.id]);
   });
 
-  await t.test('fouten in het formulier geven 422 met meldingen en bewaren niets', async () => {
+  await testContext.test('fouten in het formulier geven 422 met meldingen en bewaren niets', async () => {
     const form = await formFor(1001);
     form.set('email_confirm', 'ander@example.nl');
     form.set('first_names', '<script>x</script>');
@@ -369,7 +369,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, 1);
   });
 
-  await t.test('honeypot: stil doorsturen naar de bedanktpagina zonder op te slaan', async () => {
+  await testContext.test('honeypot: stil doorsturen naar de bedanktpagina zonder op te slaan', async () => {
     const honeypot = await formFor(1001);
     honeypot.set('website', 'spam');
     clock += 5000;
@@ -379,7 +379,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, 1);
   });
 
-  await t.test('te snel, verlopen of vals token: 422 met ingevulde waarden, melding en nieuw token', async () => {
+  await testContext.test('te snel, verlopen of vals token: 422 met ingevulde waarden, melding en nieuw token', async () => {
     const ip = { 'x-forwarded-for': '203.0.113.31' };
     const forged = await formFor(1001);
     forged.set('token', `${clock - 10000}.vals`);
@@ -408,7 +408,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     await db.query("DELETE FROM bookings WHERE reference = (SELECT reference FROM bookings ORDER BY created_at DESC LIMIT 1)");
   });
 
-  await t.test('deelnemer onder de 16: ouder of voogd verplicht, vastgelegd in consents en een eigen blok (A02)', async () => {
+  await testContext.test('deelnemer onder de 16: ouder of voogd verplicht, vastgelegd in consents en een eigen blok (A02)', async () => {
     const ip = { 'x-forwarded-for': '203.0.113.60' };
     const day = today();
     // Precies 16 min één dag: nog 15, dus een ouder moet tekenen.
@@ -452,7 +452,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     await db.query('DELETE FROM persons WHERE id = $1', [person.id]);
   });
 
-  await t.test('volwassene: oudervelden worden genegeerd en niet bewaard', async () => {
+  await testContext.test('volwassene: oudervelden worden genegeerd en niet bewaard', async () => {
     const form = await formFor(1001);
     form.set('email', 'volwassen@example.nl');
     form.set('email_confirm', 'volwassen@example.nl');
@@ -470,7 +470,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     await db.query('DELETE FROM persons WHERE id = $1', [person.id]);
   });
 
-  await t.test('aanmelden kan niet voor volle, vertrokken of onbekende reizen', async () => {
+  await testContext.test('aanmelden kan niet voor volle, vertrokken of onbekende reizen', async () => {
     assert.equal((await get('/aanmelden/?id=1002')).status, 409);
     assert.equal((await get('/aanmelden/?id=1003')).status, 409);
     assert.equal((await get('/aanmelden/?id=9999')).status, 404);
@@ -482,14 +482,14 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match((await get('/aanmelden/?id=1002')).text, /<h2>Deze reis is volgeboekt.<\/h2>/);
   });
 
-  await t.test('verzoek van een andere site wordt geweigerd', async () => {
+  await testContext.test('verzoek van een andere site wordt geweigerd', async () => {
     const form = await formFor(1001);
     clock += 5000;
     assert.equal((await post(form, { 'sec-fetch-site': 'cross-site' })).status, 403);
     assert.equal((await post(form, { origin: 'https://kwaad.example' })).status, 403);
   });
 
-  await t.test('limiet: na 5 aanmeldingen per 10 minuten volgt 429', async () => {
+  await testContext.test('limiet: na 5 aanmeldingen per 10 minuten volgt 429', async () => {
     let lastStatus = 0;
     for (let i = 0; i < 6; i++) {
       const form = await formFor(1001);
@@ -533,7 +533,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
    */
   const contactCount = async () => (await db.query('SELECT COUNT(*)::int AS total FROM contact_messages'))[0].total;
 
-  await t.test('contact: formulier staat onder de pagina-inhoud en een bericht wordt opgeslagen', async () => {
+  await testContext.test('contact: formulier staat onder de pagina-inhoud en een bericht wordt opgeslagen', async () => {
     const page = await get('/contact/');
     assert.equal(page.headers.get('cache-control'), 'no-store');
     assert.ok(page.text.indexOf('Bel ons') < page.text.indexOf('<form class="form form--theme" method="post" action="/contact/"'));
@@ -561,7 +561,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.ok(message.consent_at instanceof Date);
   });
 
-  await t.test('contact: vanaf een reis wordt de reis bewaard; een onbekende reis niet', async () => {
+  await testContext.test('contact: vanaf een reis wordt de reis bewaard; een onbekende reis niet', async () => {
     const form = await contactFormFor('?reis=8-dagen-albanie');
     assert.equal(form.get('reis'), '8-dagen-albanie');
     assert.match((await get('/contact/?reis=8-dagen-albanie')).text, /value="Vraag over 8 dagen Albanië"/);
@@ -577,7 +577,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal(rows[1].subject, 'Vraag over 8 dagen Albanië');
   });
 
-  await t.test('contact: fouten geven 422 met Nederlandse meldingen en bewaren niets', async () => {
+  await testContext.test('contact: fouten geven 422 met Nederlandse meldingen en bewaren niets', async () => {
     const before = await contactCount();
     const form = await contactFormFor();
     for (const name of ['name', 'message', 'consent']) form.delete(name);
@@ -603,7 +603,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal(await contactCount(), before);
   });
 
-  await t.test('contact: NUL-tekens in de invoer geven geen 500', async () => {
+  await testContext.test('contact: NUL-tekens in de invoer geven geen 500', async () => {
     clock += 11 * 60 * 1000;
     const before = await contactCount();
     const form = await contactFormFor();
@@ -616,7 +616,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal(await contactCount(), before + 1);
   });
 
-  await t.test('contact: honeypot stil, ongeldig/verlopen/te snel token geeft 422 met waarden en nieuw token', async () => {
+  await testContext.test('contact: honeypot stil, ongeldig/verlopen/te snel token geeft 422 met waarden en nieuw token', async () => {
     clock += 11 * 60 * 1000; // nieuw limietvenster na de vorige tests
     const ip = { 'x-forwarded-for': '203.0.113.40' };
     const before = await contactCount();
@@ -646,7 +646,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal(await contactCount(), before);
   });
 
-  await t.test('contact: verzoek van een andere site wordt geweigerd', async () => {
+  await testContext.test('contact: verzoek van een andere site wordt geweigerd', async () => {
     const before = await contactCount();
     const form = await contactFormFor();
     clock += 5000;
@@ -655,7 +655,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal(await contactCount(), before);
   });
 
-  await t.test('contact: limiet van 5 berichten per 10 minuten, daarna 429', async () => {
+  await testContext.test('contact: limiet van 5 berichten per 10 minuten, daarna 429', async () => {
     clock += 11 * 60 * 1000;
     const statuses = [];
     for (let i = 0; i < 6; i++) {
@@ -669,13 +669,13 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match(limited.text, /Te veel berichten/);
   });
 
-  await t.test('limiet per bezoeker achter een vertrouwde proxy (X-Forwarded-For)', async () => {
+  await testContext.test('limiet per bezoeker achter een vertrouwde proxy (X-Forwarded-For)', async () => {
     const form = await formFor(1001);
     clock += 5000;
     assert.equal((await post(form, { 'x-forwarded-for': '203.0.113.9' })).status, 303);
   });
 
-  await t.test('botsing op de referentie: opnieuw proberen, andere fout of drie botsingen geven 500', async () => {
+  await testContext.test('botsing op de referentie: opnieuw proberen, andere fout of drie botsingen geven 500', async () => {
     const before = (await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total;
     const attempt = async (count, constraint, ip) => {
       Object.assign(collisions, { count, constraint });
@@ -691,7 +691,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, before + 1);
   });
 
-  await t.test('referentiejaar volgt de Nederlandse datum, ook rond de jaarwisseling', async () => {
+  await testContext.test('referentiejaar volgt de Nederlandse datum, ook rond de jaarwisseling', async () => {
     clock = Date.UTC(2099, 11, 31, 23, 30);
     const form = await formFor(1001);
     clock += 5000;
@@ -700,7 +700,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.ok(booking, 'aanmelding om 00:30 Nederlandse tijd op 1 januari 2100 krijgt jaar 2100');
   });
 
-  await t.test('alle plaatsen bezet: automatisch volgeboekt op de site, aanmelden geeft 409; geannuleerd telt niet', async () => {
+  await testContext.test('alle plaatsen bezet: automatisch volgeboekt op de site, aanmelden geeft 409; geannuleerd telt niet', async () => {
     const form = await formFor(1001);
     clock += 5000;
     const [{ total }] = await db.query("SELECT COUNT(*)::int AS total FROM bookings WHERE trip_id = (SELECT id FROM trips WHERE legacy_id = 1001) AND status <> 'geannuleerd'");

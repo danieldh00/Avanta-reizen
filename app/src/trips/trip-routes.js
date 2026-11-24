@@ -166,7 +166,7 @@ function createTripRoutes(options) {
     const input = (name, label, attributes = {}) => html`<div class="field"><span class="field__label"><label for="veld-${name}">${label}</label></span>
       <input id="veld-${name}" name="${name}" type="${attributes.type || 'text'}" value="${values[name] ?? ''}"${attributes.max ? raw(` maxlength="${Number(attributes.max)}"`) : ''}${attributes.inputmode ? raw(` inputmode="${attributes.inputmode}"`) : ''}${attributes.required ? raw(' required') : ''}${invalid(name)}>${error(name)}
       ${attributes.help ? html`<span class="field__help">${attributes.help}</span>` : ''}</div>`;
-    const textarea = (name, label, rows, max, help, rich = false) => html`<div class="field"><span class="field__label"><label for="veld-${name}">${label}</label></span>
+    const textarea = (name, label, { rows, max = null, help = '', rich = false }) => html`<div class="field"><span class="field__label"><label for="veld-${name}">${label}</label></span>
       <textarea id="veld-${name}" name="${name}" rows="${rows}"${rich ? raw(' class="cms-richtext"') : ''}${max ? raw(` maxlength="${Number(max)}"`) : ''}${invalid(name)}>${values[name] ?? ''}</textarea>${error(name)}
       ${help ? html`<span class="field__help">${help}</span>` : ''}</div>`;
     const checkbox = (name, label) => html`<div class="field field--checkbox"><label><input type="checkbox" name="${name}" value="1"${values[name] === true || values[name] === '1' ? raw(' checked') : ''}> ${label}</label></div>`;
@@ -221,8 +221,8 @@ function createTripRoutes(options) {
     </section>`;
     const text = html`<section class="crm-narrow crm-narrow--wide">
       ${input('tagline', 'Inleiding (onder de titel)', { max: LIMITS.tagline })}
-      ${textarea('summary', 'Samenvatting (in de lijsten)', 3, LIMITS.summary)}
-      ${textarea('body_html', 'Reisomschrijving', 14, null, RICHTEXT_HELP, true)}
+      ${textarea('summary', 'Samenvatting (in de lijsten)', { rows: 3, max: LIMITS.summary })}
+      ${textarea('body_html', 'Reisomschrijving', { rows: 14, help: RICHTEXT_HELP, rich: true })}
     </section>`;
     const saveNote = trip
       ? html`Laatst gewijzigd ${formatDateTime(trip.updated_at)}${trip.updated_by_name ? html` door ${trip.updated_by_name}` : ''}.`

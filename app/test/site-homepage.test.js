@@ -184,7 +184,7 @@ test('homepage: alle secties in de volgorde van de huidige site', () => {
   const order = ['homepage__slides', 'class="filter"', 'homepage__last-minutes', 'homepage__trip-types', 'homepage__inspiration', 'homepage__popular', 'homepage__blog', 'homepage__about'];
   const positions = order.map((marker) => page.indexOf(marker));
   for (const [index, position] of positions.entries()) assert.ok(position > -1, order[index]);
-  assert.deepEqual([...positions].sort((a, b) => a - b), positions);
+  assert.deepEqual([...positions].sort((left, right) => left - right), positions);
   // Slider: eerste dia actief, de rest verborgen, stippen met aria-current, muis naar de last-minutes.
   assert.match(page, /<li class="slide is-active" data-slide aria-roledescription="slide" aria-label="1 van 5">/);
   assert.match(page, /<li class="slide" data-slide aria-roledescription="slide" aria-label="2 van 5" aria-hidden="true">/);

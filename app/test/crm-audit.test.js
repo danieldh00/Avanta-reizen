@@ -65,7 +65,7 @@ test('auditlog: filters uit de querystring', () => {
   assert.equal(audit.auditWhere(audit.readAuditFilter({})).where, 'true');
 });
 
-test('auditlog in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('auditlog in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -78,7 +78,7 @@ test('auditlog in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt
   const smallServer = small.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   const smallBase = `http://127.0.0.1:${smallServer.address().port}`;
-  t.after(async () => { server.close(); smallServer.close(); await db.close(); });
+  testContext.after(async () => { server.close(); smallServer.close(); await db.close(); });
 
   const hash = await hashPassword(PASSWORD);
   const users = {};
@@ -115,7 +115,7 @@ test('auditlog in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt
   const others = { kantoor: await login('kantoor'), reisleider: await login('reisleider'), boekhouding: await login('boekhouding'), redacteur: await login('redacteur') };
   const rowsOf = (page) => (page.match(/<tbody[^>]*>[\s\S]*?<\/tbody>/) || [''])[0];
 
-  await t.test('rechten: zonder sessie naar inloggen, zonder recht 403 (ook de export)', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, zonder recht 403 (ook de export)', async () => {
     assert.equal((await request('/app/auditlog/')).status, 303);
     for (const cookie of Object.values(others)) {
       assert.equal((await request('/app/auditlog/', { cookie })).status, 403);
@@ -123,7 +123,7 @@ test('auditlog in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt
     }
   });
 
-  await t.test('lijst: alle regels, labels, links naar het record, filterformulier', async () => {
+  await testContext.test('lijst: alle regels, labels, links naar het record, filterformulier', async () => {
     const page = await request('/app/auditlog/', { cookie: beheerder });
     assert.equal(page.status, 200);
     const body = rowsOf(page.text);
@@ -137,7 +137,7 @@ test('auditlog in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt
     assert.match(body, /<span class="crm-audit-record" title="avanta-20261124-053008\.dump\.enc">Back-up #avanta-20261124…<\/span>/);
   });
 
-  await t.test('filters: gebruiker, systeem, actie, soort, record en periode in Nederlandse tijd', async () => {
+  await testContext.test('filters: gebruiker, systeem, actie, soort, record en periode in Nederlandse tijd', async () => {
     const byUser = rowsOf((await request(`/app/auditlog/?gebruiker=${users.kantoor}`, { cookie: beheerder })).text);
     assert.match(byUser, /Aanmelding #42/);
     assert.doesNotMatch(byUser, /Rol gewijzigd|Inloggen mislukt/);
@@ -168,14 +168,14 @@ test('auditlog in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt
     assert.doesNotMatch(proto, /undefined|function|\[native code\]/);
   });
 
-  await t.test('ongeldige filters vallen weg en komen niet terug in de pagina', async () => {
+  await testContext.test('ongeldige filters vallen weg en komen niet terug in de pagina', async () => {
     const page = await request(`/app/auditlog/?gebruiker=${encodeURIComponent("1' OR '1'='1")}&actie=%3Cscript%3E&van=2026-13-01&record=${encodeURIComponent('"><b>')}`, { cookie: beheerder });
     assert.equal(page.status, 200);
     assert.match(rowsOf(page.text), /Aanmelding #42/);
     assert.doesNotMatch(page.text, /<script>|"><b>/);
   });
 
-  await t.test('bladeren: oudere regels met behoud van de filters', async () => {
+  await testContext.test('bladeren: oudere regels met behoud van de filters', async () => {
     for (let i = 0; i < audit.AUDIT_PAGE_SIZE + 5; i++) await insert(users.kantoor, 'aanmelding.status', 'bookings', '42', '2026-11-20T10:00:00Z');
     const first = (await request('/app/auditlog/?actie=aanmelding.status', { cookie: beheerder })).text;
     const next = first.match(/href="(\/app\/auditlog\/\?[^"]*voor=\d+[^"]*)" rel="next"/);
@@ -188,7 +188,7 @@ test('auditlog in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt
     assert.doesNotMatch(second, /rel="next"/);
   });
 
-  await t.test('export: .xlsx met dezelfde filters, eigen auditregel, geen CSV', async () => {
+  await testContext.test('export: .xlsx met dezelfde filters, eigen auditregel, geen CSV', async () => {
     const response = await request('/app/auditlog/export.xlsx?actie=aanmelding.handmatig', { cookie: beheerder });
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -208,14 +208,14 @@ test('auditlog in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt
     assert.match(rowsOf((await request('/app/auditlog/?actie=export.auditlog', { cookie: beheerder })).text), /Auditlog geëxporteerd \(\.xlsx\)/);
   });
 
-  await t.test('export: boven het maximum een melding in plaats van een onvolledig bestand', async () => {
+  await testContext.test('export: boven het maximum een melding in plaats van een onvolledig bestand', async () => {
     const response = await request('/app/auditlog/export.xlsx', { cookie: beheerder, base: smallBase });
     assert.equal(response.status, 422);
     assert.match(response.text, /meer dan 2 regels/);
     assert.equal((await request('/app/auditlog/export.xlsx?actie=aanmelding.handmatig', { cookie: beheerder, base: smallBase })).status, 200);
   });
 
-  await t.test('export: limiet per gebruiker', async () => {
+  await testContext.test('export: limiet per gebruiker', async () => {
     let status = 200;
     for (let i = 0; i < EXPORT_LIMIT + 1 && status === 200; i++) status = (await request('/app/auditlog/export.xlsx?actie=inloggen.mislukt', { cookie: beheerder })).status;
     assert.equal(status, 429);

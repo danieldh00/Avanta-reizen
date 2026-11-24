@@ -76,7 +76,7 @@ test('doorverwijzingen: paden normaliseren en controleren', () => {
   assert.deepEqual(filterGroups('404', SETTING_FIELDS).flatMap((group) => group.sections.map((section) => section.id)), ['sessies', 'niet-gevonden'], 'ook de bewaartermijn van de 404-lijst');
 });
 
-test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -88,7 +88,7 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
   const { redirects } = app.locals;
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.
@@ -127,7 +127,7 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
    */
   const addRedirect = (form) => request('/app/beheer/doorverwijzingen/', { cookie, form: { _csrf: csrf, status: '301', note: '', ...form } });
 
-  await t.test('toegang: zonder recht 403, zonder CSRF 403', async () => {
+  await testContext.test('toegang: zonder recht 403, zonder CSRF 403', async () => {
     await request('/app/gebruikers/nieuw/', { cookie, form: { _csrf: csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
     const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: { cookie, csrf } });
     const officeCsrf = csrfFrom((await request('/app/', { cookie: office.cookie })).text);
@@ -142,7 +142,7 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
     assert.equal((await db.query('SELECT count(*)::int AS count FROM redirects'))[0].count, 0);
   });
 
-  await t.test('toevoegen en doorsturen: 301, querystring, slash, HEAD en 302', async () => {
+  await testContext.test('toevoegen en doorsturen: 301, querystring, slash, HEAD en 302', async () => {
     const page = await request('/app/beheer/doorverwijzingen/?van=%2Foude-pagina%2F', { cookie });
     assert.equal(page.status, 200);
     assert.match(page.text, /name="from" type="text" value="\/oude-pagina\/"/, 'vooraf ingevuld vanuit de 404-lijst');
@@ -179,7 +179,7 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
     assert.match((await request('/app/beheer/doorverwijzingen/?filter=%25', { cookie })).text, /0 gevonden \(van 2\)/, '% geldt letterlijk');
   });
 
-  await t.test('ongeldig: dubbel, keten, lus, homepage, CRM, notitie', async () => {
+  await testContext.test('ongeldig: dubbel, keten, lus, homepage, CRM, notitie', async () => {
     const cases = [
       [{ from: '/oude-reis/', to: '/blog/' }, /bestaat al een doorverwijzing/],
       [{ from: '/reis/', to: '/blog/' }, /Naar dit pad wordt al doorverwezen/],
@@ -205,7 +205,7 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
     assert.equal((await db.query('SELECT count(*)::int AS count FROM redirects'))[0].count, 2);
   });
 
-  await t.test('verwijderen: onbekend 404, bekend 303 en niet meer doorsturen', async () => {
+  await testContext.test('verwijderen: onbekend 404, bekend 303 en niet meer doorsturen', async () => {
     assert.equal((await request('/app/beheer/doorverwijzingen/999999/verwijderen', { cookie, form: { _csrf: csrf } })).status, 404);
     assert.equal((await request('/app/beheer/doorverwijzingen/abc/verwijderen', { cookie, form: { _csrf: csrf } })).status, 404);
     const [{ id }] = await db.query("SELECT id FROM redirects WHERE from_path = '/tijdelijk'");
@@ -215,7 +215,7 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
     assert.equal((await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'doorverwijzing.verwijderd' AND entity_id = $1", [String(id)]))[0].count, 1);
   });
 
-  await t.test('404-lijst: alleen pad en host, CRM niet, escaping, doorverwijzen haalt de regel weg', async () => {
+  await testContext.test('404-lijst: alleen pad en host, CRM niet, escaping, doorverwijzen haalt de regel weg', async () => {
     await db.query('DELETE FROM not_found_log');
     for (let i = 0; i < 3; i += 1) await request('/bestaat-niet/?email=iemand@example.nl', { headers: { referer: 'https://www.google.com/search?q=avanta' } });
     await request('/%3Cb%3Evet%3C/b%3E/');
@@ -246,7 +246,7 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
     assert.equal((await request('/bestaat-niet/')).status, 301);
   });
 
-  await t.test('404-lijst: regel verwijderen en leegmaken', async () => {
+  await testContext.test('404-lijst: regel verwijderen en leegmaken', async () => {
     assert.equal((await request('/app/beheer/niet-gevonden/verwijderen', { cookie, form: { _csrf: csrf, path: '/nooit-gezien/' } })).status, 404);
     assert.equal((await request('/app/beheer/niet-gevonden/verwijderen', { cookie, form: { _csrf: csrf, path: '/%3Cb%3Evet%3C/b%3E/' } })).status, 303);
     assert.equal((await db.query('SELECT count(*)::int AS count FROM not_found_log'))[0].count, 0);
@@ -259,7 +259,7 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
     assert.equal((await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'niet-gevonden.geleegd'"))[0].count, 1);
   });
 
-  await t.test('ruis telt niet mee; bekende paden tellen door als het geheugen vol is', async () => {
+  await testContext.test('ruis telt niet mee; bekende paden tellen door als het geheugen vol is', async () => {
     await db.query('DELETE FROM not_found_log');
     redirects.forgetKnownNotFound();
     await request('/.env');
@@ -283,7 +283,7 @@ test('doorverwijzingen: middleware, 404-lijst en Beheer-routes', { skip: !DATABA
     redirects.forgetKnownNotFound();
   });
 
-  await t.test('maximum en opruimen', async () => {
+  await testContext.test('maximum en opruimen', async () => {
     await db.query("INSERT INTO not_found_log (path, hits) SELECT '/vol-' || i || '/', 1 FROM generate_series(1, $1 - 1) AS i", [MAX_NOT_FOUND_ROWS]);
     await request('/nieuw-a/');
     for (let i = 0; i < 2; i += 1) await request('/nieuw-b/');

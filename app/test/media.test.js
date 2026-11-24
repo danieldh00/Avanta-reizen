@@ -104,7 +104,7 @@ test('rechten: media voor beheerder, kantoor en redacteur', () => {
   assert.equal(roleHasRight('boekhouding', 'media'), false);
 });
 
-test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -119,7 +119,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
   const app = createApp({ db, masterKey: MASTER_KEY, mediaDir });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  testContext.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
 
   const hash = await hashPassword(PASSWORD);
   for (const [email, role] of [['redactie@example.nl', 'redacteur'], ['kantoor@example.nl', 'kantoor'], ['boek@example.nl', 'boekhouding']]) {
@@ -180,7 +180,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
   const boek = await login('boek@example.nl');
   const photo = await jpegWithExif({ width: 1000, height: 700 });
 
-  await t.test('rechten: zonder sessie naar inloggen, boekhouding 403, redacteur en kantoor wel; menu', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, boekhouding 403, redacteur en kantoor wel; menu', async () => {
     assert.equal((await request('/app/fotobibliotheek/')).status, 303);
     assert.equal((await request('/app/fotobibliotheek/', { cookie: boek.cookie })).status, 403);
     assert.equal((await request('/app/fotobibliotheek/uploaden/', { cookie: boek.cookie, body: uploadForm({ csrf: boek.csrf, files: [{ name: 'a.jpg', data: photo }] }) })).status, 403);
@@ -198,7 +198,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.doesNotMatch(list.text, />Hostel</);
   });
 
-  await t.test('uploaden: twee foto\'s met land, zonder EXIF, audit', async () => {
+  await testContext.test('uploaden: twee foto\'s met land, zonder EXIF, audit', async () => {
     const response = await request('/app/fotobibliotheek/uploaden/', {
       cookie: redactie.cookie,
       body: uploadForm({ csrf: redactie.csrf, lands: [namibia.id, hostel.id, 999999], files: [{ name: 'woestijn_namibie.jpg', data: photo }, { name: 'duinen.png', data: await sharp(photo).png().toBuffer(), type: 'image/png' }] }),
@@ -231,7 +231,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.match(list.text, new RegExp(`src="/media/${rows[0].variants['400']}"`));
   });
 
-  await t.test('uploaden: ongeldige bestanden, te veel bestanden, CSRF en verkeerd soort verzoek', async () => {
+  await testContext.test('uploaden: ongeldige bestanden, te veel bestanden, CSRF en verkeerd soort verzoek', async () => {
     const before = (await db.query('SELECT count(*)::int AS n FROM media'))[0].n;
     const invalid = await request('/app/fotobibliotheek/uploaden/', {
       cookie: redactie.cookie,
@@ -265,7 +265,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.deepEqual((await fs.readdir(mediaDir)).filter((name) => name.endsWith('.tmp')), []);
   });
 
-  await t.test('wijzigen: teksten en landen, onbekend id 404, audit', async () => {
+  await testContext.test('wijzigen: teksten en landen, onbekend id 404, audit', async () => {
     const [item] = await db.query("SELECT id FROM media WHERE source = 'upload' ORDER BY id LIMIT 1");
     const page = await request(`/app/fotobibliotheek/${item.id}/`, { cookie: redactie.cookie });
     assert.equal(page.status, 200);
@@ -294,7 +294,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.equal(many.status, 303);
   });
 
-  await t.test('filter op land, zonder land en zoeken', async () => {
+  await testContext.test('filter op land, zonder land en zoeken', async () => {
     const byCountry = await request(`/app/fotobibliotheek/?land=${botswana.id}`, { cookie: redactie.cookie });
     assert.equal((byCountry.text.match(/class="media-grid__item"/g) || []).length, 1);
     const byNamibia = await request(`/app/fotobibliotheek/?land=${namibia.id}`, { cookie: redactie.cookie });
@@ -311,7 +311,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.ok((typeFilter.text.match(/class="media-grid__item"/g) || []).length >= 4);
   });
 
-  await t.test('uurgrens en gelijktijdige uploads', async () => {
+  await testContext.test('uurgrens en gelijktijdige uploads', async () => {
     /**
      * Start een tweede app met andere grenzen en logt daar in als redacteur.
      * @param {object} limits Grenzen.
@@ -330,7 +330,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
       const post = (count) => send('/app/fotobibliotheek/uploaden/', {
         method: 'POST', headers: { cookie: `${COOKIE_NAME}=${loggedIn.cookie}` }, body: uploadForm({ csrf, files: Array.from({ length: count }, (_, i) => ({ name: `grens-${i}.jpg`, data: photo })) }),
       });
-      t.after(() => other.close());
+      testContext.after(() => other.close());
       return { post, close: () => other.close() };
     };
     const count = async () => (await db.query('SELECT count(*)::int AS n FROM media'))[0].n;
@@ -349,7 +349,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.equal(await count(), before + 2);
   });
 
-  await t.test('mappen per land, gebruikt in en verwijderen', async () => {
+  await testContext.test('mappen per land, gebruikt in en verwijderen', async () => {
     const list = await request('/app/fotobibliotheek/', { cookie: redactie.cookie });
     assert.match(list.text, new RegExp(`href="/app/fotobibliotheek/\\?land=${botswana.id}">Botswana <span class="media-folders__count">1</span>`));
     assert.match(list.text, /Zonder land <span class="media-folders__count">\d+<\/span>/);
@@ -389,7 +389,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.equal((await request(`/app/fotobibliotheek/${imported.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 409);
   });
 
-  await t.test('losse bestanden opruimen: alleen bib-bestanden zonder rij en ouder dan de grens', async () => {
+  await testContext.test('losse bestanden opruimen: alleen bib-bestanden zonder rij en ouder dan de grens', async () => {
     const [item] = await db.query("SELECT local_name FROM media WHERE source = 'upload' ORDER BY id LIMIT 1");
     const orphan = 'bib-0123456789abcdef-400.webp';
     await fs.writeFile(path.join(mediaDir, orphan), 'x');
@@ -404,7 +404,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.ok(left.includes(item.local_name), 'bestanden met een rij blijven');
   });
 
-  await t.test('foto\'s uit de import automatisch aan landen koppelen', async () => {
+  await testContext.test('foto\'s uit de import automatisch aan landen koppelen', async () => {
     const insert = async (name) => (await db.query("INSERT INTO media (original_url, local_name, content_type, bytes) VALUES ($1, $2, 'image/jpeg', 1) RETURNING id", [`https://example.nl/${name}`, name]))[0].id;
     const inTrip = await insert('reis_foto.jpg');
     const inGallery = await insert('galerij-1.jpg');
@@ -428,7 +428,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.equal(response.status, 303);
     assert.equal(response.headers.get('location'), '/app/fotobibliotheek/?land=zonder&gekoppeld=3');
     const countriesOf = async (id) => (await db.query('SELECT category_id FROM media_countries WHERE media_id = $1 ORDER BY category_id', [id])).map((row) => row.category_id);
-    const both = [namibia.id, botswana.id].sort((a, b) => a - b);
+    const both = [namibia.id, botswana.id].sort((left, right) => left - right);
     assert.deepEqual(await countriesOf(inTrip), both, 'landen van de reis, geen reistype');
     assert.deepEqual(await countriesOf(inGallery), both);
     assert.deepEqual(await countriesOf(onCountryPage), [botswana.id]);
@@ -446,14 +446,14 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.equal((await request('/app/fotobibliotheek/koppelen/', { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 429);
   });
 
-  await t.test('foto\'s in de database: back-up, herstellen van bestanden en aanvullen van oude uploads', async () => {
+  await testContext.test('foto\'s in de database: back-up, herstellen van bestanden en aanvullen van oude uploads', async () => {
     const library = app.locals.mediaLibrary;
     const crypto = require('node:crypto');
     const hash = (data) => crypto.createHash('sha256').update(data).digest('hex');
     const [item] = await db.query("SELECT m.id, m.local_name, m.variants, f.width, f.sha256 FROM media m JOIN media_files f ON f.media_id = m.id WHERE m.source = 'upload' ORDER BY m.id LIMIT 1");
     const largest = await fs.readFile(path.join(mediaDir, item.local_name));
     assert.equal(item.sha256, hash(largest), 'grootste variant staat in de database');
-    assert.equal(String(item.width), Object.keys(item.variants).sort((a, b) => b - a)[0]);
+    assert.equal(String(item.width), Object.keys(item.variants).sort((left, right) => right - left)[0]);
     // Elke upload heeft een kopie in de database.
     const [{ missingCopies }] = await db.query("SELECT count(*)::int AS \"missingCopies\" FROM media m WHERE m.source = 'upload' AND NOT EXISTS (SELECT 1 FROM media_files f WHERE f.media_id = m.id)");
     assert.equal(missingCopies, 0);
@@ -471,7 +471,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     }
     assert.deepEqual(await library.restoreMissingFiles(), { restored: 0, failed: 0 }, 'niets te doen');
     // Beschadigde kopie in de database: niet herstellen.
-    const smallest = Object.entries(item.variants).sort((a, b) => a[0] - b[0])[0][1];
+    const smallest = Object.entries(item.variants).sort((left, right) => left[0] - right[0])[0][1];
     await fs.rm(path.join(mediaDir, smallest));
     await db.query("UPDATE media_files SET sha256 = 'fout' WHERE media_id = $1", [item.id]);
     assert.deepEqual(await library.restoreMissingFiles(), { restored: 0, failed: 1 });
@@ -505,7 +505,7 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     assert.equal((await db.query('SELECT media_id FROM media_files WHERE media_id = $1', [item.id])).length, 0);
   });
 
-  await t.test("importfoto's in de database: byte voor byte in de back-up en terug na verlies", async () => {
+  await testContext.test("importfoto's in de database: byte voor byte in de back-up en terug na verlies", async () => {
     const library = app.locals.mediaLibrary;
     const crypto = require('node:crypto');
     const hash = (data) => crypto.createHash('sha256').update(data).digest('hex');

@@ -24,9 +24,9 @@ const OLD_KEY = Buffer.alloc(32, 8);
  * @param {import('node:test').TestContext} t Testcontext.
  * @returns {string} Pad.
  */
-function tempDir(t) {
+function tempDir(testContext) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'avanta-backup-cli-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  testContext.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
 
@@ -73,8 +73,8 @@ async function makeBackup(dataDir, masterKey) {
   return { name: made.name, dump };
 }
 
-test('back-up-CLI: gebruik, lijst en ontbrekende instellingen', async (t) => {
-  const dataDir = tempDir(t);
+test('back-up-CLI: gebruik, lijst en ontbrekende instellingen', async (testContext) => {
+  const dataDir = tempDir(testContext);
   const usage = runCli([], { DATA_DIR: dataDir });
   assert.equal(usage.status, 2);
   assert.match(usage.stderr, /Gebruik: node src\/backup\/cli\.js create/);
@@ -104,8 +104,8 @@ test('back-up-CLI: gebruik, lijst en ontbrekende instellingen', async (t) => {
   assert.match(runCli(['create'], { DATA_DIR: dataDir, AVANTA_MASTER_KEY: MASTER_KEY.toString('hex'), DATABASE_URL_FILE: emptyFile }).stderr, /DATABASE_URL ontbreekt/);
 });
 
-test('back-up-CLI: ontsleutelen naar een bestand', async (t) => {
-  const dataDir = tempDir(t);
+test('back-up-CLI: ontsleutelen naar een bestand', async (testContext) => {
+  const dataDir = tempDir(testContext);
   const env = { DATA_DIR: dataDir, AVANTA_MASTER_KEY: MASTER_KEY.toString('hex') };
   const { name, dump } = await makeBackup(dataDir, MASTER_KEY);
 
@@ -142,8 +142,8 @@ test('back-up-CLI: ontsleutelen naar een bestand', async (t) => {
   assert.equal(runCli(['decrypt', 'avanta-19990101-000000.dump.enc', path.join(dataDir, 'x.dump')], env).status, 1);
 });
 
-test('back-up-CLI: na een sleutelrotatie met de vorige sleutel ontsleutelen', async (t) => {
-  const dataDir = tempDir(t);
+test('back-up-CLI: na een sleutelrotatie met de vorige sleutel ontsleutelen', async (testContext) => {
+  const dataDir = tempDir(testContext);
   const { name, dump } = await makeBackup(dataDir, OLD_KEY);
   const target = path.join(dataDir, 'oud.dump');
   const env = { DATA_DIR: dataDir, AVANTA_MASTER_KEY: MASTER_KEY.toString('hex'), AVANTA_MASTER_KEY_PREVIOUS: OLD_KEY.toString('hex') };
@@ -152,7 +152,7 @@ test('back-up-CLI: na een sleutelrotatie met de vorige sleutel ontsleutelen', as
   assert.deepEqual(fs.readFileSync(target), dump);
 });
 
-test('back-up-CLI: create met de instellingen uit de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('back-up-CLI: create met de instellingen uit de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -161,9 +161,9 @@ test('back-up-CLI: create met de instellingen uit de database', { skip: !DATABAS
   url.searchParams.set('options', `-c search_path=${SCHEMA}`);
   const db = createDatabase(url.toString());
   await db.migrate();
-  t.after(() => db.close());
+  testContext.after(() => db.close());
 
-  const dataDir = tempDir(t);
+  const dataDir = tempDir(testContext);
   const dumpFile = path.join(dataDir, 'echt.dump');
   fs.writeFileSync(dumpFile, Buffer.concat([Buffer.from('PGDMP'), Buffer.alloc(1000, 2)]));
   const urlFile = path.join(dataDir, 'database-url');

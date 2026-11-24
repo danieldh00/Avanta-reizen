@@ -157,7 +157,7 @@ test('controles zonder database: elke uitkomst', async () => {
   assert.equal((await runChecks(sources))[0].state, 'error');
 });
 
-test('bewaking, meldingen en Beheer > Bewaking', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('bewaking, meldingen en Beheer > Bewaking', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -193,7 +193,7 @@ test('bewaking, meldingen en Beheer > Bewaking', { skip: !DATABASE_URL && 'TEST_
   });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); fs.rmSync(backupDir, { recursive: true, force: true }); });
+  testContext.after(async () => { server.close(); await db.close(); fs.rmSync(backupDir, { recursive: true, force: true }); });
   const { monitor, settings } = app.locals;
 
   /**

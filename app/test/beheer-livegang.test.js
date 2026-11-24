@@ -121,7 +121,7 @@ test('livegang: vaste inhoud uit het bestand of uit het CRM', () => {
   assert.equal(stateOf(empty, 'Fotogalerijen'), 'klaar');
 });
 
-test('livegang: de pagina in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('livegang: de pagina in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -132,7 +132,7 @@ test('livegang: de pagina in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
   const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); fs.rmSync(DATA_DIR, { recursive: true, force: true }); });
+  testContext.after(async () => { server.close(); await db.close(); fs.rmSync(DATA_DIR, { recursive: true, force: true }); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.
@@ -159,7 +159,7 @@ test('livegang: de pagina in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
   const adminCookie = installed.cookie;
   const adminCsrf = csrfFrom((await request('/app/', { cookie: adminCookie })).text);
 
-  await t.test('zonder sessie naar inloggen, zonder recht 403', async () => {
+  await testContext.test('zonder sessie naar inloggen, zonder recht 403', async () => {
     const anonymous = await request('/app/beheer/livegang/');
     assert.equal(anonymous.status, 303);
     assert.equal(anonymous.headers.get('location'), '/app/inloggen/');
@@ -168,7 +168,7 @@ test('livegang: de pagina in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.equal((await request('/app/beheer/livegang/', { cookie: office.cookie })).status, 403);
   });
 
-  await t.test('beheerder ziet de standen, zonder persoonsgegevens', async () => {
+  await testContext.test('beheerder ziet de standen, zonder persoonsgegevens', async () => {
     const page = await request('/app/beheer/livegang/', { cookie: adminCookie });
     assert.equal(page.status, 200);
     assert.equal(page.headers.get('cache-control'), 'no-store');
@@ -186,7 +186,7 @@ test('livegang: de pagina in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.match((await request('/app/beheer/?zoek=livegang', { cookie: adminCookie })).text, /href="\/app\/beheer\/livegang\/"/);
   });
 
-  await t.test('na het zetten van de instellingen staat de stap op klaar', async () => {
+  await testContext.test('na het zetten van de instellingen staat de stap op klaar', async () => {
     const form = await request('/app/beheer/ontwikkeling/', { cookie: adminCookie });
     const saved = await request('/app/beheer/ontwikkeling/', { cookie: adminCookie, form: { _csrf: csrfFrom(form.text), devBannerText: 'Tekst' } });
     assert.equal(saved.status, 303);
@@ -194,7 +194,7 @@ test('livegang: de pagina in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.match(page.text, /Balk &quot;in ontwikkeling&quot; uit<\/a><\/td>\s*<td role="cell" data-label="Stand"><span class="crm-status crm-status--gepubliceerd">Klaar/);
   });
 
-  await t.test('limiet: na 60 verzoeken per minuut een 429', async () => {
+  await testContext.test('limiet: na 60 verzoeken per minuut een 429', async () => {
     let status = 200;
     for (let i = 0; i < 70 && status === 200; i++) status = (await request('/app/beheer/livegang/', { cookie: adminCookie })).status;
     assert.equal(status, 429);

@@ -81,7 +81,7 @@ test('betaallinks van vóór de rotatie blijven geldig, nieuwe links gebruiken d
   assert.equal(after.bookingIdFrom('42-verkeerdtokenverkeerd'), null);
 });
 
-test('sleutelrotatie in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('sleutelrotatie in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -89,7 +89,7 @@ test('sleutelrotatie in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
   const url = new URL(DATABASE_URL);
   url.searchParams.set('options', `-c search_path=${SCHEMA}`);
   const db = createDatabase(url.toString());
-  t.after(() => db.close());
+  testContext.after(() => db.close());
   await db.migrate();
 
   // Gegevens van vóór de rotatie, met de oude sleutel.
@@ -120,7 +120,7 @@ test('sleutelrotatie in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
   const persons = createPersons({ vault });
   const rotation = createKeyRotation({ db, vault, persons, batchSize: 1 });
 
-  await t.test('vóór de rotatie: oude match_key wordt nog gevonden, status telt wat open staat', async () => {
+  await testContext.test('vóór de rotatie: oude match_key wordt nog gevonden, status telt wat open staat', async () => {
     const again = await db.transaction((client) => persons.savePerson(client, values));
     assert.deepEqual(again, { personId, outcome: 'bestaand' }, 'geen dubbele persoon door de nieuwe sleutel');
     const { keyId, pending } = await rotation.status();
@@ -131,7 +131,7 @@ test('sleutelrotatie in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.equal(stillOld, oldMatchKey);
   });
 
-  await t.test('rotatie: alles opnieuw versleuteld, match_key herberekend, waarden gelijk', async () => {
+  await testContext.test('rotatie: alles opnieuw versleuteld, match_key herberekend, waarden gelijk', async () => {
     const counts = await rotation.run();
     assert.deepEqual(counts, { persons: 1, bookings: 1, users: 1, settings: 1, failed: 0 });
     const [person] = await db.query('SELECT id, match_key, identity_data, special_data, emergency_data FROM persons WHERE id = $1', [personId]);
@@ -154,14 +154,14 @@ test('sleutelrotatie in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.deepEqual(audit, { entity: 'systeem', entity_id: keyIdOf(NEW_KEY) });
   });
 
-  await t.test('tweede ronde doet niets meer; status is leeg en er komt geen tweede auditregel', async () => {
+  await testContext.test('tweede ronde doet niets meer; status is leeg en er komt geen tweede auditregel', async () => {
     assert.deepEqual(await rotation.run(), { persons: 0, bookings: 0, users: 0, settings: 0, failed: 0 });
     assert.deepEqual((await rotation.status()).pending, { persons: 0, bookings: 0, users: 0, settings: 0 });
     const [{ count }] = await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'sleutel.geroteerd'");
     assert.equal(count, 1);
   });
 
-  await t.test('een waarde met een onbekende sleutel blijft staan en telt als mislukt', async () => {
+  await testContext.test('een waarde met een onbekende sleutel blijft staan en telt als mislukt', async () => {
     const foreign = createVault(Buffer.alloc(32, 99));
     await db.query('UPDATE users SET totp_secret = $2 WHERE id = $1', [user.id, foreign.seal('X', `users:totp:${user.id}`)]);
     await db.query('UPDATE persons SET health_data = $2 WHERE id = $1', [personId, foreign.seal({ particulars: 'x' }, `persons:health_data:${personId}`)]);
@@ -171,7 +171,7 @@ test('sleutelrotatie in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.equal(foreign.open(secret, `users:totp:${user.id}`), 'X', 'onaangeroerd');
   });
 
-  await t.test('opdrachtregel: status en herversleutelen, met uitgangscodes en zonder waarden in de uitvoer', async () => {
+  await testContext.test('opdrachtregel: status en herversleutelen, met uitgangscodes en zonder waarden in de uitvoer', async () => {
     await db.query('UPDATE users SET totp_secret = NULL');
     await db.query('UPDATE persons SET health_data = NULL');
     await db.query('UPDATE bookings SET sensitive_data = $2 WHERE id = $1', [booking.id, legacySeal(OLD_KEY, { birth_date: '1970-01-01' })]);

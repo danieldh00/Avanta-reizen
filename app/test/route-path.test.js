@@ -48,19 +48,19 @@ test('routePath: patronen, gewone parameters, escaping en fouten', () => {
   assert.throws(() => routePath('/a/:id(\\d+)/b/:id(\\d+)/'), /komt twee keer voor/);
 });
 
-test('routePath in een Express 5-router: params, doorvallen naar de volgende route', async (t) => {
+test('routePath in een Express 5-router: params, doorvallen naar de volgende route', async (testContext) => {
   const request = await startApp((app) => {
     const router = express.Router();
     router.get(routePath('/reizen/:id(\\d{1,9})/'), (req, res) => res.send(`reis ${req.params.id}`));
     router.get('/reizen/nieuw/', (req, res) => res.send('nieuw'));
     app.use('/app', router);
-  }, t);
+  }, testContext);
   assert.deepEqual(await request('/app/reizen/42/'), { status: 200, text: 'reis 42' });
   assert.deepEqual(await request('/app/reizen/nieuw/'), { status: 200, text: 'nieuw' });
   assert.equal((await request('/app/reizen/42x/')).status, 404);
 });
 
-test('Express 5: een afgewezen promise in een route gaat naar de foutafhandelaar', async (t) => {
+test('Express 5: een afgewezen promise in een route gaat naar de foutafhandelaar', async (testContext) => {
   const request = await startApp((app) => {
     app.get('/stuk/', async () => {
       throw new Error('kapot');
@@ -68,6 +68,6 @@ test('Express 5: een afgewezen promise in een route gaat naar de foutafhandelaar
     app.use((error, req, res, next) => { // eslint-disable-line no-unused-vars
       res.status(500).send(`afgehandeld: ${error.message}`);
     });
-  }, t);
+  }, testContext);
   assert.deepEqual(await request('/stuk/'), { status: 500, text: 'afgehandeld: kapot' });
 });

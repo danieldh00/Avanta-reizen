@@ -25,10 +25,10 @@ const SEED_ENV = ['NODE_ENV', 'DESIGN_SEED_TOEGESTAAN', 'PGHOST', 'PGHOSTADDR'];
  * @param {object} t Testcontext.
  * @returns {void}
  */
-function isolateSeedEnv(t) {
+function isolateSeedEnv(testContext) {
   const saved = Object.fromEntries(SEED_ENV.map((key) => [key, process.env[key]]));
   for (const key of SEED_ENV) delete process.env[key];
-  t.after(() => {
+  testContext.after(() => {
     for (const [key, value] of Object.entries(saved)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
@@ -144,8 +144,8 @@ test('samenvatting design-controle (CI): aantallen, ernstigste eerst, ingekort e
   assert.match(many, /En nog 5 bevindingen/);
 });
 
-test('testgegevens alleen in een lokale test- of ontwerpdatabase', (t) => {
-  isolateSeedEnv(t);
+test('testgegevens alleen in een lokale test- of ontwerpdatabase', (testContext) => {
+  isolateSeedEnv(testContext);
   assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@localhost:5432/avanta_design'));
   assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@127.0.0.1/avanta_test'));
   assert.throws(() => assertLocalDatabase('postgres://avanta:x@db.example.nl/avanta_design'), /alleen tegen een lokale database/);
@@ -157,16 +157,16 @@ test('testgegevens alleen in een lokale test- of ontwerpdatabase', (t) => {
   assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@localhost/avanta-test'));
 });
 
-test('testgegevens alleen via een lokale app', (t) => {
-  isolateSeedEnv(t);
+test('testgegevens alleen via een lokale app', (testContext) => {
+  isolateSeedEnv(testContext);
   assert.doesNotThrow(() => assertLocalBaseUrl('http://localhost:3400'));
   assert.doesNotThrow(() => assertLocalBaseUrl('http://127.0.0.1:3400/'));
   assert.throws(() => assertLocalBaseUrl('https://www.avantareizen.nl'), /alleen tegen een lokale app/);
   assert.throws(() => assertLocalBaseUrl('geen adres'), /DESIGN_BASE_URL is ongeldig/);
 });
 
-test('testgegevens: zonder host in het adres tellen PGHOST en PGHOSTADDR mee', (t) => {
-  isolateSeedEnv(t);
+test('testgegevens: zonder host in het adres tellen PGHOST en PGHOSTADDR mee', (testContext) => {
+  isolateSeedEnv(testContext);
   assert.doesNotThrow(() => assertLocalDatabase('postgres:///avanta_design'), 'geen host: standaard lokaal');
   process.env.PGHOST = 'db.example.nl';
   assert.throws(() => assertLocalDatabase('postgres:///avanta_design'), /db\.example\.nl/);
@@ -176,8 +176,8 @@ test('testgegevens: zonder host in het adres tellen PGHOST en PGHOSTADDR mee', (
   assert.throws(() => assertLocalDatabase('postgres:///avanta_design'), /10\.0\.0\.5/);
 });
 
-test('testgegevens: productie weigert altijd, de vlag staat een wegwerpcontainer toe', (t) => {
-  isolateSeedEnv(t);
+test('testgegevens: productie weigert altijd, de vlag staat een wegwerpcontainer toe', (testContext) => {
+  isolateSeedEnv(testContext);
   process.env.DESIGN_SEED_TOEGESTAAN = '1';
   assert.doesNotThrow(() => assertLocalDatabase('postgres://avanta:x@postgres/avanta'), 'vlag: andere host en naam toegestaan');
   assert.throws(() => assertLocalDatabase('niet-een-url'), /DATABASE_URL ontbreekt/, 'ook met de vlag een geldige URL');
@@ -185,9 +185,9 @@ test('testgegevens: productie weigert altijd, de vlag staat een wegwerpcontainer
   assert.throws(() => assertLocalDatabase('postgres://avanta:x@localhost/avanta_design'), /NODE_ENV=production/, 'productie weigert, ook met de vlag');
 });
 
-test('testaccounts: wachtwoord uit DESIGN_WACHTWOORD, met de minimale lengte van het CRM', (t) => {
+test('testaccounts: wachtwoord uit DESIGN_WACHTWOORD, met de minimale lengte van het CRM', (testContext) => {
   const saved = process.env.DESIGN_WACHTWOORD;
-  t.after(() => {
+  testContext.after(() => {
     if (saved === undefined) delete process.env.DESIGN_WACHTWOORD;
     else process.env.DESIGN_WACHTWOORD = saved;
   });
@@ -210,9 +210,9 @@ test('check.js en overview.js weigeren een niet-lokale app vóór de eerste logi
 });
 
 const playwright = loadPlaywright();
-test('metingen in de browser: overlap, knophoogte, scheve rand en overloop', { skip: !playwright && 'Playwright niet beschikbaar' }, async (t) => {
+test('metingen in de browser: overlap, knophoogte, scheve rand en overloop', { skip: !playwright && 'Playwright niet beschikbaar' }, async (testContext) => {
   const browser = await playwright.chromium.launch();
-  t.after(() => browser.close());
+  testContext.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 375, height: 800 } });
   await page.setContent(`<!doctype html><body style="margin:0;font:16px sans-serif">
     <div style="padding:20px"><p id="een" style="margin:0">Eerste regel tekst</p><p id="twee" style="margin:-14px 0 0">Tweede regel tekst</p></div>
@@ -231,9 +231,9 @@ test('metingen in de browser: overlap, knophoogte, scheve rand en overloop', { s
   assert.deepEqual(await page.evaluate(runPageChecks, { mobile: true }), [], 'een nette pagina geeft geen bevindingen');
 });
 
-test('metingen in de browser: afgekapt telt geen schuifbalk of verborgen dia, wel tekst die eruit loopt', { skip: !playwright && 'Playwright niet beschikbaar' }, async (t) => {
+test('metingen in de browser: afgekapt telt geen schuifbalk of verborgen dia, wel tekst die eruit loopt', { skip: !playwright && 'Playwright niet beschikbaar' }, async (testContext) => {
   const browser = await playwright.chromium.launch();
-  t.after(() => browser.close());
+  testContext.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 375, height: 800 } });
   // Schuifbalk met kaarten binnen het afknipvak, plus een verborgen dia die buiten het vak staat: geen melding.
   await page.setContent(`<!doctype html><body style="margin:0;font:16px sans-serif">
@@ -293,9 +293,9 @@ function axeAvailable() {
   }
 }
 
-test('toegankelijkheid in de browser: axe vindt een knop zonder naam, ook onder een strenge CSP', { skip: (!playwright || !axeAvailable()) && 'Playwright of axe-core niet beschikbaar' }, async (t) => {
+test('toegankelijkheid in de browser: axe vindt een knop zonder naam, ook onder een strenge CSP', { skip: (!playwright || !axeAvailable()) && 'Playwright of axe-core niet beschikbaar' }, async (testContext) => {
   const browser = await playwright.chromium.launch();
-  t.after(() => browser.close());
+  testContext.after(() => browser.close());
   const page = await browser.newPage();
   await page.setContent(`<!doctype html><html lang="nl"><head><title>Test</title>
     <meta http-equiv="Content-Security-Policy" content="script-src 'none'"></head>

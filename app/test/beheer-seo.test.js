@@ -103,7 +103,7 @@ test('vindbaarheid: site-instellingen, robots.txt, llms.txt en JSON-LD', () => {
   assert.equal(seo.travelAgencyData(site.siteUrl, site.contact).name, 'Avanta reizen');
 });
 
-test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -119,7 +119,7 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
   const app = createApp({ db, masterKey: Buffer.alloc(32, 5), setupCode: SETUP_CODE, siteUrl: 'https://start.example.nl', now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.
@@ -145,7 +145,7 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
   const csrf = ((await request('/app/', { cookie })).text.match(/name="_csrf" value="([^"]+)"/) || [])[1];
   const searchEngines = { _csrf: csrf, siteUrl: 'https://start.example.nl', googleVerification: '', bingVerification: '' };
 
-  await t.test('standaard: niet indexeren, basisadres uit de startwaarde', async () => {
+  await testContext.test('standaard: niet indexeren, basisadres uit de startwaarde', async () => {
     assert.equal((await request('/robots.txt')).text, 'User-agent: *\nDisallow: /\n');
     const trips = await request('/reis/');
     assert.equal(trips.headers.get('x-robots-tag'), 'noindex, nofollow');
@@ -157,7 +157,7 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
     assert.match(page.text, /name="_password"/, 'wachtwoordveld zolang indexeren uit staat');
   });
 
-  await t.test('indexeren aanzetten vraagt het wachtwoord', async () => {
+  await testContext.test('indexeren aanzetten vraagt het wachtwoord', async () => {
     const sneaky = await request('/app/beheer/zoekmachines/', { cookie, form: { ...searchEngines, seoIndexing: 'ja', _reset: 'seoIndexing' } });
     assert.equal(sneaky.status, 303, 'terugzetten zonder databaserij verandert niets');
     assert.equal((await db.query("SELECT count(*)::int AS count FROM settings WHERE key = 'seoIndexing'"))[0].count, 0);
@@ -177,7 +177,7 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
     assert.doesNotMatch((await request('/app/beheer/zoekmachines/', { cookie })).text, /name="_password"/, 'geen wachtwoordveld meer als het al aan staat');
   });
 
-  await t.test('met indexeren: robots.txt, koppen, canonical, verificatie, sitemap en llms.txt', async () => {
+  await testContext.test('met indexeren: robots.txt, koppen, canonical, verificatie, sitemap en llms.txt', async () => {
     const robots = await request('/robots.txt');
     assert.equal(robots.text, 'User-agent: *\nAllow: /\n\nSitemap: https://www.nieuw.example.nl/sitemap.xml\n');
     const trips = await request('/reis/');
@@ -220,7 +220,7 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
     assert.match((await request('/llms.txt')).text, /reis-categorie\/albanie\//, 'wel als het op de homepage staat');
   });
 
-  await t.test('robots, sitemap en llms.txt instellen', async () => {
+  await testContext.test('robots, sitemap en llms.txt instellen', async () => {
     const invalid = await request('/app/beheer/robots/', { cookie, form: { _csrf: csrf, robotsExtra: 'Sitemap: https://evil.example/', sitemapExclude: '', llmsEnabled: 'ja', llmsIntro: '' } });
     assert.equal(invalid.status, 422);
     const saved = await request('/app/beheer/robots/', { cookie, form: { _csrf: csrf, robotsExtra: 'User-agent: GPTBot\nDisallow: /', sitemapExclude: '/faq/\n/faq-extra/*', llmsIntro: 'Wij zijn Avanta.' } });
@@ -233,7 +233,7 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
     assert.equal((await request('/llms.txt')).status, 404, 'llms.txt staat nu uit (selectievakje niet aangevinkt)');
   });
 
-  await t.test('titels, omschrijving, afbeelding en organisatie', async () => {
+  await testContext.test('titels, omschrijving, afbeelding en organisatie', async () => {
     const saved = await request('/app/beheer/teksten/', { cookie, form: { _csrf: csrf, siteName: 'Avanta Test', homeTitle: 'Groepsreizen | Avanta Test', defaultDescription: 'Een eigen omschrijving.', socialImage: '/media/deel.jpg' } });
     assert.equal(saved.status, 303);
     const trips = await request('/reis/');
@@ -254,7 +254,7 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
     assert.equal(agency.url, 'https://www.nieuw.example.nl/');
   });
 
-  await t.test('indexeren uitzetten kan zonder wachtwoord; te veel foute wachtwoorden geeft 429', async () => {
+  await testContext.test('indexeren uitzetten kan zonder wachtwoord; te veel foute wachtwoorden geeft 429', async () => {
     const off = await request('/app/beheer/zoekmachines/', { cookie, form: { ...searchEngines, siteUrl: 'https://www.nieuw.example.nl' } });
     assert.equal(off.status, 303);
     assert.equal((await request('/robots.txt')).text, 'User-agent: *\nDisallow: /\n');
@@ -265,10 +265,10 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
     assert.equal((await request('/app/beheer/zoekmachines/', { cookie, form: { ...searchEngines, seoIndexing: 'ja', _password: 'fout wachtwoord!!' } })).status, 422, 'na het kwartier weer');
   });
 
-  await t.test('terugzetten naar een startwaarde die aan staat, vraagt ook het wachtwoord', async () => {
+  await testContext.test('terugzetten naar een startwaarde die aan staat, vraagt ook het wachtwoord', async () => {
     const indexableApp = createApp({ db, masterKey: Buffer.alloc(32, 5), setupCode: SETUP_CODE, indexable: true, siteUrl: 'https://start.example.nl', now: () => clock });
     const indexableServer = indexableApp.listen(0);
-    t.after(() => indexableServer.close());
+    testContext.after(() => indexableServer.close());
     const indexableBase = `http://127.0.0.1:${indexableServer.address().port}`;
     /**
      * Zet indexeren terug naar de startwaarde (aan) via de tweede app.

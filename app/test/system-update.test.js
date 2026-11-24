@@ -42,9 +42,9 @@ const CHANGELOG = `# Changelog
  * @param {object} t Testcontext.
  * @returns {string} Pad.
  */
-function tempDir(t) {
+function tempDir(testContext) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'avanta-update-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  testContext.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
 
@@ -80,9 +80,9 @@ test('releasenotes uit de changelog en versies vergelijken', () => {
   assert.equal(compareVersions('1.2.3', '1.2.3'), 0);
 });
 
-test('koppeling met het hostscript: status, aanvragen, controleren, intrekken en afgeronde uitrol', (t) => {
-  const statusDir = tempDir(t);
-  const requestDir = tempDir(t);
+test('koppeling met het hostscript: status, aanvragen, controleren, intrekken en afgeronde uitrol', (testContext) => {
+  const statusDir = tempDir(testContext);
+  const requestDir = tempDir(testContext);
   let clock = Date.parse('2026-11-22T10:00:00Z');
   const update = createSystemUpdate({ statusDir, requestDir, currentVersion: '0.5.0', now: () => clock });
   assert.deepEqual(createSystemUpdate({ currentVersion: '0.5.0' }).view(), { configured: false, running: '0.5.0' });
@@ -167,8 +167,8 @@ test('koppeling met het hostscript: status, aanvragen, controleren, intrekken en
   assert.equal(update.hostMaintenance().active, false, 'te oud');
 });
 
-test('servertaken: afvinken door de server en met de hand', (t) => {
-  const statusDir = tempDir(t);
+test('servertaken: afvinken door de server en met de hand', (testContext) => {
+  const statusDir = tempDir(testContext);
   let stored = '';
   const settings = { get: () => stored };
   const tasks = [{ id: '001-een', title: 'Een', description: '', addedAt: '2026-11-20' }, { id: '002-twee', title: 'Twee', description: '', addedAt: '2026-11-21' }];
@@ -194,7 +194,7 @@ test('servertaken: afvinken door de server en met de hand', (t) => {
   assert.equal(hostTasks.known('003-nee'), false);
 });
 
-test('updates, onderhoudsmodus en servertaken in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('updates, onderhoudsmodus en servertaken in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -203,14 +203,14 @@ test('updates, onderhoudsmodus en servertaken in Beheer', { skip: !DATABASE_URL 
   url.searchParams.set('options', `-c search_path=${SCHEMA}`);
   const db = createDatabase(url.toString());
   await db.migrate();
-  const statusDir = tempDir(t);
-  const requestDir = tempDir(t);
+  const statusDir = tempDir(testContext);
+  const requestDir = tempDir(testContext);
   let clock = Date.now();
   const systemUpdate = createSystemUpdate({ statusDir, requestDir, currentVersion: '0.5.0', now: () => clock });
-  const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, systemUpdate, updateStatusDir: statusDir, backupDir: tempDir(t) });
+  const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, systemUpdate, updateStatusDir: statusDir, backupDir: tempDir(testContext) });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.

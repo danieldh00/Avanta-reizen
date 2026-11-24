@@ -80,7 +80,7 @@ test('ingekort IP-adres, installatiecode en e-mail', () => {
   assert.equal(normalizeEmail(['a@b.nl']), '');
 });
 
-test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -103,7 +103,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
   const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, passwordCheckFetch, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.
@@ -146,7 +146,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
 
   let adminSession;
 
-  await t.test('zonder gebruikers: installatie open, overzicht stuurt naar inloggen', async () => {
+  await testContext.test('zonder gebruikers: installatie open, overzicht stuurt naar inloggen', async () => {
     const home = await request('/app/');
     assert.equal(home.status, 303);
     assert.equal(home.headers.get('location'), '/app/inloggen/');
@@ -156,7 +156,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal((await request('/app/installatie/')).status, 200);
   });
 
-  await t.test('installatie: verkeerde code, andere site en ongeldige invoer worden geweigerd', async () => {
+  await testContext.test('installatie: verkeerde code, andere site en ongeldige invoer worden geweigerd', async () => {
     const form = { code: 'XXXXX-XXXXX-XXXXX-XXXXX', name: 'Daniël', email: 'beheer@example.nl', password: ADMIN_PASSWORD, password2: ADMIN_PASSWORD };
     const wrong = await request('/app/installatie/', { form });
     assert.equal(wrong.status, 422);
@@ -171,7 +171,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal(count, 0);
   });
 
-  await t.test('installatie: eerste beheerder met de juiste code, daarna dicht', async () => {
+  await testContext.test('installatie: eerste beheerder met de juiste code, daarna dicht', async () => {
     const created = await request('/app/installatie/', {
       form: { code: SETUP_CODE.toLowerCase().replace(/-/g, ' '), name: 'Daniël', email: 'Beheer@Example.nl', password: ADMIN_PASSWORD, password2: ADMIN_PASSWORD },
     });
@@ -193,7 +193,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.doesNotMatch((await request('/app/inloggen/')).text, /eerste beheerder/);
   });
 
-  await t.test('inloggen: fout wachtwoord en onbekend adres geven dezelfde melding', async () => {
+  await testContext.test('inloggen: fout wachtwoord en onbekend adres geven dezelfde melding', async () => {
     const wrong = await request('/app/inloggen/', { form: { email: 'beheer@example.nl', password: 'fout wachtwoord!!' } });
     const unknown = await request('/app/inloggen/', { form: { email: 'niemand@example.nl', password: 'fout wachtwoord!!' } });
     assert.equal(wrong.status, 401);
@@ -210,7 +210,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
   });
 
   let officeId;
-  await t.test('gebruikersbeheer: aanmaken, dubbel adres, CSRF verplicht', async () => {
+  await testContext.test('gebruikersbeheer: aanmaken, dubbel adres, CSRF verplicht', async () => {
     const form = { _csrf: adminSession.csrf, name: 'Kantoor Kees', email: 'kees@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' };
     assert.equal((await request('/app/gebruikers/nieuw/', { cookie: adminSession.cookie, form: { ...form, _csrf: 'fout' } })).status, 403);
     assert.equal((await request('/app/gebruikers/nieuw/', { cookie: adminSession.cookie, form, headers: { origin: 'https://evil.example' } })).status, 403);
@@ -231,7 +231,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal((await request('/app/gebruikers/abc/', { cookie: adminSession.cookie })).status, 404);
   });
 
-  await t.test('rechten: kantoor mag geen gebruikers of auditlog zien (403), wel het overzicht', async () => {
+  await testContext.test('rechten: kantoor mag geen gebruikers of auditlog zien (403), wel het overzicht', async () => {
     const office = await login('kees@example.nl', 'kantoor wachtwoord 1');
     const home = await request('/app/', { cookie: office.cookie });
     assert.equal(home.status, 200);
@@ -245,7 +245,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal(role, 'kantoor');
   });
 
-  await t.test('blokkeren beëindigt sessies; inloggen geweigerd', async () => {
+  await testContext.test('blokkeren beëindigt sessies; inloggen geweigerd', async () => {
     const office = await login('kees@example.nl', 'kantoor wachtwoord 1');
     const saved = await request(`/app/gebruikers/${officeId}/`, { cookie: adminSession.cookie, form: { _csrf: adminSession.csrf, name: 'Kantoor Kees', email: 'kees@example.nl', role: 'kantoor' } });
     assert.equal(saved.status, 303);
@@ -254,7 +254,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     await request(`/app/gebruikers/${officeId}/`, { cookie: adminSession.cookie, form: { _csrf: adminSession.csrf, name: 'Kantoor Kees', email: 'kees@example.nl', role: 'kantoor', active: 'ja' } });
   });
 
-  await t.test('laatste actieve beheerder kan niet weg', async () => {
+  await testContext.test('laatste actieve beheerder kan niet weg', async () => {
     const [{ id }] = await db.query("SELECT id FROM users WHERE email = 'beheer@example.nl'");
     const demote = await request(`/app/gebruikers/${id}/`, { cookie: adminSession.cookie, form: { _csrf: adminSession.csrf, name: 'Daniël', email: 'beheer@example.nl', role: 'kantoor', active: 'ja' } });
     assert.equal(demote.status, 422);
@@ -266,7 +266,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal(active, true);
   });
 
-  await t.test('blokkade na vijf mislukte pogingen geldt per account en IP-reeks, en verloopt', async () => {
+  await testContext.test('blokkade na vijf mislukte pogingen geldt per account en IP-reeks, en verloopt', async () => {
     clock += 60 * 60 * 1000; // nieuwe periode voor de limiet per IP
     for (let i = 0; i < 5; i++) await request('/app/inloggen/', { form: { email: 'kees@example.nl', password: `fout wachtwoord ${i}` } });
     assert.equal((await request('/app/inloggen/', { form: { email: 'kees@example.nl', password: 'kantoor wachtwoord 1' } })).status, 401, 'ook met juist wachtwoord geblokkeerd');
@@ -278,7 +278,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     await login('kees@example.nl', 'nieuw kantoorwachtwoord');
   });
 
-  await t.test('limiet per IP op inloggen (429)', async () => {
+  await testContext.test('limiet per IP op inloggen (429)', async () => {
     clock += 60 * 60 * 1000;
     let status = 0;
     for (let i = 0; i < 11; i++) status = (await request('/app/inloggen/', { form: { email: 'niemand@example.nl', password: 'x' } })).status;
@@ -286,7 +286,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     clock += 60 * 60 * 1000;
   });
 
-  await t.test('eigen wachtwoord wijzigen: oude moet kloppen, andere sessies uitgelogd', async () => {
+  await testContext.test('eigen wachtwoord wijzigen: oude moet kloppen, andere sessies uitgelogd', async () => {
     const other = await login('beheer@example.nl', ADMIN_PASSWORD);
     const wrong = await request('/app/wachtwoord/', { cookie: adminSession.cookie, form: { _csrf: adminSession.csrf, current: 'niet het oude', password: 'nieuw beheerwachtwoord', password2: 'nieuw beheerwachtwoord' } });
     assert.equal(wrong.status, 422);
@@ -296,7 +296,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal((await request('/app/', { cookie: other.cookie })).status, 303, 'andere sessie is uitgelogd');
   });
 
-  await t.test('gelekte en veelgebruikte wachtwoorden geweigerd (A09)', async () => {
+  await testContext.test('gelekte en veelgebruikte wachtwoorden geweigerd (A09)', async () => {
     // De limiet op wachtwoord wijzigen (5 per kwartier) telt mee: elke poging een nieuw kwartier.
     const change = (password) => { clock += 16 * 60 * 1000; return request('/app/wachtwoord/', { cookie: adminSession.cookie, form: { _csrf: adminSession.csrf, current: 'nieuw beheerwachtwoord', password, password2: password } }); };
     // Lokaal, zonder de dienst te vragen (de controle staat in de tests standaard uit).
@@ -339,7 +339,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.doesNotMatch(panel.text, /gelekt maar lang wachtwoord/);
   });
 
-  await t.test('sessie verloopt na inactiviteit en na de maximale duur', async () => {
+  await testContext.test('sessie verloopt na inactiviteit en na de maximale duur', async () => {
     const idle = await login('kees@example.nl', 'nieuw kantoorwachtwoord');
     await db.query("UPDATE sessions SET last_seen_at = now() - interval '9 hours' WHERE token_hash = $1", [hashToken(idle.cookie)]);
     assert.equal((await request('/app/', { cookie: idle.cookie })).status, 303);
@@ -349,7 +349,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal((await request('/app/', { cookie: 'verzonnen-token' })).status, 303);
   });
 
-  await t.test('uitloggen vereist CSRF en verwijdert de sessie', async () => {
+  await testContext.test('uitloggen vereist CSRF en verwijdert de sessie', async () => {
     assert.equal((await request('/app/uitloggen/', { cookie: adminSession.cookie, form: { _csrf: 'fout' } })).status, 403);
     const out = await request('/app/uitloggen/', { cookie: adminSession.cookie, form: { _csrf: adminSession.csrf } });
     assert.equal(out.status, 303);
@@ -359,7 +359,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal(count, 0);
   });
 
-  await t.test('onderhoud ruimt oude auditregels en verlopen sessies op', async () => {
+  await testContext.test('onderhoud ruimt oude auditregels en verlopen sessies op', async () => {
     await db.query("INSERT INTO audit_log (action, created_at) VALUES ('inloggen.mislukt', now() - interval '25 months'), ('inloggen', now() - interval '23 months')");
     const [user] = await db.query("SELECT id FROM users WHERE email = 'kees@example.nl'");
     await db.query("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ('oud', $1, now() - interval '1 day')", [user.id]);
@@ -372,7 +372,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal(sessions, 0);
   });
 
-  await t.test('teller per account over alle IP-reeksen tegen gedistribueerd raden', async () => {
+  await testContext.test('teller per account over alle IP-reeksen tegen gedistribueerd raden', async () => {
     clock += 2 * 60 * 60 * 1000;
     // Elke poging vanuit een andere IP-reeks (vertrouwde proxy is loopback, dus X-Forwarded-For telt).
     for (let i = 0; i < 30; i++) {
@@ -384,7 +384,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     await login('kees@example.nl', 'nieuw kantoorwachtwoord');
   });
 
-  await t.test('één IP-reeks kan het account niet langdurig dichtzetten', async () => {
+  await testContext.test('één IP-reeks kan het account niet langdurig dichtzetten', async () => {
     clock += 2 * 60 * 60 * 1000;
     // Een uur lang elk kwartier de maximale 10 pogingen vanuit één IP: alleen die reeks wacht, het account blijft open.
     for (let quarter = 0; quarter < 4; quarter++) {
@@ -396,7 +396,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     clock += 2 * 60 * 60 * 1000;
   });
 
-  await t.test('acht reeksen die elk kwartier proberen zetten het account niet dicht', async () => {
+  await testContext.test('acht reeksen die elk kwartier proberen zetten het account niet dicht', async () => {
     for (let quarter = 0; quarter < 4; quarter++) {
       for (let range = 0; range < 8; range++) {
         await request('/app/inloggen/', { form: { email: 'kees@example.nl', password: `fout ${quarter}-${range}` }, headers: { 'x-forwarded-for': `10.230.${range}.1` } });
@@ -408,7 +408,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     clock += 2 * 60 * 60 * 1000;
   });
 
-  await t.test('gelijktijdige pogingen omzeilen de teller niet', async () => {
+  await testContext.test('gelijktijdige pogingen omzeilen de teller niet', async () => {
     clock += 2 * 60 * 60 * 1000;
     const [{ last }] = await db.query('SELECT coalesce(max(id), 0) AS last FROM audit_log');
     await Promise.all(Array.from({ length: 10 }, (_, i) => request('/app/inloggen/', {
@@ -421,7 +421,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     clock += 2 * 60 * 60 * 1000;
   });
 
-  await t.test('auditlog: alle acties gelogd zonder persoonsgegevens, zichtbaar voor beheerder', async () => {
+  await testContext.test('auditlog: alle acties gelogd zonder persoonsgegevens, zichtbaar voor beheerder', async () => {
     const rows = await db.query('SELECT action, entity, entity_id, ip_prefix, user_id FROM audit_log ORDER BY id');
     const actions = new Set(rows.map((row) => row.action));
     for (const action of ['installatie.mislukt', 'installatie', 'inloggen', 'inloggen.wachtwoord', 'tweestaps.aan', 'inloggen.mislukt', 'inloggen.inactief', 'inloggen.geblokkeerd',
@@ -438,7 +438,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     assert.equal((await request('/app/auditlog/?voor=abc', { cookie: session.cookie })).status, 200);
   });
 
-  await t.test('algemene limiet per IP op alles onder /app/ (429)', async () => {
+  await testContext.test('algemene limiet per IP op alles onder /app/ (429)', async () => {
     clock += 60 * 60 * 1000;
     let status = 0;
     for (let i = 0; i < 301 && status !== 429; i++) status = (await request('/app/inloggen/')).status;
@@ -446,7 +446,7 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     clock += 60 * 60 * 1000;
   });
 
-  await t.test('onbekende CRM-pagina geeft 404 binnen het CRM', async () => {
+  await testContext.test('onbekende CRM-pagina geeft 404 binnen het CRM', async () => {
     const missing = await request('/app/bestaat-niet/');
     assert.equal(missing.status, 404);
     assert.match(missing.text, /Avanta CRM/);

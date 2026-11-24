@@ -40,13 +40,13 @@ test('cli: tijdelijk wachtwoord, gemaskeerd adres en gebruik', async () => {
   assert.match(errors.join('\n'), /beheerder-herstel <e-mailadres>/);
 });
 
-test('cli: beheerder-herstel', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('cli: beheerder-herstel', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
   await admin.close();
   const db = createDatabase(withSchema(DATABASE_URL));
-  t.after(() => db.close());
+  testContext.after(() => db.close());
   await db.migrate();
   const oldHash = await hashPassword('het vergeten wachtwoord');
   const [beheerder] = await db.query(
@@ -57,7 +57,7 @@ test('cli: beheerder-herstel', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
   await db.query("INSERT INTO users (email, name, role, password_hash, active) VALUES ('oud@example.nl', 'Oud', 'beheerder', $1, false)", [oldHash]);
   await db.query("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ('a', $1, now() + interval '1 hour'), ('b', $2, now() + interval '1 hour')", [beheerder.id, office.id]);
 
-  await t.test('alleen een actieve beheerder; anders de gemaskeerde beheerders en niets veranderd', async () => {
+  await testContext.test('alleen een actieve beheerder; anders de gemaskeerde beheerders en niets veranderd', async () => {
     for (const email of ['kantoor@example.nl', 'oud@example.nl', 'niemand@example.nl']) {
       assert.deepEqual(await recoverAdmin(db, email), { ok: false, admins: ['d***@example.nl'] }, email);
     }
@@ -65,7 +65,7 @@ test('cli: beheerder-herstel', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal(row.password_hash, oldHash);
   });
 
-  await t.test('nieuw wachtwoord, 2FA uit met activatiecode, sessies weg, auditregel', async () => {
+  await testContext.test('nieuw wachtwoord, 2FA uit met activatiecode, sessies weg, auditregel', async () => {
     const result = await recoverAdmin(db, '  Daniel@Example.NL ');
     assert.equal(result.ok, true);
     const [row] = await db.query('SELECT password_hash, totp_secret, totp_enabled_at, totp_activation_hash, totp_activation_expires_at > now() AS activation_valid FROM users WHERE id = $1', [beheerder.id]);

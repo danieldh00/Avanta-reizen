@@ -62,7 +62,7 @@ test('reisleiders: velden en de gegevens voor de site (zonder database)', () => 
   assert.deepEqual([managed.surname, managed.city, managed.portrait, managed.image, managed.gallery], ['Jansen', '', '', '', ['/media/martijn-galerij.jpg']], 'uit de database, galerij uit het bestand');
 });
 
-test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -76,7 +76,7 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
   const app = createApp({ db, masterKey: MASTER_KEY, mediaDir, siteContent });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  testContext.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
 
   const hash = await hashPassword(PASSWORD);
   for (const [email, role] of [['kantoor@example.nl', 'kantoor'], ['redactie@example.nl', 'redacteur'], ['boekhouding@example.nl', 'boekhouding']]) {
@@ -128,7 +128,7 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
   const url = `/app/reisleiders/${martijn.id}/`;
   const profile = { name: 'Martijn', surname: 'de Vries', slug: 'martijn', city: 'Middelburg', since: '2012', quote: 'Samen op pad', intro: 'Reisleider', body: '<p>Nieuw verhaal</p>' };
 
-  await t.test('rechten: zonder sessie naar inloggen, redacteur en boekhouding 403, kantoor wel; menu en 404', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, redacteur en boekhouding 403, kantoor wel; menu en 404', async () => {
     assert.equal((await request('/app/reisleiders/')).status, 303);
     for (const session of [redactie, boekhouding]) {
       assert.equal((await request('/app/reisleiders/', { cookie: session.cookie })).status, 403);
@@ -152,7 +152,7 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal((await request(url, { cookie: kantoor.cookie, form: { _csrf: 'fout', ...profile } })).status, 403, 'CSRF');
   });
 
-  await t.test('profiel: eerst de gegevens van de huidige site, bij opslaan beheerd in het CRM', async () => {
+  await testContext.test('profiel: eerst de gegevens van de huidige site, bij opslaan beheerd in het CRM', async () => {
     const edit = await request(url, { cookie: kantoor.cookie });
     assert.match(edit.text, /value="Goes"/, 'woonplaats uit site-content.json in het formulier');
     assert.match(edit.text, /martijn-portret\.jpg/);
@@ -170,7 +170,7 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.match(site, /Nieuw verhaal/);
   });
 
-  await t.test('portret uit de bibliotheek, adres wijzigen met 301, offline en online', async () => {
+  await testContext.test('portret uit de bibliotheek, adres wijzigen met 301, offline en online', async () => {
     assert.match((await request(`${url}foto/portret/`, { cookie: kantoor.cookie })).text, /bib-00000000000000ee-400\.webp/);
     assert.equal((await post(`${url}foto/portret/`, {})).status, 422);
     assert.equal((await post(`${url}foto/portret/`, { media_id: '999999' })).status, 409);
@@ -196,7 +196,7 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal((await post(`${url}verwijderen/`, { zeker: 'ja' })).status, 409, 'online');
   });
 
-  await t.test('nieuwe reisleider: offline, adres uniek, verwijderen alleen zonder reizen', async () => {
+  await testContext.test('nieuwe reisleider: offline, adres uniek, verwijderen alleen zonder reizen', async () => {
     assert.equal((await post('/app/reisleiders/nieuw/', { name: '' })).status, 422);
     assert.equal((await post('/app/reisleiders/nieuw/', { name: 'Martijn', slug: 'martijn-de-vries' })).status, 422, 'adres bestaat');
     const created = await post('/app/reisleiders/nieuw/', { name: 'Martijn', slug: 'martijn' });
@@ -218,7 +218,7 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     for (const action of ['reisleider.nieuw', 'reisleider.gewijzigd', 'reisleider.online', 'reisleider.foto', 'reisleider.verwijderd']) assert.ok(await audits(action) >= 1, action);
   });
 
-  await t.test('de WordPress-import laat een reisleider uit het CRM staan en koppelt reizen aan hem', async () => {
+  await testContext.test('de WordPress-import laat een reisleider uit het CRM staan en koppelt reizen aan hem', async () => {
     const counts = await store(db, {
       guides: [
         { legacyId: 77, slug: 'martijn', name: 'Martijn uit WP', intro: '', bodyHtml: '<p>WP</p>', photoUrl: null },

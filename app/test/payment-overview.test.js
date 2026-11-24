@@ -50,7 +50,7 @@ function unzip(buffer) {
   return files;
 }
 
-test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -60,7 +60,7 @@ test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
   const app = createApp({ db, masterKey: MASTER_KEY, now: () => Date.parse('2027-03-01T10:00:00Z') });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   const hash = await hashPassword(PASSWORD);
   for (const [email, role] of [['kantoor@example.nl', 'kantoor'], ['leider@example.nl', 'reisleider'], ['boek@example.nl', 'boekhouding'], ['red@example.nl', 'redacteur']]) {
@@ -119,7 +119,7 @@ test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
   const boek = await login('boek@example.nl');
   const redacteur = await login('red@example.nl');
 
-  await t.test('rechten: zonder sessie naar inloggen, reisleider en redacteur 403, boekhouding wel; menu', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, reisleider en redacteur 403, boekhouding wel; menu', async () => {
     assert.equal((await request('/app/betalingen/')).status, 303);
     assert.equal((await request('/app/betalingen/', { cookie: leider })).status, 403);
     assert.equal((await request('/app/betalingen/overzicht.xlsx', { cookie: leider })).status, 403);
@@ -130,7 +130,7 @@ test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.doesNotMatch((await request('/app/', { cookie: redacteur })).text, /href="\/app\/betalingen\/"/);
   });
 
-  await t.test('weergaven en filter op reis', async () => {
+  await testContext.test('weergaven en filter op reis', async () => {
     const open = (await request('/app/betalingen/', { cookie: kantoor })).text;
     assert.match(open, /AV-2027-OPEN0001/);
     assert.match(open, /AV-2027-LAAT0002/);
@@ -150,7 +150,7 @@ test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.match((await request('/app/betalingen/?weergave=toString&reis=abc', { cookie: kantoor })).text, /AV-2027-OPEN0001/, 'onbekend filter = standaard');
   });
 
-  await t.test('Excel-export met audit', async () => {
+  await testContext.test('Excel-export met audit', async () => {
     const response = await request(`/app/betalingen/overzicht.xlsx?weergave=open&reis=${albania.id}`, { cookie: kantoor });
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-type'), /spreadsheetml/);
@@ -169,14 +169,14 @@ test('betaaloverzicht', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.deepEqual(audit.map((row) => row.entity_id), [String(albania.id)]);
   });
 
-  await t.test('limiet op exports', async () => {
+  await testContext.test('limiet op exports', async () => {
     let last;
     for (let i = 0; i < EXPORT_LIMIT; i++) last = await request('/app/betalingen/overzicht.xlsx', { cookie: boek });
     assert.equal(last.status, 200);
     assert.equal((await request('/app/betalingen/overzicht.xlsx', { cookie: boek })).status, 429);
   });
 
-  await t.test('afgekapte lijst: waarschuwing op de pagina, export geweigerd; het maximum telt alleen de juiste kant', async () => {
+  await testContext.test('afgekapte lijst: waarschuwing op de pagina, export geweigerd; het maximum telt alleen de juiste kant', async () => {
     const small = createApp({ db, masterKey: MASTER_KEY, now: () => Date.parse('2027-03-01T10:00:00Z'), paymentOverviewMaxRows: 1 });
     const smallServer = small.listen(0);
     const smallBase = `http://127.0.0.1:${smallServer.address().port}`;

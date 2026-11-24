@@ -37,7 +37,7 @@ test('AVG-opschoning: samenvatting zonder database', () => {
   assert.equal(summarize({ personen: 2, contact: 0 }), 'Personen geanonimiseerd: 2');
 });
 
-test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -48,7 +48,7 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
   const app = createApp({ db, masterKey: MASTER_KEY, retentionToday: () => today });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
   const retention = app.locals.retention;
   const persons = createPersons({ vault: createVault(MASTER_KEY) });
 
@@ -124,7 +124,7 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
   const [oldAccount] = await db.query("INSERT INTO customer_accounts (email, password_hash, verified_at, last_login_at, created_at) VALUES ('oud@example.nl', 'x', '2024-01-01', '2024-06-01', '2024-01-01') RETURNING id");
   const [newAccount] = await db.query("INSERT INTO customer_accounts (email, password_hash, verified_at, last_login_at) VALUES ('nieuw@example.nl', 'x', now(), now()) RETURNING id");
 
-  await t.test('voorbeeld wijzigt niets', async () => {
+  await testContext.test('voorbeeld wijzigt niets', async () => {
     const preview = await retention.preview();
     assert.equal(preview.blokken, 4, 'recent, broken en de twee te anonimiseren personen');
     assert.equal(preview.personen, 2);
@@ -135,7 +135,7 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.ok(row.filled);
   });
 
-  await t.test('eerste ronde', async () => {
+  await testContext.test('eerste ronde', async () => {
     const outcome = await retention.run({ trigger: 'dagelijks' });
     assert.equal(outcome.error, '');
     assert.equal(outcome.failed, 1, 'onleesbaar identiteitsblok');
@@ -199,13 +199,13 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.equal(run.counts.personen, 2);
   });
 
-  await t.test('tweede ronde doet niets (behalve het onleesbare blok)', async () => {
+  await testContext.test('tweede ronde doet niets (behalve het onleesbare blok)', async () => {
     const outcome = await retention.run({});
     assert.equal(outcome.failed, 1);
     assert.equal(Object.values(outcome.counts).reduce((sum, value) => sum + value, 0), 0);
   });
 
-  await t.test('planner: hooguit één dagelijkse ronde per dag, ook na een herstart', async () => {
+  await testContext.test('planner: hooguit één dagelijkse ronde per dag, ook na een herstart', async () => {
     const count = async () => (await db.query("SELECT count(*)::int AS n FROM retention_runs WHERE trigger = 'dagelijks'"))[0].n;
     const before = await count();
     assert.equal(await retention.tick(), false, 'de eerste ronde was minder dan 23 uur geleden');
@@ -227,7 +227,7 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.equal(await restarted.tick(), false, 'een ronde die net begon (bijv. op een andere instantie) telt wel');
   });
 
-  await t.test('een nieuwe aanmelding schuift de termijn op; daarna wordt opnieuw gewist', async () => {
+  await testContext.test('een nieuwe aanmelding schuift de termijn op; daarna wordt opnieuw gewist', async () => {
     await insertBooking({ reference: 'AV-AGAIN', tripId: futureTrip, personId: recent });
     await persons.writeBlock(db, recent, 'health_data', { particulars: 'Pinda-allergie' });
     assert.equal((await retention.run({})).counts.blokken, 0, 'reis nog niet geweest');
@@ -271,7 +271,7 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
   const beheer = await login('beheer@example.nl');
   const kantoor = await login('kantoor@example.nl');
 
-  await t.test('Beheer: rechten, CSRF, voorbeeld, opschonen en audit', async () => {
+  await testContext.test('Beheer: rechten, CSRF, voorbeeld, opschonen en audit', async () => {
     assert.equal((await request('/app/beheer/bewaartermijnen/')).status, 303);
     assert.equal((await request('/app/beheer/bewaartermijnen/', { cookie: kantoor.cookie })).status, 403);
     assert.equal((await request('/app/beheer/bewaartermijnen/opschonen/', { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })).status, 403);
@@ -304,7 +304,7 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.deepEqual(audits[0], { entity: 'retention_runs', entity_id: String(latest.id) });
   });
 
-  await t.test('Beheer: limiet', async () => {
+  await testContext.test('Beheer: limiet', async () => {
     let status = 200;
     for (let i = 0; i < 12 && status !== 429; i++) {
       status = (await request('/app/beheer/bewaartermijnen/voorbeeld/', { cookie: beheer.cookie, form: { _csrf: beheer.csrf } })).status;
@@ -312,7 +312,7 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.equal(status, 429);
   });
 
-  await t.test('geanonimiseerde persoon in het CRM: badge en niet meer te wijzigen', async () => {
+  await testContext.test('geanonimiseerde persoon in het CRM: badge en niet meer te wijzigen', async () => {
     const list = await request('/app/deelnemers/', { cookie: kantoor.cookie });
     assert.match(list.text, /geanonimiseerd/);
     const detail = await request(`/app/deelnemers/${middle}/`, { cookie: kantoor.cookie });

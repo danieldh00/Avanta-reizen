@@ -50,44 +50,44 @@ function hstsFor(port, host) {
  * @param {import('node:test').TestContext} t Testcontext, voor het afsluiten.
  * @returns {number} Poort.
  */
-function startApp(db, t) {
+function startApp(db, testContext) {
   const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, indexable: false, siteUrl: 'https://start.example.nl' });
   const server = app.listen(0);
-  t.after(() => server.close());
+  testContext.after(() => server.close());
   return server.address().port;
 }
 
-test('HSTS-preload: waarde uit Beheer, ook bij het eerste verzoek, alleen op de live host', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('HSTS-preload: waarde uit Beheer, ook bij het eerste verzoek, alleen op de live host', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
   await admin.close();
   const db = createDatabase(withSchema(DATABASE_URL));
-  t.after(() => db.close());
+  testContext.after(() => db.close());
   await db.migrate();
   const writer = createSettings({ db, vault: createVault(MASTER_KEY), env: {} });
 
-  await t.test('standaard (uit): gewone HSTS-waarde', async () => {
-    assert.equal(await hstsFor(startApp(db, t), LIVE_HOST), HSTS_VALUE);
+  await testContext.test('standaard (uit): gewone HSTS-waarde', async () => {
+    assert.equal(await hstsFor(startApp(db, testContext), LIVE_HOST), HSTS_VALUE);
   });
 
-  await t.test('omgevingsvariabele zet preload niet aan', async () => {
+  await testContext.test('omgevingsvariabele zet preload niet aan', async () => {
     process.env.HSTS_PRELOAD = 'true';
-    t.after(() => { delete process.env.HSTS_PRELOAD; });
+    testContext.after(() => { delete process.env.HSTS_PRELOAD; });
     await writer.update({ values: { seoIndexing: true, siteUrl: `https://${LIVE_HOST}` } });
-    assert.equal(await hstsFor(startApp(db, t), LIVE_HOST), HSTS_VALUE);
+    assert.equal(await hstsFor(startApp(db, testContext), LIVE_HOST), HSTS_VALUE);
   });
 
-  await t.test('aan in Beheer: preload vanaf het eerste verzoek na een start, alleen op de host van het basisadres', async () => {
+  await testContext.test('aan in Beheer: preload vanaf het eerste verzoek na een start, alleen op de host van het basisadres', async () => {
     await writer.update({ values: { hstsPreload: true } });
     // Verse app: het eerste verzoek moet al de waarden uit de database gebruiken, niet de startwaarden.
-    const port = startApp(db, t);
+    const port = startApp(db, testContext);
     assert.equal(await hstsFor(port, LIVE_HOST), HSTS_PRELOAD_VALUE);
     assert.equal(await hstsFor(port, 'avanta.example.nl'), HSTS_VALUE, 'andere host (testomgeving) nooit preload');
   });
 
-  await t.test('site niet live: geen preload', async () => {
+  await testContext.test('site niet live: geen preload', async () => {
     await writer.update({ values: { seoIndexing: false } });
-    assert.equal(await hstsFor(startApp(db, t), LIVE_HOST), HSTS_VALUE);
+    assert.equal(await hstsFor(startApp(db, testContext), LIVE_HOST), HSTS_VALUE);
   });
 });

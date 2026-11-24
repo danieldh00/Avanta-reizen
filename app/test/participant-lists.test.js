@@ -77,7 +77,7 @@ test('deelnemerslijst: bestandsnaam en werkmap zonder database', () => {
   assert.match(files['xl/workbook.xml'], /Over deze lijst/);
 });
 
-test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -88,7 +88,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
   const app = createApp({ db, masterKey: MASTER_KEY, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
   const persons = createPersons({ vault: createVault(MASTER_KEY) });
 
   const hash = await hashPassword(PASSWORD);
@@ -177,7 +177,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     return { response, sheet: files['xl/worksheets/sheet1.xml'], about: files['xl/worksheets/sheet2.xml'] };
   };
 
-  await t.test('rechten, 404 en CSRF', async () => {
+  await testContext.test('rechten, 404 en CSRF', async () => {
     assert.equal((await request('/app/deelnemerslijsten/')).status, 303);
     assert.equal((await request(exportPath, { form: { _csrf: 'x' } })).status, 401);
     for (const session of [boek, redacteur]) {
@@ -189,7 +189,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.equal((await request(exportPath, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, religie: 'ja' } })).status, 403, 'kantoor mag geen kerkgenootschap');
   });
 
-  await t.test('overzicht toont reizen met aanmeldingen en alleen toegestane categorieën', async () => {
+  await testContext.test('overzicht toont reizen met aanmeldingen en alleen toegestane categorieën', async () => {
     const page = await request('/app/deelnemerslijsten/', { cookie: kantoor.cookie });
     assert.equal(page.status, 200);
     assert.match(page.text, /Albanië \(27-ALB-1\)/);
@@ -204,7 +204,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.equal(empty.id > 0, true);
   });
 
-  await t.test('zonder categorieën: alleen NAW, geen geannuleerden', async () => {
+  await testContext.test('zonder categorieën: alleen NAW, geen geannuleerden', async () => {
     const before = (await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action LIKE 'export.deelnemers%'"))[0].total;
     const { response, sheet, about } = await download(kantoor);
     assert.match(response.headers.get('content-disposition'), /attachment; filename="deelnemerslijst-27-alb-1-\d{4}-\d{2}-\d{2}\.xlsx"/);
@@ -220,7 +220,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.deepEqual(audit.at(-1), { action: 'export.deelnemers', entity: 'trips', entity_id: String(trip.id) });
   });
 
-  await t.test('met identiteit en gezondheid (kantoor), met kerkgenootschap alleen beheerder', async () => {
+  await testContext.test('met identiteit en gezondheid (kantoor), met kerkgenootschap alleen beheerder', async () => {
     const { sheet } = await download(kantoor, { identiteit: 'ja', gezondheid: 'ja' });
     assert.match(sheet, /04-03-1990/);
     assert.match(sheet, />Paspoort</);
@@ -234,7 +234,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.match((await request('/app/auditlog/', { cookie: beheer.cookie })).text, /Deelnemerslijst met medische bijzonderheden, noodnummer en ouder of voogd \(onder 16\) geëxporteerd/);
   });
 
-  await t.test('ingetrokken art. 9-toestemming: geen gegevens', async () => {
+  await testContext.test('ingetrokken art. 9-toestemming: geen gegevens', async () => {
     await db.query("UPDATE consents SET withdrawn_at = now() WHERE person_id = $1 AND kind = 'art9_gezondheid'", [personId]);
     const { sheet } = await download(kantoor, { gezondheid: 'ja' });
     assert.doesNotMatch(sheet, /Astma/);
@@ -242,7 +242,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.match(sheet, />0687654321</, 'noodnummer is geen art. 9 en blijft');
   });
 
-  await t.test('toestemmingsregel van het oude formulier telt nooit als toestemming (A10)', async () => {
+  await testContext.test('toestemmingsregel van het oude formulier telt nooit als toestemming (A10)', async () => {
     // Echte toestemming is ingetrokken (vorige test); alleen een oude regel: geen gegevens.
     await db.query('INSERT INTO consents (person_id, kind, text_version) VALUES ($1, $2, $3)', [personId, 'art9_gezondheid', LEGACY_ART9_TEXT_VERSION]);
     let { sheet } = await download(kantoor, { gezondheid: 'ja' });
@@ -257,7 +257,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     await db.query("UPDATE consents SET withdrawn_at = now() WHERE person_id = $1 AND kind = 'art9_gezondheid'", [personId]);
   });
 
-  await t.test('reisleider: alleen eigen vertrekken, beperkt, bijzondere gegevens alleen in het venster', async () => {
+  await testContext.test('reisleider: alleen eigen vertrekken, beperkt, bijzondere gegevens alleen in het venster', async () => {
     // Zonder gekoppeld profiel: niets te zien, elke reis 404.
     assert.match((await request('/app/deelnemerslijsten/', { cookie: leider.cookie })).text, /nog geen vertrekken met aanmeldingen waar jij reisleider van bent/);
     assert.equal((await request(exportPath, { cookie: leider.cookie, form: { _csrf: leider.csrf } })).status, 404);
@@ -307,7 +307,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.equal((await request(`/app/deelnemerslijsten/${soon.id}/`, { cookie: relogged.cookie, form: { _csrf: relogged.csrf, gezondheid: 'ja' } })).status, 403);
   });
 
-  await t.test('meer dan MAX_ROWS deelnemers: 422, geen bestand en geen audit', async () => {
+  await testContext.test('meer dan MAX_ROWS deelnemers: 422, geen bestand en geen audit', async () => {
     const [big] = await db.query("INSERT INTO trips (slug, title, trip_code, departure_date) VALUES ('groot', 'Groot', '27-GRO-1', '2027-08-01') RETURNING id");
     await db.query(
       `INSERT INTO bookings (reference, trip_id, trip_title, gender, first_names, call_name, last_name, email, mobile, street, postal_code, city,
@@ -324,7 +324,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action LIKE 'export.deelnemers%'"))[0].total, before);
   });
 
-  await t.test('limiet per gebruiker', async () => {
+  await testContext.test('limiet per gebruiker', async () => {
     clock += 60 * 60 * 1000;
     for (let i = 0; i < EXPORT_LIMIT; i++) assert.equal((await request(exportPath, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } })).status, 200);
     const limited = await request(exportPath, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf } });

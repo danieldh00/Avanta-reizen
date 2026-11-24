@@ -26,7 +26,7 @@ function withSchema(url) {
   return parsed.toString();
 }
 
-test('toegang: sessieduur en bewaartermijnen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('toegang: sessieduur en bewaartermijnen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -38,7 +38,7 @@ test('toegang: sessieduur en bewaartermijnen', { skip: !DATABASE_URL && 'TEST_DA
   const settings = app.locals.settings;
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek zonder redirects te volgen.
@@ -76,7 +76,7 @@ test('toegang: sessieduur en bewaartermijnen', { skip: !DATABASE_URL && 'TEST_DA
   const session = await login();
   const form = { _csrf: session.csrf, sessionIdleHours: '1', sessionMaxDays: '1', auditRetentionMonths: '24', auditIpRetentionDays: '90', notFoundRetentionDays: '90' };
 
-  await t.test('rechten: zonder recht systeem 403, ongeldige waarden 422', async () => {
+  await testContext.test('rechten: zonder recht systeem 403, ongeldige waarden 422', async () => {
     const created = await request('/app/gebruikers/nieuw/', { cookie: session.cookie, form: { _csrf: session.csrf, name: 'Kantoor', email: 'kantoor@example.nl', role: 'kantoor', password: 'kantoor wachtwoord 1' } });
     assert.equal(created.status, 303);
     const office = await loginWithTwoFactor(request, 'kantoor@example.nl', 'kantoor wachtwoord 1', { admin: session });
@@ -88,7 +88,7 @@ test('toegang: sessieduur en bewaartermijnen', { skip: !DATABASE_URL && 'TEST_DA
     assert.equal(settings.get('sessionIdleHours'), 1, 'standaard 1 uur (audit A07)');
   });
 
-  await t.test('sessieduur: instelling geldt meteen, ook voor bestaande sessies', async () => {
+  await testContext.test('sessieduur: instelling geldt meteen, ook voor bestaande sessies', async () => {
     const other = await login();
     assert.match(other.setCookie, /Max-Age=86400/, 'standaard 1 dag (audit A07)');
     assert.equal((await request('/app/beheer/sessies/', { cookie: session.cookie, form: { ...form, sessionIdleHours: '1', sessionMaxDays: '2' } })).status, 303);
@@ -107,7 +107,7 @@ test('toegang: sessieduur en bewaartermijnen', { skip: !DATABASE_URL && 'TEST_DA
     assert.equal((await db.query('SELECT count(*)::int AS count FROM sessions WHERE token_hash = $1', [hashToken(fresh.cookie)]))[0].count, 0, 'opgeruimd');
   });
 
-  await t.test('bewaartermijnen: auditlog, IP-voorvoegsels en 404-lijst', async () => {
+  await testContext.test('bewaartermijnen: auditlog, IP-voorvoegsels en 404-lijst', async () => {
     const current = await login();
     const saved = await request('/app/beheer/sessies/', { cookie: current.cookie, form: { ...form, _csrf: current.csrf, auditRetentionMonths: '12', auditIpRetentionDays: '30', notFoundRetentionDays: '14' } });
     assert.equal(saved.status, 303);
@@ -124,7 +124,7 @@ test('toegang: sessieduur en bewaartermijnen', { skip: !DATABASE_URL && 'TEST_DA
     assert.deepEqual(paths.map((row) => row.path), ['/nieuw/']);
   });
 
-  await t.test('zonder instellingen gelden de standaardtermijnen', async () => {
+  await testContext.test('zonder instellingen gelden de standaardtermijnen', async () => {
     await db.query("INSERT INTO audit_log (action, created_at) VALUES ('test.standaard', now() - interval '20 months')");
     await purgeExpired(db);
     assert.equal((await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'test.standaard'"))[0].count, 1);

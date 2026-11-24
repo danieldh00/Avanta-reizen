@@ -40,9 +40,9 @@ function withSchema(url) {
  * @param {object} t Testcontext.
  * @returns {string} Pad.
  */
-function tempDir(t) {
+function tempDir(testContext) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'avanta-backup-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  testContext.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
 
@@ -119,7 +119,7 @@ test('back-up: verbindingsgegevens voor pg_dump zonder wachtwoord in de argument
   assert.throws(() => backups.pgEnvironment('geen adres'), /geen geldig/);
 });
 
-test('back-up: namen, planner en bewaartermijn', (t) => {
+test('back-up: namen, planner en bewaartermijn', (testContext) => {
   assert.equal(backups.isBackupName('avanta-20261120-020000.dump.enc'), true);
   assert.equal(backups.isBackupName('../avanta-20261120-020000.dump.enc'), false);
   assert.equal(backups.isBackupName('avanta-20261120-020000.dump'), false);
@@ -137,7 +137,7 @@ test('back-up: namen, planner en bewaartermijn', (t) => {
   assert.equal(backups.isDue({ now: at('2026-07-01T00:30:00Z'), hour: 3, backups: [] }), false);
   assert.equal(backups.isDue({ now: at('2026-07-01T01:00:00Z'), hour: 3, backups: [] }), true);
 
-  const dir = tempDir(t);
+  const dir = tempDir(testContext);
   const names = ['20261101-020000', '20261105-020000', '20261110-020000', '20261118-020000', '20261119-020000', '20261120-020000'];
   for (const name of names) fs.writeFileSync(path.join(dir, `avanta-${name}.dump.enc`), 'x');
   fs.writeFileSync(path.join(dir, 'ander-bestand.txt'), 'x');
@@ -156,8 +156,8 @@ test('back-up: namen, planner en bewaartermijn', (t) => {
   assert.equal(describeNext({ enabled: true, hour: 3, now: at('2026-11-20T05:00:00Z'), doneToday: true }), 'Morgen rond 03:00 uur.');
 });
 
-test('back-up: status overleeft een onleesbaar bestand', (t) => {
-  const dir = tempDir(t);
+test('back-up: status overleeft een onleesbaar bestand', (testContext) => {
+  const dir = tempDir(testContext);
   assert.deepEqual(backups.readStatus(dir), { lastRun: null, lastOkAt: '', lastFailAt: '' });
   fs.writeFileSync(path.join(dir, 'status.json'), '{kapot');
   assert.equal(backups.readStatus(dir).lastRun, null);
@@ -169,14 +169,14 @@ test('back-up: status overleeft een onleesbaar bestand', (t) => {
   assert.equal(status.lastOkAt, '2026-11-20T03:00:00.000Z');
 });
 
-test('hersteltest: foutregels van pg_restore zonder rijgegevens en veilig voor de JSON-uitslag', (t) => {
+test('hersteltest: foutregels van pg_restore zonder rijgegevens en veilig voor de JSON-uitslag', (testContext) => {
   const script = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'apps01', 'restore-test.sh'), 'utf8');
   const functions = ['restore_lines', 'restore_error'].map((name) => {
     const match = new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?^\\}`, 'm').exec(script);
     assert.ok(match, `${name} staat in restore-test.sh`);
     return match[0];
   }).join('\n');
-  const dir = tempDir(t);
+  const dir = tempDir(testContext);
   const stderr = path.join(dir, 'pg_restore.err');
   fs.writeFileSync(stderr, [
     'pg_restore: error: could not execute query: ERROR:  schema "public" already exists',
@@ -198,14 +198,14 @@ test('hersteltest: foutregels van pg_restore zonder rijgegevens en veilig voor d
   }
 });
 
-test('hersteltest: de melding noemt de stap die echt mislukte (EPIPE na een fout van pg_restore)', (t) => {
+test('hersteltest: de melding noemt de stap die echt mislukte (EPIPE na een fout van pg_restore)', (testContext) => {
   const script = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'apps01', 'restore-test.sh'), 'utf8');
   const functions = ['restore_lines', 'restore_error', 'decrypt_error', 'restore_failure'].map((name) => {
     const match = new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?^\\}`, 'm').exec(script);
     assert.ok(match, `${name} staat in restore-test.sh`);
     return match[0];
   }).join('\n');
-  const dir = tempDir(t);
+  const dir = tempDir(testContext);
   /**
    * Draait restore_failure met de gegeven afsluitcodes en foutuitvoer.
    * @param {number} decryptCode Afsluitcode van het ontsleutelen.
@@ -236,7 +236,7 @@ test('hersteltest: de melding noemt de stap die echt mislukte (EPIPE na een fout
   assert.equal(failure(0, 0, '', ''), '');
 });
 
-test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -245,9 +245,9 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
   const db = createDatabase(url);
   await db.migrate();
   await db.query("INSERT INTO pages (path, title, body_html) VALUES ('/over-ons/', 'Over ons', '<p>Hallo</p>')");
-  t.after(() => db.close());
+  testContext.after(() => db.close());
 
-  await t.test('formaat: echte dump, ontsleutelen, andere sleutel en beschadiging', async (st) => {
+  await testContext.test('formaat: echte dump, ontsleutelen, andere sleutel en beschadiging', async (st) => {
     const dir = tempDir(st);
     const backup = await backups.createBackup({ db, connectionString: url, dir, masterKey: MASTER_KEY });
     assert.match(backup.name, backups.BACKUP_NAME);
@@ -283,7 +283,7 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     await assert.rejects(backups.decryptTo(path.join(dir, 'terug.dump'), MASTER_KEY, sink), /Geen back-up van Avanta/);
   });
 
-  await t.test('mislukte pg_dump: niets achtergelaten en vastgelegd', async (st) => {
+  await testContext.test('mislukte pg_dump: niets achtergelaten en vastgelegd', async (st) => {
     const dir = tempDir(st);
     const service = backups.createBackupService({ db, settings: fakeSettings(), dir, masterKey: MASTER_KEY, connectionString: url, pgDumpPath: '/bestaat/niet/pg_dump' });
     await assert.rejects(service.run({ trigger: 'handmatig' }), /pg_dump starten mislukt/);
@@ -307,7 +307,7 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.equal(failingAudit.status().lastRun.ok, true);
   });
 
-  await t.test('planner: één per dag op het ingestelde uur, wachten na een fout', async (st) => {
+  await testContext.test('planner: één per dag op het ingestelde uur, wachten na een fout', async (st) => {
     const dir = tempDir(st);
     let clock = Date.parse('2026-11-20T01:30:00Z');
     const settings = fakeSettings();
@@ -334,7 +334,7 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.equal(await unavailable.runIfDue(), null);
   });
 
-  await t.test('Beheer: rechten, Nu maken, lijst, downloaden en limiet', async (st) => {
+  await testContext.test('Beheer: rechten, Nu maken, lijst, downloaden en limiet', async (st) => {
     const dir = tempDir(st);
     const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, databaseUrl: url, backupDir: dir });
     const server = app.listen(0);
@@ -424,7 +424,7 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.equal((await request(`/app/beheer/back-ups/download/${item.name}`, { cookie })).status, 429);
   });
 
-  await t.test('Beheer: twee keer Nu maken tegelijk of tijdens een lopende back-up', async (st) => {
+  await testContext.test('Beheer: twee keer Nu maken tegelijk of tijdens een lopende back-up', async (st) => {
     const dir = tempDir(st);
     // Een trage pg_dump (eerst een seconde wachten), zodat de back-up nog loopt bij de volgende verzoeken.
     const realPgDump = execFileSync('sh', ['-c', `command -v ${process.env.PG_DUMP_PATH || 'pg_dump'}`]).toString().trim();
@@ -461,7 +461,7 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.equal((await post('/app/beheer/back-ups/nu/', cookie, { _csrf: csrf })).status, 429);
   });
 
-  await t.test('Beheer: zonder databaseverbinding geen back-ups', async (st) => {
+  await testContext.test('Beheer: zonder databaseverbinding geen back-ups', async (st) => {
     const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, backupDir: tempDir(st) });
     assert.equal(app.locals.backups.available(), false);
   });

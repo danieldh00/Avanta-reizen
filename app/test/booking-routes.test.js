@@ -37,7 +37,7 @@ test('statusovergangen', () => {
   assert.equal(canTransition('nieuw', 'wachtlijst'), false);
 });
 
-test('aanmeldingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('aanmeldingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -47,7 +47,7 @@ test('aanmeldingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
   const app = createApp({ db, masterKey: MASTER_KEY });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   const hash = await hashPassword(PASSWORD);
   for (const [email, role] of [['kantoor@example.nl', 'kantoor'], ['leider@example.nl', 'reisleider'], ['boek@example.nl', 'boekhouding']]) {
@@ -100,7 +100,7 @@ test('aanmeldingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
   const boek = await login('boek@example.nl');
   const change = (form, session = kantoor) => request(`${path}status/`, { cookie: session.cookie, form: { _csrf: session.csrf, ...form } });
 
-  await t.test('rechten: zonder sessie naar inloggen, reisleider en boekhouding 403, onbekend id 404', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, reisleider en boekhouding 403, onbekend id 404', async () => {
     assert.equal((await request('/app/aanmeldingen/')).status, 303);
     assert.equal((await request('/app/aanmeldingen/', { cookie: leider.cookie })).status, 403);
     assert.equal((await request(path, { cookie: boek.cookie })).status, 403);
@@ -109,7 +109,7 @@ test('aanmeldingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     assert.equal((await request('/app/aanmeldingen/999999/status/', { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, van: 'nieuw', naar: 'bevestigd' } })).status, 404);
   });
 
-  await t.test('lijst: filter op reis, status en zoekwoord', async () => {
+  await testContext.test('lijst: filter op reis, status en zoekwoord', async () => {
     const all = await request('/app/aanmeldingen/', { cookie: kantoor.cookie });
     assert.match(all.text, /AV-2026-AAAA0001/);
     assert.match(all.text, /AV-2026-BBBB0002/);
@@ -123,7 +123,7 @@ test('aanmeldingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     assert.equal((await request("/app/aanmeldingen/?status=x'&reis=abc", { cookie: kantoor.cookie })).status, 200, 'onbekende filters worden genegeerd');
   });
 
-  await t.test('status wijzigen: alleen toegestane overgangen, met historie en audit', async () => {
+  await testContext.test('status wijzigen: alleen toegestane overgangen, met historie en audit', async () => {
     assert.equal((await change({ van: 'nieuw', naar: 'betaald' })).status, 422);
     assert.equal((await change({ van: 'nieuw', naar: 'bevestigd' }, { ...kantoor, csrf: 'fout' })).status, 403);
     const confirmed = await change({ van: 'nieuw', naar: 'bevestigd', notitie: 'Bevestiging gemaild' });
@@ -140,7 +140,7 @@ test('aanmeldingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE action = 'aanmelding.status' AND entity_id = $1", [String(bookingId)]))[0].total, 1);
   });
 
-  await t.test('annuleren vraagt een reden; daarna verandert de status niet meer', async () => {
+  await testContext.test('annuleren vraagt een reden; daarna verandert de status niet meer', async () => {
     const noReason = await change({ van: 'bevestigd', naar: 'geannuleerd', notitie: '  ' });
     assert.equal(noReason.status, 422);
     assert.match(noReason.text, /toelichting/);
@@ -155,7 +155,7 @@ test('aanmeldingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     assert.equal((await change({ van: 'geannuleerd', naar: 'nieuw' })).status, 422);
   });
 
-  await t.test('notitie: verplicht, opgeslagen in de historie', async () => {
+  await testContext.test('notitie: verplicht, opgeslagen in de historie', async () => {
     const empty = await request(`${path}notitie/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, notitie: '' } });
     assert.equal(empty.status, 422);
     assert.equal((await request(`${path}notitie/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, notitie: 'Gebeld over restbetaling' } })).status, 303);
@@ -175,7 +175,7 @@ test('aanmeldingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     assert.deepEqual(latest, { from_status: 'betaald', to_status: 'betaald' });
   });
 
-  await t.test('database weigert een onbekende status', async () => {
+  await testContext.test('database weigert een onbekende status', async () => {
     await assert.rejects(db.query("UPDATE bookings SET status = 'wachtlijst' WHERE id = $1", [bookingId]), /bookings_status_check/);
   });
 });

@@ -112,7 +112,7 @@ test('formulieren controleren', () => {
   assert.match(validateCharge({ soort: 'reissom', bedrag: '50' }).error, /soort/);
 });
 
-test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -123,7 +123,7 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
   const app = createApp({ db, masterKey: MASTER_KEY, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   const hash = await hashPassword(PASSWORD);
   for (const [email, role] of [['kantoor@example.nl', 'kantoor'], ['leider@example.nl', 'reisleider'], ['boek@example.nl', 'boekhouding'], ['red@example.nl', 'redacteur']]) {
@@ -139,7 +139,7 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     [reference, trip.id, status, choice],
   ))[0].id;
 
-  await t.test('migratie 26 vult bestaande aanmeldingen aan', async () => {
+  await testContext.test('migratie 26 vult bestaande aanmeldingen aan', async () => {
     await db.query('DROP TABLE payments, booking_charges; ALTER TABLE bookings DROP COLUMN deposit_cents; DELETE FROM schema_migrations WHERE id = 26');
     const old = await insertBooking('AV-2027-OUD00001');
     const total = await insertBooking('AV-2027-OUD00002', 'nieuw', 'totaal');
@@ -204,7 +204,7 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     cookie: session.cookie, form: { _csrf: session.csrf, stand: await standOf(id), datum: '2027-03-01', ...form },
   });
 
-  await t.test('rechten: zonder sessie naar inloggen, reisleider en redacteur 403, boekhouding wel, onbekend 404', async () => {
+  await testContext.test('rechten: zonder sessie naar inloggen, reisleider en redacteur 403, boekhouding wel, onbekend 404', async () => {
     assert.equal((await request(path)).status, 303);
     assert.equal((await request(path, { cookie: leider.cookie })).status, 403);
     assert.equal((await request(path, { cookie: redacteur.cookie })).status, 403);
@@ -217,7 +217,7 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal((await request(`${path}betaling/`, { cookie: kantoor.cookie, form: { wijze: 'bank', bedrag: '10', datum: '2027-03-01' } })).status, 403, 'zonder CSRF-token');
   });
 
-  await t.test('pagina toont bedragen, aanbetaling en vervaldatums; aanmelding toont de stand', async () => {
+  await testContext.test('pagina toont bedragen, aanbetaling en vervaldatums; aanmelding toont de stand', async () => {
     const page = await request(path, { cookie: kantoor.cookie });
     assert.match(page.text, /€819,-/);
     assert.match(page.text, /€220,- uiterlijk 27-02-2027/);
@@ -227,7 +227,7 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.match(bookingPage.text, /Betalingen bekijken en registreren/);
   });
 
-  await t.test('betaling registreren: aanmelding schuift door naar aanbetaald en betaald, met historie en audit', async () => {
+  await testContext.test('betaling registreren: aanmelding schuift door naar aanbetaald en betaald, met historie en audit', async () => {
     const first = await pay({ wijze: 'bank', bedrag: '220,00', toelichting: 'Overboeking' });
     assert.equal(first.status, 303);
     assert.match(first.headers.get('location'), /status=aanbetaald/);
@@ -248,7 +248,7 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.match(page.text, /crm-status--betaald">Betaald/);
   });
 
-  await t.test('nieuwe aanmelding schuift niet automatisch; ongeldige invoer 422', async () => {
+  await testContext.test('nieuwe aanmelding schuift niet automatisch; ongeldige invoer 422', async () => {
     assert.equal((await pay({ wijze: 'bank', bedrag: '100' }, kantoor, otherId)).status, 303);
     const [other] = await db.query('SELECT status FROM bookings WHERE id = $1', [otherId]);
     assert.equal(other.status, 'nieuw');
@@ -263,7 +263,7 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal(booking.status, 'betaald', 'een correctie zet de status nooit terug');
   });
 
-  await t.test('verouderd of dubbel verstuurd formulier geeft 409 en slaat niets op', async () => {
+  await testContext.test('verouderd of dubbel verstuurd formulier geeft 409 en slaat niets op', async () => {
     const stand = await standOf(bookingId);
     const form = { _csrf: kantoor.csrf, stand, wijze: 'bank', bedrag: '10', datum: '2027-03-01' };
     assert.equal((await request(`${path}betaling/`, { cookie: kantoor.cookie, form })).status, 303);
@@ -274,7 +274,7 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal(count.total, 1);
   });
 
-  await t.test('bedragen toevoegen en weghalen; regel van een andere aanmelding 404', async () => {
+  await testContext.test('bedragen toevoegen en weghalen; regel van een andere aanmelding 404', async () => {
     const add = async (form) => request(`${path}bedragen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, stand: await standOf(bookingId), ...form } });
     assert.equal((await add({ soort: 'korting', bedrag: '25' })).status, 303);
     assert.equal((await add({ soort: 'overig', bedrag: '10' })).status, 422);
@@ -299,7 +299,7 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.deepEqual(audit.map((row) => row.action), ['betaling.bedrag', 'betaling.bedrag', 'betaling.bedrag-weg']);
   });
 
-  await t.test('status loopt voor op de betaalstand na een extra bedrag: waarschuwing, niet automatisch terug', async () => {
+  await testContext.test('status loopt voor op de betaalstand na een extra bedrag: waarschuwing, niet automatisch terug', async () => {
     const add = await request(`${path}bedragen/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, stand: await standOf(bookingId), soort: 'annulering', bedrag: '100' } });
     assert.equal(add.status, 303);
     const [booking] = await db.query('SELECT status FROM bookings WHERE id = $1', [bookingId]);
@@ -311,7 +311,7 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal(payments.statusMismatch('betaald', 'geen'), '', 'niets open, dus geen waarschuwing');
   });
 
-  await t.test('bedrag weghalen schuift een bevestigde aanmelding door als alles betaald is', async () => {
+  await testContext.test('bedrag weghalen schuift een bevestigde aanmelding door als alles betaald is', async () => {
     const id = await insertBooking('AV-2027-CCCC0003', 'bevestigd');
     await db.query("INSERT INTO booking_charges (booking_id, kind, amount_cents) VALUES ($1, 'reissom', 10000), ($1, 'annulering', 5000)", [id]);
     await db.query("INSERT INTO payments (booking_id, amount_cents, method, received_on) VALUES ($1, 10000, 'bank', '2027-02-25')", [id]);
@@ -323,7 +323,7 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.deepEqual([events.to_status, events.note], ['betaald', 'Automatisch na een weggehaald bedrag.']);
   });
 
-  await t.test('bedrag toevoegen schuift een bevestigde aanmelding door als alles betaald is', async () => {
+  await testContext.test('bedrag toevoegen schuift een bevestigde aanmelding door als alles betaald is', async () => {
     const id = await insertBooking('AV-2027-DDDD0004', 'bevestigd');
     await db.query("INSERT INTO booking_charges (booking_id, kind, amount_cents) VALUES ($1, 'reissom', 10000)", [id]);
     await db.query("INSERT INTO payments (booking_id, amount_cents, method, received_on) VALUES ($1, 8000, 'bank', '2027-02-25')", [id]);
@@ -334,7 +334,7 @@ test('betalingen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.deepEqual([event.to_status, event.note], ['betaald', 'Automatisch na een gewijzigd bedrag.']);
   });
 
-  await t.test('opschoning: toelichtingen weg bij anonimiseren, betaalde annulering blijft staan', async () => {
+  await testContext.test('opschoning: toelichtingen weg bij anonimiseren, betaalde annulering blijft staan', async () => {
     await db.transaction((client) => anonymizeBookings(client, [bookingId]));
     const notes = await db.query("SELECT note FROM payments WHERE booking_id = $1 AND note <> ''", [bookingId]);
     assert.equal(notes.length, 0);

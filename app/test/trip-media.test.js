@@ -32,7 +32,7 @@ function withSchema(url) {
   return parsed.toString();
 }
 
-test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -47,7 +47,7 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
   const app = createApp({ db, masterKey: MASTER_KEY, mediaDir });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  testContext.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
 
   const hash = await hashPassword(PASSWORD);
   for (const [email, role] of [['kantoor@example.nl', 'kantoor'], ['redactie@example.nl', 'redacteur']]) {
@@ -111,7 +111,7 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
   const tripRow = async () => (await db.query('SELECT hero_image_url, card_image_url, gallery, gallery_title, managed_in_crm FROM trips WHERE id = $1', [trip.id]))[0];
   const tripsBase = `/app/reizen/${trip.id}/`;
 
-  await t.test('bestaande foto\'s uit de import overgenomen (migratie 16)', async () => {
+  await testContext.test('bestaande foto\'s uit de import overgenomen (migratie 16)', async () => {
     // De overname draait bij de migratie op een lege tabel; hier opnieuw op de testreis.
     const backfill = MIGRATIONS.find((migration) => migration.id === 16).sql.split('-- Bestaande reizen')[1].replace(/^[^\n]*\n/, '');
     await db.query(backfill);
@@ -119,7 +119,7 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.deepEqual(rows.map((row) => [row.role, row.media_id]), [['galerij', importedB.id], ['galerij', upload.id], ['kop', imported.id]], 'onbekende adressen vallen weg, varianten tellen mee');
   });
 
-  await t.test('rechten: redacteur 403, andere reis of koppeling 404, CSRF 403', async () => {
+  await testContext.test('rechten: redacteur 403, andere reis of koppeling 404, CSRF 403', async () => {
     assert.equal((await request(`${tripsBase}fotos/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, rol: 'kop', media_id: String(upload.id) } })).status, 403);
     assert.equal((await request(`${tripsBase}galerij/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, gallery_title: 'x' } })).status, 403);
     assert.equal((await request('/app/reizen/999999/fotos/', { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, rol: 'kop', media_id: String(upload.id) } })).status, 404);
@@ -128,7 +128,7 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.equal((await request(`${tripsBase}fotos/`, { cookie: kantoor.cookie, form: { _csrf: 'fout', rol: 'kop', media_id: String(upload.id) } })).status, 403);
   });
 
-  await t.test('bewerkscherm: foto\'s en kiezer met de foto\'s van het land', async () => {
+  await testContext.test('bewerkscherm: foto\'s en kiezer met de foto\'s van het land', async () => {
     const page = await request(tripsBase, { cookie: kantoor.cookie });
     assert.equal(page.status, 200);
     assert.match(page.text, /id="fotos"/);
@@ -137,7 +137,7 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.match(page.text, /name="terug" value="\/app\/reizen\/\d+\/"/);
   });
 
-  await t.test('kopfoto vervangen, galerij toevoegen en verschuiven, afgeleide kolommen', async () => {
+  await testContext.test('kopfoto vervangen, galerij toevoegen en verschuiven, afgeleide kolommen', async () => {
     assert.equal((await request(`${tripsBase}fotos/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, rol: 'kop', media_id: [String(upload.id), String(upload2.id)] } })).status, 303);
     assert.equal((await request(`${tripsBase}fotos/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, rol: 'kaart', media_id: String(upload2.id) } })).status, 303);
     assert.equal((await request(`${tripsBase}fotos/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, rol: 'galerij', media_id: [String(upload2.id), String(upload.id)] } })).status, 303);
@@ -168,7 +168,7 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.equal((await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'reis.fotos'"))[0].count, 5);
   });
 
-  await t.test('gebruikte foto niet te verwijderen; weghalen bij de reis wel; verdwenen foto', async () => {
+  await testContext.test('gebruikte foto niet te verwijderen; weghalen bij de reis wel; verdwenen foto', async () => {
     assert.equal((await app.locals.mediaLibrary.remove(upload2.id)).status, 'gebruikt');
     const usage = await request(`/app/fotobibliotheek/${upload2.id}/`, { cookie: kantoor.cookie });
     assert.match(usage.text, /Reis: <a href="\/reis\/namibie-reis\/">Namibië-reis<\/a>/);
@@ -181,7 +181,7 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.equal((await request(`${tripsBase}fotos/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, rol: 'onzin', media_id: String(upload.id) } })).status, 422);
   });
 
-  await t.test('direct uploaden vanaf een reis stuurt terug naar de reis', async () => {
+  await testContext.test('direct uploaden vanaf een reis stuurt terug naar de reis', async () => {
     const photo = await sharp({ create: { width: 800, height: 600, channels: 3, background: '#c0603a' } }).jpeg().toBuffer();
     const form = (terug) => {
       const data = new FormData();
@@ -199,7 +199,7 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.match((await request(`${tripsBase}?geupload=1`, { cookie: kantoor.cookie })).text, /1 foto geüpload/);
   });
 
-  await t.test('alleen de galerijtekst wijzigen laat de galerij (ook foto\'s uit de import) staan', async () => {
+  await testContext.test('alleen de galerijtekst wijzigen laat de galerij (ook foto\'s uit de import) staan', async () => {
     const gallery = [{ url: '/media/niet-in-de-bibliotheek.jpg', alt: '' }];
     await db.query('UPDATE trips SET gallery = $2 WHERE id = $1', [trip.id, JSON.stringify(gallery)]);
     assert.equal((await request(`${tripsBase}galerij/`, { cookie: kantoor.cookie, form: { _csrf: kantoor.csrf, gallery_title: 'Nieuwe titel', gallery_subtitle: '' } })).status, 303);
@@ -208,7 +208,7 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.equal(row.gallery_title, 'Nieuwe titel');
   });
 
-  await t.test('foto\'s uit de import zonder bibliotheekrij blijven bij een fotowijziging staan tot je ze weghaalt', async () => {
+  await testContext.test('foto\'s uit de import zonder bibliotheekrij blijven bij een fotowijziging staan tot je ze weghaalt', async () => {
     await db.query("DELETE FROM trip_media WHERE trip_id = $1 AND role = 'kaart'", [trip.id]);
     await db.query("UPDATE trips SET card_image_url = '/media/oude-kaart.jpg' WHERE id = $1", [trip.id]);
     // Een galerijfoto toevoegen: de importfoto blijft achteraan staan, de kaartfoto uit de import ook.
@@ -235,7 +235,7 @@ test('foto\'s bij reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.doesNotMatch((await request(tripsBase, { cookie: kantoor.cookie })).text, /uit de import weghalen/);
   });
 
-  await t.test('galerijlimiet telt de foto\'s uit de import mee', async () => {
+  await testContext.test('galerijlimiet telt de foto\'s uit de import mee', async () => {
     const libraryCount = (await links()).filter((link) => link.role === 'galerij').length;
     const extra = Array.from({ length: 60 - libraryCount }, (_, i) => ({ url: `/media/import-oud-${i}.jpg`, alt: '' }));
     const [current] = await db.query('SELECT gallery FROM trips WHERE id = $1', [trip.id]);

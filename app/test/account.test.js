@@ -45,7 +45,7 @@ test('tokenvorm: alleen base64url van redelijke lengte', () => {
   assert.equal(tokenShapeOk(['a'.repeat(43)]), false);
 });
 
-test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
+test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   await admin.query(`CREATE SCHEMA ${SCHEMA}`);
@@ -58,7 +58,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
   const app = createApp({ db, masterKey: MASTER_KEY, mailer, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { server.close(); await db.close(); });
+  testContext.after(async () => { server.close(); await db.close(); });
 
   /**
    * Doet een verzoek; geeft status, tekst en de nieuwe sessiecookie.
@@ -104,7 +104,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
 
   const csrfFrom = (text) => (text.match(/name="_csrf" value="([^"]+)"/) || [])[1];
 
-  await t.test('registreren: onbevestigd account, mail met link; opnieuw registreren maakt de oude link ongeldig', async () => {
+  await testContext.test('registreren: onbevestigd account, mail met link; opnieuw registreren maakt de oude link ongeldig', async () => {
     const form = await request('/account/registreren/');
     assert.equal(form.status, 200);
     assert.equal(form.headers.get('referrer-policy'), 'same-origin');
@@ -141,7 +141,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.equal((await db.query('SELECT count(*)::int AS total FROM customer_accounts'))[0].total, 1);
   });
 
-  await t.test('honeypot: dezelfde melding, geen account', async () => {
+  await testContext.test('honeypot: dezelfde melding, geen account', async () => {
     const page = await request('/account/registreren/');
     const token = (page.text.match(/name="token" value="([^"]+)"/) || [])[1];
     clock += 5000;
@@ -150,7 +150,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.equal((await db.query("SELECT count(*)::int AS total FROM customer_accounts WHERE email = 'bot@example.nl'"))[0].total, 0);
   });
 
-  await t.test('inloggen vóór bevestigen: weigering alleen met het juiste wachtwoord zichtbaar', async () => {
+  await testContext.test('inloggen vóór bevestigen: weigering alleen met het juiste wachtwoord zichtbaar', async () => {
     const wrong = await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: 'verkeerd wachtwoord!' } });
     assert.equal(wrong.status, 401);
     assert.match(wrong.text, /E-mailadres of wachtwoord klopt niet/);
@@ -164,7 +164,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
   });
 
   let annaCookie = '';
-  await t.test('bevestigen: link plus wachtwoord; verkeerd wachtwoord 401; link werkt één keer', async () => {
+  await testContext.test('bevestigen: link plus wachtwoord; verkeerd wachtwoord 401; link werkt één keer', async () => {
     const token = linkToken(sent[1]);
     assert.equal((await request('/account/bevestigen/?token=onzin')).status, 404);
     const page = await request(`/account/bevestigen/?token=${encodeURIComponent(token)}`);
@@ -188,7 +188,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.match(overview.text, /anna@example\.nl/);
   });
 
-  await t.test('overzicht zonder sessie naar inloggen; sessies van CRM en reiziger zijn gescheiden', async () => {
+  await testContext.test('overzicht zonder sessie naar inloggen; sessies van CRM en reiziger zijn gescheiden', async () => {
     assert.equal((await request('/account/')).location, '/account/inloggen/');
     assert.equal((await request('/account/', { crmCookie: annaCookie })).location, '/account/inloggen/', 'reizigerstoken als CRM-cookie werkt niet op /account/');
     const crm = await request('/app/', { crmCookie: annaCookie });
@@ -196,7 +196,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.equal(crm.location, '/app/inloggen/');
   });
 
-  await t.test('registreren met een bevestigd adres: zelfde melding, mail met herstellink, wachtwoord ongewijzigd', async () => {
+  await testContext.test('registreren met een bevestigd adres: zelfde melding, mail met herstellink, wachtwoord ongewijzigd', async () => {
     const [before] = await db.query('SELECT password_hash FROM customer_accounts');
     const count = sent.length;
     clock += 61 * 60 * 1000; // nieuw venster voor de limiet van vijf registraties per uur
@@ -215,7 +215,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.equal((await db.query('SELECT password_hash FROM customer_accounts'))[0].password_hash, before.password_hash);
   });
 
-  await t.test('uitloggen: alleen met CSRF-token en van deze site', async () => {
+  await testContext.test('uitloggen: alleen met CSRF-token en van deze site', async () => {
     const login = await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: PASSWORD } });
     assert.equal(login.status, 303);
     const cookie = login.cookie;
@@ -231,14 +231,14 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.equal((await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: PASSWORD }, headers: { origin: 'https://evil.example' } })).status, 403);
   });
 
-  await t.test('inloggen zoals Chrome: Origin null met Sec-Fetch-Site same-origin werkt, zonder die kop niet', async () => {
+  await testContext.test('inloggen zoals Chrome: Origin null met Sec-Fetch-Site same-origin werkt, zonder die kop niet', async () => {
     const chrome = { origin: 'null', 'sec-fetch-site': 'same-origin' };
     assert.equal((await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: PASSWORD }, headers: chrome })).status, 303);
     assert.equal((await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: PASSWORD }, headers: { origin: 'null' } })).status, 403);
     assert.equal((await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: PASSWORD }, headers: { origin: 'null', 'sec-fetch-site': 'cross-site' } })).status, 403);
   });
 
-  await t.test('wachtwoord vergeten en herstellen: andere sessies vervallen, oude wachtwoord werkt niet meer', async () => {
+  await testContext.test('wachtwoord vergeten en herstellen: andere sessies vervallen, oude wachtwoord werkt niet meer', async () => {
     const count = sent.length;
     const unknown = await submitPublic('/account/wachtwoord-vergeten/', { email: 'onbekend@example.nl' });
     assert.equal(unknown.status, 200);
@@ -266,7 +266,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.equal((await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: 'nieuw en heel geheim' } })).status, 303);
   });
 
-  await t.test('mailbom: hoogstens drie herstellinks per account per uur, ook bij gelijktijdige verzoeken', async () => {
+  await testContext.test('mailbom: hoogstens drie herstellinks per account per uur, ook bij gelijktijdige verzoeken', async () => {
     const [account] = await db.query("SELECT id FROM customer_accounts WHERE email = 'anna@example.nl'");
     const accounts = createAccounts({ db });
     // Er is dit uur al één herstellink (vorige test).
@@ -282,7 +282,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.equal(await accounts.createToken(999999, 'herstellen'), '', 'onbekend account');
   });
 
-  await t.test('te veel mislukte pogingen: account vanaf deze reeks dicht, ook met het juiste wachtwoord', async () => {
+  await testContext.test('te veel mislukte pogingen: account vanaf deze reeks dicht, ook met het juiste wachtwoord', async () => {
     clock += 61 * 60 * 1000;
     const accountsCount = await submitPublic('/account/registreren/', { email: 'kees@example.nl', password: PASSWORD, password2: PASSWORD });
     assert.equal(accountsCount.status, 200);
@@ -297,7 +297,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.equal((await request('/account/inloggen/', { form: { email: 'kees@example.nl', password: PASSWORD } })).status, 303, 'na het kwartier weer open');
   });
 
-  await t.test('auditlog: acties zonder e-mailadres; CRM toont een omschrijving', async () => {
+  await testContext.test('auditlog: acties zonder e-mailadres; CRM toont een omschrijving', async () => {
     const rows = await db.query("SELECT action, entity, entity_id, user_id FROM audit_log WHERE action LIKE 'reiziger.%' ORDER BY id");
     const actions = new Set(rows.map((row) => row.action));
     for (const action of ['reiziger.geregistreerd', 'reiziger.bevestigd', 'reiziger.inloggen', 'reiziger.inloggen.mislukt', 'reiziger.inloggen.onbevestigd', 'reiziger.bevestigen.mislukt', 'reiziger.uitloggen', 'reiziger.wachtwoord-hersteld', 'reiziger.inloggen.geblokkeerd']) {
@@ -307,7 +307,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.equal((await db.query("SELECT count(*)::int AS total FROM audit_log WHERE entity_id LIKE '%@%' OR action LIKE '%@%'"))[0].total, 0);
   });
 
-  await t.test('opruimen: onbevestigd na zeven dagen weg, verlopen sessies weg, bevestigd blijft', async () => {
+  await testContext.test('opruimen: onbevestigd na zeven dagen weg, verlopen sessies weg, bevestigd blijft', async () => {
     const accounts = createAccounts({ db });
     await db.query("INSERT INTO customer_accounts (email, password_hash, created_at) VALUES ('oud@example.nl', 'x', now() - interval '8 days')");
     await db.query("INSERT INTO customer_accounts (email, password_hash, created_at, verified_at) VALUES ('blijft@example.nl', 'x', now() - interval '30 days', now() - interval '30 days')");
