@@ -56,6 +56,57 @@ function fakeSettings(values = {}) {
   return { get: (key) => all[key], ready: async () => {} };
 }
 
+/**
+ * De opties waarmee het hostscript van de hersteltest (`deploy/apps01/restore-test.sh`) `pg_restore` aanroept.
+ * @returns {string[]} Opties zoals `--clean`, in de volgorde van het script.
+ */
+function restoreTestOptions() {
+  const script = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'apps01', 'restore-test.sh'), 'utf8');
+  const command = /pg_restore -U postgres -d postgres([\s\S]*?)2>/.exec(script);
+  assert.ok(command, 'pg_restore-aanroep in restore-test.sh gevonden');
+  return command[1].split(/\s+/).filter((part) => part.startsWith('--'));
+}
+
+/**
+ * Zet een dump terug zoals de hersteltest dat doet: in een nieuwe database waarin het schema van de dump al bestaat
+ * (zoals `public` in elke nieuwe database), met de opties uit het hostscript. Controleert ook dat het zonder
+ * `--clean --if-exists` mislukt, zodat deze test de fout van een lege `public` echt vangt.
+ * @param {string} dumpFile Ontsleutelde dump.
+ * @param {string} pgRestore Pad van `pg_restore`.
+ * @returns {Promise<void>}
+ */
+async function assertRestorableAsInRestoreTest(dumpFile, pgRestore) {
+  const options = restoreTestOptions();
+  assert.ok(options.includes('--clean') && options.includes('--if-exists'), 'hersteltest zet terug met --clean --if-exists');
+  const database = `hersteltest_${process.pid}`;
+  const admin = createDatabase(DATABASE_URL);
+  await admin.query(`DROP DATABASE IF EXISTS ${database}`);
+  await admin.query(`CREATE DATABASE ${database}`);
+  const targetUrl = new URL(DATABASE_URL);
+  targetUrl.pathname = `/${database}`;
+  targetUrl.search = '';
+  const target = createDatabase(targetUrl.toString());
+  try {
+    const restore = (flags) => {
+      try {
+        execFileSync(pgRestore, [...flags, '-d', targetUrl.toString(), dumpFile], { stdio: ['ignore', 'pipe', 'pipe'] });
+        return '';
+      } catch (error) {
+        return String(error.stderr);
+      }
+    };
+    await target.query(`CREATE SCHEMA ${SCHEMA}`);
+    assert.match(restore(options.filter((flag) => flag !== '--clean' && flag !== '--if-exists')), /already exists/);
+    assert.equal(restore(options), '', 'terugzetten met de opties van de hersteltest lukt');
+    const [row] = await target.query(`SELECT title FROM ${SCHEMA}.pages WHERE path = '/over-ons/'`);
+    assert.equal(row.title, 'Over ons');
+  } finally {
+    await target.close();
+    await admin.query(`DROP DATABASE IF EXISTS ${database}`);
+    await admin.close();
+  }
+}
+
 test('back-up: verbindingsgegevens voor pg_dump zonder wachtwoord in de argumenten', () => {
   assert.deepEqual(backups.pgEnvironment('postgres://avanta:ge%40heim@db:5432/avanta'), {
     PGHOST: 'db', PGPORT: '5432', PGUSER: 'avanta', PGPASSWORD: 'ge@heim', PGDATABASE: 'avanta',
@@ -147,6 +198,8 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     const contents = execFileSync(fs.existsSync(pgRestore) ? pgRestore : 'pg_restore', ['--list', dumpFile]).toString();
     assert.match(contents, new RegExp(`TABLE ${SCHEMA} pages`));
     assert.match(contents, new RegExp(`TABLE DATA ${SCHEMA} settings`));
+
+    await assertRestorableAsInRestoreTest(dumpFile, fs.existsSync(pgRestore) ? pgRestore : 'pg_restore');
 
     await assert.rejects(backups.verifyBackup(file, Buffer.alloc(32, 1)), /andere hoofdsleutel/);
     const damaged = path.join(dir, 'avanta-20200101-000000.dump.enc');

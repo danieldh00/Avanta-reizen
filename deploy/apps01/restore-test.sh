@@ -28,6 +28,7 @@ APP_CONTAINER="avanta-hersteltest-app-$SUFFIX"
 NETWORK="avanta-hersteltest-$SUFFIX"
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 BACKUP=""
+RESTORE_ERRORS="$(mktemp)"
 
 log() { echo "[$(date '+%F %T')] $*"; }
 
@@ -41,6 +42,7 @@ cleanup() {
   docker rm -f -v "$APP_CONTAINER" >/dev/null 2>&1 || true
   docker rm -f -v "$DB_CONTAINER" >/dev/null 2>&1 || true
   docker network rm "$NETWORK" >/dev/null 2>&1 || true
+  rm -f "$RESTORE_ERRORS"
 }
 trap cleanup EXIT
 
@@ -50,6 +52,16 @@ record() {
     | app_exec node src/backup/cli.js restore-test-result || log "Uitslag vastleggen mislukt."
 }
 fail() { log "MISLUKT: $1"; record "\"state\":\"mislukt\",\"message\":\"$1\""; exit 1; }
+
+# restore_error <bestand>: de eerste foutregel van pg_restore als veilige, korte tekst voor de melding. Alleen de regel
+# "pg_restore: error: …" (geen DETAIL/CONTEXT/Command, die rijgegevens kunnen bevatten); tekst tussen aanhalingstekens
+# blijft alleen staan als het een naam van een tabel, kolom of schema is, andere waarden worden "…". Geen tekens die de
+# JSON van record() kunnen breken.
+restore_error() {
+  grep -m 1 -E '^pg_restore: error:' "$1" \
+    | sed -E 's/^pg_restore: error: //; s/"([a-z_][a-z0-9_]{0,62})"/\x27\1\x27/g; s/"[^"]*"/…/g' \
+    | tr -d '"\\' | tr -s '[:cntrl:]' ' ' | sed 's/ *$//' | cut -c 1-240
+}
 
 # Eerst "bezig" vastleggen: zo ziet Beheer meteen een lopende test en vraagt een tweede klik geen extra run aan.
 record '"state":"bezig"'
@@ -73,11 +85,18 @@ done
 sleep 2
 
 # Ontsleutelen als stroom en in één transactie terugzetten. Een fout in de tag komt pas aan het eind (code van cli.js).
+# Dezelfde opties als bij een echt herstel (restore-backup.sh): de dump is van één schema (`pg_dump --schema=public`)
+# en bevat daardoor `CREATE SCHEMA public`; zonder --clean --if-exists botst dat met het lege schema public van een
+# nieuwe database ("schema public already exists") en breekt de hele transactie af.
 app_exec node src/backup/cli.js decrypt "$BACKUP" - \
-  | docker exec -i "$DB_CONTAINER" pg_restore -U postgres -d postgres --no-owner --no-acl --single-transaction
+  | docker exec -i "$DB_CONTAINER" pg_restore -U postgres -d postgres --clean --if-exists --no-owner --no-acl \
+    --single-transaction 2>"$RESTORE_ERRORS"
 statuses=("${PIPESTATUS[@]}")
 [[ "${statuses[0]}" == 0 ]] || fail "Ontsleutelen mislukt (beschadigde back-up of andere hoofdsleutel)."
-[[ "${statuses[1]}" == 0 ]] || fail "Terugzetten met pg_restore mislukt."
+if [[ "${statuses[1]}" != 0 ]]; then
+  detail="$(restore_error "$RESTORE_ERRORS")"
+  fail "Terugzetten met pg_restore mislukt${detail:+: $detail}"
+fi
 
 COUNT_SQL="SELECT coalesce(string_agg(format('%s=%s', c.relname, (xpath('/row/n/text()', query_to_xml(format('SELECT count(*) AS n FROM public.%I', c.relname), false, true, '')))[1]::text), ',' ORDER BY c.relname), '') FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r'"
 restored="$(docker exec "$DB_CONTAINER" psql -U postgres -d postgres -Atc "$COUNT_SQL" | tr -cd 'a-z0-9_=,')"
