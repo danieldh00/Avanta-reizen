@@ -36,7 +36,8 @@ const SCREEN_RULES = [
   { pattern: /^app\/src\/site\/trip-view\.js$/, screens: ['/reis/*', '/reisleider/*'] },
   { pattern: /^app\/src\/site\/page-view\.js$/, screens: ['/faq/', '/contact/', '/blog/*'] },
   { pattern: /^app\/src\/site\//, screens: ['/'] },
-  { pattern: /^app\/src\/contact\//, screens: ['/contact/'] },
+  { pattern: /^app\/src\/contact\/(fields|routes)\.js$/, screens: ['/contact/'] },
+  { pattern: /^app\/src\/contact\/(index|message|messages)/, screens: ['/app/berichten/*'] },
   // Aanmelden en reizigersaccount.
   { pattern: /^app\/src\/booking\/(fields|routes|views|form)/, screens: ['/aanmelden/'] },
   { pattern: /^app\/src\/booking\/crm-/, screens: ['/app/aanmeldingen/*'] },

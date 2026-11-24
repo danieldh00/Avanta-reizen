@@ -43,8 +43,9 @@ Opzet, stand 23-11-2026. Avanta Reizen stelt het register vast en houdt het bij.
 |---|---|
 | Doel | Vragen beantwoorden |
 | Grondslag | Gerechtvaardigd belang (art. 6.1f): een vraag beantwoorden die de bezoeker zelf stelt |
-| Gegevens | Naam, e-mail, telefoon (vrijwillig), onderwerp, bericht, eventueel de reis waar de vraag over gaat |
-| Bewaartermijn | 12 maanden |
+| Gegevens | Naam, e-mail, telefoon (vrijwillig), onderwerp, bericht, eventueel de reis waar de vraag over gaat; bij het afhandelen in het CRM wie het afhandelde, wanneer en een korte notitie van kantoor |
+| Toegang | CRM > Berichten, recht `berichten` (beheerder, kantoor); afhandelen en verwijderen staan in het auditlog zonder de inhoud |
+| Bewaartermijn | 12 maanden (ook de notitie: het bericht wordt in zijn geheel gewist) |
 
 ### 4. Betalingen
 

@@ -2,7 +2,7 @@
  * Router van het CRM onder `/app/`: de gedeelde schil (limiet, formuliergrootte per onderdeel, sessie laden) en de
  * routes van alle modules. De routes zelf staan per onderwerp in een eigen bestand: toegang in `crm/login-routes.js`,
  * het overzicht in `crm/dashboard-routes.js`, en per module een ingang `index.js` (`persons/`, `booking/`,
- * `payments/`, `trips/`, `cms/`, `media/`) die
+ * `payments/`, `trips/`, `cms/`, `media/`, `contact/`) die
  * de routes van die module koppelt. Een nieuw scherm in een module komt in de ingang van die module, niet hier.
  * Alles onder `/app/` krijgt `Cache-Control: no-store` en `noindex`.
  */
@@ -25,6 +25,8 @@ const { createVault } = require('../security/vault');
 const { createMediaModuleRoutes } = require('../media');
 const { createTripsModuleRoutes } = require('../trips');
 const { createCmsModuleRoutes } = require('../cms');
+const { createContactModuleRoutes } = require('../contact');
+const { createMenuCounters } = require('./menu-counters');
 const { createBeheerRoutes } = require('../beheer/routes');
 
 /**
@@ -70,6 +72,8 @@ function createCrmRouter(options) {
     return smallForms(req, res, next);
   });
   router.use(auth.loadSession);
+  // Tellers naast menu-items (nieuwe berichten), alleen voor pagina's en met het recht (`crm/menu-counters.js`).
+  router.use(createMenuCounters({ db }));
 
   // Toegang en overzicht.
   router.use(createLoginRoutes({ db, auth, twoFactor, passwordCheck, setupCode: options.setupCode, now: options.now }));
@@ -85,6 +89,7 @@ function createCrmRouter(options) {
   router.use(createMediaModuleRoutes(moduleContext));
   router.use(createTripsModuleRoutes(moduleContext));
   router.use(createCmsModuleRoutes(moduleContext));
+  router.use(createContactModuleRoutes(moduleContext));
   router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, passwordCheck, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, retention: options.retention, siteContent: options.siteContent, now: options.now }));
 
   router.use((req, res) => {

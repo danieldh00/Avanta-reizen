@@ -22,7 +22,8 @@ const ASSET_VERSION = require('../../package.json').version;
 
 /**
  * Menu van het CRM in groepen; een item verschijnt alleen als de gebruiker het recht heeft (de server controleert
- * opnieuw), een groep zonder zichtbare items verdwijnt. `global`: niet voor rollen die tot eigen vertrekken beperkt
+ * opnieuw), een groep zonder zichtbare items verdwijnt. `counter`: sleutel van een teller uit `crm/menu-counters.js`
+ * (bijvoorbeeld het aantal nieuwe berichten), getoond naast het item als hij groter is dan nul. `global`: niet voor rollen die tot eigen vertrekken beperkt
  * zijn. Groep `top` staat los bovenaan, zonder kop; de andere groepen staan altijd open onder hun titel. Beheer staat
  * hier niet in: dat is één ingang onderaan (`renderBeheerEntry`) met een eigen zijbalk.
  */
@@ -34,6 +35,7 @@ const CRM_MENU = [
     icon: 'users',
     items: [
       { label: 'Aanmeldingen', href: '/app/aanmeldingen/', icon: 'clipboard', right: 'aanmeldingen', global: true },
+      { label: 'Berichten', href: '/app/berichten/', icon: 'mail', right: 'berichten', global: true, counter: 'berichten' },
       { label: 'Deelnemers', href: '/app/deelnemers/', icon: 'users', right: 'deelnemers', global: true },
       { label: 'Deelnemerslijsten', href: '/app/deelnemerslijsten/', icon: 'list', right: 'export.deelnemers' },
       { label: 'Betalingen', href: '/app/betalingen/', icon: 'euro', right: 'betalingen', global: true },
@@ -179,10 +181,14 @@ function visibleBeheerMenu(user, settingGroups, query) {
  * Eén link in een zijbalk.
  * @param {{label: string, href: string, icon: string}} item Het menu-item.
  * @param {string} activeHref De href van het huidige item.
+ * @param {Record<string, number>} [counters] Aantallen per teller (`req.user.counters`).
  * @returns {object} HTML.
  */
-function renderNavItem(item, activeHref) {
-  return html`<a class="crm-nav-item" href="${item.href}"${item.href === activeHref ? html` aria-current="page"` : ''} title="${item.label}"><span class="crm-nav-ico">${icon(item.icon)}</span><span class="crm-nav-label">${item.label}</span></a>`;
+function renderNavItem(item, activeHref, counters = {}) {
+  const count = item.counter && Number.isInteger(counters[item.counter]) && counters[item.counter] > 0 ? counters[item.counter] : 0;
+  const shown = count > 99 ? '99+' : String(count);
+  const title = count ? `${item.label} (${count} nieuw)` : item.label;
+  return html`<a class="crm-nav-item" href="${item.href}"${item.href === activeHref ? html` aria-current="page"` : ''} title="${title}"><span class="crm-nav-ico">${icon(item.icon)}</span><span class="crm-nav-label">${item.label}</span>${count ? html`<span class="crm-nav-count"><span aria-hidden="true">${shown}</span><span class="visually-hidden">, ${count} nieuw</span></span>` : ''}</a>`;
 }
 
 /**
@@ -208,14 +214,15 @@ function renderNavGroup(group, activeHref, forceOpen, idPrefix = 'crm-nav') {
  * Eén vaste groep in de hoofdzijbalk: de titel met de onderdelen eronder, altijd zichtbaar.
  * @param {object} group De groep (key, title, items).
  * @param {string} activeHref De href van het huidige item.
+ * @param {Record<string, number>} [counters] Aantallen per teller (`req.user.counters`).
  * @returns {object} HTML.
  */
-function renderMainGroup(group, activeHref) {
-  if (group.key === 'top') return html`<div class="crm-nav-list crm-nav-top">${group.items.map((item) => renderNavItem(item, activeHref))}</div>`;
+function renderMainGroup(group, activeHref, counters) {
+  if (group.key === 'top') return html`<div class="crm-nav-list crm-nav-top">${group.items.map((item) => renderNavItem(item, activeHref, counters))}</div>`;
   const titleId = `crm-nav-${group.key}`;
   return html`<div class="crm-nav-group${group.items.some((item) => item.href === activeHref) ? ' has-active' : ''}" data-group="${group.key}" role="group" aria-labelledby="${titleId}">
     <p class="crm-nav-group-title" id="${titleId}"><span class="crm-nav-label">${group.title}</span></p>
-    <div class="crm-nav-list">${group.items.map((item) => renderNavItem(item, activeHref))}</div>
+    <div class="crm-nav-list">${group.items.map((item) => renderNavItem(item, activeHref, counters))}</div>
   </div>`;
 }
 
@@ -246,7 +253,7 @@ function renderSidebar(page) {
       <a class="crm-nav-brand" href="/app/"><img class="crm-nav-logo" src="/images/logo-light.png" alt="Avanta reizen" width="68" height="40"><span class="crm-nav-label crm-nav-app">CRM</span></a>
       <button class="crm-nav-close" type="button" data-nav-close aria-label="Menu sluiten">${icon('close')}</button>
     </div>
-    ${menu.map((group) => renderMainGroup(group, activeHref))}
+    ${menu.map((group) => renderMainGroup(group, activeHref, user.counters || {}))}
     <div class="crm-nav-spacer"></div>
     ${renderBeheerEntry(user, page.path)}
     <button class="crm-nav-collapse" type="button" data-nav-compact aria-pressed="false" title="Zijbalk inklappen"><span class="crm-nav-ico">${icon('chevron-left')}</span><span class="crm-nav-label">Inklappen</span></button>

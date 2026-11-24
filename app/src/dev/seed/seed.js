@@ -169,6 +169,7 @@ async function removeSeed(client) {
   };
   await remove('aanmeldingen', `DELETE FROM bookings WHERE email LIKE $1 OR person_id IN (SELECT id FROM persons WHERE email LIKE $1) RETURNING id`, [EMAIL_PATTERN]);
   await remove('personen', 'DELETE FROM persons WHERE email LIKE $1 RETURNING id', [EMAIL_PATTERN]);
+  await remove('berichten', 'DELETE FROM contact_messages WHERE email LIKE $1 RETURNING id', [EMAIL_PATTERN]);
   await remove('gebruikers', 'DELETE FROM users WHERE email LIKE $1 RETURNING id', [EMAIL_PATTERN]);
   await remove('reizen', 'DELETE FROM trips WHERE slug LIKE $1 RETURNING id', [SLUG_PATTERN]);
   await remove('reisleiders', 'DELETE FROM guides WHERE slug LIKE $1 RETURNING id', [SLUG_PATTERN]);
@@ -581,6 +582,27 @@ function createSeeder({ vault, today, terms }) {
   };
 
   /**
+   * Schrijft de berichten via het contactformulier; een afgehandeld bericht staat op naam van kantoor.
+   * @param {{query: Function}} client Transactie-client.
+   * @param {object[]} trips De testreizen (met sleutel).
+   * @param {number} officeUserId Gebruiker met de rol kantoor.
+   * @returns {Promise<number>} Aantal berichten.
+   */
+  const insertMessages = async (client, trips, officeUserId) => {
+    for (const message of data.MESSAGES) {
+      const createdAt = `${addDays(today, -message.daysAgo)}T09:30:00+01:00`;
+      await client.query(
+        `INSERT INTO contact_messages (name, email, phone, subject, message, trip_slug, consent_at, created_at, status, handled_at, handled_by, note)
+         VALUES ($1, $2, '', $3, $4, $5, $6, $6, $7, $8, $9, $10)`,
+        [message.name, `${emailPart(message.name)}@${data.SEED_EMAIL_DOMAIN}`, message.subject, message.message,
+          message.trip === null ? null : slug(trips[message.trip % trips.length].key), createdAt,
+          message.handled ? 'afgehandeld' : 'nieuw', message.handled ? createdAt : null, message.handled ? officeUserId : null, message.note || ''],
+      );
+    }
+    return data.MESSAGES.length;
+  };
+
+  /**
    * Schrijft alle testdata (in de transactie van de aanroeper).
    * @param {{query: Function}} client Transactie-client.
    * @param {{passwordHash: string}} input Hash van het wachtwoord van de testgebruikers.
@@ -604,6 +626,7 @@ function createSeeder({ vault, today, terms }) {
       blogberichten: await insertPosts(client, userIds.get('redacteur')),
       'veelgestelde vragen': await insertFaqs(client, userIds.get('redacteur')),
       "pagina's": await insertPages(client, userIds.get('redacteur')),
+      berichten: await insertMessages(client, trips, userIds.get('kantoor')),
     };
   };
 
