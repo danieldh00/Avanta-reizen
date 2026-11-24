@@ -194,7 +194,7 @@ function createPaymentRoutes(options) {
           </section>
         </div>
         <h2>Bedragen</h2>
-        <div class="crm-table-wrap"><table class="crm-table">
+        <div class="crm-table-wrap" tabindex="0" role="region" aria-label="Bedragen"><table class="crm-table">
           <thead><tr><th scope="col">Soort</th><th scope="col">Omschrijving</th><th scope="col">Bedrag</th><th scope="col">Toegevoegd</th><th scope="col"><span class="visually-hidden">Actie</span></th></tr></thead>
           <tbody>${lines.charges.map((line) => html`<tr>
             <td>${payments.CHARGE_KINDS[line.kind] || line.kind}</td>
@@ -209,7 +209,7 @@ function createPaymentRoutes(options) {
           <ul>${lines.removedCharges.map((line) => html`<li>${payments.CHARGE_KINDS[line.kind] || line.kind}${line.description ? ` (${line.description})` : ''}: ${payments.formatAmount(line.amount_cents)}, weggehaald ${formatDateTime(line.removed_at)}${line.removed_by_name ? ` door ${line.removed_by_name}` : ''}</li>`)}</ul>
         </details>` : ''}
         <h2>Ontvangen betalingen</h2>
-        ${lines.payments.length ? html`<div class="crm-table-wrap"><table class="crm-table">
+        ${lines.payments.length ? html`<div class="crm-table-wrap" tabindex="0" role="region" aria-label="Ontvangen betalingen"><table class="crm-table">
           <thead><tr><th scope="col">Ontvangen op</th><th scope="col">Bedrag</th><th scope="col">Wijze</th><th scope="col">Toelichting</th><th scope="col">Geregistreerd</th></tr></thead>
           <tbody>${lines.payments.map((line) => html`<tr>
             <td>${formatDate(line.received_on)}</td>
