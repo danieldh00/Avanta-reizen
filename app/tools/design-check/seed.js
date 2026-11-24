@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Design-controle, stap 1: vult een verse, lokaal draaiende app met testgegevens zodat elk scherm iets te tonen heeft.
  * Alles gaat via de echte schermen (Playwright), behalve extra CRM-gebruikers per rol en het reizigersaccount, die
@@ -33,8 +34,8 @@ const pause = (milliseconds) => new Promise((resolve) => { setTimeout(resolve, m
 
 /**
  * Maakt de eerste beheerder aan via het installatiescherm.
- * @param {object} page Playwright-pagina.
- * @param {object} admin Eerste beheerder uit `accounts()`.
+ * @param {any} page Playwright-pagina.
+ * @param {any} admin Eerste beheerder uit `accounts()`.
  * @returns {Promise<void>}
  */
 async function installAdmin(page, admin) {
@@ -49,7 +50,7 @@ async function installAdmin(page, admin) {
 
 /**
  * Zoekt een aantal reizen met een toekomstige vertrekdatum die nog niet vol zijn.
- * @param {object} db Database.
+ * @param {any} db Database.
  * @returns {Promise<Array<{slug: string}>>} Reizen.
  */
 async function openTrips(db) {
@@ -59,9 +60,9 @@ async function openTrips(db) {
 
 /**
  * Vult het openbare aanmeldformulier in en verstuurt het.
- * @param {object} page Playwright-pagina.
+ * @param {any} page Playwright-pagina.
  * @param {string} slug Slug van de reis.
- * @param {object} traveller Reiziger uit `TRAVELLERS`.
+ * @param {any} traveller Reiziger uit `TRAVELLERS`.
  * @returns {Promise<number>} HTTP-status van het antwoord.
  */
 async function submitBooking(page, slug, traveller) {
@@ -104,7 +105,7 @@ async function submitBooking(page, slug, traveller) {
 
 /**
  * Logt in op het CRM (zonder tweede stap: die staat standaard uit tot de livegang).
- * @param {object} page Playwright-pagina.
+ * @param {any} page Playwright-pagina.
  * @param {{email: string, password: string}} user Gebruiker.
  * @returns {Promise<void>}
  */
@@ -119,8 +120,8 @@ async function loginCrm(page, user) {
 
 /**
  * Boekt een gedeeltelijke betaling op de eerste aanmelding, zodat de betaalschermen een saldo tonen.
- * @param {object} page Ingelogde pagina.
- * @param {object} db Database.
+ * @param {any} page Ingelogde pagina.
+ * @param {any} db Database.
  * @returns {Promise<void>}
  */
 async function recordPayment(page, db) {
@@ -141,6 +142,7 @@ async function main() {
   // Alleen hier mag het wachtwoordbestand worden aangemaakt; check.js en overview.js lezen het.
   const { ADMIN, CUSTOMER } = accounts({ create: true });
   // Playwright is geen dependency van de app; het staat in de ontwikkelomgeving.
+  // @ts-ignore -- zonder Playwright in node_modules zijn er geen typen; het pakket wordt alleen hier geladen.
   const { chromium } = require('playwright');
   const db = createDatabase(process.env.DATABASE_URL);
   const browser = await chromium.launch();
@@ -181,7 +183,7 @@ async function main() {
 /**
  * Zet een concept en een verstuurde infobrief klaar (rechtstreeks in de database: lokaal is geen mailserver), zodat de
  * schermen onder /app/infobrieven/ iets te tonen hebben. Doet niets als er al infobrieven zijn.
- * @param {object} db Database.
+ * @param {any} db Database.
  * @returns {Promise<void>}
  */
 async function seedInfobrieven(db) {

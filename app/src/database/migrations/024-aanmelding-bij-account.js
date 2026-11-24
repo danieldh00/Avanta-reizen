@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 24: aanmelding-bij-account.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

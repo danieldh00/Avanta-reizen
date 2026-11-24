@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Fotobibliotheek in het CRM (`/app/fotobibliotheek/`, recht `media`): foto's per land bekijken en zoeken, meerdere
  * foto's tegelijk uploaden (multipart via `busboy`, met vaste grenzen) en per foto titel, alt-tekst, bijschrift,
@@ -43,9 +44,9 @@ const MEDIA_ACTION_LABELS = {
  * bestanden als buffer. Een te groot bestand krijgt `truncated: true` en geen inhoud. Het veld `_csrf` moet vóór de
  * bestanden komen (zo staat het in het formulier) en wordt meteen gecontroleerd: klopt het niet, of komt er eerder een
  * bestand, dan stopt het lezen direct met status 403, zonder de rest van de upload te bufferen.
- * @param {object} req Express-verzoek.
+ * @param {any} req Express-verzoek.
  * @param {(token: string) => boolean} tokenValid Controleert het CSRF-token (en de herkomst).
- * @returns {Promise<{fields: object, files: {filename: string, buffer: (Buffer|null), truncated: boolean}[], tooMany: boolean}>} Inhoud.
+ * @returns {Promise<{fields: any, files: {filename: string, buffer: (Buffer|null), truncated: boolean}[], tooMany: boolean}>} Inhoud.
  */
 function readMultipart(req, tokenValid) {
   return new Promise((resolve, reject) => {
@@ -126,8 +127,10 @@ function tripReturnPath(value) {
 
 /**
  * Maakt de routes van de fotobibliotheek.
- * @param {{db: object, auth: object, mediaDir: string, now?: Function, limits?: {uploadsPerHour?: number, maxParallelUploads?: number}}} options
- *   Database, sessie- en rechtenlaag, map met bestanden en (voor tests) andere grenzen.
+ * @param {{db: any, auth: any, library?: any, mediaDir?: string, now?: () => number,
+ *   limits?: {uploadsPerHour?: number, maxParallelUploads?: number, linksPerMinute?: number}}} options
+ *   Database, sessie- en rechtenlaag, de fotobibliotheek (of de map met bestanden om er een te maken) en (voor tests)
+ *   de klok en andere grenzen.
  * @returns {express.Router} Router.
  */
 function createMediaRoutes(options) {
@@ -144,8 +147,8 @@ function createMediaRoutes(options) {
 
   /**
    * 404-pagina binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => res.status(404).send(renderCrmPage({
@@ -157,13 +160,13 @@ function createMediaRoutes(options) {
    * @param {{id: number, name: string}[]} countries Alle landen.
    * @param {number[]} selected Gekozen id's.
    * @param {string} id Id van het veld.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const countrySelect = (countries, selected, id) => html`<select id="${id}" name="land" multiple size="8">${countries.map((country) => html`<option value="${country.id}"${selected.includes(country.id) ? raw(' selected') : ''}>${country.name}</option>`)}</select>`;
 
   /**
    * De overzichtspagina: uploadformulier, filter en raster met foto's.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{error?: string, notice?: string, status?: number}} [state] Melding na een upload.
    * @returns {Promise<string>} HTML.
    */
@@ -240,8 +243,8 @@ function createMediaRoutes(options) {
   /**
    * Slaat de bestanden van een upload op in de bibliotheek, elk met een regel in het auditlog. Een te groot bestand of
    * een bestand dat geen bruikbare foto is, wordt overgeslagen met een melding; een andere fout breekt de upload af.
-   * @param {object} req Express-verzoek (gebruiker, audit).
-   * @param {object[]} files Bestanden uit `readMultipart`.
+   * @param {any} req Express-verzoek (gebruiker, audit).
+   * @param {any[]} files Bestanden uit `readMultipart`.
    * @param {string[]} countryIds Gekozen landen.
    * @returns {Promise<{stored: number, problems: string[]}>} Aantal opgeslagen foto's en de meldingen per bestand.
    */
@@ -309,8 +312,8 @@ function createMediaRoutes(options) {
 
   /**
    * De pagina van één foto met het wijzigformulier.
-   * @param {object} req Express-verzoek.
-   * @param {object} item Foto uit `library.get`.
+   * @param {any} req Express-verzoek.
+   * @param {any} item Foto uit `library.get`.
    * @param {{error?: string, notice?: string}} [state] Meldingen.
    * @returns {Promise<string>} HTML.
    */

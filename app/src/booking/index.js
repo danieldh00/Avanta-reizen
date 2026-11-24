@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Ingang van de module Boeken voor het CRM: koppelt de routes van de aanmeldingen (`crm-routes.js`) en het handmatig
  * invoeren van een aanmelding (`manual-routes.js`). Het openbare
@@ -10,7 +11,7 @@ const { createManualBookingRoutes } = require('./manual-routes');
 
 /**
  * Bouwt de CRM-routes van de module Boeken.
- * @param {object} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` (sessies en rechten),
+ * @param {any} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` (sessies en rechten),
  *   `persons` (versleutelde persoonsblokken), `notifications` (bevestiging aan de reiziger) en de gedeelde diensten
  *   uit `server.js`.
  * @returns {express.Router} Router, te koppelen binnen `/app`.

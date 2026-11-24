@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Het overzicht van het CRM (`/app/`): wat vandaag aandacht vraagt (*Te doen*), de komende vertrekken met bezetting en
  * openstaand bedrag, recente wijzigingen aan aanmeldingen en, voor de beheerder, de stand van het systeem.
@@ -84,7 +85,7 @@ async function countDraftTrips(db) {
 /**
  * Telt de aanmeldingen met een te late betaling, met dezelfde berekening als het betaaloverzicht.
  * @param {{query: Function}} db Database.
- * @param {{terms: object, today: string}} input Betaaltermijnen uit Beheer en vandaag.
+ * @param {{terms: any, today: string}} input Betaaltermijnen uit Beheer en vandaag.
  * @returns {Promise<{count: number, atLeast: boolean}>} Aantal, en of het er meer kunnen zijn (de lijst was afgekapt).
  */
 async function countLatePayments(db, { terms, today }) {
@@ -96,7 +97,7 @@ async function countLatePayments(db, { terms, today }) {
  * De eerstvolgende vertrekken met het aantal bezette plaatsen en, als het mag, het openstaande bedrag per vertrek.
  * @param {{query: Function}} db Database.
  * @param {{today: string, withOutstanding: boolean}} input Vandaag en of het openstaande bedrag erbij komt.
- * @returns {Promise<object[]>} Vertrekken (id, title, trip_code, departure_date, capacity, fully_booked, published,
+ * @returns {Promise<any[]>} Vertrekken (id, title, trip_code, departure_date, capacity, fully_booked, published,
  *   booked_seats en, met `withOutstanding`, outstanding_cents).
  */
 async function loadDepartures(db, { today, withOutstanding }) {
@@ -117,7 +118,7 @@ async function loadDepartures(db, { today, withOutstanding }) {
 /**
  * De laatste wijzigingen aan aanmeldingen (statuswijzigingen en notities), nieuwste eerst.
  * @param {{query: Function}} db Database.
- * @returns {Promise<object[]>} Regels (booking_id, reference, from_status, to_status, created_at, user_name).
+ * @returns {Promise<any[]>} Regels (booking_id, reference, from_status, to_status, created_at, user_name).
  */
 function loadActivity(db) {
   return db.query(
@@ -133,7 +134,7 @@ function loadActivity(db) {
 
 /**
  * De stand van het systeem voor de beheerder: bewaking, laatste back-up en versie.
- * @param {{monitor?: object, backups?: object, systemUpdate?: object}} sources Bewaking, back-ups en updates (elk mag
+ * @param {{monitor?: any, backups?: any, systemUpdate?: any}} sources Bewaking, back-ups en updates (elk mag
  *   ontbreken, bijvoorbeeld in tests).
  * @returns {{monitorEnabled: boolean, openIncidents: number, lastBackupAt: (string|null), version: string, updateAvailable: boolean}}
  *   De stand.
@@ -153,10 +154,10 @@ function systemState({ monitor, backups, systemUpdate }) {
 
 /**
  * Haalt alles op wat de gebruiker op het overzicht mag zien.
- * @param {{db: object, settings: object, monitor?: object, backups?: object, systemUpdate?: object, appLog?: object}} sources
+ * @param {{db: any, settings: any, monitor?: any, backups?: any, systemUpdate?: any, appLog?: any}} sources
  *   Database, instellingen (betaaltermijnen), de bronnen voor de stand van het systeem en het logboek.
  * @param {{role: string, now: number}} input Rol van de gebruiker en het huidige tijdstip in ms.
- * @returns {Promise<object>} `access` plus per toegestaan onderdeel de gegevens: `newBookings`, `latePayments`,
+ * @returns {Promise<any>} `access` plus per toegestaan onderdeel de gegevens: `newBookings`, `latePayments`,
  *   `duplicates`, `draftTrips`, `departures`, `activity` en `system`. Een onderdeel zonder recht is `undefined`; een
  *   onderdeel dat niet geladen kon worden is `FAILED`.
  */
@@ -195,7 +196,7 @@ async function loadDashboard(sources, { role, now }) {
 
 /**
  * De melding in een onderdeel dat niet geladen kon worden.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderFailed() {
   return html`<p class="crm-empty" role="status">Dit onderdeel kon niet worden geladen. Probeer het later opnieuw.</p>`;
@@ -205,20 +206,20 @@ function renderFailed() {
  * Eén tegel van *Te doen*: een getal met een omschrijving, als link naar de lijst met dat filter.
  * @param {{count: (number|symbol), label: string, href: string, atLeast?: boolean}} tile Aantal (of `FAILED`),
  *   omschrijving, adres en of het aantal een ondergrens is.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderTile(tile) {
   const failed = tile.count === FAILED;
   return html`<li><a class="crm-tile${!failed && tile.count ? ' crm-tile--open' : ''}" href="${tile.href}"${failed ? html` title="Dit aantal kon niet worden geladen"` : ''}>
-    <span class="crm-tile-count">${failed ? '?' : (tile.atLeast ? `${tile.count}+` : tile.count)}</span>
+    <span class="crm-tile-count">${failed ? '?' : (tile.atLeast ? `${String(tile.count)}+` : tile.count)}</span>
     <span class="crm-tile-label">${tile.label}</span>
   </a></li>`;
 }
 
 /**
  * De tegels van *Te doen* voor wat de gebruiker mag zien.
- * @param {object} data Uitvoer van `loadDashboard`.
- * @returns {(object|string)} HTML, of een lege tekst als geen enkele tegel van toepassing is.
+ * @param {any} data Uitvoer van `loadDashboard`.
+ * @returns {(any|string)} HTML, of een lege tekst als geen enkele tegel van toepassing is.
  */
 function renderTodo(data) {
   const tiles = [
@@ -236,15 +237,15 @@ function renderTodo(data) {
 
 /**
  * De komende vertrekken als tabel.
- * @param {object} data Uitvoer van `loadDashboard`.
- * @returns {(object|string)} HTML, of een lege tekst als de gebruiker geen vertrekken mag zien.
+ * @param {any} data Uitvoer van `loadDashboard`.
+ * @returns {(any|string)} HTML, of een lege tekst als de gebruiker geen vertrekken mag zien.
  */
 function renderDepartures(data) {
   if (data.departures === undefined) return '';
   const { access } = data;
   /**
    * Het adres waar een vertrek naartoe linkt: het bewerkscherm, of anders de aanmeldingen van die reis.
-   * @param {object} trip Vertrek.
+   * @param {any} trip Vertrek.
    * @returns {string} Adres.
    */
   const hrefOf = (trip) => (access.trips ? `/app/reizen/${trip.id}/` : `/app/aanmeldingen/?reis=${trip.id}`);
@@ -281,8 +282,8 @@ function describeEvent(event) {
 
 /**
  * De recente wijzigingen aan aanmeldingen.
- * @param {object} data Uitvoer van `loadDashboard`.
- * @returns {(object|string)} HTML, of een lege tekst als de gebruiker geen aanmeldingen mag zien.
+ * @param {any} data Uitvoer van `loadDashboard`.
+ * @returns {(any|string)} HTML, of een lege tekst als de gebruiker geen aanmeldingen mag zien.
  */
 function renderActivity(data) {
   if (data.activity === undefined) return '';
@@ -297,8 +298,8 @@ function renderActivity(data) {
 
 /**
  * De stand van het systeem voor de beheerder.
- * @param {object} data Uitvoer van `loadDashboard`.
- * @returns {(object|string)} HTML, of een lege tekst zonder het recht `systeem`.
+ * @param {any} data Uitvoer van `loadDashboard`.
+ * @returns {(any|string)} HTML, of een lege tekst zonder het recht `systeem`.
  */
 function renderSystem(data) {
   if (data.system === undefined) return '';
@@ -320,8 +321,8 @@ function renderSystem(data) {
 
 /**
  * Tekent het overzicht.
- * @param {object} data Uitvoer van `loadDashboard`.
- * @returns {object} HTML: *Te doen*, daaronder links de vertrekken en rechts activiteit en systeem.
+ * @param {any} data Uitvoer van `loadDashboard`.
+ * @returns {any} HTML: *Te doen*, daaronder links de vertrekken en rechts activiteit en systeem.
  */
 function renderDashboard(data) {
   const side = [renderActivity(data), renderSystem(data)].filter(Boolean);

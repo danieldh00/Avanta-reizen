@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Hersteltests van de back-ups (Beheer > Back-ups en herstel > Hersteltest, pakket C3).
  *
@@ -53,7 +54,7 @@ function cleanText(value, max = 300) {
 /**
  * Leest rijtellingen in de vorm `tabel=aantal,tabel=aantal` (uitvoer van psql in het hostscript).
  * @param {*} text Invoer.
- * @returns {Object<string, number>} Aantal per tabel (alleen geldige namen en getallen, hoogstens 200 tabellen).
+ * @returns {Record<string, number>} Aantal per tabel (alleen geldige namen en getallen, hoogstens 200 tabellen).
  */
 function parseCounts(text) {
   const counts = {};
@@ -66,9 +67,9 @@ function parseCounts(text) {
 
 /**
  * De gecontroleerde basisgegevens van een run uit de invoer van het hostscript, nog zonder uitslag.
- * @param {object} input Invoer (al gecontroleerd op een object).
+ * @param {any} input Invoer (al gecontroleerd op een object).
  * @param {number} now Huidig tijdstip in ms.
- * @returns {object} De run met state `mislukt`, zonder tabellen of verschillen.
+ * @returns {any} De run met state `mislukt`, zonder tabellen of verschillen.
  */
 function baseRun(input, now) {
   return {
@@ -89,8 +90,8 @@ function baseRun(input, now) {
 /**
  * Vergelijkt de aantallen rijen per tabel van de teruggezette database met die van nu. Een tabel die maar aan één
  * kant bestaat, telt altijd als verschil; anders alleen een afwijking boven beide toleranties.
- * @param {Object<string, number>} restored Aantallen in de teruggezette database.
- * @param {Object<string, number>} live Aantallen nu.
+ * @param {Record<string, number>} restored Aantallen in de teruggezette database.
+ * @param {Record<string, number>} live Aantallen nu.
  * @returns {Array<{table: string, restored: (number|null), live: (number|null)}>} Hoogstens tien verschillen.
  */
 function rowDifferences(restored, live) {
@@ -112,9 +113,9 @@ function rowDifferences(restored, live) {
 
 /**
  * Bepaalt de uitslag van een hersteltest op de server uit wat het hostscript aanlevert.
- * @param {object} raw Invoer van het hostscript: `state` (`bezig`/`mislukt`) of de metingen (`restored`, `live`, `appOk`).
+ * @param {any} raw Invoer van het hostscript: `state` (`bezig`/`mislukt`) of de metingen (`restored`, `live`, `appOk`).
  * @param {number} [now] Huidig tijdstip in ms.
- * @returns {object} De run: state, trigger, tijden, back-up, schemaversie, tabellen, verschillen, appOk, melding.
+ * @returns {any} De run: state, trigger, tijden, back-up, schemaversie, tabellen, verschillen, appOk, melding.
  */
 function evaluateRun(raw, now = Date.now()) {
   const input = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
@@ -145,7 +146,7 @@ function evaluateRun(raw, now = Date.now()) {
  * @param {string} dir Back-upmap.
  * @param {string} file Bestandsnaam.
  * @param {number} [now] Huidig tijdstip in ms (een te lang lopende run telt als afgebroken).
- * @returns {object[]} Runs, nieuwste eerst.
+ * @returns {any[]} Runs, nieuwste eerst.
  */
 function readRuns(dir, file, now = Date.now()) {
   let parsed;
@@ -181,7 +182,7 @@ function readRuns(dir, file, now = Date.now()) {
  * Voegt een run toe (of vervangt de lopende run met hetzelfde begintijdstip) en schrijft het bestand in één keer.
  * @param {string} dir Back-upmap.
  * @param {string} file Bestandsnaam.
- * @param {object} run De run.
+ * @param {any} run De run.
  * @returns {void}
  */
 function saveRun(dir, file, run) {
@@ -195,9 +196,9 @@ function saveRun(dir, file, run) {
 /**
  * Legt een uitslag van het hostscript vast.
  * @param {string} dir Back-upmap.
- * @param {object} raw Invoer van het hostscript.
+ * @param {any} raw Invoer van het hostscript.
  * @param {number} [now] Huidig tijdstip in ms.
- * @returns {object} De vastgelegde run.
+ * @returns {any} De vastgelegde run.
  */
 function recordHostRun(dir, raw, now = Date.now()) {
   const run = evaluateRun(raw, now);
@@ -218,9 +219,9 @@ async function sha256(file) {
 
 /**
  * Maakt de hersteltests voor de app.
- * @param {{dir: string, masterKey: Buffer, previousKeys?: Buffer[], drive?: object, now?: () => number}} options Back-upmap, hoofdsleutel (en vorige sleutels voor oudere back-ups), de
+ * @param {{dir: string, masterKey: Buffer, previousKeys?: Buffer[], drive?: any, now?: () => number}} options Back-upmap, hoofdsleutel (en vorige sleutels voor oudere back-ups), de
  *   Drive-koppeling (`backup/drive.js`) en de klok (tests).
- * @returns {object} `hostRuns`, `requestHostTest`, `hostRequested`, `driveRuns`, `runDriveTest`, `driveTestIfDue`,
+ * @returns {any} `hostRuns`, `requestHostTest`, `hostRequested`, `driveRuns`, `runDriveTest`, `driveTestIfDue`,
  *   `startTimer`, `driveRunning`.
  */
 function createRestoreTests(options) {
@@ -232,7 +233,7 @@ function createRestoreTests(options) {
    * Test de nieuwste back-up op Google Drive: downloaden, volledig ontsleutelen en controleren, en vergelijken met de
    * lokale back-up met dezelfde naam. Het gedownloade bestand wordt altijd weer verwijderd.
    * @param {{trigger?: string}} [context] Aanleiding (`schema` of `handmatig`).
-   * @returns {Promise<object>} De run.
+   * @returns {Promise<any>} De run.
    */
   const runDriveTest = (context = {}) => {
     if (driveRunning) return driveRunning;
@@ -274,7 +275,7 @@ function createRestoreTests(options) {
   /**
    * Test de Drive-kopie als de vorige test langer dan een week geleden is (alleen als Drive aan staat en gekoppeld is).
    * @param {boolean} enabled Of de kopie naar Drive aan staat.
-   * @returns {Promise<(object|null)>} De run, of null als het niet nodig was.
+   * @returns {Promise<(any|null)>} De run, of null als het niet nodig was.
    */
   const driveTestIfDue = async (enabled) => {
     if (!enabled || !drive || !drive.connected()) return null;

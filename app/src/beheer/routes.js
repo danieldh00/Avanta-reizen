@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Routes van Beheer onder `/app/beheer/` (alleen recht `systeem`, rol beheerder): zijbalk met groepen en een zoekveld
  * (`beheer/indeling.js`), de startpagina (stand van het systeem en de onderwerpen als kaarten), het systeemoverzicht,
@@ -36,7 +37,7 @@ const SOURCE_LABELS = { database: 'Ingesteld in Beheer', omgeving: 'Uit de omgev
 
 /**
  * Leest één veld uit een formulier als tekst; een herhaald veld (lijst) is ongeldig.
- * @param {object} body Ingezonden velden.
+ * @param {any} body Ingezonden velden.
  * @param {string} name Naam van het veld.
  * @returns {(string|undefined)} Tekst, of undefined als het veld ontbreekt of geen tekst is.
  */
@@ -47,7 +48,7 @@ function formText(body, name) {
 
 /**
  * Leest een veld dat meerdere keren kan voorkomen (selectievakjes met dezelfde naam) als lijst.
- * @param {object} body Ingezonden velden.
+ * @param {any} body Ingezonden velden.
  * @param {string} name Naam van het veld.
  * @returns {string[]} Waarden.
  */
@@ -75,10 +76,10 @@ function formatUptime(seconds) {
 /**
  * Het invoerelement van één instelling, naar het type: vinkje, tekstvak, keuzelijst, geheim (nooit de waarde zelf,
  * alleen de laatste vier tekens) of een gewoon invoerveld.
- * @param {{key: string, definition: object, id: string, value: *, current: *, invalid: (object|string)}} field Naam en
+ * @param {{key: string, definition: any, id: string, value: *, current: *, invalid: (any|string)}} field Naam en
  *   definitie van de instelling, id van het veld, ingevulde of huidige waarde, de weergave van de huidige waarde
  *   (`settings.view`) en de aria-attributen bij een fout.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderSettingInput({ key, definition, id, value, current, invalid }) {
   if (definition.type === 'bool') {
@@ -100,7 +101,7 @@ function renderSettingInput({ key, definition, id, value, current, invalid }) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, passwordCheck?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, retention?: object, siteContent?: {load: Function}, now?: () => number}} options
+ * @param {{db: any, auth: any, settings: any, redirects?: any, mailer?: any, wanIp?: any, captcha?: any, passwordCheck?: any, backups?: any, drive?: any, restoreTests?: any, systemUpdate?: any, hostTasks?: any, appLog?: any, monitor?: any, retention?: any, siteContent?: {load: Function}, now?: () => number}} options
  *   Database, sessie- en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`), de mailer en
  *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de wachtwoordcontrole (`security/password-check.js`), de back-updienst (`backup/backups.js`), de Drive-koppeling (`backup/drive.js`), de hersteltests
  *   (`backup/restore-test.js`), de koppeling met het updatescript (`system/system-update.js`), de servertaken
@@ -116,7 +117,7 @@ function createBeheerRoutes(options) {
 
   /**
    * De instellingen van een sectie die met het wachtwoord bevestigd moeten worden als ze aan gaan en nu uit staan.
-   * @param {object} section Sectie uit de indeling.
+   * @param {any} section Sectie uit de indeling.
    * @returns {string[]} Namen van die instellingen.
    */
   const confirmableKeys = (section) => (section.fields || []).filter((key) => settings.fields[key].confirmOn && settings.get(key) !== true);
@@ -124,8 +125,8 @@ function createBeheerRoutes(options) {
   /**
    * Een volledige Beheer-pagina. De groepen en secties staan in de tweede zijbalk van Beheer (`crm/layout.js`); met een
    * zoekterm (`?zoek=`, werkt zonder JavaScript via een GET) toont die alleen de secties die erbij passen.
-   * @param {object} req Express-verzoek.
-   * @param {{title: string, sectionId: string, body: object}} page Titel, open sectie en inhoud.
+   * @param {any} req Express-verzoek.
+   * @param {{title: string, sectionId: string, body: any}} page Titel, open sectie en inhoud.
    * @returns {string} HTML-pagina.
    */
   const renderBeheerPage = (req, page) => {
@@ -143,8 +144,8 @@ function createBeheerRoutes(options) {
   /**
    * Eén invoerveld voor een instelling, met label, hulptekst, bron en eventueel "terugzetten".
    * @param {string} key Naam van de instelling.
-   * @param {{values: object, errors: object}} state Ingevulde waarden (na een fout) en fouten per instelling.
-   * @returns {object} HTML.
+   * @param {{values: any, errors: any}} state Ingevulde waarden (na een fout) en fouten per instelling.
+   * @returns {any} HTML.
    */
   const renderSettingField = (key, state) => {
     const definition = settings.fields[key];
@@ -167,9 +168,9 @@ function createBeheerRoutes(options) {
 
   /**
    * Het instellingenformulier van een sectie.
-   * @param {object} req Express-verzoek.
-   * @param {object} section Sectie uit de indeling.
-   * @param {{values?: object, errors?: object, saved?: boolean, extra?: object}} [state] Waarden en fouten na een mislukte
+   * @param {any} req Express-verzoek.
+   * @param {any} section Sectie uit de indeling.
+   * @param {{values?: any, errors?: any, saved?: boolean, extra?: any}} [state] Waarden en fouten na een mislukte
    *   poging, of dat het opslaan gelukt is, en de toestand van het extra paneel van de sectie (zoals de testmail).
    * @returns {string} HTML-pagina.
    */
@@ -195,7 +196,7 @@ function createBeheerRoutes(options) {
 
   /**
    * De meldingen die op de startpagina en het systeemoverzicht bovenaan staan: open incidenten en open servertaken.
-   * @returns {object} HTML (leeg als er niets openstaat).
+   * @returns {any} HTML (leeg als er niets openstaat).
    */
   const renderSystemAlerts = () => html`${options.monitor && options.monitor.view().open.length ? html`<p class="form-alert" role="alert">Er staan incidenten open. Zie <a href="/app/beheer/bewaking/">Bewaking en meldingen</a>.</p>` : ''}
     ${options.hostTasks && options.hostTasks.view().pending ? html`<p class="notice" role="status">Er staan servertaken open. Zie <a href="/app/beheer/servertaken/">Servertaken</a>.</p>` : ''}`;
@@ -216,7 +217,7 @@ function createBeheerRoutes(options) {
    * De startpagina van Beheer: de stand van het systeem als tegels en daaronder elk onderwerp als kaart met zijn
    * onderdelen (met een zoekterm alleen wat erbij past). De gegevens komen uit het geheugen (bewaking, back-uplijst,
    * updates, instellingen); alleen het aantal beheerders komt uit de database en wordt meegegeven.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{activeAdmins: number}} access Aantal actieve beheerders.
    * @returns {string} HTML-pagina.
    */
@@ -264,7 +265,7 @@ function createBeheerRoutes(options) {
 
   /**
    * Het systeemoverzicht: versie, Node, PostgreSQL, laatste migratie en looptijd.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @returns {Promise<string>} HTML-pagina.
    */
   const renderOverview = async (req) => {
@@ -291,7 +292,7 @@ function createBeheerRoutes(options) {
 
   /**
    * Alle instellingen met de sectie waar ze staan en waar de waarde vandaan komt (Beheer, omgeving of standaard).
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @returns {string} HTML-pagina.
    */
   const renderSettingsList = (req) => {
@@ -315,8 +316,8 @@ function createBeheerRoutes(options) {
 
   /**
    * 404 binnen Beheer.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => res.status(404).send(renderBeheerPage(req, {
@@ -395,7 +396,7 @@ function createBeheerRoutes(options) {
   /**
    * Controleert het wachtwoord waarmee de beheerder het aanzetten van een instelling met `confirmOn` bevestigt.
    * Telt elke poging mee in de limiet per gebruiker; een geslaagde bevestiging zet de teller terug.
-   * @param {object} req Verzoek met `body._password` en `user`.
+   * @param {any} req Verzoek met `body._password` en `user`.
    * @returns {Promise<string>} Foutmelding, of een lege tekst als het wachtwoord klopt.
    */
   async function passwordConfirmationProblem(req) {

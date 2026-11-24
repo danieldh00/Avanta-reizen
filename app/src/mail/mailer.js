@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * E-mail versturen via de mailserver uit Beheer > E-mail > Mailserver:
  * - `smtp`: inloggen met gebruikersnaam en wachtwoord (poort 587 met STARTTLS of 465 met SSL/TLS);
@@ -113,9 +114,9 @@ function mailFailure(error) {
 
 /**
  * Legt vast bij welke mailserver (host, poort) een fout hoort, zodat de melding die kan noemen.
- * @param {Error} error De fout van nodemailer.
+ * @param {Error & {mailHost?: string, mailPort?: number}} error De fout van nodemailer.
  * @param {{host: string, port: number}} server De mailserver.
- * @returns {Error} Dezelfde fout, met `mailHost` en `mailPort`.
+ * @returns {Error & {mailHost?: string, mailPort?: number}} Dezelfde fout, met `mailHost` en `mailPort`.
  */
 function tagServer(error, server) {
   if (error && typeof error === 'object' && !error.mailHost) Object.assign(error, { mailHost: server.host, mailPort: server.port });
@@ -124,7 +125,7 @@ function tagServer(error, server) {
 
 /**
  * Maakt de mailer.
- * @param {{settings: object, createTransport?: Function, resolveHost?: Function, now?: () => number}} options De
+ * @param {{settings: any, createTransport?: Function, resolveHost?: Function, now?: () => number}} options De
  *   instellingen (`beheer/settings.js`); voor tests een eigen `createTransport` (nodemailer), `resolveHost`
  *   (standaard `publicAddress`) en klok.
  * @returns {{configured: Function, server: Function, send: Function, recent: Function}} De mailfuncties.
@@ -175,7 +176,7 @@ function createMailer(options) {
 
   /**
    * Maakt de verbinding (transport) met de ingestelde mailserver.
-   * @returns {Promise<{transport: object, current: object}>} Het transport en de instellingen.
+   * @returns {Promise<{transport: any, current: any}>} Het transport en de instellingen.
    * @throws {Error} Met code `invalid_host` als de server geen openbaar adres heeft of niet bestaat.
    */
   const openTransport = async () => {
@@ -205,9 +206,9 @@ function createMailer(options) {
 
   /**
    * Verstuurt een e-mail en legt de uitkomst vast. Fouten gaan zonder adressen naar het serverlog.
-   * @param {{to: (string|string[]), subject: string, text: string, html?: string, replyTo?: string, attachments?: object[], kind?: string}} message
+   * @param {{to: (string|string[]), subject: string, text: string, html?: string, replyTo?: string, attachments?: any[], kind?: string}} message
    *   Het bericht; `attachments` alleen uit eigen code (zoals het ingebedde logo, hoogstens 3); `kind` is de soort voor het overzicht.
-   * @returns {Promise<object>} Het resultaat van nodemailer.
+   * @returns {Promise<any>} Het resultaat van nodemailer.
    * @throws {Error} Met code `not_configured`, `invalid_to` of `invalid_host`, of de fout van nodemailer (zie `mailFailure`).
    */
   const send = async (message) => {

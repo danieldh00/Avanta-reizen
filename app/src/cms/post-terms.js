@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Categorieën en tags van het blog (CMS-pakket I2, migratie 20): lijst met het aantal berichten, nieuw, wijzigen (een
  * gewijzigde slug geeft een 301 vanaf het oude adres), verwijderen, de koppeling van een bericht aan categorieën en
@@ -19,8 +20,8 @@ const TERM_LIMITS = { name: 100, intro: 1000, terms: 200 };
 
 /**
  * Leest en controleert de gegevens van een categorie of tag uit een formulier.
- * @param {object} body Ingezonden velden.
- * @returns {{values: {name: string, slug: string, intro: string, sortOrder: number}, errors: object}} Waarden en fouten.
+ * @param {any} body Ingezonden velden.
+ * @returns {{values: {name: string, slug: string, intro: string, sortOrder: number}, errors: any}} Waarden en fouten.
  */
 function validateTermFields(body) {
   const text = (name) => (typeof body[name] === 'string' ? body[name] : '');
@@ -42,15 +43,15 @@ function validateTermFields(body) {
 
 /**
  * Maakt de functies voor categorieën en tags.
- * @param {{db: object}} options Database.
- * @returns {object} Functies.
+ * @param {{db: any}} options Database.
+ * @returns {any} Functies.
  */
 function createPostTerms(options) {
   const { db } = options;
 
   /**
    * Alle categorieën en tags met het aantal gekoppelde berichten, op soort, volgorde en naam.
-   * @returns {Promise<object[]>} Rijen.
+   * @returns {Promise<any[]>} Rijen.
    */
   const list = () => db.query(
     `SELECT t.id, t.kind, t.slug, t.name, t.sort_order, t.image_url,
@@ -62,7 +63,7 @@ function createPostTerms(options) {
   /**
    * Eén categorie of tag.
    * @param {(number|string)} id Id.
-   * @returns {Promise<(object|null)>} Rij of null.
+   * @returns {Promise<(any|null)>} Rij of null.
    */
   const get = async (id) => {
     if (!/^\d{1,9}$/.test(String(id))) return null;
@@ -73,9 +74,9 @@ function createPostTerms(options) {
   /**
    * Maakt een categorie of tag.
    * @param {string} kind `categorie` of `tag`.
-   * @param {object} values Uit `validateTermFields`.
+   * @param {any} values Uit `validateTermFields`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, id) => Promise`).
-   * @returns {Promise<{id?: number, errors?: object}>} Nieuw id of fouten.
+   * @returns {Promise<{id?: number, errors?: any}>} Nieuw id of fouten.
    */
   const create = (kind, values, context) => db.transaction(async (client) => {
     if (!Object.hasOwn(TERM_KINDS, kind)) return { errors: { kind: 'Kies categorie of tag.' } };
@@ -95,9 +96,9 @@ function createPostTerms(options) {
   /**
    * Wijzigt een categorie of tag; een andere slug geeft een 301 vanaf het oude adres (daarna `redirects.reload()`).
    * @param {(number|string)} id Id.
-   * @param {object} values Uit `validateTermFields`.
+   * @param {any} values Uit `validateTermFields`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit.
-   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: object, moved?: boolean}>} Uitkomst.
+   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: any, moved?: boolean}>} Uitkomst.
    */
   const update = (id, values, context) => db.transaction(async (client) => {
     if (!/^\d{1,9}$/.test(String(id))) return { status: 'weg' };
@@ -174,7 +175,7 @@ function createPostTerms(options) {
   /**
    * Neemt de tags uit `site-content.json` over (naam, slug, foto, volgorde en berichten op slug), alleen als er nog geen
    * tags zijn, en het uitgelichte bericht als er nog geen is.
-   * @param {{blogTags: object[], featuredPost: string}} fixed Inhoud uit `site-content.json`.
+   * @param {{blogTags: any[], featuredPost: string}} fixed Inhoud uit `site-content.json`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit.
    * @returns {Promise<{status: ('ok'|'bestaan-al'), tags?: number}>} Uitkomst en aantal overgenomen tags.
    */

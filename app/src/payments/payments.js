@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Betalingen bij een aanmelding (OPZET-CRM §2 F, migratie 26): de verwachte bedragen (`booking_charges`), de ontvangen
  * betalingen (`payments`) en de berekening van saldo, aanbetaling, vervaldatums en betaalstatus. Niets daarvan wordt
@@ -167,6 +168,7 @@ function summarize({ booking, charges, payments, terms, today }) {
   else if (paidCents > totalCents) state = 'teveel';
   else if (paidCents >= totalCents) state = 'betaald';
   else if (paidCents > 0 && paidCents >= depositRequiredCents) state = 'aanbetaald';
+  /** @type {(''|'aanbetaling'|'restant')} */
   let overdue = '';
   if (booking.status !== 'geannuleerd') {
     if (paidCents < depositRequiredCents && today > depositDueOn) overdue = 'aanbetaling';
@@ -217,7 +219,7 @@ function statusMismatch(status, state) {
  * Leest de bedragen en betalingen van een aanmelding.
  * @param {{query: Function}} client Database of transactie-client.
  * @param {number} bookingId Id van de aanmelding.
- * @returns {Promise<{charges: object[], removedCharges: object[], payments: object[]}>} Regels, oudste eerst; weggehaalde
+ * @returns {Promise<{charges: any[], removedCharges: any[], payments: any[]}>} Regels, oudste eerst; weggehaalde
  *   bedragen apart (die tellen niet mee).
  */
 async function loadLines(client, bookingId) {

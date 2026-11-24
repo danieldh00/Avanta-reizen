@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Design-controle, overzicht: maakt van elk soort scherm uit een eerdere run (`results.json` van `check.js`) één
  * volledige schermafbeelding op 1440 en op 375 px. Bedoeld om met het oog te beoordelen of een scherm logisch en
@@ -34,7 +35,7 @@ const fileName = (area, type) => `${area}-${type}`.toLowerCase().replace(/[^a-z0
 
 /**
  * Logt in zoals het onderdeel vraagt (zie `login.js`).
- * @param {object} context Playwright-context.
+ * @param {any} context Playwright-context.
  * @param {string} area Onderdeel uit `check.js`.
  * @returns {Promise<void>}
  */
@@ -52,6 +53,7 @@ async function main() {
   assertLocalBaseUrl(BASE_URL);
   accounts();
   // Playwright is geen dependency van de app; het staat in de ontwikkelomgeving.
+  // @ts-ignore -- zonder Playwright in node_modules zijn er geen typen; het pakket wordt alleen hier geladen.
   const { chromium } = require('playwright');
   const results = JSON.parse(fs.readFileSync(option('results'), 'utf8'));
   const out = option('out') || path.join(path.dirname(option('results')), 'overzicht');

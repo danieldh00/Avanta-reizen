@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Reizen beheren (CMS-pakket G2, migratie 15). Een reis is één vertrek (URL per vertrek, zoals de huidige site) met
  * prijs, reisgegevens, teksten, landen en reistypes (`trip_category_links`), de reisleider (`trip_guides`, één per reis),
@@ -79,8 +80,8 @@ function idList(value) {
 
 /**
  * Leest en controleert de velden van een reis uit een formulier.
- * @param {object} body Ingezonden velden.
- * @returns {{values: object, errors: object}} Opgeschoonde waarden en fouten per veld.
+ * @param {any} body Ingezonden velden.
+ * @returns {{values: any, errors: any}} Opgeschoonde waarden en fouten per veld.
  */
 function validateTrip(body) {
   const text = (name) => (typeof body[name] === 'string' ? body[name] : '');
@@ -148,7 +149,7 @@ function validateTrip(body) {
 
 /**
  * Of een databasefout een dubbele slug is.
- * @param {Error} error Fout.
+ * @param {Error & {code?: string, constraint?: string, detail?: string}} error Fout van PostgreSQL.
  * @returns {boolean} Waar bij een schending van de unieke slug.
  */
 function isDuplicateSlug(error) {
@@ -157,8 +158,8 @@ function isDuplicateSlug(error) {
 
 /**
  * Maakt de functies voor reizen.
- * @param {{db: object}} options Database.
- * @returns {object} Functies.
+ * @param {{db: any}} options Database.
+ * @returns {any} Functies.
  */
 function createTrips(options) {
   const { db } = options;
@@ -166,7 +167,7 @@ function createTrips(options) {
   /**
    * Een pagina reizen voor de lijst in het CRM.
    * @param {{status: ('komend'|'vertrokken'|'concept'|'alle'), patterns: string[], limit: number, offset: number}} filter Filter.
-   * @returns {Promise<object[]>} Reizen met landen en reisleiders als tekst.
+   * @returns {Promise<any[]>} Reizen met landen en reisleiders als tekst.
    */
   const list = (filter) => db.query(
     `SELECT t.id, t.slug, t.title, t.trip_code, t.departure_date, t.published, t.fully_booked, t.capacity, t.managed_in_crm,
@@ -190,7 +191,7 @@ function createTrips(options) {
   /**
    * Eén reis met de id's van zijn categorieën en reisleiders (op volgorde).
    * @param {(number|string)} id Id.
-   * @returns {Promise<(object|null)>} Reis of null.
+   * @returns {Promise<(any|null)>} Reis of null.
    */
   const get = async (id) => {
     const [trip] = await db.query(
@@ -208,7 +209,7 @@ function createTrips(options) {
 
   /**
    * De keuzelijsten: alle categorieën (per soort) en alle reisleiders.
-   * @returns {Promise<{categories: object[], guides: object[]}>} Keuzes.
+   * @returns {Promise<{categories: any[], guides: any[]}>} Keuzes.
    */
   const choices = async () => {
     const [categories, guides] = await Promise.all([
@@ -222,7 +223,7 @@ function createTrips(options) {
    * Schrijft de categorieën en reisleiders van een reis opnieuw (alleen bestaande id's).
    * @param {{query: Function}} client Transactie-client.
    * @param {number} tripId Id van de reis.
-   * @param {object} values Waarden uit `validateTrip`.
+   * @param {any} values Waarden uit `validateTrip`.
    * @returns {Promise<void>}
    */
   const writeLinks = async (client, tripId, values) => {
@@ -247,9 +248,9 @@ function createTrips(options) {
 
   /**
    * Maakt een nieuwe reis.
-   * @param {object} values Waarden uit `validateTrip`.
+   * @param {any} values Waarden uit `validateTrip`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, id) => Promise`).
-   * @returns {Promise<{id?: number, errors?: object}>} Het nieuwe id, of fouten.
+   * @returns {Promise<{id?: number, errors?: any}>} Het nieuwe id, of fouten.
    */
   const create = async (values, context) => {
     try {
@@ -275,9 +276,9 @@ function createTrips(options) {
   /**
    * Wijzigt een reis; bij een andere slug komt er een 301 van het oude adres.
    * @param {(number|string)} id Id.
-   * @param {object} values Waarden uit `validateTrip`.
+   * @param {any} values Waarden uit `validateTrip`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client) => Promise`).
-   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: object, moved?: boolean}>} Uitkomst.
+   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: any, moved?: boolean}>} Uitkomst.
    */
   const update = async (id, values, context) => {
     try {

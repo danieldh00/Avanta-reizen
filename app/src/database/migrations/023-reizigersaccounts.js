@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 23: reizigersaccounts.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

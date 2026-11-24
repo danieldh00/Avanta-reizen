@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Opdrachtregel voor de testdata (wachtlijstpunt W00), in de app-container (zelfde omgeving als de app):
  *   node src/dev/seed/cli.js vullen --testomgeving        testdata toevoegen (weigert als die er al staat)
@@ -58,7 +59,7 @@ async function main(args) {
   // Strikt: precies één opdracht en verder alleen `--testomgeving`, zodat de volgorde nooit bepaalt wat er gebeurt.
   const modes = args.filter((argument) => MODES.includes(argument));
   const unknown = args.filter((argument) => !MODES.includes(argument) && argument !== '--testomgeving');
-  const [mode] = modes;
+  const [mode] = /** @type {('vullen'|'opnieuw'|'verwijderen')[]} */ (modes);
   if (modes.length !== 1 || unknown.length) {
     console.error(USAGE);
     return 2;
@@ -82,7 +83,7 @@ async function main(args) {
       confirmed: args.includes('--testomgeving'),
       passwordHash: password ? await hashPassword(password) : '',
     });
-    if (!result.ok) {
+    if (result.ok === false) {
       console.error(`Geweigerd: ${result.reason}`);
       return 2;
     }

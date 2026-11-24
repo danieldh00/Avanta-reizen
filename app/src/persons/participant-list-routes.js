@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Deelnemerslijsten in het CRM (`/app/deelnemerslijsten/`, recht `export.deelnemers`): per vertrek een Excel-bestand
  * (.xlsx) met de deelnemers. Bijzondere en identiteitsgegevens kiest de gebruiker per categorie; de server weigert een
@@ -38,7 +39,7 @@ const PARTICIPANT_LIST_ACTION_LABELS = {
 
 /**
  * Maakt de routes voor deelnemerslijsten.
- * @param {{db: object, auth: object, persons: object, settings?: object, now?: () => number}} options Database, sessie-
+ * @param {{db: any, auth: any, persons: any, settings?: any, now?: () => number}} options Database, sessie-
  *   en rechtenlaag, personen (`persons/persons.js`), de instellingen (venster van de reisleider) en (voor tests) de
  *   klok van de limiet.
  * @returns {express.Router} Router.
@@ -54,14 +55,14 @@ function createParticipantListRoutes(options) {
 
   /**
    * Of de gebruiker tot de eigen vertrekken beperkt is (reisleider).
-   * @param {object} user Ingelogde gebruiker.
+   * @param {any} user Ingelogde gebruiker.
    * @returns {boolean} Waar bij een rol uit `TRIP_SCOPED_ROLES`.
    */
   const isScoped = (user) => TRIP_SCOPED_ROLES.includes(user.role);
 
   /**
    * De categorieen waarvoor de gebruiker bij deze reis het recht heeft; voor de reisleider alleen binnen het venster.
-   * @param {object} user Ingelogde gebruiker.
+   * @param {any} user Ingelogde gebruiker.
    * @param {{in_window: boolean}} trip De reis (met `in_window`).
    * @returns {string[]} Sleutels van CATEGORIES.
    */
@@ -70,7 +71,7 @@ function createParticipantListRoutes(options) {
 
   /**
    * Het overzicht met per reis (met aanmeldingen) een exportformulier.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{error?: string}} [state] Foutmelding.
    * @returns {Promise<string>} HTML-pagina.
    */

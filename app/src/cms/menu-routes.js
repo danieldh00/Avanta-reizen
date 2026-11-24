@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Menu's van de website beheren in het CRM (`/app/menus/`, recht `content`, CMS-pakket H3): het hoofdmenu (met één
  * niveau submenu) en het menu in de voettekst. Items toevoegen, wijzigen (tekst, adres, plaats, volgorde) en
@@ -29,8 +30,8 @@ const NOTICES = {
 
 /**
  * Een veld met label, hulptekst en fout.
- * @param {{id: string, label: string, control: object, help?: string, error?: string}} field Veld.
- * @returns {object} HTML.
+ * @param {{id: string, label: string, control: any, help?: string, error?: string}} field Veld.
+ * @returns {any} HTML.
  */
 function fieldRow(field) {
   return html`<div class="field"><span class="field__label"><label for="${field.id}">${field.label}</label></span>
@@ -42,7 +43,7 @@ function fieldRow(field) {
  * Attributen voor een veld met een fout.
  * @param {string} id Id van het veld.
  * @param {string} [error] Fout.
- * @returns {(object|string)} Attributen.
+ * @returns {(any|string)} Attributen.
  */
 function invalidAttributes(id, error) {
   return error ? raw(` aria-invalid="true" aria-describedby="${id}-fout"`) : '';
@@ -51,11 +52,11 @@ function invalidAttributes(id, error) {
 /**
  * De velden van een menu-item.
  * @param {{menu: string, parentId: (number|null), label: string, href: string, sortOrder: number}} values Waarden.
- * @param {object} errors Fouten per veld.
- * @param {object[]} rows Alle items (voor de keuze van het bovenliggende item).
+ * @param {any} errors Fouten per veld.
+ * @param {any[]} rows Alle items (voor de keuze van het bovenliggende item).
  * @param {(number|null)} selfId Id van het item zelf.
  * @param {{path: string, title: string}[]} pageRows Pagina's (suggesties voor het adres).
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderItemFields(values, errors, rows, selfId, pageRows) {
   const parents = rows.filter((row) => row.menu === 'hoofd' && row.parent_id === null && row.id !== selfId);
@@ -86,7 +87,7 @@ function renderItemFields(values, errors, rows, selfId, pageRows) {
 
 /**
  * Maakt de routes voor menu's.
- * @param {{db: object, auth: object, menus?: object}} options Database, sessie- en rechtenlaag en de menu's.
+ * @param {{db: any, auth: any, menus?: any}} options Database, sessie- en rechtenlaag en de menu's.
  * @returns {express.Router} Router.
  */
 function createMenuRoutes(options) {
@@ -103,9 +104,9 @@ function createMenuRoutes(options) {
 
   /**
    * Audit voor een menu-item.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {string} action Actie.
-   * @param {object} client Transactie-client.
+   * @param {any} client Transactie-client.
    * @param {(number|string)} [id] Id (anders uit de URL).
    * @returns {Promise<void>} Klaar.
    */
@@ -113,8 +114,8 @@ function createMenuRoutes(options) {
 
   /**
    * Het overzicht met beide menu's en het formulier voor een nieuw item.
-   * @param {object} req Express-verzoek.
-   * @param {{notice?: string, error?: string, values?: object, errors?: object}} [state] Melding of ingevulde waarden met fouten.
+   * @param {any} req Express-verzoek.
+   * @param {{notice?: string, error?: string, values?: any, errors?: any}} [state] Melding of ingevulde waarden met fouten.
    * @returns {Promise<string>} HTML.
    */
   const renderOverview = async (req, state = {}) => {
@@ -154,9 +155,9 @@ function createMenuRoutes(options) {
 
   /**
    * Het bewerkscherm van één item.
-   * @param {object} req Express-verzoek.
-   * @param {object} row Het item.
-   * @param {{error?: string, values?: object, errors?: object}} [state] Ingevulde waarden met fouten.
+   * @param {any} req Express-verzoek.
+   * @param {any} row Het item.
+   * @param {{error?: string, values?: any, errors?: any}} [state] Ingevulde waarden met fouten.
    * @returns {Promise<string>} HTML.
    */
   const renderItem = async (req, row, state = {}) => {
@@ -180,7 +181,7 @@ function createMenuRoutes(options) {
   /**
    * Zoekt een item op id.
    * @param {string} id Id uit de URL.
-   * @returns {Promise<(object|null)>} Item.
+   * @returns {Promise<(any|null)>} Item.
    */
   const findItem = async (id) => {
     const [row] = await db.query('SELECT id, menu, parent_id, label, href, sort_order FROM menu_items WHERE id = $1', [Number(id)]);
@@ -189,8 +190,8 @@ function createMenuRoutes(options) {
 
   /**
    * 404 binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => {

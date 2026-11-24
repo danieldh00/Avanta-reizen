@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Foto's bij een reis (CMS-pakket G3, migratie 16): kopfoto, kaartfoto en galerij op volgorde, gekozen uit de
  * fotobibliotheek (tabel `trip_media`). Bij elke wijziging schrijft dit de afgeleide kolommen van de reis opnieuw
@@ -49,7 +50,7 @@ async function libraryUrls(client, urls) {
  * De foto's van een reis die niet in de bibliotheek staan (uit de import): kop, kaart en galerij-items.
  * @param {{query: Function}} client Database of transactie-client.
  * @param {number} tripId Id van de reis.
- * @returns {Promise<{hero: (string|null), card: (string|null), gallery: object[]}>} Adressen en galerij-items.
+ * @returns {Promise<{hero: (string|null), card: (string|null), gallery: any[]}>} Adressen en galerij-items.
  */
 async function importedImages(client, tripId) {
   const [trip] = await client.query('SELECT hero_image_url, card_image_url, gallery FROM trips WHERE id = $1', [tripId]);
@@ -91,8 +92,8 @@ async function syncTripImages(client, tripId, userId, options = {}) {
 
 /**
  * Maakt de functies voor foto's bij reizen.
- * @param {{db: object}} options Database.
- * @returns {object} Functies.
+ * @param {{db: any}} options Database.
+ * @returns {any} Functies.
  */
 function createTripMedia(options) {
   const { db } = options;
@@ -100,7 +101,7 @@ function createTripMedia(options) {
   /**
    * De foto's van een reis, per rol op volgorde.
    * @param {(number|string)} tripId Id van de reis.
-   * @returns {Promise<object[]>} Rijen met `id` (koppeling), `media_id`, `role`, `sort_order` en de gegevens van de foto.
+   * @returns {Promise<any[]>} Rijen met `id` (koppeling), `media_id`, `role`, `sort_order` en de gegevens van de foto.
    */
   const list = (tripId) => db.query(
     `SELECT tm.id, tm.media_id, tm.role, tm.sort_order, m.local_name, m.variants, m.alt_text, m.title, m.width, m.height
@@ -114,10 +115,11 @@ function createTripMedia(options) {
    * kolommen en audit.
    * @param {(number|string)} tripId Id van de reis.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client) => Promise`).
-   * @param {Function} change `(client, tripId) => Promise<string>`: geeft 'ok' of een andere uitkomst.
+   * @template {string} Outcome Mogelijke uitkomsten van de wijziging.
+   * @param {(client: any, tripId: number) => Promise<Outcome>} change Geeft 'ok' of een andere uitkomst.
    * @param {{sync?: boolean, keepImported?: boolean}} [options] `sync: false` laat de afgeleide fotokolommen staan
    *   (alleen tekst gewijzigd); `keepImported: false` haalt foto's die niet in de bibliotheek staan weg.
-   * @returns {Promise<string>} 'ok', 'weg' (geen reis) of de uitkomst van de wijziging.
+   * @returns {Promise<(Outcome|'weg')>} 'ok', 'weg' (geen reis) of de uitkomst van de wijziging.
    */
   const withTrip = (tripId, context, change, options = {}) => db.transaction(async (client) => {
     const [trip] = await client.query('SELECT id FROM trips WHERE id = $1 FOR UPDATE', [Number(tripId)]);
@@ -225,7 +227,7 @@ function createTripMedia(options) {
   /**
    * Foto's van een reis die niet in de bibliotheek staan (uit de import), om op het bewerkscherm te tonen.
    * @param {(number|string)} tripId Id van de reis.
-   * @returns {Promise<{hero: (string|null), card: (string|null), gallery: object[]}>} Adressen en galerij-items.
+   * @returns {Promise<{hero: (string|null), card: (string|null), gallery: any[]}>} Adressen en galerij-items.
    */
   const imported = (tripId) => importedImages(db, Number(tripId));
 

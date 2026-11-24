@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Updates vanuit de app (Beheer > Systeem > Updates). De app rolt zelf niets uit: ze
  * heeft geen Docker-socket en geen rootrechten. Ze praat met het hostscript `deploy/apps01/update.sh` via twee
@@ -109,7 +110,7 @@ function readSmallFile(dir, name) {
  * Leest een klein JSON-bestand (een object) uit een gedeelde map; kapot of geen object telt als afwezig.
  * @param {string} dir De map.
  * @param {string} name Bestandsnaam.
- * @returns {(object|null)} De inhoud, of null.
+ * @returns {(any|null)} De inhoud, of null.
  */
 function readJsonFile(dir, name) {
   const text = readSmallFile(dir, name);
@@ -127,7 +128,7 @@ function readJsonFile(dir, name) {
  * bestand leest; hernoemen vervangt een eventuele symlink zelf in plaats van zijn doel.
  * @param {string} dir De map.
  * @param {string} name Bestandsnaam.
- * @param {object} value De inhoud.
+ * @param {any} value De inhoud.
  * @returns {void}
  */
 function writeJsonFile(dir, name, value) {
@@ -173,8 +174,8 @@ function parseChangelog(text) {
 
 /**
  * Saneert de stand van de host (status.json en run.json samen).
- * @param {(object|null)} raw Inhoud van status.json met die van run.json eroverheen.
- * @returns {object} current, currentCommit, available, availableCommit, checkedAt, state, step, version, commit,
+ * @param {(any|null)} raw Inhoud van status.json met die van run.json eroverheen.
+ * @returns {any} current, currentCommit, available, availableCommit, checkedAt, state, step, version, commit,
  *   requestId, startedAt, finishedAt, message, automatic.
  */
 function sanitizeStatus(raw) {
@@ -201,7 +202,7 @@ function sanitizeStatus(raw) {
  * Maakt de koppeling met het hostscript.
  * @param {{statusDir?: string, requestDir?: string, currentVersion: string, now?: () => number}} options De gedeelde
  *   mappen (leeg = niet ingericht op deze server, bijv. lokaal), de draaiende versie (package.json) en de klok (tests).
- * @returns {object} configured, hostMaintenance, view, request, requestCheck, cancel, setAuto, finishedRun en markAudited.
+ * @returns {any} configured, hostMaintenance, view, request, requestCheck, cancel, setAuto, finishedRun en markAudited.
  */
 function createSystemUpdate({ statusDir = '', requestDir = '', currentVersion, now = () => Date.now() }) {
   const configured = Boolean(statusDir && requestDir);
@@ -224,7 +225,7 @@ function createSystemUpdate({ statusDir = '', requestDir = '', currentVersion, n
   /**
    * Leest status.json en run.json van de host. Een uitrol die te lang "bezig" is (stroomuitval, reboot) telt als
    * onderbroken, anders zou elke nieuwe aanvraag voor altijd op "er loopt al een update" stuiten.
-   * @returns {object} Zie sanitizeStatus.
+   * @returns {any} Zie sanitizeStatus.
    */
   function hostStatus() {
     const status = sanitizeStatus({ ...(readJsonFile(statusDir, 'status.json') || {}), ...(readJsonFile(statusDir, 'run.json') || {}) });
@@ -256,7 +257,7 @@ function createSystemUpdate({ statusDir = '', requestDir = '', currentVersion, n
 
   /**
    * De openstaande aanvraag van de app (nog niet door de host opgepakt).
-   * @returns {(object|null)} id, version, commit, check, requestedAt, byName; of null.
+   * @returns {(any|null)} id, version, commit, check, requestedAt, byName; of null.
    */
   function pending() {
     if (!configured) return null;
@@ -274,7 +275,7 @@ function createSystemUpdate({ statusDir = '', requestDir = '', currentVersion, n
 
   /**
    * Alles voor het scherm in Beheer.
-   * @returns {object} configured, running, status, newer, releases, pending, maintenance en checking.
+   * @returns {any} configured, running, status, newer, releases, pending, maintenance en checking.
    */
   function view() {
     if (!configured) return { configured: false, running: currentVersion };
@@ -297,7 +298,7 @@ function createSystemUpdate({ statusDir = '', requestDir = '', currentVersion, n
   /**
    * Zet de aanvraag "installeer deze commit" klaar voor de host.
    * @param {{commit: string, byName: string}} input De commit uit het formulier (moet de beschikbare zijn) en wie.
-   * @returns {({request: object}|{error: string, status: number, message: string})} De aanvraag of een fout.
+   * @returns {({request: any}|{error: string, status: number, message: string})} De aanvraag of een fout.
    */
   function request({ commit, byName }) {
     if (!configured) return { error: 'not_configured', status: 501, message: 'Updaten vanuit de app is op deze server niet ingericht.' };
@@ -333,7 +334,7 @@ function createSystemUpdate({ statusDir = '', requestDir = '', currentVersion, n
 
   /**
    * Trekt een update-aanvraag in die de host nog niet heeft opgepakt.
-   * @returns {(object|null)} De ingetrokken aanvraag, of null als er geen was.
+   * @returns {(any|null)} De ingetrokken aanvraag, of null als er geen was.
    */
   function cancel() {
     const current = configured ? pending() : null;
@@ -365,7 +366,7 @@ function createSystemUpdate({ statusDir = '', requestDir = '', currentVersion, n
   /**
    * Een afgeronde uitrol die nog niet in het auditlog staat. Schrijft niets: pas na een geslaagde auditregel roept de
    * aanroeper `markAudited(key)` aan, zodat een mislukte regel bij de volgende ronde opnieuw wordt geprobeerd.
-   * @returns {({run: object, key: string}|null)} De status van die uitrol en zijn sleutel, of null.
+   * @returns {({run: any, key: string}|null)} De status van die uitrol en zijn sleutel, of null.
    */
   function finishedRun() {
     if (!configured) return null;

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Versleutelde back-ups van de database (Beheer > Back-ups en herstel, pakket C).
  *
@@ -87,7 +88,7 @@ function isBackupName(name) {
  * Zet een verbindings-URL om naar de omgevingsvariabelen van `pg_dump`, zodat het wachtwoord niet in de proceslijst
  * komt.
  * @param {string} connectionString Verbindings-URL (`postgres://gebruiker:wachtwoord@host:poort/database?sslmode=…`).
- * @returns {object} `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` en eventueel `PGSSLMODE`/`PGOPTIONS`.
+ * @returns {any} `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` en eventueel `PGSSLMODE`/`PGOPTIONS`.
  * @throws {Error} Bij een URL die geen PostgreSQL-adres is.
  */
 function pgEnvironment(connectionString) {
@@ -214,7 +215,7 @@ async function currentSchema(db) {
 /**
  * Maakt een versleutelde back-up: `pg_dump` als stroom door de versleuteling naar `<naam>.part`, daarna volledig
  * gecontroleerd en pas dan hernoemd. Werkt terwijl de app draait (`pg_dump` leest uit één momentopname).
- * @param {{db: object, connectionString: string, dir: string, masterKey: Buffer, pgDumpPath?: string, now?: () => number, timeoutMs?: number}} options
+ * @param {{db: any, connectionString: string, dir: string, masterKey: Buffer, pgDumpPath?: string, now?: () => number, timeoutMs?: number}} options
  *   Database (voor het schema), verbindings-URL, back-upmap, hoofdsleutel, pad van `pg_dump` (standaard `PG_DUMP_PATH`
  *   of `pg_dump`), klok en maximale duur.
  * @returns {Promise<{name: string, size: number, createdAt: string}>} De nieuwe back-up.
@@ -254,17 +255,19 @@ async function createBackup(options) {
     timer = setTimeout(() => child.kill('SIGKILL'), options.timeoutMs || DUMP_TIMEOUT_MS);
     output.write(header);
     const [written, result] = await Promise.allSettled([pipeline(child.stdout, cipher, output, { end: false }), exited]);
-    const exit = result.value || { code: -1 };
+    const exit = (result.status === 'fulfilled' && result.value) || { code: -1 };
     if (exit.error) throw new Error(`pg_dump starten mislukt: ${shortMessage(exit.error.message)}`);
     if (exit.code !== 0) throw new Error(`pg_dump mislukt (code ${exit.code}): ${shortMessage(errors) || 'geen melding'}`);
     if (written.status === 'rejected') throw new Error(`Back-up schrijven mislukt: ${shortMessage(written.reason.message)}`);
-    await new Promise((resolve, reject) => output.end(cipher.getAuthTag(), (error) => (error ? reject(error) : resolve())));
+    // De typen van Node kennen het foutargument van de callback van `end` niet; Node geeft het wel mee.
+    const endOutput = /** @type {(chunk: Buffer, callback: (error?: Error | null) => void) => void} */ (output.end.bind(output));
+    await new Promise((resolve, reject) => endOutput(cipher.getAuthTag(), (error) => (error ? reject(error) : resolve(undefined))));
     await verifyBackup(partFile, masterKey);
     fs.renameSync(partFile, path.join(dir, name));
   } finally {
     if (timer) clearTimeout(timer);
     // Eerst de schrijfstroom echt sluiten: anders kan het bestand (bij een snelle fout) pas ná het opruimen ontstaan.
-    if (!output.closed) await new Promise((resolve) => { output.once('close', resolve); output.destroy(); });
+    if (!output.closed) await new Promise((resolve) => { output.once('close', () => resolve(undefined)); output.destroy(); });
     fs.rmSync(partFile, { force: true });
   }
   const { size } = fs.statSync(path.join(dir, name));
@@ -340,7 +343,7 @@ function isDue({ now, hour, backups, lastFailAt }) {
 /**
  * Leest het statusbestand van de back-ups (laatste poging, laatste fout).
  * @param {string} dir Back-upmap.
- * @returns {{lastRun: (object|null), lastOkAt: string, lastFailAt: string}} De status (leeg als er nog geen is).
+ * @returns {{lastRun: (any|null), lastOkAt: string, lastFailAt: string}} De status (leeg als er nog geen is).
  */
 function readStatus(dir) {
   const empty = { lastRun: null, lastOkAt: '', lastFailAt: '' };
@@ -385,11 +388,11 @@ function writeStatus(dir, run) {
 
 /**
  * Maakt de back-updienst van de app: één back-up tegelijk, bewaartermijn, status en de dagelijkse planner.
- * @param {{db: object, settings: object, dir: string, masterKey: Buffer, connectionString?: string, pgDumpPath?: string, now?: () => number, onCreated?: Function}} options
+ * @param {{db: any, settings: any, dir: string, masterKey: Buffer, connectionString?: string, pgDumpPath?: string, now?: () => number, onCreated?: Function}} options
  *   Database, instellingen (`backupEnabled`, `backupHour`, `backupKeepDays`), back-upmap, hoofdsleutel, verbindings-URL
  *   (zonder: back-ups niet beschikbaar), pad van `pg_dump`, klok (tests) en een functie die na elke geslaagde back-up
  *   wordt aangeroepen (bijv. de kopie naar Google Drive).
- * @returns {object} `available`, `list`, `status`, `idle`, `run`, `runIfDue`, `startTimer`, `fileOf`, `keyId`, `dir`.
+ * @returns {any} `available`, `list`, `status`, `idle`, `run`, `runIfDue`, `startTimer`, `fileOf`, `keyId`, `dir`.
  */
 function createBackupService(options) {
   const { db, settings, dir, masterKey } = options;
@@ -406,7 +409,7 @@ function createBackupService(options) {
    * Maakt nu een back-up (of wacht op de lopende), ruimt daarna oude back-ups op en schrijft een auditregel
    * `backup.gemaakt`: via `context.audit` (de route, met gebruiker en IP-voorvoegsel), anders zonder gebruiker
    * (automatisch, opdrachtregel). Het verzoek is dan al beantwoord; een mislukte auditregel wordt gelogd.
-   * @param {{trigger?: string, audit?: (backup: object) => Promise<void>}} [context] Aanleiding (`automatisch`,
+   * @param {{trigger?: string, audit?: (backup: any) => Promise<void>}} [context] Aanleiding (`automatisch`,
    *   `handmatig`, `update`) en de functie die de auditregel schrijft.
    * @returns {Promise<{name: string, size: number, createdAt: string}>} De back-up.
    * @throws {Error} Als de back-up mislukt (ook vastgelegd in de status).
@@ -447,7 +450,7 @@ function createBackupService(options) {
 
   /**
    * Maakt een automatische back-up als die aan de beurt is (zie `isDue`).
-   * @returns {Promise<(object|null)>} De back-up, of null als het niet nodig was.
+   * @returns {Promise<(any|null)>} De back-up, of null als het niet nodig was.
    */
   const runIfDue = async () => {
     await settings.ready();

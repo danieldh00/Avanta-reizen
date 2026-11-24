@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Toegang tot het CRM: inloggen, uitloggen, de eerste beheerder aanmaken met de installatiecode en het eigen
  * wachtwoord wijzigen. De tweede stap (code) staat in `crm/two-factor.js`, sessies en CSRF in `crm/auth.js`.
@@ -56,7 +57,7 @@ function normalizeSetupCode(value) {
 
 /**
  * De actie in het auditlog bij een mislukte login.
- * @param {(object|undefined)} user Gevonden gebruiker.
+ * @param {(any|undefined)} user Gevonden gebruiker.
  * @param {boolean} blocked Of het account geblokkeerd is door te veel pogingen.
  * @returns {string} `inloggen.inactief`, `inloggen.geblokkeerd` of `inloggen.mislukt`.
  */
@@ -68,7 +69,7 @@ function failedLoginAction(user, blocked) {
 
 /**
  * Bouwt de routes voor inloggen, uitloggen, installatie en wachtwoord wijzigen.
- * @param {{db: object, auth: object, twoFactor: object, passwordCheck: object, setupCode?: string, now?: () => number}} options
+ * @param {{db: any, auth: any, twoFactor: any, passwordCheck: any, setupCode?: string, now?: () => number}} options
  *   Database, sessies (`crm/auth.js`), tweestapsverificatie, de wachtwoordcontrole, de installatiecode voor de eerste
  *   beheerder (zonder code geen installatie) en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router, te koppelen binnen `/app`.
@@ -85,8 +86,8 @@ function createLoginRoutes(options) {
   const accountFailureLimiter = createRateLimiter({ limit: MAX_FAILED_LOGINS_PER_ACCOUNT, windowMs: ACCOUNT_WINDOW_MINUTES * 60 * 1000, now: options.now });
   /**
    * Weigert een POST zonder sessie van een andere site (inloggen, installatie).
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende stap.
    * @returns {void}
    */
@@ -139,8 +140,8 @@ function createLoginRoutes(options) {
    * Telt een inlogpoging mee in de limieten voor mislukte pogingen: per account en IP-voorvoegsel, en per account over
    * alle reeksen samen (een nieuwe reeks telt één keer). Bij een geslaagde login wist de route de tellers weer.
    * Bij een onbekend adres telt er niets (er is geen account om te blokkeren).
-   * @param {object} req Express-verzoek (voor het IP-voorvoegsel).
-   * @param {(object|undefined)} user Gevonden gebruiker.
+   * @param {any} req Express-verzoek (voor het IP-voorvoegsel).
+   * @param {(any|undefined)} user Gevonden gebruiker.
    * @returns {{blocked: boolean, failureKey: string, accountKey: string}} Of het account nu geblokkeerd is, en de
    *   sleutels van de tellers.
    */
@@ -211,7 +212,7 @@ function createLoginRoutes(options) {
 
   /**
    * Het installatiescherm voor de eerste beheerder.
-   * @param {{values?: object, errors?: object}} state Ingevulde waarden en fouten per veld.
+   * @param {{values?: any, errors?: any}} state Ingevulde waarden en fouten per veld.
    * @returns {string} HTML-pagina.
    */
   const renderSetup = (state = {}) => {
@@ -236,7 +237,7 @@ function createLoginRoutes(options) {
 
   /**
    * Antwoord als de installatie niet (meer) beschikbaar is.
-   * @param {object} res Express-antwoord.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const setupClosed = (res) => res.status(404).send(renderCrmPage({ title: 'Niet gevonden', body: html`<p>Deze pagina bestaat niet. <a href="/app/inloggen/">Inloggen</a></p>` }));
@@ -292,8 +293,8 @@ function createLoginRoutes(options) {
 
   /**
    * Het scherm om het eigen wachtwoord te wijzigen.
-   * @param {object} req Express-verzoek.
-   * @param {{errors?: object, done?: boolean}} state Fouten per veld en of het gelukt is.
+   * @param {any} req Express-verzoek.
+   * @param {{errors?: any, done?: boolean}} state Fouten per veld en of het gelukt is.
    * @returns {string} HTML-pagina.
    */
   const renderPasswordPage = (req, state = {}) => {

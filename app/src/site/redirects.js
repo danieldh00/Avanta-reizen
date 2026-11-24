@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Doorverwijzingen (301/302) en de lijst met niet-gevonden adressen (404), te beheren in Beheer > Vindbaarheid.
  * - Doorverwijzingen staan in de tabel `redirects` en in het geheugen (één proces); de middleware stuurt een bezoeker
@@ -83,7 +84,7 @@ function isNoisePath(path) {
 /**
  * Controleert een nieuwe doorverwijzing.
  * @param {{from: *, to: *, status: *}} input Invoer uit het formulier.
- * @returns {{values: {fromPath: string, toUrl: string, status: number}, errors: object}} Schone waarden en fouten per veld.
+ * @returns {{values: {fromPath: string, toUrl: string, status: number}, errors: any}} Schone waarden en fouten per veld.
  */
 function validateRedirect(input) {
   const errors = {};
@@ -134,8 +135,8 @@ function referrerHostOf(referrer, ownHost) {
 
 /**
  * Maakt de laag voor doorverwijzingen en de 404-lijst.
- * @param {{db: object, settings?: object}} options Database en de instellingen (bewaartermijn van de 404-lijst).
- * @returns {object} Functies: `ready`, `reload`, `middleware`, `recordNotFound`, `flush`, `purge`, `forgetKnownNotFound`,
+ * @param {{db: any, settings?: any}} options Database en de instellingen (bewaartermijn van de 404-lijst).
+ * @returns {any} Functies: `ready`, `reload`, `middleware`, `recordNotFound`, `flush`, `purge`, `forgetKnownNotFound`,
  *   `startTimers`.
  */
 function createRedirects(options) {
@@ -171,8 +172,8 @@ function createRedirects(options) {
   /**
    * Middleware: stuurt een GET/HEAD op een bekend oud pad door (met de querystring van het verzoek als het doel er
    * zelf geen heeft). Een pad zonder slash aan het eind telt ook met slash.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende stap.
    * @returns {Promise<void>}
    */
@@ -197,7 +198,7 @@ function createRedirects(options) {
 
   /**
    * Telt een 404 op de site (in het geheugen; `flush` schrijft weg).
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @returns {void}
    */
   const recordNotFound = (req) => {

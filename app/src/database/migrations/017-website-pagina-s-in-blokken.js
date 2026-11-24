@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 17: website: pagina's in blokken.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

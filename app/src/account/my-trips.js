@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Mijn reizen en Mijn gegevens van het reizigersaccount (CMS-pakket J3). Een account hoort bij zijn bevestigde
  * e-mailadres: de aanmeldingen met dat adres zijn de reizen van de reiziger (index `bookings_email_idx` op
@@ -30,7 +31,7 @@ function paymentState(status) {
 
 /**
  * Maakt de functies voor Mijn reizen.
- * @param {{db: object}} options De database.
+ * @param {{db: any}} options De database.
  * @returns {{bookingsOf: Function, ownDetailsOf: Function, overview: Function, details: Function, exportXlsx: Function}} Functies.
  */
 function createMyTrips(options) {
@@ -39,7 +40,7 @@ function createMyTrips(options) {
   /**
    * De aanmeldingen bij een e-mailadres, nieuwste vertrek eerst, met de reis als die nog online staat.
    * @param {string} email Bevestigd e-mailadres van het account (kleine letters).
-   * @returns {Promise<object[]>} Aanmeldingen.
+   * @returns {Promise<any[]>} Aanmeldingen.
    */
   const bookingsOf = (email) => db.query(
     `SELECT b.reference, b.trip_title, b.trip_code, b.departure_date, b.status, b.payment_choice, b.price_cents, b.created_at,
@@ -56,7 +57,7 @@ function createMyTrips(options) {
    * `customer_account_id`). Nooit op e-mailadres: het aanmeldformulier bevestigt dat adres niet, dus een aanmelding met
    * dit adres kan van iemand anders zijn.
    * @param {number} accountId Id van het reizigersaccount.
-   * @returns {Promise<(object|null)>} Naam, geslacht, adres, telefoon en beroep, of null zonder eigen aanmelding.
+   * @returns {Promise<(any|null)>} Naam, geslacht, adres, telefoon en beroep, of null zonder eigen aanmelding.
    */
   const ownDetailsOf = async (accountId) => {
     const [row] = await db.query(
@@ -69,8 +70,8 @@ function createMyTrips(options) {
 
   /**
    * Eén aanmelding als kaart: reis, datum, referentie, status en betaalstand.
-   * @param {object} booking Aanmelding.
-   * @returns {object} HTML.
+   * @param {any} booking Aanmelding.
+   * @returns {any} HTML.
    */
   const bookingCard = (booking) => html`<li class="account-trip">
     <h3 class="account-trip__title">${booking.trip_slug ? html`<a href="${tripPath(booking.trip_slug)}">${booking.trip_title}</a>` : booking.trip_title}</h3>
@@ -86,7 +87,7 @@ function createMyTrips(options) {
   /**
    * Het overzicht Mijn reizen: komende en eerdere reizen, en links naar Mijn gegevens.
    * @param {{email: string}} customer De ingelogde reiziger.
-   * @returns {Promise<object>} HTML.
+   * @returns {Promise<any>} HTML.
    */
   const overview = async (customer) => {
     const bookings = await bookingsOf(customer.email);
@@ -111,7 +112,7 @@ function createMyTrips(options) {
    * het aanmeldformulier bevestigt het e-mailadres niet, dus een aanmelding met dit adres kan van iemand anders zijn.
    * @param {{email: string}} customer De ingelogde reiziger.
    * @param {{created_at: Date, verified_at: Date}} account Accountgegevens.
-   * @returns {Promise<object>} HTML.
+   * @returns {Promise<any>} HTML.
    */
   const details = async (customer, account) => {
     const bookings = await bookingsOf(customer.email);

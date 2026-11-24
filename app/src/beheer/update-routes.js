@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Beheer > Systeem > Updates en onderhoud (recht `systeem`): welke versie draait en klaarstaat (met releasenotes),
  * *Nu controleren*, *Nu updaten* (met het eigen wachtwoord), een aanvraag intrekken, automatisch bijwerken aan/uit en
@@ -38,8 +39,8 @@ const recorded = new Set();
  * Legt een afgeronde uitrol (ook een automatische) één keer vast in het auditlog, zonder gebruiker. Pas na een
  * geslaagde regel wordt hij als vastgelegd onthouden (in het geheugen en op schijf); mislukt de regel, dan volgt een
  * nieuwe poging bij de volgende ronde. Mislukt alleen het onthouden op schijf, dan schrijft dit proces hem niet opnieuw.
- * @param {object} db Database.
- * @param {object} systemUpdate De koppeling met het hostscript.
+ * @param {any} db Database.
+ * @param {any} systemUpdate De koppeling met het hostscript.
  * @returns {Promise<boolean>} true als er een regel is geschreven.
  */
 async function recordFinishedRun(db, systemUpdate) {
@@ -64,7 +65,7 @@ async function recordFinishedRun(db, systemUpdate) {
 /**
  * Houdt de host en het auditlog bij, los van de pagina (een GET schrijft niets): bij het starten en daarna elke minuut
  * de stand van "automatisch bijwerken" naar `policy.json` en een afgeronde uitrol in het auditlog.
- * @param {{db: object, settings: object, systemUpdate: object, intervalMs?: number}} options Database, instellingen,
+ * @param {{db: any, settings: any, systemUpdate: any, intervalMs?: number}} options Database, instellingen,
  *   koppeling met het hostscript en (voor tests) de tussentijd.
  * @returns {{sync: Function, timer: NodeJS.Timeout}} De ronde en de timer.
  */
@@ -84,8 +85,8 @@ function startUpdateSync({ db, settings, systemUpdate, intervalMs = 60 * 1000 })
 
 /**
  * De tabel met de draaiende en beschikbare versie, de laatste controle en de laatste uitrol.
- * @param {object} view Weergave uit `systemUpdate.view()` (ingericht).
- * @returns {object} HTML.
+ * @param {any} view Weergave uit `systemUpdate.view()` (ingericht).
+ * @returns {any} HTML.
  */
 function renderVersionFacts(view) {
   const { status } = view;
@@ -99,11 +100,11 @@ function renderVersionFacts(view) {
 
 /**
  * Het blok om een nieuwere versie te installeren: releasenotes en het formulier met het wachtwoord.
- * @param {object} req Express-verzoek.
- * @param {object} status Stand van de updates (`view.status`).
- * @param {object[]} releases Releasenotes tussen de draaiende en de beschikbare versie.
+ * @param {any} req Express-verzoek.
+ * @param {any} status Stand van de updates (`view.status`).
+ * @param {any[]} releases Releasenotes tussen de draaiende en de beschikbare versie.
  * @param {{passwordError?: string}} state Fout bij het wachtwoord.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderInstallForm(req, status, releases, state) {
   const csrf = req.session.csrf;
@@ -128,7 +129,7 @@ function renderInstallForm(req, status, releases, state) {
 
 /**
  * Maakt de routes.
- * @param {{db: object, auth: object, guard: Function, settings: object, systemUpdate: object, renderBeheerPage: Function, now?: () => number}} options
+ * @param {{db: any, auth: any, guard: Function, settings: any, systemUpdate: any, renderBeheerPage: Function, now?: () => number}} options
  *   Database, sessielaag, rechtencontrole, instellingen, de koppeling met het hostscript, de weergave van een
  *   Beheer-pagina en (voor tests) de klok van de limieten.
  * @returns {{router: express.Router}} Router.
@@ -144,16 +145,16 @@ function createUpdateRoutes(options) {
   /**
    * Een melding boven de pagina.
    * @param {{ok: boolean, message: string}} [result] Uitkomst van een actie.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderResult = (result) => (result ? html`<p class="${result.ok ? 'notice' : 'form-alert'}" role="${result.ok ? 'status' : 'alert'}">${result.message}</p>` : '');
 
   /**
    * Het blok met versies, de laatste uitrol, releasenotes en knoppen.
-   * @param {object} req Express-verzoek.
-   * @param {object} view Weergave uit `systemUpdate.view()`.
-   * @param {object} state Fout bij het wachtwoord.
-   * @returns {object} HTML.
+   * @param {any} req Express-verzoek.
+   * @param {any} view Weergave uit `systemUpdate.view()`.
+   * @param {any} state Fout bij het wachtwoord.
+   * @returns {any} HTML.
    */
   const renderUpdateBlock = (req, view, state) => {
     if (!view.configured) {
@@ -182,8 +183,8 @@ function createUpdateRoutes(options) {
 
   /**
    * De pagina.
-   * @param {object} req Express-verzoek.
-   * @param {{result?: object, passwordError?: string}} [state] Uitkomst van een actie.
+   * @param {any} req Express-verzoek.
+   * @param {{result?: any, passwordError?: string}} [state] Uitkomst van een actie.
    * @returns {string} HTML-pagina.
    */
   const renderPage = (req, state = {}) => {
@@ -212,8 +213,8 @@ function createUpdateRoutes(options) {
 
   /**
    * Slaat instellingen van deze pagina op, met audit in dezelfde transactie.
-   * @param {object} req Express-verzoek.
-   * @param {object} values Nieuwe waarden.
+   * @param {any} req Express-verzoek.
+   * @param {any} values Nieuwe waarden.
    * @returns {Promise<string[]>} Gewijzigde instellingen.
    */
   const saveSettings = (req, values) => settings.update({ values }, {
@@ -225,8 +226,8 @@ function createUpdateRoutes(options) {
 
   /**
    * Een fout bij een actie als pagina met melding.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {number} status HTTP-status.
    * @param {string} message Melding.
    * @returns {void}

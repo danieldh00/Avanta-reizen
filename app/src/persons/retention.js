@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * AVG-opschoning (OPZET-CRM §5): bewaartermijnen afdwingen. Elke dag (en met *Nu opschonen* in Beheer) wist de app:
  * - bijzondere en paspoortgegevens van een persoon zoveel maanden na de laatste reis (de geboortedatum blijft, die
@@ -161,9 +162,9 @@ async function anonymizePerson(client, personId) {
 
 /**
  * Maakt de opschoning.
- * @param {{db: object, persons: object, settings: object, today?: () => string}} options Database, de personen
+ * @param {{db: any, persons: any, settings: any, today?: () => string}} options Database, de personen
  *   (`persons/persons.js`, voor het openen van het identiteitsblok), de instellingen (termijnen) en (voor tests) de datum van vandaag.
- * @returns {object} `run`, `preview`, `view`, `refresh`, `tick` en `start`.
+ * @returns {any} `run`, `preview`, `view`, `refresh`, `tick` en `start`.
  */
 function createRetention(options) {
   const { db, persons, settings } = options;
@@ -201,7 +202,7 @@ function createRetention(options) {
    * @param {string} rule Naam van de regel.
    * @param {string} table Tabel om te vergrendelen (`persons` of `bookings`).
    * @param {{today: string, term: number}} params Datum en termijn.
-   * @param {(client: object, id: number, row: object) => Promise<boolean>} handle Verwerkt één record; false = mislukt.
+   * @param {(client: any, id: number) => Promise<boolean>} handle Verwerkt één record; false = mislukt.
    * @returns {Promise<{done: number, failed: number}>} Aantallen.
    */
   const processRule = async (rule, table, params, handle) => {
@@ -359,7 +360,7 @@ function createRetention(options) {
 
   /**
    * De laatste rondes (uit het geheugen, bijgewerkt na elke ronde en bij het starten).
-   * @returns {{runs: object[], running: boolean, enabled: boolean}} Stand.
+   * @returns {{runs: any[], running: boolean, enabled: boolean}} Stand.
    */
   const view = () => ({ runs, running, enabled: settings.get('retentionEnabled') });
 

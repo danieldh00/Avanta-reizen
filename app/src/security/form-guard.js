@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Gedeelde bescherming voor openbare formulieren (aanmelden, contact): controle op herkomst, een limiet per bezoeker,
  * een honeypot-veld en een ondertekend tijdstempel dat te snel of te laat insturen tegenhoudt.
@@ -22,7 +23,7 @@ const TOKEN_MESSAGE = 'Het formulier is verlopen of te snel verstuurd. Controlee
  * `Origin: null` stuurt een browser onder meer bij een formulier op een pagina met `Referrer-Policy: no-referrer`.
  * Dat telt alleen als eigen site wanneer de browser zelf `Sec-Fetch-Site: same-origin` meldt; die kop kan een
  * andere site niet vervalsen. Zonder die kop blijft `Origin: null` een verzoek van een andere site.
- * @param {object} req Express-verzoek.
+ * @param {any} req Express-verzoek.
  * @returns {boolean} Waar als het verzoek van een andere site komt.
  */
 function isCrossSite(req) {
@@ -70,7 +71,7 @@ function createFormGuard(options) {
 
   /**
    * De verborgen velden voor in het formulier: het token en de honeypot.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const hiddenFields = () => html`<input type="hidden" name="token" value="${signToken(now())}">
         <div class="honeypot" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>`;
@@ -78,7 +79,7 @@ function createFormGuard(options) {
   /**
    * Of de honeypot is ingevuld. Alleen dan wordt een inzending stil genegeerd (met de gewone bedanktmelding);
    * een mens ziet dat verborgen veld niet.
-   * @param {object} body Ingezonden velden.
+   * @param {any} body Ingezonden velden.
    * @returns {boolean} Waar als de inzending van een bot komt.
    */
   const isBot = (body) => Boolean(body.website);
@@ -87,15 +88,15 @@ function createFormGuard(options) {
    * Controleert het token van een inzending en geeft bij een probleem een melding voor de bezoeker. Een ongeldig,
    * verlopen of te snel token kan ook een mens overkomen (formulier lang open laten staan, automatisch invullen):
    * dan toont de route het formulier opnieuw (422) met de ingevulde waarden en een nieuw token.
-   * @param {object} body Ingezonden velden.
+   * @param {any} body Ingezonden velden.
    * @returns {string} Lege tekst als het token geldig is, anders de melding.
    */
   const tokenProblem = (body) => (checkToken(body.token) ? '' : TOKEN_MESSAGE);
 
   /**
    * Express-middleware: weigert verzoeken van een andere site (403) en bezoekers boven de limiet (429).
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende stap.
    * @returns {void}
    */

@@ -16,7 +16,7 @@ const SECTIONS = GROUPS.flatMap((group) => group.sections.map((section) => ({ ..
 /**
  * Zoekt een sectie op id.
  * @param {string} id Id uit de URL.
- * @returns {(object|undefined)} De sectie, of niets.
+ * @returns {(typeof SECTIONS[number]|undefined)} De sectie, of niets.
  */
 function findSection(id) {
   return SECTIONS.find((section) => section.id === id);
@@ -36,7 +36,7 @@ function normalizeSearch(text) {
  * de zoekwoorden of de labels van haar instellingen.
  * @param {string} query Zoekterm (leeg = alles).
  * @param {object} fields Beschrijvingen van de instellingen (`SETTING_FIELDS`).
- * @returns {Array<{title: string, sections: object[]}>} Groepen met de passende secties (lege groepen vallen weg).
+ * @returns {Array<{title: string, sections: typeof GROUPS[number]["sections"]}>} Groepen met de passende secties (lege groepen vallen weg).
  */
 function filterGroups(query, fields) {
   const terms = normalizeSearch(query).split(/\s+/).filter(Boolean).slice(0, 8);

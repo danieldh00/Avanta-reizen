@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Eigen SVG-iconen van de website in dezelfde stijl als de huidige site (lijniconen, 24 × 24): reistypes, social media
  * en de kleine iconen in kop, menu, filter en reisdetail. Ze staan als vaste paden in de code en worden inline
@@ -93,7 +94,7 @@ const TYPE_ICONS = {
 /**
  * Tekent één vorm van een icoon.
  * @param {{d?: string, circle?: number[], rect?: number[], fill?: boolean}} shape De vorm.
- * @returns {object} HTML van de vorm.
+ * @returns {any} HTML van de vorm.
  */
 function renderShape(shape) {
   const className = shape.fill ? 'icon__fill' : '';
@@ -113,7 +114,7 @@ function renderShape(shape) {
  * toegankelijke naam.
  * @param {string} name Naam uit `ICONS`.
  * @param {{label?: string, className?: string}} [options] Toegankelijke naam en extra CSS-klasse.
- * @returns {object} HTML van het icoon (leeg bij een onbekende naam).
+ * @returns {any} HTML van het icoon (leeg bij een onbekende naam).
  */
 function icon(name, options = {}) {
   const shapes = ICONS[name];

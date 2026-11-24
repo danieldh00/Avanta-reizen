@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Beheer > Vindbaarheid: doorverwijzingen (301/302) en de lijst met niet-gevonden adressen (404). Alleen met het recht
  * `systeem`; elke wijziging komt in het auditlog (welke doorverwijzing, nooit een pad uit de 404-lijst). De laag zelf
@@ -33,7 +34,7 @@ function readablePath(path) {
 
 /**
  * Leest één veld uit een formulier als tekst; een herhaald veld (lijst) of een ontbrekend veld geeft leeg.
- * @param {object} body Ingezonden velden.
+ * @param {any} body Ingezonden velden.
  * @param {string} name Naam van het veld.
  * @returns {string} Tekst.
  */
@@ -69,7 +70,7 @@ function targetKeysOf(toUrl) {
  * Controleert een nieuwe doorverwijzing tegen de bestaande: geen lus, dubbel, keten of overschrijding van het maximum.
  * @param {{fromPath: string, toUrl: string}} values Oud pad en nieuw adres.
  * @param {{taken: boolean, target_redirected: boolean, source_is_target: boolean, total: number}} existing Uitkomst van `CHAIN_QUERY`.
- * @returns {object} Fouten per veld (leeg als alles klopt).
+ * @returns {any} Fouten per veld (leeg als alles klopt).
  */
 function chainProblems(values, existing) {
   if (targetKeysOf(values.toUrl).includes(values.fromPath)) return { to: 'Het nieuwe adres komt weer uit bij het oude pad.' };
@@ -91,7 +92,7 @@ function likePattern(text) {
 
 /**
  * Maakt de routes voor doorverwijzingen en de 404-lijst.
- * @param {{db: object, auth: object, guard: Function, redirects: object, renderBeheerPage: Function, notFound: Function}} options
+ * @param {{db: any, auth: any, guard: Function, redirects: any, renderBeheerPage: Function, notFound: Function}} options
  *   Database, sessie- en auditlaag, de rechtencontrole, de laag voor doorverwijzingen, en de pagina-opmaak en 404 van Beheer.
  * @returns {express.Router} Router, te koppelen vóór de algemene secties van Beheer.
  */
@@ -101,8 +102,8 @@ function createRedirectRoutes(options) {
 
   /**
    * De pagina met doorverwijzingen: formulier voor een nieuwe en de lijst (eventueel gefilterd).
-   * @param {object} req Express-verzoek.
-   * @param {{values?: object, errors?: object}} [state] Ingevulde waarden en fouten na een mislukte poging.
+   * @param {any} req Express-verzoek.
+   * @param {{values?: any, errors?: any}} [state] Ingevulde waarden en fouten na een mislukte poging.
    * @returns {Promise<string>} HTML-pagina.
    */
   const renderRedirectsPage = async (req, state = {}) => {
@@ -175,7 +176,7 @@ function createRedirectRoutes(options) {
 
   /**
    * De 404-lijst: de vaakst gevraagde adressen die niet bestaan, met een knop om ze door te verwijzen.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @returns {Promise<string>} HTML-pagina.
    */
   const renderNotFoundPage = async (req) => {

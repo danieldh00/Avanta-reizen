@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Deelnemerslijst per vertrek als Excel-bestand (.xlsx, nooit CSV; zie `docs/OPZET-CRM.md` §2E en §4). Eén rij per
  * aanmelding die niet geannuleerd is, met de actuele gegevens van de persoon (of de momentopname van het formulier als
@@ -53,7 +54,7 @@ function optionLabel(field, value) {
 
 /**
  * De vaste kolommen van de lijst (NAW, contact en reisgegevens). `value` krijgt een rij uit `loadParticipants`.
- * @type {Array<{label: string, value: (row: object) => (string|number)}>}
+ * @type {Array<{label: string, value: (row: any) => (string|number)}>}
  */
 const BASE_COLUMNS = [
   { label: 'Nr.', value: (row) => row.number },
@@ -115,7 +116,7 @@ const BOOKING_EXTRA = ['travel_with', 'earlier_trip', 'credit_card', 'driver_int
  * @param {{query: Function}} db Database.
  * @param {number} tripId Id van de reis.
  * @param {number} max Hoogstens zoveel rijen; er komt er één meer terug als de reis er meer heeft (dan weigeren).
- * @returns {Promise<Array<object>>} Rijen op achternaam; `plain` bevat de NAW-velden (persoon, anders formulier).
+ * @returns {Promise<Array<any>>} Rijen op achternaam; `plain` bevat de NAW-velden (persoon, anders formulier).
  */
 async function loadParticipants(db, tripId, max) {
   const rows = await db.query(
@@ -140,7 +141,7 @@ async function loadParticipants(db, tripId, max) {
 /**
  * Of een art. 9-blok van een rij mee mag: blokken zonder toestemmingsplicht altijd, anders alleen met een niet
  * ingetrokken toestemming.
- * @param {object} row Rij uit `loadParticipants`.
+ * @param {any} row Rij uit `loadParticipants`.
  * @param {string} block Naam van het blok.
  * @returns {boolean} Waar als het blok mee mag.
  */
@@ -153,7 +154,7 @@ function consentAllows(row, block) {
 /**
  * Bouwt de werkmap: blad *Deelnemers* met de gekozen kolommen en blad *Over deze lijst* met reis, moment, maker en
  * de opgenomen categorieën.
- * @param {{trip: object, rows: object[], categories: string[], openBlock: Function, userName: string, limited?: boolean, now?: Date}} input
+ * @param {{trip: any, rows: any[], categories: string[], openBlock: Function, userName: string, limited?: boolean, now?: Date}} input
  *   De reis, de rijen, de gekozen categorieën (sleutels van CATEGORIES, al op rechten gecontroleerd), de functie
  *   `persons.openBlock`, de naam van de maker, of het de beperkte lijst van de reisleider is en (voor tests) het moment.
  * @returns {Buffer} Het .xlsx-bestand.

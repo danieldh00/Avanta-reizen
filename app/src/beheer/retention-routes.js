@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Extra's van Beheer > Toegang en beveiliging > AVG en bewaartermijnen (recht `systeem`): de laatste rondes van de
  * AVG-opschoning met aantallen, een voorbeeld van wat de volgende ronde zou doen en *Nu opschonen*. De termijnen staan
@@ -28,7 +29,7 @@ function summarize(counts) {
 
 /**
  * Maakt de routes en het paneel van de AVG-opschoning.
- * @param {{auth: object, guard: Function, retention: object, renderSettingsSection: Function, now?: () => number}} options
+ * @param {{auth: any, guard: Function, retention: any, renderSettingsSection: Function, now?: () => number}} options
  *   Sessielaag, rechtencontrole, de opschoning (`persons/retention.js`), de weergave van een instellingensectie en (voor
  *   tests) de klok van de limieten.
  * @returns {{router: express.Router, renderPanel: Function}} Router en paneel (voor onder het formulier).
@@ -42,9 +43,9 @@ function createRetentionRoutes(options) {
 
   /**
    * Het paneel onder het formulier.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{result?: {ok: boolean, message: string}, preview?: Record<string, number>}} [state] Uitkomst van een actie.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderPanel = (req, state = {}) => {
     const view = retention.view();
@@ -80,8 +81,8 @@ function createRetentionRoutes(options) {
 
   /**
    * Weigert met 429 als de limiet bereikt is.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {boolean} Waar als het verzoek is afgehandeld (geweigerd).
    */
   const refuseOverLimit = (req, res) => {

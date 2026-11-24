@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Online betalen via Mollie (migratie 28), bovenop de handmatige registratie van betalingen. Elke aanmelding heeft
  * een vaste, niet te raden betaallink `/betalen/<id>-<token>/` (HMAC van het id met een sleutel uit de hoofdsleutel);
@@ -37,10 +38,10 @@ const ONLINE_STATES = {
 
 /**
  * Maakt de functies voor online betalen.
- * @param {{db: object, settings: object, mollie: object, masterKey: Buffer, previousKeys?: Buffer[], appLog?: object, now?: () => number}} options
+ * @param {{db: any, settings: any, mollie: any, masterKey: Buffer, previousKeys?: Buffer[], appLog?: any, now?: () => number}} options
  *   Database, instellingen, Mollie-koppeling, hoofdsleutel (plus vorige sleutels: betaallinks uit mails van vóór een
  *   sleutelrotatie blijven geldig), logboek en klok.
- * @returns {object} Functies.
+ * @returns {any} Functies.
  */
 function createOnlinePayments(options) {
   const { db, settings, mollie } = options;
@@ -124,7 +125,7 @@ function createOnlinePayments(options) {
    * @param {{query: Function}} client Database of transactie-client.
    * @param {number} bookingId Id.
    * @param {boolean} [lock] De aanmelding vergrendelen.
-   * @returns {Promise<(object|null)>} `{booking, summary, kind, amountCents}` of null.
+   * @returns {Promise<(any|null)>} `{booking, summary, kind, amountCents}` of null.
    */
   const loadState = async (client, bookingId, lock = false) => {
     const [booking] = await client.query(
@@ -142,7 +143,7 @@ function createOnlinePayments(options) {
 
   /**
    * Of een aanmelding online kan betalen (niet geannuleerd of geanonimiseerd, en er staat iets open).
-   * @param {object} state Uitkomst van `loadState`.
+   * @param {any} state Uitkomst van `loadState`.
    * @returns {(''|'geannuleerd'|'niets-open')} Leeg als het kan, anders de reden.
    */
   const blockedReason = (state) => {
@@ -267,7 +268,7 @@ function createOnlinePayments(options) {
   /**
    * De online betalingen van een aanmelding, nieuwste eerst.
    * @param {number} bookingId Id.
-   * @returns {Promise<object[]>} Regels.
+   * @returns {Promise<any[]>} Regels.
    */
   const list = (bookingId) => db.query(
     'SELECT provider_ref, kind, amount_cents, status, created_at, paid_at FROM online_payments WHERE booking_id = $1 ORDER BY created_at DESC, id DESC LIMIT 50',
@@ -277,7 +278,7 @@ function createOnlinePayments(options) {
   /**
    * De laatste online betaling van een aanmelding (voor de terugkeerpagina).
    * @param {number} bookingId Id.
-   * @returns {Promise<(object|null)>} Regel of null.
+   * @returns {Promise<(any|null)>} Regel of null.
    */
   const latest = async (bookingId) => {
     const [row] = await db.query('SELECT provider_ref, status FROM online_payments WHERE booking_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1', [bookingId]);

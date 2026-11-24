@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Opdrachtregel voor het CRM (in de app-container, zelfde omgeving als de app), bevinding F07:
  *   node src/crm/cli.js beheerder-herstel <e-mailadres>
@@ -100,7 +101,7 @@ async function main(args) {
   const db = createDatabase(connectionString());
   try {
     const result = await recoverAdmin(db, email);
-    if (!result.ok) {
+    if (result.ok === false) {
       console.error('Er is geen actieve beheerder met dit e-mailadres.');
       console.error(result.admins.length ? `Actieve beheerders: ${result.admins.join(', ')}` : 'Er is geen enkele actieve beheerder; maak er een aan via /app/installatie/ als de tabel leeg is.');
       return 2;

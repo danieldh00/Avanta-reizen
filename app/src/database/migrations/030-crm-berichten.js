@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 30: CRM: berichten via het contactformulier afhandelen.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

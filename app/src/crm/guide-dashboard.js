@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Het overzicht van het CRM (`/app/`) voor de reisleider (rol in `TRIP_SCOPED_ROLES`): zijn eigen vertrekken met het
  * aantal deelnemers, het venster waarin hij bijzondere gegevens mag exporteren en een link naar de deelnemerslijst.
@@ -24,7 +25,7 @@ const SOON_DAYS = 30;
  * Haalt het profiel en de eigen vertrekken van de reisleider op.
  * @param {{query: Function}} db Database.
  * @param {{userId: number, window: {daysBefore: number, daysAfter: number}}} input Gebruiker en het venster uit Beheer.
- * @returns {Promise<{guideName: (string|null), trips: object[], window: object}>} Naam van het gekoppelde profiel (null
+ * @returns {Promise<{guideName: (string|null), trips: any[], window: any}>} Naam van het gekoppelde profiel (null
  *   zonder koppeling) en de vertrekken (id, title, trip_code, departure_date, return_date, opens_on, closes_on,
  *   in_window, departs_soon, participant_count), eerstvolgende eerst.
  */
@@ -55,7 +56,7 @@ async function loadGuideDashboard(db, { userId, window }) {
 /**
  * De stand van het venster van één vertrek in gewone taal, met een label voor de kleur.
  * @param {{departure_date: (string|null), opens_on: (string|null), closes_on: (string|null), in_window: boolean}} trip Vertrek.
- * @returns {object} HTML: open tot en met, opent op, of geen vertrekdatum.
+ * @returns {any} HTML: open tot en met, opent op, of geen vertrekdatum.
  */
 function renderWindowState(trip) {
   if (!trip.departure_date) return html`${ui.renderStatus('geen', 'Nog geen datum')}`;
@@ -65,9 +66,9 @@ function renderWindowState(trip) {
 
 /**
  * Tekent het overzicht van de reisleider.
- * @param {{guideName: (string|null), trips: object[], window: {daysBefore: number, daysAfter: number}}} data Uitvoer van
+ * @param {{guideName: (string|null), trips: any[], window: {daysBefore: number, daysAfter: number}}} data Uitvoer van
  *   `loadGuideDashboard`.
- * @returns {object} HTML: tegels met de aantallen en daaronder de vertrekken als tabel.
+ * @returns {any} HTML: tegels met de aantallen en daaronder de vertrekken als tabel.
  */
 function renderGuideDashboard(data) {
   if (!data.guideName) {

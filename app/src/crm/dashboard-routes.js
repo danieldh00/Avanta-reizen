@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Route van het overzicht `/app/`: wat er te doen is per recht (`crm/dashboard.js`), voor de reisleider zijn eigen
  * vertrekken (`crm/guide-dashboard.js`), en de melding als de eigen tweestapsverificatie nog uit staat.
@@ -12,7 +13,7 @@ const { guideWindowFrom } = require('../trips/guide-window');
 
 /**
  * Bouwt de route van het overzicht.
- * @param {{db: object, auth: object, twoFactor: object, settings: object, monitor?: object, backups?: object, systemUpdate?: object, appLog?: object, now?: () => number}} options
+ * @param {{db: any, auth: any, twoFactor: any, settings: any, monitor?: any, backups?: any, systemUpdate?: any, appLog?: any, now?: () => number}} options
  *   Database, sessies, tweestapsverificatie en de diensten waar het overzicht de stand van toont.
  * @returns {express.Router} Router, te koppelen binnen `/app`.
  */
