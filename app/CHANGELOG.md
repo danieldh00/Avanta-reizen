@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.30.6 — 2026-11-24 — Publieke site netjes uitgelijnd en import zonder restcategorieën
+
+- Reizen met een actieprijs: 'Bijkomende kosten' en '* Bij boeking voor …' staan niet meer over elkaar.
+- Reisleiderpagina: label en waarde ('Bij Avanta sinds 2026') staan los van elkaar en de naam raakt de lijn niet meer; op de telefoon steekt de pagina niet meer buiten het scherm.
+- Homepage: in het zoekfilter staat 'Maak jouw keuze' weer helemaal in beeld; op de telefoon hebben de keuzevakken een binnenmarge.
+- Reisdetail: terug-link en tekst beginnen op dezelfde lijn als de titel; bij de kenmerken staat de naam naast elk icoon.
+- Op de telefoon zijn links in de reisgegevens en het telefoonnummer op Contact beter te raken.
+- Een nieuwe import van de huidige site neemt restcategorieën ('Bestemming', 'Type', 'NaN', 'nederland', dubbel 'Saudi Arabië') niet meer over.
+
+Designbevindingen W18–W21, het site-deel van W22 en W25 uit de designcontrole van 23-11-2026.
+- `site.css`: prijsblok (`trip__additional-costs`/`trip__offer-date` volle breedte, regelhoogte 1,5), reisleider
+  (`guide__year` zonder negatieve marge, ruimte boven `guide__stats`, `.page-content` in een flex-kolom met
+  `min-width: 0`, stempel binnen het scherm), zoekfilter (breedtes per vak vanaf 1025 px, binnenmarge op mobiel),
+  reisdetail (terug-link en tekstkolom op de rand van de titel), kenmerken als raster met icoon en naam, klikdoelen
+  ≥ 24 px (reisgegevens) en 44 px (telefoonnummer) op mobiel.
+- `site/trip-view.js`: `compactTripTypes` toont de naam zichtbaar (`trip-type__label`) in plaats van alleen voor
+  schermlezers.
+- `tools/import-wordpress.js`: `withoutLeftoverCategories` slaat ongebruikte plaatshouders, namen zonder hoofdletter en
+  dubbelen van een gebruikte categorie over; bestaande rijen ruimt kantoor op in Reistypes en landen.
+
+## 0.30.5 — 2026-11-24 — CRM netjes uitgelijnd op desktop en mobiel
+
+- Lijsten in het CRM (aanmeldingen, deelnemers, betalingen, reizen) tonen op de telefoon elke regel als kaart met alle gegevens, in plaats van een tabel waar je zijwaarts door moest scrollen.
+- De knop Zoeken staat even hoog en op één lijn met de zoekvelden.
+- Vinkjes staan voor hun tekst (Persoon wissen, Deelnemerslijsten en andere formulieren).
+- Op het Overzicht past de tabel Komende vertrekken weer in zijn kolom; lange reisnamen lopen door op een tweede regel.
+- Op de telefoon wordt de paginatitel niet meer afgekapt in de kopbalk; reiscodes en datums breken niet meer midden in.
+- Betalingen: de knop Herinnering sturen staat onder de uitleg en de totaalregel loopt over de hele rij.
+- De status van een aanmelding bij een deelnemer staat als gekleurd label, net als in de lijst Aanmeldingen.
+- Beheer: gelijke afstanden tussen de secties op de startpagina.
+
+Designbevindingen W13–W17, W22 (CRM-deel), W23 en W24 uit de designcontrole van 23-11-2026.
+- `crm/ui.js` `renderTable`: `data-label` per cel, klassen `crm-table--cards` en kolomoptie `wrap` (`crm-wrap`); onder
+  800 px in `crm.css` als kaarten.
+- `crm.css`: knop in `.crm-search` 40 px (mobiel 44 px), `label.choice` met vinkje links, `tfoot` met doorlopende
+  achtergrond, groepstitels zijbalk 12 px, kruimelpad verborgen op mobiel (titel staat als kop op de pagina),
+  klikdoelen ≥ 24 px (terug naar het CRM, feitenlijsten, Gebruikt op), vaste sectie-afstand in Beheer, `.crm-nowrap`.
+- Overzicht: kolom Reis mag afbreken, reiscode niet; reiskop: code, datum en plaatsen elk zonder afbreken.
+- Deelnemer: status als `renderStatus`; nieuwe gebruiker: Annuleren als knop; betaling: knop Herinnering sturen op
+  een eigen regel.
+
 ## 0.30.4 — 2026-11-24 — ESLint, typecontrole op de JSDoc en een dekkingsdrempel in CI
 
 - ESLint (aanbevolen regels plus `eslint-plugin-security`) in `app/eslint.config.js`; `npm run lint` draait in CI. Alle
