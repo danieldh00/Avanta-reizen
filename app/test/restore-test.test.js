@@ -227,6 +227,7 @@ test('hersteltest in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
   assert.equal(page.status, 200);
   assert.match(page.text, /Waarschuwing/);
   assert.match(page.text, /pages 10 → 50/);
+  assert.match(page.text, /<td class="beheer-restore-runs__fixed"><strong>Waarschuwing<\/strong><\/td>/, 'uitkomst breekt niet af');
   assert.match(page.text, /De kopie naar Google Drive staat uit/);
   assert.equal((await request('/app/beheer/hersteltest/', { cookie: office.cookie })).status, 403);
   for (const kind of ['server', 'drive']) {

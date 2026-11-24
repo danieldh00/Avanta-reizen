@@ -33,13 +33,13 @@ function createRestoreTestRoutes(options) {
    * @param {boolean} withDetails Of de kolommen van de servertest (tabellen, rijen, app) erbij horen.
    * @returns {object} HTML.
    */
-  const renderRuns = (runs, withDetails) => (runs.length ? html`<div class="crm-table-wrap"><table class="crm-table">
-      <thead><tr><th scope="col">Gestart</th><th scope="col">Uitkomst</th><th scope="col">Back-up</th>${withDetails ? html`<th scope="col">Tabellen / rijen</th>` : ''}<th scope="col">Toelichting</th></tr></thead>
+  const renderRuns = (runs, withDetails) => (runs.length ? html`<div class="crm-table-wrap"><table class="crm-table beheer-restore-runs">
+      <thead><tr><th scope="col">Gestart</th><th scope="col" class="beheer-restore-runs__fixed">Uitkomst</th><th scope="col">Back-up</th>${withDetails ? html`<th scope="col" class="beheer-restore-runs__fixed">Tabellen / rijen</th>` : ''}<th scope="col">Toelichting</th></tr></thead>
       <tbody>${runs.map((run) => html`<tr>
         <td>${formatDateTime(run.startedAt)} <span class="field__help">${TRIGGER_LABELS[run.trigger]}</span></td>
-        <td>${run.state === 'geslaagd' ? STATE_LABELS[run.state] : html`<strong>${STATE_LABELS[run.state]}</strong>`}</td>
+        <td class="beheer-restore-runs__fixed">${run.state === 'geslaagd' ? STATE_LABELS[run.state] : html`<strong>${STATE_LABELS[run.state]}</strong>`}</td>
         <td>${run.backup ? html`<code>${run.backup}</code>` : '–'}</td>
-        ${withDetails ? html`<td>${run.tables ? `${run.tables} / ${run.rows}` : '–'}</td>` : ''}
+        ${withDetails ? html`<td class="beheer-restore-runs__fixed">${run.tables ? `${run.tables} / ${run.rows}` : '–'}</td>` : ''}
         <td>${run.message}${run.differences.length ? html`<br><span class="field__help">Verschillen: ${run.differences.map((entry) => `${entry.table} ${entry.restored ?? '–'} → ${entry.live ?? '–'}`).join(', ')}</span>` : ''}</td>
       </tr>`)}</tbody>
     </table></div>` : html`<p>Nog geen hersteltest uitgevoerd.</p>`);
