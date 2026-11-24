@@ -192,7 +192,7 @@ async function sha256(file) {
 
 /**
  * Maakt de hersteltests voor de app.
- * @param {{dir: string, masterKey: Buffer, drive?: object, now?: () => number}} options Back-upmap, hoofdsleutel, de
+ * @param {{dir: string, masterKey: Buffer, previousKeys?: Buffer[], drive?: object, now?: () => number}} options Back-upmap, hoofdsleutel (en vorige sleutels voor oudere back-ups), de
  *   Drive-koppeling (`backup/drive.js`) en de klok (tests).
  * @returns {object} `hostRuns`, `requestHostTest`, `hostRequested`, `driveRuns`, `runDriveTest`, `driveTestIfDue`,
  *   `startTimer`, `driveRunning`.
@@ -222,7 +222,7 @@ function createRestoreTests(options) {
         if (!newest) throw new Error('Er staat nog geen back-up op Google Drive.');
         run.backup = newest.name;
         await drive.download(newest.name, target);
-        const { bytes } = await verifyBackup(target, masterKey);
+        const { bytes } = await verifyBackup(target, [masterKey, ...(options.previousKeys || [])]);
         const local = path.join(dir, newest.name);
         let same = '';
         if (fs.existsSync(local)) same = (await sha256(local)) === (await sha256(target)) ? ' en is identiek aan de back-up op de server' : '';

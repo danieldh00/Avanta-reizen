@@ -56,6 +56,17 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   tenzij de deelnemer later zelf toestemming gaf; de oude regels blijven ingetrokken staan als bewijs. **Bewaar de
   hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.
+  **Sleutelrotatie** (P7.5): de kluis schrijft `v2.<sleutel-id>.…` en leest ook met vorige sleutels
+  (`AVANTA_MASTER_KEY_PREVIOUS`, kommagescheiden, of `/data/master-key.previous`). `node src/security/key-rotation-cli.js
+  status|herversleutelen` versleutelt personen, oude aanmeldingen, tweestapsgeheimen en geheime instellingen opnieuw en
+  berekent de `match_key` opnieuw; back-ups en betaallinks van vóór de rotatie blijven bruikbaar. Op apps01:
+  `servertaken.sh sleutel-roteren` (procedure: `docs/DRAAIBOEK-VPS-VERHUIZING.md` §8).
+- **Eigen databaserol** (P7.4): op apps01 en een nieuwe server verbindt de app als `avanta_app` (geen superuser, mag
+  geen rollen of databases maken, geen bestanden of programma's op de server), eigenaar van de database en het schema
+  `public`, zodat de migraties werken. `install.sh` richt de rol bij elke installatie en update in met
+  `deploy/apps01/app-rol.sql` (herhaalbaar, draagt bestaande objecten over) en maakt `APP_DB_PASSWORD` aan in `.env`.
+  De beheerder `avanta` (`POSTGRES_PASSWORD`) blijft alleen voor onderhoud. Lokaal (`docker-compose.yml` in de root)
+  verbindt de app nog als `avanta`.
 - **Reizigersaccount** onder `/account/` (CMS-pakket J2, `app/src/account/`, migratie 23): een reiziger maakt een
   account met e-mailadres en wachtwoord (minimaal 12 tekens, scrypt zoals het CRM) en bevestigt het via de link in de
   mail **plus** het wachtwoord (wie andermans adres registreert, kan het account zo nooit overnemen; opnieuw registreren

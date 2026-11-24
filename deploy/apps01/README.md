@@ -20,7 +20,9 @@ AVANTA_REF=<sha> bash <(curl -fsSL https://raw.githubusercontent.com/danieldh00/
    (instelbaar met `APPS01_SSH`, `APPS01_CTID`, `APPS01_NAME`);
 2. draait daar `install.sh`: repo naar `/opt/apps/avanta/repo` op dezelfde commit, `.env` met gegenereerde geheimen
    (eenmalig), netwerk en exact IP van de cloudflared-container opzoeken (zit die in meerdere netwerken, geef dan
-   `TUNNEL_NETWORK=<naam>` mee; daarna onthoudt `.env` de keuze) (`TUNNEL_NETWORK`, `TRUST_PROXY`), image bouwen, stack starten,
+   `TUNNEL_NETWORK=<naam>` mee; daarna onthoudt `.env` de keuze) (`TUNNEL_NETWORK`, `TRUST_PROXY`), image bouwen,
+   eerst de database starten en de databaserol `avanta_app` inrichten (`app-rol.sql`, wachtwoord `APP_DB_PASSWORD` in
+   `.env`; de app is daarmee geen superuser meer), dan de rest van de stack starten,
    gezondheidscheck en bij een lege database de content-import van www.avantareizen.nl;
 3. leest uit de draaiende cloudflared alleen het account- en tunnel-id (het geheime deel van het token blijft op apps01)
    en vraagt een Cloudflare API-token (*Account > Cloudflare Tunnel > Edit* en *Zone > DNS > Edit*, beperkt tot

@@ -90,6 +90,22 @@ function tripList(trips, empty) {
   return html`<div class="list list--journey archive archive--journey">${trips.map(tripListItem)}</div>`;
 }
 
+/** Aanhalingstekens die als paar om een citaat kunnen staan (openen, sluiten). */
+const QUOTE_PAIRS = [['“', '”'], ['„', '”'], ['„', '“'], ['"', '"'], ['‘', '’'], ["'", "'"], ['`', '`']];
+
+/**
+ * Het citaat van een reisleider zonder een paar aanhalingstekens eromheen (een losse apostrof aan het eind blijft
+ * staan); de weergave zet er zelf “ en ” omheen, zoals de huidige site, ook als het citaat in het CRM al met
+ * aanhalingstekens is ingevoerd.
+ * @param {string} quote Citaat.
+ * @returns {string} Citaat zonder omringende aanhalingstekens.
+ */
+function quoteText(quote) {
+  const text = String(quote || '').trim();
+  const pair = QUOTE_PAIRS.find(([open, close]) => text.length > 1 && text.startsWith(open) && text.endsWith(close));
+  return pair ? text.slice(1, -1).trim() : text;
+}
+
 /**
  * Reistypes als kleine tegels met icoon (de kenmerken bij een reis).
  * @param {object[]} types Reistypes (slug, naam).
@@ -97,7 +113,7 @@ function tripList(trips, empty) {
  */
 function compactTripTypes(types) {
   return html`<div class="trip-types trip-types--compact">${types.map((type) => html`<a class="trip-type" href="${categoryPath(type.slug)}" title="${type.name}">
-    ${icon(categoryIconName(type), { className: 'trip-type__icon' })}<span class="trip-type__label">${type.name}</span>
+    ${icon(categoryIconName(type), { className: 'trip-type__icon' })}<span class="visually-hidden">${type.name}</span>
   </a>`)}</div>`;
 }
 
@@ -238,7 +254,7 @@ function guideDetail(guide) {
           <div class="guide__personal">
             ${portrait ? html`<span class="guide__featured-image"><img src="${portrait}" alt="${guide.name}" width="600" height="700"></span>` : ''}
             ${extra.image ? html`<span class="guide__image"><img src="${extra.image}" alt="" loading="lazy" width="1280" height="960"></span>` : ''}
-            ${extra.quote ? html`<blockquote class="guide__quote">${extra.quote}</blockquote>` : ''}
+            ${extra.quote ? html`<blockquote class="guide__quote">“${quoteText(extra.quote)}”</blockquote>` : ''}
           </div>
         </div>
         <div class="grid__item">
@@ -258,4 +274,4 @@ function guideDetail(guide) {
   ${renderGallery({ title: extra.galleryTitle, subtitle: extra.gallerySubtitle, images: extra.gallery })}`;
 }
 
-module.exports = { themePrice, priceBox, tripListItem, tripList, compactTripTypes, renderGallery, tripDetail, guideTeaser, guideList, guideDetail, pageIntroduction };
+module.exports = { quoteText, themePrice, priceBox, tripListItem, tripList, compactTripTypes, renderGallery, tripDetail, guideTeaser, guideList, guideDetail, pageIntroduction };

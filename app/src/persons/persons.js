@@ -9,6 +9,7 @@
  * nieuwe persoon met `duplicate_of` (mogelijk dubbel) en beslist kantoor.
  */
 const crypto = require('node:crypto');
+const { createVault } = require('../security/vault');
 const { FIELDS, CONSENT_TEXT_VERSION } = require('../booking/fields');
 
 /** Velden die leesbaar in `persons` staan (NAW en contact). */
@@ -74,16 +75,36 @@ function comparable(value) {
 function createPersons(options) {
   const { vault } = options;
   const matchSecret = vault.deriveKey('persons:match');
+  // Na een sleutelrotatie: de match_key's van vóór de rotatie (nog niet herberekend door security/key-rotation.js)
+  // blijven vindbaar met de afgeleide sleutels van de vorige hoofdsleutels.
+  const previousMatchSecrets = (vault.previousKeys || []).map((previousKey) => createVault(previousKey).deriveKey('persons:match'));
 
   /**
-   * Berekent de sleutel om dezelfde persoon terug te vinden.
+   * Berekent de match_key met een bepaalde afgeleide sleutel.
+   * @param {Buffer} secret HMAC-sleutel.
    * @param {string} email E-mailadres.
    * @param {string} birthDate Geboortedatum (jjjj-mm-dd), mag leeg zijn.
    * @returns {string} HMAC-SHA256 in hex.
    */
-  const matchKey = (email, birthDate) => crypto.createHmac('sha256', matchSecret)
+  const matchKeyWith = (secret, email, birthDate) => crypto.createHmac('sha256', secret)
     .update(`${comparable(email)}\n${String(birthDate || '').trim()}`)
     .digest('hex');
+
+  /**
+   * Berekent de sleutel om dezelfde persoon terug te vinden (met de huidige hoofdsleutel).
+   * @param {string} email E-mailadres.
+   * @param {string} birthDate Geboortedatum (jjjj-mm-dd), mag leeg zijn.
+   * @returns {string} HMAC-SHA256 in hex.
+   */
+  const matchKey = (email, birthDate) => matchKeyWith(matchSecret, email, birthDate);
+
+  /**
+   * Alle sleutels waaronder dezelfde persoon kan staan: de huidige en die van vóór een sleutelrotatie.
+   * @param {string} email E-mailadres.
+   * @param {string} birthDate Geboortedatum.
+   * @returns {string[]} match_key's, huidige eerst.
+   */
+  const matchKeyCandidates = (email, birthDate) => [matchKey(email, birthDate), ...previousMatchSecrets.map((secret) => matchKeyWith(secret, email, birthDate))];
 
   /**
    * De context (AAD) van een blok van één persoon.
@@ -231,9 +252,9 @@ function createPersons(options) {
     // Eerst de oorspronkelijke persoon, daarna de al bestaande mogelijke dubbelen met dezelfde sleutel: wie twee keer
     // met hetzelfde nieuwe adres boekt, komt zo bij dat ene dubbel uit in plaats van steeds een nieuwe persoon te maken.
     const candidates = await client.query(
-      `SELECT ${PERSON_COLUMNS}, duplicate_of FROM persons WHERE match_key = $1
+      `SELECT ${PERSON_COLUMNS}, duplicate_of FROM persons WHERE match_key = ANY($1::text[])
         ORDER BY (duplicate_of IS NOT NULL), id LIMIT $2 FOR UPDATE`,
-      [key, MAX_CANDIDATES],
+      [matchKeyCandidates(incoming.plain.email, incoming.blocks.identity_data.birth_date), MAX_CANDIDATES],
     );
     for (const candidate of candidates) {
       const merged = mergeInto(candidate, incoming);
@@ -483,7 +504,7 @@ function createPersons(options) {
     await refreshMatchKey(client, keep.id);
   };
 
-  return { matchKey, openBlock, savePerson, recordConsents, backfillPersons, purgeLegacyArt9, splitValues, writeBlock, refreshMatchKey, findPerson, mergePersons };
+  return { matchKey, sealBlock, openBlock, savePerson, recordConsents, backfillPersons, purgeLegacyArt9, splitValues, writeBlock, refreshMatchKey, findPerson, mergePersons };
 }
 
 module.exports = { createPersons, PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, GUARDIAN_CONSENT, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION, LEGACY_ART9_PURGE_ACTION };

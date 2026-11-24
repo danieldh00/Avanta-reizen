@@ -47,7 +47,8 @@ function createServices(options) {
   // Platform: kluis, instellingen, logboek, captcha en wachtwoordcontrole.
   // Instellingen uit Beheer: één keer geladen, daarna uit het geheugen (Beheer schrijft het geheugen bij). De opties
   // `indexable` en `siteUrl` (of SITE_INDEXABLE/SITE_URL) zijn alleen de startwaarde; Beheer gaat voor.
-  const vault = createVault(options.masterKey);
+  // Na een sleutelrotatie leest de kluis ook met de vorige sleutels (`previousKeys`, security/key-rotation.js).
+  const vault = createVault(options.masterKey, { previousKeys: options.previousKeys });
   const startValues = {
     ...process.env,
     SITE_INDEXABLE: options.indexable ? 'true' : 'false',
@@ -98,7 +99,7 @@ function createServices(options) {
     connectionString: options.databaseUrl, pgDumpPath: options.pgDumpPath, now: options.now,
     onCreated: () => drive.sync().catch((error) => console.error(`Google Drive: ${String(error.message).replace(/[\r\n]/g, ' ')}`)),
   });
-  const restoreTests = createRestoreTests({ dir: backupDir, masterKey: options.masterKey, drive, now: options.now });
+  const restoreTests = createRestoreTests({ dir: backupDir, masterKey: options.masterKey, previousKeys: options.previousKeys, drive, now: options.now });
   // Bewaking (Beheer > Systeem > Bewaking): de planner start pas in `start()`; tests geven een eigen statfs/verzender mee.
   const monitor = createMonitor({
     db: options.db, settings, mailer, appLog, backups, drive, restoreTests, systemUpdate,
@@ -108,7 +109,7 @@ function createServices(options) {
   const retention = createRetention({ db: options.db, persons: createPersons({ vault }), settings, today: options.retentionToday });
   // Online betalen via Mollie (Beheer > CRM > Online betalen), standaard uit.
   const mollie = createMollie({ settings, fetchImpl: options.mollieFetch });
-  const onlinePayments = createOnlinePayments({ db: options.db, settings, mollie, masterKey: options.masterKey, appLog, now: options.now });
+  const onlinePayments = createOnlinePayments({ db: options.db, settings, mollie, masterKey: options.masterKey, previousKeys: options.previousKeys, appLog, now: options.now });
   // Betaalherinneringen (Beheer > CRM > Betalingen): de dagelijkse ronde start pas in `start()`.
   const paymentReminders = createPaymentReminders({ db: options.db, mailer, settings, onlinePayments, now: options.now });
 

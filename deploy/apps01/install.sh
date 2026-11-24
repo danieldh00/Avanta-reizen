@@ -68,6 +68,12 @@ if [ ! -f .env ]; then
   unset master_key
   echo ".env aangemaakt met nieuwe geheimen (bewaar AVANTA_MASTER_KEY ook apart, bijv. in de wachtwoordkluis)."
 fi
+# Eigen databaserol voor de app (P7.4, app-rol.sql): een eigen wachtwoord, ook bij een bestaande .env van vóór P7.4.
+if ! grep -q '^APP_DB_PASSWORD=[0-9a-f]\{48\}$' .env; then
+  sed -i '/^APP_DB_PASSWORD=/d' .env
+  (umask 077; echo "APP_DB_PASSWORD=$(openssl rand -hex 24)" >> .env)
+  echo "APP_DB_PASSWORD aangemaakt voor de databaserol avanta_app."
+fi
 # Exact adres van cloudflared in dat netwerk: de enige proxy die de app vertrouwt (TRUST_PROXY, geen subnet).
 tunnel_ip="$(docker inspect -f "{{(index .NetworkSettings.Networks \"$tunnel_network\").IPAddress}}" "$TUNNEL_CONTAINER")"
 [ -n "$tunnel_ip" ] || die "geen IP-adres van $TUNNEL_CONTAINER in $tunnel_network (draait de container?)"
@@ -94,6 +100,17 @@ if [ "${INSTALL_PHASE:-}" = "build" ]; then
   exit 0
 fi
 
+# Eerst de database, dan de rol van de app (herhaalbaar; als beheerder `avanta`, het wachtwoord via stdin), dan de app.
+docker compose up -d --wait db
+app_db_password="$(sed -n 's/^APP_DB_PASSWORD=//p' .env | tail -n 1)"
+# Eerst het loggen van deze sessie dichtzetten (als superuser, alleen deze verbinding): ook bij een fout komt het
+# wachtwoord dan niet in de log van de databasecontainer (geen statement, geen context met de dynamische SQL).
+{ printf "SET log_statement = 'none'; SET log_min_duration_statement = -1; SET log_min_error_statement = 'panic'; SET log_error_verbosity = 'terse';\n"
+  printf "SELECT set_config('avanta.app_password', '%s', false);\n" "$app_db_password"; cat "$STACK_DIR/app-rol.sql"; } \
+  | docker compose exec -T db psql -q -v ON_ERROR_STOP=1 -U avanta -d avanta >/dev/null \
+  || die "databaserol avanta_app inrichten mislukt (zie app-rol.sql)"
+unset app_db_password
+echo "Databaserol avanta_app ingericht (eigenaar van de database, geen superuser)."
 docker compose up -d --build --remove-orphans
 
 # Automatisch bijwerken: update.sh via een systemd-timer (elke 15 minuten de branch AVANTA_TRACK volgen).

@@ -231,6 +231,9 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     await assertRestorableAsInRestoreTest(dumpFile, fs.existsSync(pgRestore) ? pgRestore : 'pg_restore');
 
     await assert.rejects(backups.verifyBackup(file, Buffer.alloc(32, 1)), /andere hoofdsleutel/);
+    // Na een sleutelrotatie: de huidige plus de vorige sleutels; de sleutel met het id uit de kop wordt gekozen.
+    assert.ok((await backups.verifyBackup(file, [Buffer.alloc(32, 1), MASTER_KEY])).bytes > 0);
+    await assert.rejects(backups.verifyBackup(file, [Buffer.alloc(32, 1), Buffer.alloc(32, 2)]), /andere hoofdsleutel/);
     const damaged = path.join(dir, 'avanta-20200101-000000.dump.enc');
     const bytes = fs.readFileSync(file);
     bytes[bytes.length - 40] ^= 0xff;
