@@ -7,11 +7,13 @@ const express = require('express');
 const { html } = require('../site/html');
 const { formatDateTime } = require('../crm/layout');
 const { createRateLimiter } = require('../security/rate-limit');
-const { LEVELS } = require('../system/app-log');
+const { LEVELS, SOURCE_LABELS, sourceLabel } = require('../system/app-log');
 
-/** Bronnen in het filter (andere bronnen blijven via "alle" zichtbaar). */
-const SOURCES = { fout: 'Fouten (foutcode)', traag: 'Trage verzoeken', app: 'Achtergrond en console', proces: 'Proces', bewaking: 'Bewaking' };
+/** Bronnen in het filter, op naam gesorteerd (een onbekende bron blijft via "Alle bronnen" zichtbaar). */
+const SOURCE_OPTIONS = Object.entries(SOURCE_LABELS).sort(([, first], [, second]) => first.localeCompare(second, 'nl'));
 const LEVEL_LABELS = { info: 'Info', warn: 'Waarschuwing', error: 'Fout' };
+/** Kleur van het niveau (de labels van de bewaking: `monitor-state--…` in crm.css). */
+const LEVEL_STATES = { info: 'info', warn: 'warn', error: 'error' };
 const PAGE_SIZE = 50;
 
 /**
@@ -62,18 +64,18 @@ function createLogRoutes(options) {
             <label class="visually-hidden" for="log-niveau">Niveau</label>
             <select id="log-niveau" name="niveau"><option value="">Alle niveaus</option>${LEVELS.map((value) => html`<option value="${value}"${value === level ? html` selected` : ''}>${LEVEL_LABELS[value]}</option>`)}</select>
             <label class="visually-hidden" for="log-bron">Bron</label>
-            <select id="log-bron" name="bron"><option value="">Alle bronnen</option>${Object.entries(SOURCES).map(([value, label]) => html`<option value="${value}"${value === source ? html` selected` : ''}>${label}</option>`)}</select>
+            <select id="log-bron" name="bron"><option value="">Alle bronnen</option>${SOURCE_OPTIONS.map(([value, label]) => html`<option value="${value}"${value === source ? html` selected` : ''}>${label}</option>`)}</select>
             <label class="visually-hidden" for="log-zoek">Zoeken</label>
             <input id="log-zoek" type="search" name="zoek" value="${search}" maxlength="100" placeholder="Foutcode, request-id of tekst">
             <button class="btn btn--outline btn--small" type="submit">Zoek</button>
           </form>
           ${shown.length ? html`<div class="crm-table-wrap"><table class="crm-table beheer-log">
-            <thead><tr><th scope="col">Tijd</th><th scope="col">Niveau</th><th scope="col">Bron</th><th scope="col">Melding</th></tr></thead>
+            <thead><tr><th scope="col" class="beheer-log__time">Tijd</th><th scope="col" class="beheer-log__level">Niveau</th><th scope="col" class="beheer-log__source">Bron</th><th scope="col">Melding</th></tr></thead>
             <tbody>${shown.map((row) => html`<tr>
-              <td>${formatDateTime(row.created_at)}${row.repeat_count > 1 ? html`<br><span class="field__help">${row.repeat_count}× sinds ${formatDateTime(row.first_at)}</span>` : ''}</td>
-              <td>${row.level === 'error' ? html`<strong>${LEVEL_LABELS[row.level]}</strong>` : LEVEL_LABELS[row.level] || row.level}</td>
-              <td>${SOURCES[row.source] || row.source}</td>
-              <td>${row.message}${row.error_code ? html`<br><span class="field__help">foutcode <code>${row.error_code}</code></span>` : ''}${row.request_id ? html`<br><span class="field__help">verzoek <code>${row.request_id}</code></span>` : ''}${row.duration_ms ? html`<br><span class="field__help">${row.duration_ms} ms</span>` : ''}
+              <td class="beheer-log__time">${formatDateTime(row.created_at)}${row.repeat_count > 1 ? html`<br><span class="field__help">${row.repeat_count}× sinds ${formatDateTime(row.first_at)}</span>` : ''}</td>
+              <td class="beheer-log__level"><span class="monitor-state monitor-state--${LEVEL_STATES[row.level] || 'uit'}">${LEVEL_LABELS[row.level] || row.level}</span></td>
+              <td class="beheer-log__source">${sourceLabel(row.source)}</td>
+              <td class="beheer-log__message">${row.message}${row.error_code ? html`<br><span class="field__help">foutcode <code>${row.error_code}</code></span>` : ''}${row.request_id ? html`<br><span class="field__help">verzoek <code>${row.request_id}</code></span>` : ''}${row.duration_ms ? html`<br><span class="field__help">${row.duration_ms} ms</span>` : ''}
                 ${row.data && Object.keys(row.data).length ? html`<details><summary>Details</summary><pre>${JSON.stringify(row.data, null, 2)}</pre></details>` : ''}</td>
             </tr>`)}</tbody>
           </table></div>

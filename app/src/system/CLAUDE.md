@@ -9,5 +9,5 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `maintenance.js` (503 op schrijven + balk)
 - `host-tasks.js` (`HOST_TASKS` + vast commando; gelijk houden met `deploy/apps01/servertaken.sh`)
 - `request-context.js` (AsyncLocalStorage per verzoek)
-- `app-log.js` (logboek `app_logs`: privacyfilter, foutcodes, request-id's; nooit persoonsgegevens loggen)
+- `app-log.js` (logboek `app_logs`: privacyfilter, foutcodes, request-id's, leesbare bronnamen in `SOURCE_LABELS` (nieuwe bron hier bijzetten); nooit persoonsgegevens loggen)
 - `monitor.js` (bewaking: controles, `monitor_incidents`, meldingen mail/webhook/heartbeat)
