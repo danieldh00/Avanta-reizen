@@ -268,6 +268,17 @@ test('toegankelijkheid: impact bepaalt de ernst, regels op de wachtlijst blokker
   assert.ok(Object.values(PENDING_RULES).every((reason) => /^W\d+$/.test(reason)), 'elke uitzondering verwijst naar de wachtlijst');
 });
 
+test('toegankelijkheid: twee axe-regels op hetzelfde element blijven twee bevindingen met hun eigen ernst', () => {
+  const findings = violationsToFindings([
+    { id: 'color-contrast', impact: 'serious', help: 'Contrast', nodes: [{ target: ['a.knop'] }] },
+    { id: 'link-name', impact: 'serious', help: 'Linktekst', nodes: [{ target: ['a.knop'] }] },
+  ]).map((finding) => ({ ...finding, viewport: 'desktop' }));
+  const groups = groupFindings([{ area: 'Publieke site', url: '/', type: '/', findings }]);
+  assert.equal(groups.length, 2);
+  assert.equal(groups[0].severity, 'hoog', 'de blokkerende regel staat bovenaan');
+  assert.match(groups[0].message, /^link-name/);
+});
+
 /**
  * Of axe-core beschikbaar is (alleen in de ontwikkelomgeving en de design-job in CI).
  * @returns {boolean} Waar als het pakket te vinden is.

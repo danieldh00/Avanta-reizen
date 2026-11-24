@@ -314,7 +314,9 @@ function groupFindings(pages) {
   const groups = new Map();
   for (const page of pages) {
     for (const finding of page.findings) {
-      const key = [page.area, finding.check, finding.selector, finding.viewport].join('|');
+      // `rule` (de axe-regel) hoort in de sleutel: twee regels op hetzelfde element blijven twee bevindingen, zodat een
+      // regel met ernst hoog nooit achter een andere regel verdwijnt.
+      const key = [page.area, finding.check, finding.rule || '', finding.selector, finding.viewport].join('|');
       if (!groups.has(key)) {
         groups.set(key, { area: page.area, check: finding.check, severity: finding.severity || SEVERITY[finding.check] || 'midden', selector: finding.selector, viewport: finding.viewport, message: finding.message, example: page.url, type: page.type, rect: finding.rect, urls: new Set(), types: new Set() });
       }

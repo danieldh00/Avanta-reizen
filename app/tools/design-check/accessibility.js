@@ -52,7 +52,7 @@ function loadAxeSource() {
 /**
  * Zet de uitslag van axe om naar bevindingen in het formaat van de design-controle.
  * @param {Array<{id: string, impact?: string, help: string, nodes: Array<{target: unknown[]}>}>} violations Overtredingen van axe.
- * @returns {Array<{check: string, severity: string, selector: string, message: string, rect: null}>} Bevindingen.
+ * @returns {Array<{check: string, rule: string, severity: string, selector: string, message: string, rect: null}>} Bevindingen.
  */
 function violationsToFindings(violations) {
   const findings = [];
@@ -65,6 +65,7 @@ function violationsToFindings(violations) {
     for (const node of nodes) {
       findings.push({
         check: 'toegankelijkheid',
+        rule: violation.id,
         severity,
         selector: String(node.target[0] || ''),
         message: `${violation.id} (${violation.impact || 'onbekend'}${pending ? `, wachtlijst ${pending}` : ''}): ${violation.help}${extra}`,
