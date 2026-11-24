@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Betaalherinneringen aan de reiziger (migratie 27): een mail met het openstaande bedrag van de aanbetaling of het
  * restant, de vervaldatum en de betaalinstructie uit de bevestiging (`bookingPaymentText`). Kantoor stuurt er een met
@@ -31,7 +32,7 @@ const KIND_LABELS = { aanbetaling: 'aanbetaling', restant: 'restant' };
 
 /**
  * Welke termijn een herinnering krijgt: de te late, anders de eerste die nog openstaat.
- * @param {object} summary Uitkomst van `payments.summarize`.
+ * @param {any} summary Uitkomst van `payments.summarize`.
  * @returns {(''|'aanbetaling'|'restant')} Termijn, of leeg als er niets openstaat.
  */
 function reminderKind(summary) {
@@ -42,9 +43,9 @@ function reminderKind(summary) {
 
 /**
  * De inhoud van een herinnering voor `renderMail`.
- * @param {{booking: object, summary: object, kind: string, paymentText: string, payLink?: string}} input Aanmelding, stand,
+ * @param {{booking: any, summary: any, kind: string, paymentText: string, payLink?: string}} input Aanmelding, stand,
  *   termijn, betaalinstructie en (bij online betalen) de persoonlijke betaallink.
- * @returns {{subject: string, content: object}} Onderwerp en inhoud.
+ * @returns {{subject: string, content: any}} Onderwerp en inhoud.
  */
 function reminderContent({ booking, summary, kind, paymentText, payLink }) {
   const amount = kind === 'aanbetaling' ? summary.depositOpenCents : summary.balanceCents;
@@ -74,7 +75,7 @@ function reminderContent({ booking, summary, kind, paymentText, payLink }) {
 
 /**
  * Maakt de herinneringen.
- * @param {{db: object, mailer: object, settings: object, onlinePayments?: object, now?: () => number}} options Database,
+ * @param {{db: any, mailer: any, settings: any, onlinePayments?: any, now?: () => number}} options Database,
  *   mailer, instellingen, online betalen (betaallink in de mail) en klok.
  * @returns {{send: Function, runDaily: Function, list: Function, start: Function}} Functies.
  */
@@ -95,7 +96,7 @@ function createPaymentReminders(options) {
    * @param {{query: Function}} client Database of transactie-client.
    * @param {number} bookingId Id.
    * @param {boolean} lock De aanmelding vergrendelen.
-   * @returns {Promise<(object|null)>} Aanmelding of null.
+   * @returns {Promise<(any|null)>} Aanmelding of null.
    */
   const findBooking = async (client, bookingId, lock) => {
     const [booking] = await client.query(
@@ -208,7 +209,7 @@ function createPaymentReminders(options) {
   /**
    * De herinneringen van een aanmelding, nieuwste eerst.
    * @param {number} bookingId Id.
-   * @returns {Promise<object[]>} Regels met naam van de medewerker.
+   * @returns {Promise<any[]>} Regels met naam van de medewerker.
    */
   const list = (bookingId) => db.query(
     `SELECT r.kind, r.trigger, r.sent, r.error, r.created_at, u.name AS user_name

@@ -1,8 +1,8 @@
 {
-  "//": "Typecontrole op de JSDoc (npm run typecheck) van src/ en tools/. Elk bestand begint met `// @ts-check`; test/ts-check.test.js bewaakt dat (B08).",
+  "//": "Typecontrole op de JSDoc (npm run typecheck) van src/ en tools/. Alle bestanden worden gecontroleerd (checkJs) en beginnen ook met `// @ts-check` voor de editor; test/ts-check.test.js bewaakt dat (B08).",
   "compilerOptions": {
     "allowJs": true,
-    "checkJs": false,
+    "checkJs": true,
     "noEmit": true,
     "module": "nodenext",
     "target": "es2023",

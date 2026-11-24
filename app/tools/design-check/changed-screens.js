@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Design-controle in CI: bepaalt welke schermen een PR raakt, zodat `check.js --paths=…` alleen die schermen opent en
  * CI licht blijft. Invoer is de lijst gewijzigde bestanden (één per regel, paden vanaf de root van de repository);

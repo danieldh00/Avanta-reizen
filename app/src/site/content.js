@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Leest de content van de website uit de database: reizen, categorieën, reisleiders, blog, pagina's en FAQ.
  * Alleen de kolommen die de pagina's nodig hebben; lijsten zonder de grote HTML-kolommen.
@@ -17,8 +18,8 @@ const POST_TEASER_COLUMNS = `slug, title, excerpt, image_url, published_at, mana
 
 /**
  * Een bericht uit de lijst met zijn samenvatting (`summary`) in plaats van het begin van de tekst.
- * @param {object} row Rij met `body_text`.
- * @returns {object} Bericht.
+ * @param {any} row Rij met `body_text`.
+ * @returns {any} Bericht.
  */
 function withSummary(row) {
   const { body_text: bodyText, managed_in_crm: managed, ...post } = row;
@@ -41,7 +42,7 @@ const GUIDE_EXTRA_COLUMNS = 'surname, city, since, quote, image_url, gallery, ga
  * foto en de galerij met titel en subtitel; het portret is `photo_url`.
  * @param {{surname?: string, city?: string, since?: string, quote?: string, image_url?: (string|null), gallery?: *, gallery_title?: string, gallery_subtitle?: string}} guide
  *   Reisleider uit de database.
- * @returns {{surname: string, city: string, since: string, quote: string, portrait: string, image: string, galleryTitle: string, gallerySubtitle: string, gallery: object[]}}
+ * @returns {{surname: string, city: string, since: string, quote: string, portrait: string, image: string, galleryTitle: string, gallerySubtitle: string, gallery: any[]}}
  *   Gegevens.
  */
 function guideExtra(guide) {
@@ -76,14 +77,14 @@ function today() {
 /**
  * Maakt de queryfuncties voor de content.
  * @param {{query: Function}} db Database.
- * @returns {object} Queryfuncties.
+ * @returns {any} Queryfuncties.
  */
 function createContent(db) {
   return {
     /**
      * Toekomstige reizen, op vertrekdatum, optioneel gefilterd.
      * @param {{destination?: string, type?: string, departure?: string, search?: string, limit?: number, onlyAvailable?: boolean, before?: string, newFirst?: boolean}} [filter] Filters (categorieslugs, datum); `newFirst` zet nieuwe reizen bovenaan.
-     * @returns {Promise<object[]>} Reizen.
+     * @returns {Promise<any[]>} Reizen.
      */
     async upcomingTrips(filter = {}) {
       const conditions = ['t.published', 't.departure_date >= $1'];
@@ -127,7 +128,7 @@ function createContent(db) {
     /**
      * Eén reis met reisleiders (`guides`, op volgorde; de eerste ook als `guide_*`) en categorieën.
      * @param {string} slug Slug van de reis.
-     * @returns {Promise<(object|null)>} De reis of null.
+     * @returns {Promise<(any|null)>} De reis of null.
      */
     async tripBySlug(slug) {
       const [trip] = await db.query(
@@ -154,7 +155,7 @@ function createContent(db) {
     /**
      * Reis op het oude WordPress-id (voor /aanmelden/?id=…).
      * @param {number} legacyId Oud id.
-     * @returns {Promise<(object|null)>} De reis of null.
+     * @returns {Promise<(any|null)>} De reis of null.
      */
     async tripByLegacyId(legacyId) {
       const [trip] = await db.query(
@@ -167,7 +168,7 @@ function createContent(db) {
     /**
      * Categorieën van een soort met het aantal toekomstige reizen, op de volgorde uit het CRM en dan op naam.
      * @param {string} kind 'bestemming', 'type' of 'overig'.
-     * @returns {Promise<object[]>} Categorieën (met `icon` en `show_on_home`).
+     * @returns {Promise<any[]>} Categorieën (met `icon` en `show_on_home`).
      */
     async categories(kind) {
       return db.query(
@@ -183,7 +184,7 @@ function createContent(db) {
     /**
      * Eén categorie.
      * @param {string} slug Slug.
-     * @returns {Promise<(object|null)>} Categorie of null.
+     * @returns {Promise<(any|null)>} Categorie of null.
      */
     async categoryBySlug(slug) {
       const [category] = await db.query('SELECT id, slug, name, kind, icon, intro, body_html, image_url FROM trip_categories WHERE slug = $1', [slug]);
@@ -192,7 +193,7 @@ function createContent(db) {
 
     /**
      * Alle reisleiders die online staan, op de volgorde uit het CRM (daarna op naam).
-     * @returns {Promise<object[]>} Reisleiders.
+     * @returns {Promise<any[]>} Reisleiders.
      */
     async guides() {
       return db.query(`SELECT slug, legacy_id, name, intro, photo_url, ${GUIDE_EXTRA_COLUMNS} FROM guides WHERE published ORDER BY sort_order, name, id`);
@@ -201,7 +202,7 @@ function createContent(db) {
     /**
      * Eén reisleider op slug of oud id, met toekomstige reizen.
      * @param {string} reference Slug of oud id.
-     * @returns {Promise<(object|null)>} Reisleider of null.
+     * @returns {Promise<(any|null)>} Reisleider of null.
      */
     async guideByReference(reference) {
       const legacyId = /^\d+$/.test(reference) ? Number(reference) : null;
@@ -220,7 +221,7 @@ function createContent(db) {
     /**
      * Blogberichten, nieuwste eerst, per pagina.
      * @param {{page?: number, perPage?: number}} [paging] Pagina en aantal.
-     * @returns {Promise<{posts: object[], total: number}>} Berichten en totaal.
+     * @returns {Promise<{posts: any[], total: number}>} Berichten en totaal.
      */
     async posts(paging = {}) {
       const perPage = paging.perPage || 12;
@@ -237,7 +238,7 @@ function createContent(db) {
     /**
      * Gepubliceerde berichten op slug, in de volgorde van de lijst (onbekende slugs vallen weg).
      * @param {string[]} slugs Slugs (hoogstens 500).
-     * @returns {Promise<object[]>} Berichten.
+     * @returns {Promise<any[]>} Berichten.
      */
     async postsBySlugs(slugs) {
       const wanted = [...new Set(slugs)].slice(0, 500);
@@ -250,7 +251,7 @@ function createContent(db) {
     /**
      * Eén blogbericht.
      * @param {string} slug Slug.
-     * @returns {Promise<(object|null)>} Bericht of null.
+     * @returns {Promise<(any|null)>} Bericht of null.
      */
     async postBySlug(slug) {
       const [post] = await db.query(
@@ -277,7 +278,7 @@ function createContent(db) {
      * Een categorie of tag van het blog op slug.
      * @param {('categorie'|'tag')} kind Soort.
      * @param {string} slug Slug.
-     * @returns {Promise<(object|null)>} Rij (id, slug, naam, inleiding, foto) of null.
+     * @returns {Promise<(any|null)>} Rij (id, slug, naam, inleiding, foto) of null.
      */
     async postTerm(kind, slug) {
       const [term] = await db.query('SELECT id, slug, name, intro, image_url FROM post_terms WHERE kind = $1 AND slug = $2', [kind, slug]);
@@ -287,7 +288,7 @@ function createContent(db) {
     /**
      * De zichtbare berichten van een categorie of tag, nieuwste eerst.
      * @param {number} termId Id.
-     * @returns {Promise<object[]>} Berichten (hoogstens 500).
+     * @returns {Promise<any[]>} Berichten (hoogstens 500).
      */
     async postsOfTerm(termId) {
       const rows = await db.query(
@@ -302,7 +303,7 @@ function createContent(db) {
     /**
      * Eén pagina op pad.
      * @param {string} path Pad met slash aan het eind.
-     * @returns {Promise<(object|null)>} Pagina of null.
+     * @returns {Promise<(any|null)>} Pagina of null.
      */
     async pageByPath(path) {
       const [page] = await db.query('SELECT path, title, pretitle, intro, blocks, body_html, managed_in_crm, image_url, seo_title, seo_description FROM pages WHERE path = $1 AND published', [path]);
@@ -311,7 +312,7 @@ function createContent(db) {
 
     /**
      * Alle FAQ's, op categorie.
-     * @returns {Promise<object[]>} Vragen.
+     * @returns {Promise<any[]>} Vragen.
      */
     async faqs() {
       return db.query(
@@ -322,7 +323,7 @@ function createContent(db) {
 
     /**
      * Alle openbare adressen voor de sitemap: ook vertrokken reizen, want die URL's bestaan.
-     * @returns {Promise<{trips: object[], categories: object[], guides: object[], posts: object[], pages: object[], postTerms: object[]}>} Rijen per soort.
+     * @returns {Promise<{trips: any[], categories: any[], guides: any[], posts: any[], pages: any[], postTerms: any[]}>} Rijen per soort.
      */
     async sitemapEntries() {
       const [trips, categories, guides, posts, pages, postTerms] = await Promise.all([
@@ -348,7 +349,7 @@ function createContent(db) {
     /**
      * Zoekt in reizen, blog en pagina's.
      * @param {string} term Zoekterm.
-     * @returns {Promise<{trips: object[], posts: object[], pages: object[]}>} Resultaten.
+     * @returns {Promise<{trips: any[], posts: any[], pages: any[]}>} Resultaten.
      */
     async search(term) {
       const pattern = `%${term}%`;

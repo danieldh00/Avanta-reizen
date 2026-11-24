@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Blogberichten beheren in het CRM (`/app/blog/`, recht `content`, CMS-pakket I1): lijst met zoeken en filter op status,
  * nieuw bericht, adres wijzigen (met 301), offline/online, verwijderen, en een bericht bewerken als concept (titel,
@@ -72,9 +73,9 @@ const STALE_MESSAGE = 'Het bericht is intussen gewijzigd (in een ander tabblad o
 /**
  * Het tabblad *Inhoud* van een bericht: titel, publicatiedatum, inleiding, samenvatting, vindbaarheid en de
  * uitgelichte afbeelding.
- * @param {{postUrl: string, hiddenFields: object, values: object, errors: object, imageUrl: string}} panel Adres van het
+ * @param {{postUrl: string, hiddenFields: any, values: any, errors: any, imageUrl: string}} panel Adres van het
  *   bewerkscherm, verborgen velden, ingevulde waarden, fouten en de huidige afbeelding.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderPostContentPanel({ postUrl, hiddenFields, values, errors, imageUrl }) {
   const field = (name, label, control, help) => fieldRow({ id: `blog-${name}`, label, control, help, error: errors[name] });
@@ -103,9 +104,9 @@ function renderPostContentPanel({ postUrl, hiddenFields, values, errors, imageUr
 
 /**
  * Het tabblad *Categorieën en tags* van een bericht, met het vinkje Uitgelicht (wordt meteen opgeslagen).
- * @param {{post: object, postUrl: string, csrf: string, termRows: object[], chosenTerms: number[]}} panel Bericht, adres van
+ * @param {{post: any, postUrl: string, csrf: string, termRows: any[], chosenTerms: number[]}} panel Bericht, adres van
  *   het bewerkscherm, CSRF-token, alle categorieën en tags en de gekozen id's.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderPostTermsPanel({ post, postUrl, csrf, termRows, chosenTerms }) {
   return html`<section class="crm-block" id="indeling">
@@ -127,7 +128,7 @@ function renderPostTermsPanel({ post, postUrl, csrf, termRows, chosenTerms }) {
 
 /**
  * Maakt de routes voor blogberichten.
- * @param {{db: object, auth: object, library?: object, mediaDir?: string, redirects?: object, menus?: object}} options
+ * @param {{db: any, auth: any, library?: any, mediaDir?: string, redirects?: any, menus?: any}} options
  *   Database, sessie- en rechtenlaag, de fotobibliotheek en doorverwijzingen en menu's (opnieuw laden na een nieuw adres).
  * @returns {express.Router} Router.
  */
@@ -142,8 +143,8 @@ function createPostRoutes(options) {
 
   /**
    * 404-pagina binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => {
@@ -154,7 +155,7 @@ function createPostRoutes(options) {
 
   /**
    * Audit voor een actie op een bericht.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {string} action Actie.
    * @returns {Function} `(client) => Promise`.
    */
@@ -162,7 +163,7 @@ function createPostRoutes(options) {
 
   /**
    * Context voor een wijziging.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {string} [action] Actie in de auditlog.
    * @returns {{userId: number, audit: Function}} Context.
    */
@@ -170,9 +171,9 @@ function createPostRoutes(options) {
 
   /**
    * Verborgen velden van elk formulier op het bewerkscherm.
-   * @param {object} req Express-verzoek.
-   * @param {object} post Bericht.
-   * @returns {object} HTML.
+   * @param {any} req Express-verzoek.
+   * @param {any} post Bericht.
+   * @returns {any} HTML.
    */
   const hidden = (req, post) => html`<input type="hidden" name="_csrf" value="${req.session.csrf}"><input type="hidden" name="versie" value="${post.draft_version}">`;
 
@@ -213,9 +214,9 @@ function createPostRoutes(options) {
 
   /**
    * Het bewerkscherm van een bericht.
-   * @param {object} req Express-verzoek.
-   * @param {object} post Bericht uit `posts.get`.
-   * @param {{notice?: string, error?: string, values?: object, errors?: object, slug?: string, blockErrors?: object}} [state]
+   * @param {any} req Express-verzoek.
+   * @param {any} post Bericht uit `posts.get`.
+   * @param {{notice?: string, error?: string, values?: any, errors?: any, slug?: string, blockErrors?: any}} [state]
    *   Meldingen, ingevulde gegevens met fouten, een ingevuld adres of een blok met fouten.
    * @returns {Promise<string>} HTML.
    */
@@ -294,9 +295,9 @@ function createPostRoutes(options) {
 
   /**
    * Haalt het bericht uit de URL op, of stuurt een 404.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
-   * @returns {Promise<(object|null)>} Bericht, of null als de 404 al verstuurd is.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
+   * @returns {Promise<(any|null)>} Bericht, of null als de 404 al verstuurd is.
    */
   const loadOr404 = async (req, res) => {
     const post = await posts.get(req.params.id);
@@ -306,10 +307,10 @@ function createPostRoutes(options) {
 
   /**
    * Verwerkt de uitkomst van een wijziging: doorsturen bij succes, anders het scherm met de melding.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
-   * @param {object} outcome Uitkomst van `posts.*`.
-   * @param {{notice: number, anchor?: string, block?: string, onError?: (post: object) => Promise<string>}} next Melding en
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
+   * @param {any} outcome Uitkomst van `posts.*`.
+   * @param {{notice: number, anchor?: string, block?: string, onError?: (post: any) => Promise<string>}} next Melding en
    *   anker bij succes; eigen scherm bij een fout (standaard het bewerkscherm met de melding).
    * @returns {Promise<void>}
    */
@@ -441,9 +442,9 @@ function createPostRoutes(options) {
 
   /**
    * Het formulier voor een nieuw bericht.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{title: string, slug: string}} values Ingevulde waarden.
-   * @param {object} [errors] Fouten.
+   * @param {any} [errors] Fouten.
    * @returns {string} HTML.
    */
   const renderNewPost = (req, values, errors = {}) => renderCrmPage({

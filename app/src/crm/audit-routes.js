@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Het auditlog in Beheer (`/app/auditlog/`, recht `gebruikers`): wie wat deed en wanneer, met filters op gebruiker,
  * actie, soort record, record en periode, bladeren naar oudere regels, en een export naar Excel
@@ -30,7 +31,7 @@ const AUDIT_ACTION_LABELS = {
 
 /**
  * Maakt de routes van het auditlog.
- * @param {{db: object, auth: object, now?: () => number, exportMax?: number}} options Database, sessie- en rechtenlaag,
+ * @param {{db: any, auth: any, now?: () => number, exportMax?: number}} options Database, sessie- en rechtenlaag,
  *   de klok en (tests) het maximum aantal regels per export.
  * @returns {express.Router} Router.
  */
@@ -46,7 +47,7 @@ function createAuditRoutes(options) {
    * De keuzes voor de filters: gebruikers (ook uitgeschakelde) en de soorten record uit `ENTITIES` (een vaste lijst, zodat
    * het scherm niet het hele log hoeft te lezen), gesorteerd op naam; een gekozen soort die daar niet in staat, komt erbij.
    * @param {string} [current] Gekozen soort record.
-   * @returns {Promise<{users: object[], entities: string[]}>} Keuzes.
+   * @returns {Promise<{users: any[], entities: string[]}>} Keuzes.
    */
   const filterChoices = async (current) => {
     const users = await db.query('SELECT id, name, active FROM users ORDER BY lower(name), id');
@@ -57,8 +58,8 @@ function createAuditRoutes(options) {
 
   /**
    * De gebruikte filters als tekst, voor het tabblad "Over deze export".
-   * @param {object} filter Uitkomst van `readAuditFilter`.
-   * @param {object[]} users Gebruikers (id, name).
+   * @param {any} filter Uitkomst van `readAuditFilter`.
+   * @param {any[]} users Gebruikers (id, name).
    * @returns {Array<[string, string]>} Regels.
    */
   const filterLines = (filter, users) => {
@@ -75,9 +76,9 @@ function createAuditRoutes(options) {
 
   /**
    * Het filterformulier (GET, werkt zonder JavaScript).
-   * @param {object} filter Uitkomst van `readAuditFilter`.
-   * @param {{users: object[], entities: string[]}} choices Keuzes.
-   * @returns {object} HTML.
+   * @param {any} filter Uitkomst van `readAuditFilter`.
+   * @param {{users: any[], entities: string[]}} choices Keuzes.
+   * @returns {any} HTML.
    */
   const renderFilter = (filter, choices) => {
     const selected = (value, current) => (value === current ? raw(' selected') : '');
@@ -106,8 +107,8 @@ function createAuditRoutes(options) {
   /**
    * Het record van een regel, met een link als het een eigen pagina heeft. Een lang nummer (bijvoorbeeld de naam van een
    * back-up) wordt ingekort; de volledige waarde staat in de tooltip en in de export.
-   * @param {object} row Regel.
-   * @returns {(object|string)} HTML of tekst.
+   * @param {any} row Regel.
+   * @returns {(any|string)} HTML of tekst.
    */
   const recordCell = (row) => {
     if (!row.entity) return '–';

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Routes van de publieke website. De URL's zijn gelijk aan die van de huidige WordPress-site, zodat links en
  * zoekmachineposities bij de overstap blijven werken.
@@ -49,7 +50,7 @@ function queryValue(value) {
 
 /**
  * Bouwt de router van de website.
- * @param {{db: object, contactForm?: object, listHeaders?: {get: Function}}} options Database, het contactformulier en
+ * @param {{db: any, contactForm?: any, listHeaders?: {get: (key: string) => any}}} options Database, het contactformulier en
  *   de koppen van de lijstpagina's (`cms/list-headers.js`). Alle inhoud komt uit de database. Indexeren, basisadres, naam en
  *   de overige site-instellingen komen per verzoek uit `res.locals.site` (Beheer, zie `site/site-settings.js`).
  *   Zonder contactformulier (`contact/routes.js`) is `/contact/` een gewone pagina.
@@ -65,8 +66,8 @@ function createSiteRouter(options) {
    * Gegevens voor de SEO-tags van een pagina, nog met relatieve paden: `send` maakt ze absoluut met het basisadres uit
    * Beheer. JSON-LD mag een functie `(site) => object` zijn, die pas bij het versturen wordt aangeroepen.
    * @param {string} canonicalPath Echte pad van de pagina (niet het menupad), eventueel met querystring.
-   * @param {{imageUrl?: string, type?: string, structuredData?: Array<(object|Function)>}} [extra] Afbeelding, og:type en JSON-LD.
-   * @returns {object} Gegevens voor `send`.
+   * @param {{imageUrl?: string, type?: string, structuredData?: Array<(any|Function)>}} [extra] Afbeelding, og:type en JSON-LD.
+   * @returns {any} Gegevens voor `send`.
    */
   const seoFor = (canonicalPath, extra = {}) => ({
     canonicalPath,
@@ -84,8 +85,8 @@ function createSiteRouter(options) {
 
   /**
    * Stuurt een volledige pagina met de site-instellingen van dit verzoek (indexeren, basisadres, naam, contact).
-   * @param {object} res Express-antwoord.
-   * @param {object} page Gegevens voor renderPage; `seo` uit `seoFor`.
+   * @param {any} res Express-antwoord.
+   * @param {any} page Gegevens voor renderPage; `seo` uit `seoFor`.
    * @param {number} [status] HTTP-status.
    * @returns {void}
    */
@@ -102,7 +103,7 @@ function createSiteRouter(options) {
 
   /**
    * Gegevens voor de zoeker (bestemmingen, types, vertrekdata).
-   * @returns {Promise<object>} Keuzes.
+   * @returns {Promise<any>} Keuzes.
    */
   const finderOptions = async () => {
     const [destinations, types, dates] = await Promise.all([content.categories('bestemming'), content.categories('type'), content.departureDates()]);
@@ -311,7 +312,7 @@ function createSiteRouter(options) {
 
   /**
    * Staat video's toe op deze pagina: alleen youtube-nocookie.com in een iframe.
-   * @param {object} res Express-antwoord.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const allowVideos = (res) => {
@@ -335,8 +336,8 @@ function createSiteRouter(options) {
 
   /**
    * De pagina van een categorie of tag: kop met foto, inleiding en de berichten.
-   * @param {object} res Express-antwoord.
-   * @param {{name: string, path: string, image: (string|null), intro: string, posts: object[]}} term Gegevens.
+   * @param {any} res Express-antwoord.
+   * @param {{name: string, path: string, image: (string|null), intro: string, posts: any[]}} term Gegevens.
    * @returns {void}
    */
   const sendTermArchive = (res, term) => send(res, {
@@ -410,8 +411,8 @@ function createSiteRouter(options) {
     /**
      * Stuurt de contactpagina: de geïmporteerde inhoud (als die er is), daaronder het adres, de verwijzing naar de
      * FAQ en het formulier (of de bedanktmelding), zoals de huidige site.
-     * @param {object} res Express-antwoord.
-     * @param {object} formHtml Formulier of melding.
+     * @param {any} res Express-antwoord.
+     * @param {any} formHtml Formulier of melding.
      * @param {number} [status] HTTP-status.
      * @returns {Promise<void>}
      */

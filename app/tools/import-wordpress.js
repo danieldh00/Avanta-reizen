@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Importeert de content van de huidige WordPress-site (www.avantareizen.nl) in PostgreSQL: reizen, reisleiders,
  * reiscategorieën, blog, pagina's en FAQ, plus alle gebruikte afbeeldingen naar DATA_DIR/media, en de vaste inhoud van
@@ -49,7 +50,7 @@ function categoryNameKey(name) {
  * categorie die wél in gebruik is ('Saudi Arabië' naast 'Saudi-Arabië'). Categorieën die een reis gebruikt blijven altijd
  * staan.
  * @param {{slug: string, name: string, kind: string}[]} categories Categorieën met hun soort (`type`, `bestemming`, `overig`).
- * @returns {{kept: object[], skipped: object[]}} De categorieën om op te slaan en de overgeslagen.
+ * @returns {{kept: any[], skipped: any[]}} De categorieën om op te slaan en de overgeslagen.
  */
 function withoutLeftoverCategories(categories) {
   const usedNames = new Set(categories.filter((category) => category.kind !== 'overig').map((category) => categoryNameKey(category.name).replace(/-/g, ' ')));
@@ -152,7 +153,8 @@ async function readSitemaps(fetchText) {
 /**
  * Maakt de afbeeldingenbeheerder: verzamelt URL's, downloadt ze één keer en geeft het nieuwe pad.
  * @param {{media: boolean}} options Of afbeeldingen gedownload worden.
- * @returns {{local: (url: string) => (string|null), download: (db: object) => Promise<{ok: number, failed: string[]}>}} Beheerder.
+ * @returns {{local: (url: string) => (string|null), poster: (videoId: string) => (string|null),
+ *   download: (db: any) => Promise<{ok: number, failed: string[]}>, count: () => number}} Beheerder.
  */
 function createMediaStore(options) {
   const wanted = new Map();
@@ -178,7 +180,7 @@ function createMediaStore(options) {
 
   /**
    * Downloadt alle onthouden afbeeldingen die nog niet lokaal staan (twee tegelijk).
-   * @param {object} db Database (tabel media).
+   * @param {any} db Database (tabel media).
    * @returns {Promise<{ok: number, failed: string[]}>} Resultaat.
    */
   const download = async (db) => {
@@ -284,10 +286,10 @@ function homepageLink(href, slugByLegacyId) {
 /**
  * Maakt de inhoud voor `DATA_DIR/homepage.json` uit de geparste homepage: links omgezet, foto's lokaal; een videoslide
  * krijgt de stilstaande afbeelding van de video.
- * @param {object} home Uitkomst van `parsers.parseHome`.
+ * @param {any} home Uitkomst van `parsers.parseHome`.
  * @param {{local: Function, poster: Function}} media Mediaopslag van de import.
  * @param {Map<number, string>} slugByLegacyId Slug per oud categorie-id.
- * @returns {object} De inhoud.
+ * @returns {any} De inhoud.
  */
 function homepageData(home, media, slugByLegacyId) {
   return {
@@ -310,7 +312,7 @@ function homepageData(home, media, slugByLegacyId) {
 /**
  * Schrijft `homepage.json` in DATA_DIR (eerst naar een tijdelijk bestand, dan hernoemen, zodat de site nooit een half
  * bestand leest).
- * @param {object} data Inhoud.
+ * @param {any} data Inhoud.
  * @returns {string} Pad van het bestand.
  */
 function writeHomepage(data) {
@@ -327,7 +329,7 @@ function writeHomepage(data) {
  * kopfoto en de berichten); een fout bij één pagina stopt de rest niet.
  * @param {(url: string) => Promise<string>} fetchText Ophaler.
  * @param {string[]} warnings Lijst waar fouten in komen.
- * @returns {Promise<{archives: object, guideOrder: string[], blogTags: object[], blogArchiveLink: (object|null), featuredPost: string}>}
+ * @returns {Promise<{archives: any, guideOrder: string[], blogTags: any[], blogArchiveLink: (any|null), featuredPost: string}>}
  *   Koppen per lijst, de volgorde (slugs of oude id's), de tags, de link naar het oude blogarchief en het uitgelichte bericht.
  */
 async function collectArchives(fetchText, warnings) {
@@ -361,11 +363,11 @@ async function collectArchives(fetchText, warnings) {
 /**
  * Maakt de inhoud voor `DATA_DIR/site-content.json`: lijstkoppen, extra gegevens per reisleider en hun volgorde, de
  * tags van het weblog en de link naar het oude blogarchief, met foto's lokaal. Oude id's in de volgorde (adressen als /reisleider/23250/) worden slugs.
- * @param {{archives: object, guideOrder: string[], blogTags?: object[], blogArchiveLink?: (object|null), featuredPost?: string}} fixed Uitkomst van `collectArchives`.
- * @param {Array<{slug: string, legacyId: (number|null), extra: object}>} guides Geparste reisleiders.
+ * @param {{archives: any, guideOrder: string[], blogTags?: any[], blogArchiveLink?: (any|null), featuredPost?: string}} fixed Uitkomst van `collectArchives`.
+ * @param {Array<{slug: string, legacyId: (number|null), extra: any}>} guides Geparste reisleiders.
  * @param {{local: Function}} media Mediaopslag van de import.
- * @param {Array<{path: string, gallery: object}>} [galleries] Fotogalerijen onder berichten en pagina's (`galleriesOf`).
- * @returns {object} De inhoud.
+ * @param {Array<{path: string, gallery: any}>} [galleries] Fotogalerijen onder berichten en pagina's (`galleriesOf`).
+ * @returns {any} De inhoud.
  */
 function siteContentData(fixed, guides, media, galleries = []) {
   const slugByLegacyId = new Map(guides.filter((guide) => guide.legacyId).map((guide) => [String(guide.legacyId), guide.slug]));
@@ -390,9 +392,9 @@ function siteContentData(fixed, guides, media, galleries = []) {
 
 /**
  * De fotogalerijen onder blogberichten en pagina's, op pad (alleen met foto's).
- * @param {Array<{slug: string, gallery?: object}>} posts Geparste berichten.
- * @param {Array<{path: string, gallery?: object}>} pages Geparste pagina's.
- * @returns {Array<{path: string, gallery: object}>} Pad en galerij.
+ * @param {Array<{slug: string, gallery?: any}>} posts Geparste berichten.
+ * @param {Array<{path: string, gallery?: any}>} pages Geparste pagina's.
+ * @returns {Array<{path: string, gallery: any}>} Pad en galerij.
  */
 function galleriesOf(posts, pages) {
   return [
@@ -403,7 +405,7 @@ function galleriesOf(posts, pages) {
 
 /**
  * Schrijft `site-content.json` in DATA_DIR (tijdelijk bestand, dan hernoemen).
- * @param {object} data Inhoud.
+ * @param {any} data Inhoud.
  * @returns {string} Pad van het bestand.
  */
 function writeSiteContent(data) {
@@ -417,8 +419,8 @@ function writeSiteContent(data) {
 
 /**
  * Haalt foto's uit `site-content.json` die niet gedownload konden worden.
- * @param {object} data Inhoud voor `site-content.json`.
- * @returns {object} Dezelfde inhoud met alleen bestaande foto's.
+ * @param {any} data Inhoud voor `site-content.json`.
+ * @returns {any} Dezelfde inhoud met alleen bestaande foto's.
  */
 function withExistingSiteImages(data) {
   const keep = (image) => (image && fs.existsSync(path.join(MEDIA_DIR, path.basename(image))) ? image : '');
@@ -436,8 +438,8 @@ function withExistingSiteImages(data) {
 /**
  * Leest alle pagina's van de oude site en zet ze om naar rijen voor de database.
  * @param {(url: string) => Promise<string>} fetchText Ophaler.
- * @param {object} media Afbeeldingenbeheerder.
- * @returns {Promise<object>} Alle te importeren gegevens en waarschuwingen.
+ * @param {any} media Afbeeldingenbeheerder.
+ * @returns {Promise<any>} Alle te importeren gegevens en waarschuwingen.
  */
 async function collect(fetchText, media) {
   const groups = await readSitemaps(fetchText);
@@ -448,7 +450,7 @@ async function collect(fetchText, media) {
    * Leest elke URL van een soort met de juiste parser; een fout bij één pagina stopt de rest niet.
    * @param {string} kind Soort uit de sitemap.
    * @param {Function} parser Parserfunctie.
-   * @returns {Promise<object[]>} Gelezen items.
+   * @returns {Promise<any[]>} Gelezen items.
    */
   const readAll = async (kind, parser) => {
     const items = [];
@@ -524,8 +526,8 @@ async function collect(fetchText, media) {
 
 /**
  * Schrijft alle gegevens in één transactie naar de database (bijwerken op slug of pad).
- * @param {object} db Database.
- * @param {object} data Resultaat van collect().
+ * @param {any} db Database.
+ * @param {any} data Resultaat van collect().
  * @returns {Promise<Record<string, number>>} Aantallen per soort.
  */
 async function store(db, data) {
@@ -665,9 +667,9 @@ async function store(db, data) {
  * wordt overgeslagen met een waarschuwing.
  * @param {(url: string) => Promise<string>} fetchText Haalt de HTML van een adres op.
  * @param {string[]|undefined} urls Adressen uit de sitemap.
- * @param {(html: string, url: string) => object} parser Zet de HTML om.
+ * @param {(html: string, url: string) => any} parser Zet de HTML om.
  * @param {string[]} warnings Waarschuwingen; deze functie vult ze aan.
- * @returns {Promise<object[]>} De omgezette pagina's.
+ * @returns {Promise<any[]>} De omgezette pagina's.
  */
 async function readParsedPages(fetchText, urls, parser, warnings) {
   const items = [];
@@ -684,9 +686,9 @@ async function readParsedPages(fetchText, urls, parser, warnings) {
 /**
  * Importeert alleen de vaste inhoud, altijd vers (niet uit de cache): homepage, lijstkoppen, reisleiders en de
  * fotogalerijen onder berichten en pagina's. Schrijft `homepage.json` en `site-content.json` en meldt de uitkomst.
- * @param {object} db Database (voor de categorieën van de homepage en de fotobibliotheek).
- * @param {object} media Afbeeldingen van de import (`createMediaStore`).
- * @param {object} options Opties van de opdrachtregel.
+ * @param {any} db Database (voor de categorieën van de homepage en de fotobibliotheek).
+ * @param {any} media Afbeeldingen van de import (`createMediaStore`).
+ * @param {any} options Opties van de opdrachtregel.
  * @returns {Promise<void>}
  */
 async function importFixedContent(db, media, options) {
@@ -714,9 +716,9 @@ async function importFixedContent(db, media, options) {
 /**
  * Zet de geschreven vaste inhoud meteen over naar de database (`site/content-transfer.js`; een deel dat al eerder is
  * overgezet blijft zoals het is) en meldt wat er is gebeurd.
- * @param {object} db Database.
- * @param {object} written Inhoud zoals in `site-content.json` geschreven.
- * @param {object|null} homepage Inhoud zoals in `homepage.json` geschreven, of null als er geen homepage is gelezen.
+ * @param {any} db Database.
+ * @param {any} written Inhoud zoals in `site-content.json` geschreven.
+ * @param {any|null} homepage Inhoud zoals in `homepage.json` geschreven, of null als er geen homepage is gelezen.
  * @returns {Promise<void>}
  */
 async function reportTransfer(db, written, homepage) {
@@ -761,8 +763,8 @@ async function main() {
 /**
  * Haalt foto's uit de homepage-inhoud die niet gedownload konden worden, zodat de site geen kapotte afbeelding toont
  * (de route vult dan een foto van een reis in).
- * @param {object} homepage Inhoud voor `homepage.json`.
- * @returns {object} Dezelfde inhoud met alleen bestaande foto's.
+ * @param {any} homepage Inhoud voor `homepage.json`.
+ * @returns {any} Dezelfde inhoud met alleen bestaande foto's.
  */
 function withExistingImages(homepage) {
   const keep = (image) => (image && fs.existsSync(path.join(MEDIA_DIR, path.basename(image))) ? image : '');

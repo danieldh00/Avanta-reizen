@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Aanmeldingen in het CRM (`/app/aanmeldingen/`, recht `aanmeldingen`): lijst met filter op status en reis en zoeken,
  * de pagina van één aanmelding met de gegevens zoals ze zijn ingevuld (zonder bijzondere gegevens: die staan bij de
@@ -71,9 +72,9 @@ function noteField(value) {
 
 /**
  * Het blok met de betaalstand op de pagina van een aanmelding (alleen voor wie het recht `betalingen` heeft).
- * @param {object} summary Uitkomst van `payments.summarize`.
+ * @param {any} summary Uitkomst van `payments.summarize`.
  * @param {number} bookingId Id van de aanmelding.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderPaymentSummary(summary, bookingId) {
   return html`<h2>Betalingen</h2>
@@ -89,7 +90,7 @@ function renderPaymentSummary(summary, bookingId) {
 
 /**
  * Maakt de routes voor aanmeldingen.
- * @param {{db: object, auth: object, settings: object, now?: () => number}} options Database, sessie- en rechtenlaag,
+ * @param {{db: any, auth: any, settings: any, now?: () => number}} options Database, sessie- en rechtenlaag,
  *   instellingen (betaaltermijnen) en de klok (tests).
  * @returns {express.Router} Router.
  */
@@ -104,7 +105,7 @@ function createBookingRoutes(options) {
    * @param {{query: Function}} client Database of transactie-client.
    * @param {string} id Id uit de URL (alleen cijfers).
    * @param {{lock?: boolean}} [mode] De rij vergrendelen.
-   * @returns {Promise<(object|null)>} Aanmelding, of null.
+   * @returns {Promise<(any|null)>} Aanmelding, of null.
    */
   const findBooking = async (client, id, mode = {}) => {
     const [booking] = await client.query(`SELECT ${BOOKING_COLUMNS} FROM bookings WHERE id = $1${mode.lock ? ' FOR UPDATE' : ''}`, [Number(id)]);
@@ -113,8 +114,8 @@ function createBookingRoutes(options) {
 
   /**
    * 404-pagina binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => res.status(404).send(renderCrmPage({
@@ -211,8 +212,8 @@ function createBookingRoutes(options) {
 
   /**
    * De pagina van één aanmelding.
-   * @param {object} req Express-verzoek.
-   * @param {object} booking De aanmelding.
+   * @param {any} req Express-verzoek.
+   * @param {any} booking De aanmelding.
    * @param {{error?: string, notice?: string, note?: string}} [state] Foutmelding, melding en een ingevulde notitie.
    * @returns {Promise<string>} HTML-pagina.
    */

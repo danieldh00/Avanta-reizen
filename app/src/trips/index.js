@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Ingang van de module Reisaanbod voor het CRM: koppelt de routes van reizen, reistypes en landen, en reisleiders.
  * Een nieuw scherm in deze module krijgt hier een regel; `crm/routes.js` hoeft daarvoor niet te veranderen.
@@ -9,7 +10,7 @@ const { createGuideRoutes } = require('./guide-routes');
 
 /**
  * Bouwt de routes van de module Reisaanbod.
- * @param {object} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` (sessies en rechten) en
+ * @param {any} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` (sessies en rechten) en
  *   de gedeelde diensten uit `server.js`.
  * @returns {express.Router} Router, te koppelen binnen `/app`.
  */

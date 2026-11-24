@@ -104,7 +104,7 @@ function textOr(value, fallback, max) {
 /**
  * Controleert de inhoud van het bestand en vult ontbrekende delen aan met de standaard.
  * @param {*} data Ingelezen JSON.
- * @returns {object} Inhoud in de vorm van `DEFAULT_HOMEPAGE`.
+ * @returns {any} Inhoud in de vorm van `DEFAULT_HOMEPAGE`.
  */
 function normalizeHomepage(data) {
   const source = data && typeof data === 'object' && !Array.isArray(data) ? data : {};

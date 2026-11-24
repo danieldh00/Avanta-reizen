@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Reistypes en landen beheren in het CRM (`/app/reistypes-en-landen/`, recht `reizen`, CMS-pakket G1): lijst per
  * soort met het aantal reizen en foto's, nieuw aanmaken, wijzigen (naam, slug, soort, icoon, inleiding, tekst,
@@ -32,8 +33,9 @@ const KIND_TITLES = { type: 'Reistypes', bestemming: 'Landen', overig: 'Overige 
 
 /**
  * Maakt de routes voor reistypes en landen.
- * @param {{db: object, auth: object, redirects?: object, library?: object}} options Database, sessie- en rechtenlaag,
- *   doorverwijzingen (om na een nieuwe 301 opnieuw te laden) en de fotobibliotheek.
+ * @param {{db: any, auth: any, redirects?: any, library?: any, mediaDir?: string}} options Database, sessie- en
+ *   rechtenlaag, doorverwijzingen (om na een nieuwe 301 opnieuw te laden) en de fotobibliotheek (of de map met
+ *   bestanden om er een te maken).
  * @returns {express.Router} Router.
  */
 function createCategoryRoutes(options) {
@@ -53,8 +55,8 @@ function createCategoryRoutes(options) {
 
   /**
    * 404-pagina binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => res.status(404).send(renderCrmPage({
@@ -63,9 +65,9 @@ function createCategoryRoutes(options) {
 
   /**
    * De velden van het formulier (nieuw en wijzigen).
-   * @param {object} values Huidige waarden (kolomnamen van de tabel).
-   * @param {object} errors Fouten per veld.
-   * @returns {object} HTML.
+   * @param {any} values Huidige waarden (kolomnamen van de tabel).
+   * @param {any} errors Fouten per veld.
+   * @returns {any} HTML.
    */
   const fields = (values, errors) => {
     const error = (name) => (errors[name] ? html`<span class="field__error" id="veld-${name}-fout">${errors[name]}</span>` : '');
@@ -92,8 +94,8 @@ function createCategoryRoutes(options) {
 
   /**
    * De lijst met alle reistypes en landen, en het formulier voor een nieuwe.
-   * @param {object} req Express-verzoek.
-   * @param {{notice?: string, error?: string, values?: object, errors?: object, open?: boolean}} [state] Meldingen en ingevulde waarden.
+   * @param {any} req Express-verzoek.
+   * @param {{notice?: string, error?: string, values?: any, errors?: any, open?: boolean}} [state] Meldingen en ingevulde waarden.
    * @returns {Promise<string>} HTML.
    */
   const renderList = async (req, state = {}) => {
@@ -158,9 +160,9 @@ function createCategoryRoutes(options) {
 
   /**
    * De pagina van één reistype of land: wijzigen, foto, samenvoegen en verwijderen.
-   * @param {object} req Express-verzoek.
-   * @param {object} category Categorie uit `categories.get`.
-   * @param {{notice?: string, error?: string, values?: object, errors?: object, status?: number}} [state] Meldingen en ingevulde waarden.
+   * @param {any} req Express-verzoek.
+   * @param {any} category Categorie uit `categories.get`.
+   * @param {{notice?: string, error?: string, values?: any, errors?: any, status?: number}} [state] Meldingen en ingevulde waarden.
    * @returns {Promise<string>} HTML.
    */
   const renderItem = async (req, category, state = {}) => {
@@ -222,9 +224,9 @@ function createCategoryRoutes(options) {
 
   /**
    * Haalt de categorie uit de URL op, of stuurt een 404.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
-   * @returns {Promise<(object|null)>} Categorie, of null als de 404 al verstuurd is.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
+   * @returns {Promise<(any|null)>} Categorie, of null als de 404 al verstuurd is.
    */
   const loadOr404 = async (req, res) => {
     const category = await categories.get(req.params.id);

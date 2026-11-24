@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Fotobibliotheek (CMS-pakket F): foto's in de tabel `media`, gekoppeld aan landen via `media_countries`. Geüploade
  * foto's staan als WebP-varianten in `DATA_DIR/media` (naam `bib-<willekeurig>-<breedte>.webp`), geïmporteerde foto's
@@ -57,7 +58,7 @@ function titleFromFilename(filename) {
 
 /**
  * Het pad van de kleinste variant die minstens zo breed is als gevraagd, of het hoofdbestand.
- * @param {{local_name: string, variants?: object}} media Foto.
+ * @param {{local_name: string, variants?: any}} media Foto.
  * @param {number} [minWidth] Gewenste minimale breedte.
  * @returns {string} Pad onder `/media/`.
  */
@@ -74,7 +75,7 @@ function mediaUrl(media, minWidth = 0) {
  * verwijzing opslaat; een verdwenen foto of iets anders dan een afbeelding geeft null.
  * @param {{query: Function}} client Transactie-client.
  * @param {(number|string)} id Id van de foto.
- * @returns {Promise<(object|null)>} De foto (id, local_name, variants, alt_text) of null.
+ * @returns {Promise<(any|null)>} De foto (id, local_name, variants, alt_text) of null.
  */
 async function lockMediaForUse(client, id) {
   if (!/^\d{1,9}$/.test(String(id))) return null;
@@ -145,7 +146,7 @@ async function fileExists(file) {
 
 /**
  * Alle bestandsnamen van een foto: het hoofdbestand en de varianten.
- * @param {{local_name: string, variants?: object}} media Foto.
+ * @param {{local_name: string, variants?: any}} media Foto.
  * @returns {string[]} Unieke bestandsnamen.
  */
 function fileNamesOf(media) {
@@ -154,9 +155,9 @@ function fileNamesOf(media) {
 
 /**
  * Maakt de fotobibliotheek.
- * @param {{db: object, mediaDir: string, appLog?: object}} options Database, map met de bestanden en het logboek van
+ * @param {{db: any, mediaDir: string, appLog?: any}} options Database, map met de bestanden en het logboek van
  *   de app (`system/app-log.js`, voor de meldingen van het onderhoud; zonder logboek naar de console).
- * @returns {object} Functies van de bibliotheek.
+ * @returns {any} Functies van de bibliotheek.
  */
 function createMediaLibrary(options) {
   const { db, mediaDir } = options;
@@ -233,7 +234,7 @@ function createMediaLibrary(options) {
   /**
    * Een pagina foto's met filter op land, zonder land en zoektekst.
    * @param {{countryId?: (number|null), withoutCountry?: boolean, patterns?: string[], limit: number, offset: number}} filter Filter.
-   * @returns {Promise<object[]>} Foto's met `countries` (namen), nieuwste eerst.
+   * @returns {Promise<any[]>} Foto's met `countries` (namen), nieuwste eerst.
    */
   const list = (filter) => db.query(
     `SELECT ${MEDIA_COLUMNS},
@@ -254,7 +255,7 @@ function createMediaLibrary(options) {
   /**
    * Eén foto met de id's van zijn landen en de naam van de uploader.
    * @param {(number|string)} id Id.
-   * @returns {Promise<(object|null)>} Foto, of null.
+   * @returns {Promise<(any|null)>} Foto, of null.
    */
   const get = async (id) => {
     const [row] = await db.query(
@@ -291,7 +292,7 @@ function createMediaLibrary(options) {
   /**
    * Waar een foto gebruikt wordt: reizen, berichten, pagina's, reisleiders, koppen van lijstpagina's, blogcategorieën en -tags en reiscategorieën.
    * @param {{query: Function}} client Database of transactie-client.
-   * @param {{local_name: string, variants?: object}} media Foto.
+   * @param {{id?: number, local_name: string, variants?: any}} media Foto.
    * @returns {Promise<{kind: string, title: string, href: string}[]>} Plekken (hoogstens `USAGE_LIMIT`).
    */
   const usage = async (client, media) => {
@@ -322,7 +323,7 @@ function createMediaLibrary(options) {
    * rij met `lockMediaForUse` (`FOR SHARE`) en weigeren een verdwenen foto, zodat koppelen en verwijderen niet kunnen racen.
    * @param {(number|string)} id Id.
    * @param {Function} [audit] Schrijft in dezelfde transactie de audit (`(client) => Promise`).
-   * @returns {Promise<{status: ('weg'|'import'|'gebruikt'|'ok'), places?: object[]}>} Uitkomst.
+   * @returns {Promise<{status: ('weg'|'import'|'gebruikt'|'ok'), places?: any[]}>} Uitkomst.
    */
   const remove = async (id, audit) => {
     const outcome = await db.transaction(async (client) => {
