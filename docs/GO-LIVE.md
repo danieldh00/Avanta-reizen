@@ -113,7 +113,7 @@ een oude sessie de uitkomst kleurt.
 | 4.2 | Google Search Console: dekking en crawlfouten nalopen | Daniël | na een week |
 | 4.3 | Back-ups en hersteltest blijven groen, bewaking meldt niets | Daniël | dagelijks de eerste week |
 | 4.4 | Oude hosting pas opzeggen na een stabiele periode van minstens vier weken (nodig voor het terugvalplan) | Daniël | na vier weken |
-| 4.5 | HSTS-preload aanvragen (W10) | Daniël | na een stabiele periode met HSTS in productie |
+| 4.5 | HSTS-preload (W10): eerst controleren dat alle subdomeinen via https werken en het kale domein (`avantareizen.nl`) naar https doorverwijst met dezelfde kop (Cloudflare); dan Beheer > Toegang en beveiliging > HSTS-preload aanzetten en het domein aanmelden op hstspreload.org. De app stuurt `preload` alleen als de site live is (zoekmachines toegelaten) en alleen op de host van het basisadres, dus nooit op de testomgeving. Terugdraaien kost maanden: alleen doen als alles stabiel is | Daniël | na een stabiele periode van enkele weken met HSTS in productie |
 
 ## 5. Cloudflare-regels (A24)
 

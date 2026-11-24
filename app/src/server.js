@@ -39,21 +39,46 @@ const { createHealthRoute } = require('./system/health');
 const BASE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self'; style-src-attr 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 
 /**
- * HSTS (audit A06): de browser gebruikt een jaar lang alleen nog https voor deze host. Zonder `includeSubDomains`: de
- * kop staat op de host van de site, en andere subdomeinen van het domein van Avanta (mail, oude diensten) mogen er
- * niet door breken. `includeSubDomains` en `preload` horen bij de domeininstellingen in Cloudflare, en pas na een
- * stabiele periode.
+ * HSTS (audit A06): de browser gebruikt een jaar lang alleen nog https voor deze host. Standaard zonder
+ * `includeSubDomains`: andere subdomeinen van het domein van Avanta (mail, oude diensten) mogen er niet door breken.
  */
 const HSTS_VALUE = 'max-age=31536000';
+
+/**
+ * HSTS-preload (wachtlijst W10, akkoord Daniël 24-11-2026): twee jaar, alle subdomeinen en `preload`, de eisen van de
+ * preloadlijst van de browsers. Alleen als de beheerder het aanzet (Beheer > Toegang en beveiliging > HSTS-preload),
+ * de site live is (indexeren aan) en het verzoek op de host van het basisadres binnenkomt; zo zet de testomgeving
+ * (altijd noindex, eigen host) nooit een domein vast. Opnemen in de lijst vraagt Daniël daarna zelf aan
+ * (`docs/GO-LIVE.md` §4.5); terugdraaien duurt maanden.
+ */
+const HSTS_PRELOAD_VALUE = 'max-age=63072000; includeSubDomains; preload';
+
+/**
+ * De HSTS-kop voor dit verzoek: met preload alleen onder de voorwaarden bij `HSTS_PRELOAD_VALUE`.
+ * @param {object} req Express-verzoek (`hostname` volgt de vertrouwde proxy).
+ * @param {{get: (key: string) => *}} [settings] Instellingen (synchroon); zonder instellingen nooit preload.
+ * @returns {string} Waarde voor `Strict-Transport-Security`.
+ */
+function hstsValue(req, settings) {
+  if (!settings || settings.get('hstsPreload') !== true || settings.get('seoIndexing') !== true) return HSTS_VALUE;
+  let siteHost = '';
+  try {
+    siteHost = new URL(String(settings.get('siteUrl') || '')).hostname.toLowerCase();
+  } catch {
+    return HSTS_VALUE;
+  }
+  return siteHost && String(req.hostname || '').toLowerCase() === siteHost ? HSTS_PRELOAD_VALUE : HSTS_VALUE;
+}
 
 /**
  * Zet de beveiligingskoppen op elk antwoord, met standaard `noindex`: de middleware met de site-instellingen haalt die
  * kop pas weg als indexeren in Beheer aan staat. Zo is een antwoord van vóór die middleware (of bij een fout) nooit
  * indexeerbaar. HSTS alleen bij https (`req.secure`, achter de vertrouwde proxy via `X-Forwarded-Proto`): over http
  * negeert de browser de kop, en lokaal of in de tests draait de app zonder https.
+ * @param {{get: (key: string) => *}} [settings] Instellingen, voor HSTS-preload (`hstsValue`).
  * @returns {Function} Express-middleware.
  */
-function securityHeaders() {
+function securityHeaders(settings) {
   return (req, res, next) => {
     res.set({
       'Content-Security-Policy': BASE_CSP,
@@ -61,7 +86,7 @@ function securityHeaders() {
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     });
-    if (req.secure) res.set('Strict-Transport-Security', HSTS_VALUE);
+    if (req.secure) res.set('Strict-Transport-Security', hstsValue(req, settings));
     res.set('X-Robots-Tag', 'noindex, nofollow');
     next();
   };
@@ -102,7 +127,7 @@ function createApp(options) {
   app.disable('x-powered-by');
   const trustedProxy = parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY);
   app.set('trust proxy', trustedProxy);
-  app.use(securityHeaders());
+  app.use(securityHeaders(settings));
   // Elk verzoek een eigen request-id (nooit een id van buiten) in de context en in de kop X-Request-Id; trage verzoeken
   // komen in het logboek (genormaliseerd pad, geen querystring).
   app.use((req, res, next) => {
@@ -297,4 +322,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createApp, start, parseTrustProxy, BASE_CSP };
+module.exports = { createApp, start, parseTrustProxy, hstsValue, BASE_CSP, HSTS_VALUE, HSTS_PRELOAD_VALUE };

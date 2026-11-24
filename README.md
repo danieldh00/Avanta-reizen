@@ -22,8 +22,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   bescherming als aanmelden (`app/src/security/form-guard.js`): herkomstcontrole, 5 per 10 minuten per bezoeker,
   honeypot en ondertekend tijdstempel. Een ingevulde honeypot wordt stil genegeerd; een ongeldig, verlopen (na 3 uur)
   of te snel (binnen 3 seconden) verstuurd formulier komt terug (422) met de ingevulde waarden en een nieuw token.
-- **Beveiligingskoppen**: CSP, `nosniff`, Referrer- en Permissions-Policy op elk antwoord; via https ook HSTS
-  (`max-age=31536000`, zonder `includeSubDomains`; dat en preload horen bij de domeininstellingen in Cloudflare).
+- **Beveiligingskoppen**: CSP, `nosniff`, Referrer- en Permissions-Policy op elk antwoord; via https ook HSTS (met `preload` en `includeSubDomains` alleen na de livegang, als Beheer > Toegang en beveiliging > HSTS-preload aan staat en het verzoek op de host van het basisadres binnenkomt; dan `max-age=63072000; includeSubDomains; preload`). Standaard `max-age=31536000` zonder `includeSubDomains`,
+  dus de testomgeving wordt nooit vastgezet. Het kale domein en de doorverwijzing naar https regelt Cloudflare.
 - **`/api/health`** geeft `{"ok":true}` (503 bij een databasefout). Het versienummer staat er alleen bij voor een
   verzoek van binnen de server (loopback of het Docker-netwerk, niet van de proxy uit `TRUST_PROXY`, zonder
   doorstuurkop); `update.sh` en `servertaken.sh` lezen het zo via `127.0.0.1`. `docker-compose.yml` publiceert de

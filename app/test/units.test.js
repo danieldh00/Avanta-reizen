@@ -375,3 +375,22 @@ test('wachtwoordcontrole: Have I Been Pwned met k-anonimiteit', async () => {
   assert.equal(await check.problem('een prima wachtwoord'), '');
   assert.deepEqual(check.recent().map((event) => event.outcome), ['onbereikbaar', 'onbereikbaar', 'onbereikbaar', 'onbereikbaar', 'lokaal', 'gelekt', 'lokaal']);
 });
+
+test('HSTS-preload (W10): alleen aan, live en op de host van het basisadres', () => {
+  const { hstsValue, HSTS_VALUE, HSTS_PRELOAD_VALUE } = require('../src/server');
+  /**
+   * Nepinstellingen met vaste waarden.
+   * @param {object} values Waarden per sleutel.
+   * @returns {{get: (key: string) => *}} Instellingen.
+   */
+  const settingsWith = (values) => ({ get: (key) => ({ hstsPreload: true, seoIndexing: true, siteUrl: 'https://www.avantareizen.nl', ...values })[key] });
+  const production = { hostname: 'www.avantareizen.nl' };
+  assert.equal(HSTS_PRELOAD_VALUE, 'max-age=63072000; includeSubDomains; preload');
+  assert.equal(hstsValue(production, settingsWith({})), HSTS_PRELOAD_VALUE);
+  assert.equal(hstsValue({ hostname: 'WWW.AvantaReizen.nl' }, settingsWith({})), HSTS_PRELOAD_VALUE, 'hoofdletters maken niet uit');
+  assert.equal(hstsValue(production, settingsWith({ hstsPreload: false })), HSTS_VALUE, 'standaard uit');
+  assert.equal(hstsValue(production, settingsWith({ seoIndexing: false })), HSTS_VALUE, 'niet live (testomgeving): nooit preload');
+  assert.equal(hstsValue({ hostname: 'test.example.nl' }, settingsWith({})), HSTS_VALUE, 'andere host dan het basisadres');
+  assert.equal(hstsValue(production, settingsWith({ siteUrl: 'geen adres' })), HSTS_VALUE, 'ongeldig basisadres');
+  assert.equal(hstsValue(production, undefined), HSTS_VALUE, 'zonder instellingen');
+});
