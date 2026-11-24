@@ -885,6 +885,10 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
   .filter__control select { padding-right: 64px; }
   .filter__submit { padding-left: 1em; padding-right: 1em; }
 }
+/* Reisleider: label boven woonplaats en jaar met een krappe regelhoogte, zodat het vak van het label niet over het jaar
+   valt; de tekst staat op dezelfde plek als op de huidige site (het jaar hooguit een paar pixels lager). */
+.guide__stat .label { margin-top: 5px; line-height: 1.2; }
+.guide__year { margin-top: -14px; }
 /* Reisdetail: terug-link op dezelfde linkerrand als de titel. */
 @media (min-width: 1025px) { .page-header--trip .to-archive { left: -.75em; } }
 /* Kenmerken bij een reis: vakjes met alleen het icoon (de naam staat in de titel en voor schermlezers), die naar een
@@ -896,6 +900,9 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
    de breedte van de fotostrook, waardoor de pagina op mobiel zijwaarts uitsteekt). */
 .content-main .grid__item > .page-content { width: 100%; min-width: 0; }
 @media (max-width: 768px) {
+  /* Reisleider: zie hierboven; op mobiel staat het label zonder marge onder. */
+  .guide__stat .label { margin: 5px 0 0; }
+  .guide__year { margin-top: 0; }
   /* Reisdetail: de tekst springt in, op dezelfde rand als de inleiding erboven (zoals de huidige site). */
   .trip__content .page-content > .page-content__text { padding: 0 15px; }
   /* Reiskaart in de lijst: het prijsblok staat links uitgelijnd, de bijkomende kosten dus ook (zoals de huidige site). */
