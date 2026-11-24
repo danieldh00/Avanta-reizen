@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Gezondheidscontrole `/api/health` voor Docker, het updatescript en de bewaking.
  *
@@ -12,10 +13,10 @@ const net = require('node:net');
 
 /** Netwerken die als "binnen de server" gelden: loopback, privé-IPv4, link-local en IPv6 unique-local. */
 const INTERNAL_NETWORKS = new net.BlockList();
-for (const [address, prefix] of [['127.0.0.0', 8], ['10.0.0.0', 8], ['172.16.0.0', 12], ['192.168.0.0', 16], ['169.254.0.0', 16]]) {
+for (const [address, prefix] of /** @type {Array<[string, number]>} */ ([['127.0.0.0', 8], ['10.0.0.0', 8], ['172.16.0.0', 12], ['192.168.0.0', 16], ['169.254.0.0', 16]])) {
   INTERNAL_NETWORKS.addSubnet(address, prefix, 'ipv4');
 }
-for (const [address, prefix] of [['::1', 128], ['fc00::', 7], ['fe80::', 10]]) INTERNAL_NETWORKS.addSubnet(address, prefix, 'ipv6');
+for (const [address, prefix] of /** @type {Array<[string, number]>} */ ([['::1', 128], ['fc00::', 7], ['fe80::', 10]])) INTERNAL_NETWORKS.addSubnet(address, prefix, 'ipv6');
 
 /** Koppen die een proxy toevoegt; staat er één in het verzoek, dan komt het van buiten en is er geen versie. */
 const FORWARDING_HEADERS = ['forwarded', 'x-forwarded-for', 'x-real-ip', 'cf-connecting-ip', 'true-client-ip'];

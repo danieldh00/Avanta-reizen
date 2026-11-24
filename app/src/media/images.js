@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Verwerking van geüploade foto's voor de fotobibliotheek (CMS-pakket F): het soort bestand bepalen op de inhoud
  * (magic bytes, nooit op naam of opgegeven type), daarna met `sharp` rechtop zetten, verkleinen naar vaste breedtes en

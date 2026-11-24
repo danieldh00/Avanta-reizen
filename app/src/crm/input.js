@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Kleine hulpfuncties voor formulierinvoer in het CRM: een e-mailadres en een tekstveld normaliseren.
  */

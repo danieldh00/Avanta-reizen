@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Vaste paden van de app: publieke bestanden en de dataopslag (afbeeldingen uit de import).
  */

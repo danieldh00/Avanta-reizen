@@ -92,12 +92,20 @@ jobs:
           sudo apt-get install -y -qq postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y -qq postgresql-client-17
-      - name: Tests app (PostgreSQL)
+      - name: Lint (ESLint)
+        working-directory: app
+        run: npm run lint
+      - name: Typecontrole op de JSDoc (bestanden met // @ts-check)
+        working-directory: app
+        run: npm run typecheck
+      # Met dekkingsmeting en een drempel (regels, takken, functies; zie test:coverage in package.json). Onder de
+      # drempel faalt de stap; verhoog de drempel als de dekking duurzaam hoger ligt, verlaag hem nooit stil.
+      - name: Tests app (PostgreSQL) met dekkingsdrempel
         working-directory: app
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
           PG_DUMP_PATH: /usr/lib/postgresql/17/bin/pg_dump
-        run: npm test
+        run: npm run test:coverage
       - name: Kwetsbaarheden in afhankelijkheden
         working-directory: app
         run: npm audit --omit=dev --audit-level=high

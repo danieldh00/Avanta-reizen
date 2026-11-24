@@ -41,7 +41,6 @@ function isolateSeedEnv(t) {
  */
 function loadPlaywright() {
   try {
-    // eslint-disable-next-line global-require
     return require('playwright');
   } catch {
     return null;

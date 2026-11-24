@@ -378,6 +378,8 @@ function createAccountRouter(options) {
       const errors = {};
       const problem = await passwordCheck.problem(password, { email: req.customer.email });
       if (problem) errors.password = problem;
+      // Twee keer dezelfde invoer van de gebruiker vergeleken, geen geheim: een timingaanval is hier niet zinvol.
+      // eslint-disable-next-line security/detect-possible-timing-attacks
       else if (password !== req.body.password2) errors.password2 = 'De wachtwoorden zijn niet gelijk.';
       if (Object.keys(errors).length) return send(res, { title: 'Wachtwoord wijzigen', body: views.passwordView({ csrf: req.customer.csrf, errors }) }, 422);
       const passwordHash = await hashPassword(password);
@@ -468,6 +470,8 @@ function createAccountRouter(options) {
       if (!email) errors.email = 'Vul een geldig e-mailadres in.';
       const problem = await passwordCheck.problem(password, { email });
       if (problem) errors.password = problem;
+      // Twee keer dezelfde invoer van de gebruiker vergeleken, geen geheim: een timingaanval is hier niet zinvol.
+      // eslint-disable-next-line security/detect-possible-timing-attacks
       else if (password !== body.password2) errors.password2 = 'De wachtwoorden zijn niet gelijk.';
       const tokenProblem = registerGuard.tokenProblem(body);
       if (tokenProblem) errors._form = tokenProblem;
@@ -601,6 +605,8 @@ function createAccountRouter(options) {
       const errors = {};
       const problem = await passwordCheck.problem(password, { email: row.email });
       if (problem) errors.password = problem;
+      // Twee keer dezelfde invoer van de gebruiker vergeleken, geen geheim: een timingaanval is hier niet zinvol.
+      // eslint-disable-next-line security/detect-possible-timing-attacks
       else if (password !== req.body.password2) errors.password2 = 'De wachtwoorden zijn niet gelijk.';
       if (Object.keys(errors).length) return send(res, { title: 'Nieuw wachtwoord', body: views.resetView({ token, errors }) }, 422);
       const passwordHash = await hashPassword(password);

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * WAN-IP van deze server: het openbare IPv4-adres waarmee de server naar buiten verbindt (dus niet het adres van de
  * website achter Cloudflare). Een Exchange Online-connector op IP-basis moet precies dit adres vertrouwen. Opzoeken

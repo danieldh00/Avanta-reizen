@@ -46,6 +46,7 @@ function isoOrEmpty(value) {
  * @returns {string} Tekst.
  */
 function cleanText(value, max = 300) {
+  // eslint-disable-next-line no-control-regex
   return String(value == null ? '' : value).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max);
 }
 

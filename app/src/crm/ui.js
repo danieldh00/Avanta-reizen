@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Gedeelde bouwstenen voor de schermen van het CRM.
  * - Lijsten: paginakop met acties, filterknoppen, zoekregel, tabel, statuslabel en bladeren.

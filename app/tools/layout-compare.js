@@ -151,7 +151,6 @@ async function measurePage(browser, url, width, selectors) {
  */
 async function measureSite(baseUrl, pages = LAYOUT_PAGES) {
   // Playwright is geen dependency van de app; het staat in de ontwikkelomgeving (cloud-sandbox, CI met browser).
-  // eslint-disable-next-line global-require
   const { chromium } = require('playwright');
   const browser = await chromium.launch();
   try {

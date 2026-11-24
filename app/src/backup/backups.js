@@ -94,8 +94,8 @@ function pgEnvironment(connectionString) {
   let url;
   try {
     url = new URL(connectionString);
-  } catch (_) {
-    throw new Error('DATABASE_URL is geen geldig adres');
+  } catch (error) {
+    throw new Error('DATABASE_URL is geen geldig adres', { cause: error });
   }
   if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:') throw new Error('DATABASE_URL is geen PostgreSQL-adres');
   const environment = {
@@ -116,6 +116,7 @@ function pgEnvironment(connectionString) {
  * @returns {string} Hoogstens 300 tekens.
  */
 function shortMessage(text) {
+  // eslint-disable-next-line no-control-regex
   return String(text || '').replace(/[\r\n\t]+/g, ' ').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(-300);
 }
 
@@ -168,7 +169,7 @@ async function decryptTo(file, masterKey, target) {
   try {
     await pipeline(fs.createReadStream(file, { start: HEADER_LENGTH, end: parts.size - TAG_LENGTH - 1 }), decipher, target);
   } catch (error) {
-    throw new Error(`Ontsleutelen mislukt (beschadigde back-up of verkeerde sleutel): ${shortMessage(error.message)}`);
+    throw new Error(`Ontsleutelen mislukt (beschadigde back-up of verkeerde sleutel): ${shortMessage(error.message)}`, { cause: error });
   }
 }
 

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Velden en validatie van het contactformulier op `/contact/`. Gelijk aan het formulier van de huidige site (naam,
  * telefoonnummer, e-mailadres, bericht en akkoord met de privacyverklaring), aangevuld met een optioneel onderwerp.

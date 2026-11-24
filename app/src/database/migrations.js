@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Databasemigraties (PostgreSQL), positioneel: één bestand per migratie in de map `migrations/`, met de naam
  * `NNN-korte-naam.js` (NNN = het nummer met voorloopnullen). Een nieuwe migratie is een nieuw bestand met het
@@ -32,6 +33,8 @@ function loadMigrations(directory = MIGRATIONS_DIR) {
   return fileNames.map((fileName, index) => {
     const match = FILE_PATTERN.exec(fileName);
     if (!match) throw new Error(`migratiebestand ${fileName} heeft niet de vorm NNN-korte-naam.js`);
+    // Alleen bestanden uit de eigen migratiemap die aan FILE_PATTERN voldoen (hierboven gecontroleerd).
+    // eslint-disable-next-line security/detect-non-literal-require
     const migration = require(path.join(directory, fileName));
     const expectedId = index + 1;
     if (Number(match[1]) !== expectedId) throw new Error(`migratiebestand ${fileName}: verwacht nummer ${expectedId} (nummers lopen door zonder gat of dubbele)`);

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Tweestapsverificatie met een authenticator-app (TOTP, RFC 6238), zonder bibliotheek.
  * Wat hier staat: geheim maken (base32), de code van een moment

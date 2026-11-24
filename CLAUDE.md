@@ -117,6 +117,12 @@ Regels:
 ## Codestijl
 - Beschrijvende namen (geen namen van één letter behalve `i`/`j`/`x`/`y`, geen cryptische afkortingen).
 - Elke functie een `/** … */`-blok in het Nederlands (wat, `@param`, `@returns`); elk bestand een kopcommentaar.
+- **Lint en typecontrole**: `npm run lint` (ESLint, `app/eslint.config.js`) moet schoon zijn. Een nieuw bestand onder
+  `app/src/` begint met `// @ts-check`; `npm run typecheck` controleert die bestanden op hun JSDoc. Een bestaand bestand
+  krijgt de regel zodra je er toch aan werkt en de meldingen oplost. Uitzondering op een regel alleen met
+  `// eslint-disable-next-line <regel>` en de reden erboven.
+- **Dekking**: CI draait `npm run test:coverage` met een drempel (regels 95%, takken 85%, functies 93%); nieuwe code
+  krijgt tests zodat de dekking niet zakt.
 - Bestandsnamen in kebab-case. Geen losse bestanden (screenshots, exports) in de root; die horen in de projectbestanden.
 
 ## Harde regels
@@ -140,6 +146,8 @@ cd app && npm install
 DATABASE_URL=postgres://… DATA_DIR=/tmp/avanta node tools/import-wordpress.js   # content + afbeeldingen van de huidige site
 DATABASE_URL=postgres://… DATA_DIR=/tmp/avanta PORT=3400 node src/server.js     # http://localhost:3400/
 TEST_DATABASE_URL=postgres://…/avanta_test npm test                              # tests (wist de testdatabase!)
+npm run lint && npm run typecheck                                                # ESLint en JSDoc-typecontrole
+TEST_DATABASE_URL=postgres://…/avanta_test npm run test:coverage                 # tests met dekkingsdrempel (zoals CI)
 cd .. && node --test "tests/*.test.js"                                           # releasescript
 kill $(lsof -ti tcp:3400)                                                        # testserver stoppen (nooit pkill -f)
 ```

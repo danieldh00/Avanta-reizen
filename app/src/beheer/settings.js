@@ -17,6 +17,7 @@ const DEFAULT_MAX_LENGTH = 500;
 const EMAIL_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/i;
 
 /** Stuurtekens die nooit in een instelling horen (regeleinden alleen bij `textarea`). */
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 
 /**

@@ -339,8 +339,8 @@ function createPaymentRoutes(options) {
         if (!booking) return notFound(req, res);
         return res.status(422).send(await renderPage(req, booking, { error, payment: values }));
       }
-      const outcome = await withBooking(req, async (client, booking, lines) => {
-        const [saved] = await client.query(
+      const outcome = await withBooking(req, async (client, booking) => {
+        await client.query(
           'INSERT INTO payments (booking_id, amount_cents, method, received_on, note, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
           [booking.id, values.amountCents, values.method, values.receivedOn, values.note, req.user.id],
         );

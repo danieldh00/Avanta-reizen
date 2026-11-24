@@ -52,7 +52,6 @@ async function main() {
   assertLocalBaseUrl(BASE_URL);
   accounts();
   // Playwright is geen dependency van de app; het staat in de ontwikkelomgeving.
-  // eslint-disable-next-line global-require
   const { chromium } = require('playwright');
   const results = JSON.parse(fs.readFileSync(option('results'), 'utf8'));
   const out = option('out') || path.join(path.dirname(option('results')), 'overzicht');

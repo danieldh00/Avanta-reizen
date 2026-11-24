@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * De vaste inhoud van de homepage die niet uit reizen, categorieën of blog komt: de slider bovenaan, de vier
  * "inspiratie"-dia's, het blok "Voor Avanta Reizen is geen bestemming te ver" en de titels van de secties.

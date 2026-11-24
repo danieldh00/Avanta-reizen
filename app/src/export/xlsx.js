@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Eenvoudige Excel-export (.xlsx, Office Open XML) zonder extra pakket: een werkmap met één of meer bladen, tekst als
  * inline strings en getallen als getal, de eerste rij vet als kop. Het zip-bestand wordt hier zelf opgebouwd (deflate en

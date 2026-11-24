@@ -10,7 +10,7 @@ const { parse } = require('node-html-parser');
  * @returns {string} Opgeschoonde tekst.
  */
 function cleanText(text) {
-  return String(text || '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+  return String(text || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 /**

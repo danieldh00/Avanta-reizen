@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Rollen en rechten van het CRM (zie `docs/OPZET-CRM.md` §4). Rechten zijn losse sleutels, rollen vaste bundels.
  * De server controleert elk verzoek met `requireRight(recht)` (in `crm/auth.js`); de HTML verbergt alleen.

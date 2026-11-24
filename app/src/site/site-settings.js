@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * De instellingen die de publieke site per verzoek nodig heeft (uit Beheer, `beheer/settings.js`), in één object:
  * indexeren, basisadres, naam en titels, standaardomschrijving en -afbeelding, contact- en organisatiegegevens, social media (voettekst),

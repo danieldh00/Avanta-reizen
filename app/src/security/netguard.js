@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Uitgaande verbindingen naar adressen die een beheerder zelf invult (zoals de mailserver) mogen niet naar het eigen
  * netwerk van de server: anders kan iemand via de app het lokale netwerk aftasten (SSRF). Daarom wordt de naam eerst
@@ -9,17 +10,17 @@ const net = require('node:net');
 // Twee lijsten: een IPv6-regel als ::ffff:0:0/96 zou in één lijst ook elk IPv4-adres blokkeren.
 const BLOCKED_V4 = new net.BlockList();
 const BLOCKED_V6 = new net.BlockList();
-for (const [address, prefix] of [
+for (const [address, prefix] of /** @type {Array<[string, number]>} */ ([
   ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16],
   ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15],
   ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
-]) BLOCKED_V4.addSubnet(address, prefix, 'ipv4');
-for (const [address, prefix] of [
+])) BLOCKED_V4.addSubnet(address, prefix, 'ipv4');
+for (const [address, prefix] of /** @type {Array<[string, number]>} */ ([
   ['::', 128], ['::1', 128], ['::ffff:0:0', 96], ['64:ff9b::', 96], ['100::', 64], ['2001:db8::', 32],
   // Teredo en 6to4 kunnen een (privé) IPv4-adres insluiten.
   ['2001::', 32], ['2002::', 16],
   ['fc00::', 7], ['fe80::', 10], ['ff00::', 8],
-]) BLOCKED_V6.addSubnet(address, prefix, 'ipv6');
+])) BLOCKED_V6.addSubnet(address, prefix, 'ipv6');
 
 /**
  * Of een IP-adres openbaar is (niet lokaal, privé, gereserveerd of multicast).

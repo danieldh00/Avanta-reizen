@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Google Analytics (GA4) op de publieke site: welk meet-ID actief is en de uitgebreide Content-Security-Policy. De
  * server zet alleen het meet-ID in de pagina; `public/js/analytics.js` laadt Google pas na toestemming van de bezoeker

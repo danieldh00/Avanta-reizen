@@ -83,6 +83,7 @@ function cleanTime(value) {
  */
 function cleanText(value, max) {
   if (typeof value !== 'string') return '';
+  // eslint-disable-next-line no-control-regex
   return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max);
 }
 

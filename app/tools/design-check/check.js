@@ -334,7 +334,6 @@ async function main() {
   const shotsDir = path.join(options.out, 'screenshots');
   fs.mkdirSync(shotsDir, { recursive: true });
   // Playwright is geen dependency van de app; het staat in de ontwikkelomgeving (cloud-sandbox, CI met browser).
-  // eslint-disable-next-line global-require
   const { chromium } = require('playwright');
   const browser = await chromium.launch();
   const areaResults = [];

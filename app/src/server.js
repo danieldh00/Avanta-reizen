@@ -61,7 +61,7 @@ const HSTS_PRELOAD_VALUE = 'max-age=63072000; includeSubDomains; preload';
  */
 function hstsValue(req, settings) {
   if (!settings || settings.get('hstsPreload') !== true || settings.get('seoIndexing') !== true) return HSTS_VALUE;
-  let siteHost = '';
+  let siteHost;
   try {
     siteHost = new URL(String(settings.get('siteUrl') || '')).hostname.toLowerCase();
   } catch {
@@ -235,7 +235,6 @@ function createApp(options) {
   });
 
   // Express herkent een foutafhandelaar aan de vier parameters.
-  // eslint-disable-next-line no-unused-vars
   app.use((error, req, res, next) => {
     // Elke onverwachte fout krijgt een foutcode: in het logboek (zonder geheimen of persoonsgegevens) en op de pagina,
     // zodat een beheerder hem terugvindt. Details alleen in de debugmodus en alleen voor een beheerder (recht systeem).

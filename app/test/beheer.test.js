@@ -155,7 +155,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
     assert.equal((await db.query("SELECT count(*)::int AS count FROM settings WHERE key = 'title'"))[0].count, 0);
   });
 
-  let clock = Date.now();
+  const clock = Date.now();
   const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;

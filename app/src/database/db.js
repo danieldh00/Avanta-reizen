@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Databaseverbinding (PostgreSQL) en het uitvoeren van de migraties.
  */
@@ -24,7 +25,7 @@ const positiveInteger = (value, fallback) => {
  * Instellingen voor de pool. Zonder `connectionTimeoutMillis` wacht een verzoek eindeloos als de database weg is of de
  * pool vol zit; nu faalt het na enkele seconden met een fout (500) en blijft de app bereikbaar.
  * @param {string} connectionString Verbindings-URL.
- * @param {object} [env] Omgeving (standaard `process.env`): `DATABASE_POOL_SIZE`, `DATABASE_CONNECT_TIMEOUT_MS`.
+ * @param {Record<string, string | undefined>} [env] Omgeving (standaard `process.env`): `DATABASE_POOL_SIZE`, `DATABASE_CONNECT_TIMEOUT_MS`.
  * @returns {object} Opties voor `new Pool()`.
  */
 function poolOptions(connectionString, env = process.env) {
@@ -97,7 +98,7 @@ function createDatabase(connectionString) {
           applied.push(migration.id);
         } catch (error) {
           await client.query('ROLLBACK');
-          throw new Error(`migratie ${migration.id} (${migration.name}) mislukt: ${error.message}`);
+          throw new Error(`migratie ${migration.id} (${migration.name}) mislukt: ${error.message}`, { cause: error });
         }
       }
     } finally {
