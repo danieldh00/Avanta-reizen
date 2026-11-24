@@ -204,6 +204,12 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     const oldOnly = await legacy('oud-art9@example.nl', { church: 'GKV', particulars: 'Diabetes' });
     const laterConsent = await legacy('later@example.nl', { church: 'PKN', particulars: 'Astma' });
     await db.query("INSERT INTO consents (person_id, kind, text_version) VALUES ($1, 'art9_religie', '2026-11-21')", [laterConsent]);
+    // Alleen een oude regel voor religie, en later echte toestemming daarvoor: niets te wissen, dus niet geteld en geen audit.
+    const nothingToClear = await db.transaction(async (client) => (await persons.savePerson(client, bookingValues({ email: 'niets@example.nl', church: 'NGK' }))).personId);
+    await db.query(
+      "INSERT INTO consents (person_id, kind, text_version) VALUES ($1, 'art9_religie', $2), ($1, 'art9_religie', '2026-11-21')",
+      [nothingToClear, LEGACY_ART9_TEXT_VERSION],
+    );
     // Eén mislukte persoon houdt de rest niet tegen; die komt bij de volgende ronde opnieuw aan bod.
     let purgeCalls = 0;
     const flakyDb = { ...db, transaction: (work) => (purgeCalls++ === 0 ? Promise.reject(new Error('slot verlopen')) : db.transaction(work)) };
@@ -216,6 +222,7 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     const kept = await personById(laterConsent);
     assert.equal(persons.openBlock('special_data', kept).church, 'PKN', 'later zelf toestemming gegeven: blijft');
     assert.equal(kept.health_data, null, 'gezondheid had geen echte toestemming');
+    assert.equal(persons.openBlock('special_data', await personById(nothingToClear)).church, 'NGK');
     const open = await db.query('SELECT count(*)::int AS total FROM consents WHERE text_version = $1 AND withdrawn_at IS NULL', [LEGACY_ART9_TEXT_VERSION]);
     assert.equal(open[0].total, 0, 'oude regels ingetrokken, als bewijs bewaard');
     assert.deepEqual(await persons.purgeLegacyArt9(db), { purged: 0, failed: 0 }, 'daarna niets meer te doen');
