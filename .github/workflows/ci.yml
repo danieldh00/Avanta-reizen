@@ -43,9 +43,10 @@ jobs:
             echo "code=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          files=$(gh api "repos/$REPO/pulls/$NUMBER/files" --paginate --jq '.[].filename') || { echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          files=$(gh api "repos/$REPO/pulls/$NUMBER/files" --paginate --jq '.[].filename') || { echo "code=true" >> "$GITHUB_OUTPUT"; echo "screens=/,/app/" >> "$GITHUB_OUTPUT"; exit 0; }
           echo "$files"
-          # Schermen voor de design-controle (leeg = geen scherm geraakt, dan draait de job `design` niet).
+          # Schermen voor de design-controle (leeg = geen scherm geraakt, dan draait de job `design` niet). Lukt het
+          # ophalen van de bestanden niet, dan hierboven een kleine vaste set, zodat de controle niet stil wegvalt.
           screens=$(printf '%s\n' "$files" | node app/tools/design-check/changed-screens.js)
           echo "screens=$screens" >> "$GITHUB_OUTPUT"
           echo "Schermen voor de design-controle: ${screens:-geen}"
