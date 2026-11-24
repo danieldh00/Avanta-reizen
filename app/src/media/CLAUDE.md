@@ -10,4 +10,6 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
   `media_files` voor de back-up: van een upload de grootste variant, van een importfoto het bestand zelf, terugzetten
   met `restoreMissingFiles`)
 - `routes.js` (`/app/fotobibliotheek/`, multipart via `busboy`)
+- `formats.js` (lichtere formaten van importfoto's in `formaten/`: WebP 400/800/1600 en kleinere JPEG onder het
+  oude adres, achtergrondtaak; index voor `srcset` via `imageAttributes`/`sizedImageUrl` op de site; niet in de back-up)
 - `picker.js` (foto kiezen op een bewerkscherm; bij opslaan altijd `lockMediaForUse`)
