@@ -60,7 +60,7 @@ fail() { log "MISLUKT: $1"; record "\"state\":\"mislukt\",\"message\":\"$1\""; e
 restore_lines() {
   grep -E '^pg_restore: (error|warning):' "$1" \
     | sed -E 's/^pg_restore: //; s/"([a-z_][a-z0-9_]{0,62})"/\x27\1\x27/g; s/"[^"]*"/…/g' \
-    | tr -d '"\\' | tr -d '\r' | tr -s '\t ' ' ' | cut -c 1-240
+    | tr -d '"\\' | sed -E 's/[[:cntrl:]]+/ /g; s/  +/ /g' | cut -c 1-240
 }
 
 # restore_error <bestand>: de eerste foutregel uit restore_lines, zonder "error: ", voor de melding in Beheer.

@@ -169,6 +169,35 @@ test('back-up: status overleeft een onleesbaar bestand', (t) => {
   assert.equal(status.lastOkAt, '2026-11-20T03:00:00.000Z');
 });
 
+test('hersteltest: foutregels van pg_restore zonder rijgegevens en veilig voor de JSON-uitslag', (t) => {
+  const script = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'apps01', 'restore-test.sh'), 'utf8');
+  const functions = ['restore_lines', 'restore_error'].map((name) => {
+    const match = new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?^\\}`, 'm').exec(script);
+    assert.ok(match, `${name} staat in restore-test.sh`);
+    return match[0];
+  }).join('\n');
+  const dir = tempDir(t);
+  const stderr = path.join(dir, 'pg_restore.err');
+  fs.writeFileSync(stderr, [
+    'pg_restore: error: could not execute query: ERROR:  schema "public" already exists',
+    'Command was: CREATE SCHEMA public;',
+    'pg_restore: error: COPY failed for table "persons": ERROR:  invalid input "Jan de Vries" \u001b[31m\b\tklaar\r',
+    'DETAIL:  Key (email)=(jan@example.com) already exists.',
+    'CONTEXT:  COPY persons, line 3, column email: "jan@example.com"',
+    'pg_restore: warning: errors ignored on restore: 2',
+  ].join('\n'));
+  const run = (call) => execFileSync('bash', ['-c', `${functions}\n${call} "$1"`, 'test', stderr]).toString();
+  const lines = run('restore_lines');
+  assert.equal(lines.split('\n').filter(Boolean).length, 3, 'alleen de regels pg_restore: error|warning');
+  assert.doesNotMatch(lines, /Jan de Vries|jan@example\.com|CREATE SCHEMA/, 'geen rijgegevens of SQL');
+  assert.match(lines, /table 'persons'/, 'namen blijven leesbaar');
+  const message = run('restore_error').trim();
+  assert.equal(message, "could not execute query: ERROR: schema 'public' already exists");
+  for (const line of lines.split('\n')) {
+    assert.doesNotThrow(() => JSON.parse(`{"message":"${line}"}`), 'geldige JSON voor record()');
+  }
+});
+
 test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
