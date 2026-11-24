@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Het auditlog lezen: filters uit de querystring, een pagina regels (nieuwste eerst, bladeren op id), de regels voor de
  * Excel-export en het Excel-bestand zelf. Alleen de logica en de queries; het scherm staat in `audit-routes.js`.
@@ -79,7 +80,7 @@ const SYSTEM_USER = 'systeem';
 
 /**
  * Leest de filters uit de querystring; alles wat niet klopt, valt weg.
- * @param {object} query Querystring.
+ * @param {any} query Querystring.
  * @returns {{user: string, action: string, entity: string, record: string, from: string, to: string}} Filters
  *   (lege tekst = geen filter); `user` is een id of `systeem`, `from` en `to` zijn datums (jjjj-mm-dd).
  */
@@ -103,7 +104,7 @@ function readAuditFilter(query) {
 
 /**
  * De filters als querystring-parameters (voor links en het formulier).
- * @param {object} filter Uitkomst van `readAuditFilter`.
+ * @param {any} filter Uitkomst van `readAuditFilter`.
  * @returns {Record<string, string>} Parameters.
  */
 function auditFilterParams(filter) {
@@ -112,7 +113,7 @@ function auditFilterParams(filter) {
 
 /**
  * Of er een filter actief is.
- * @param {object} filter Uitkomst van `readAuditFilter`.
+ * @param {any} filter Uitkomst van `readAuditFilter`.
  * @returns {boolean} Waar als minstens één filter gevuld is.
  */
 function hasAuditFilter(filter) {
@@ -121,7 +122,7 @@ function hasAuditFilter(filter) {
 
 /**
  * De WHERE-voorwaarden en parameters voor een filter. Datums zijn hele dagen in Nederlandse tijd (tot en met `tot`).
- * @param {object} filter Uitkomst van `readAuditFilter`.
+ * @param {any} filter Uitkomst van `readAuditFilter`.
  * @returns {{where: string, params: Array}} SQL zonder invoer (alleen `$n`) en de parameters.
  */
 function auditWhere(filter) {
@@ -150,9 +151,9 @@ function auditWhere(filter) {
 /**
  * Een pagina regels, nieuwste eerst; bladeren met het id van de laatste regel (`before`).
  * @param {{query: Function}} db Database.
- * @param {object} filter Uitkomst van `readAuditFilter`.
+ * @param {any} filter Uitkomst van `readAuditFilter`.
  * @param {(string|null)} before Alleen regels met een lager id (de volgende pagina), of null.
- * @returns {Promise<{rows: object[], older: (string|null)}>} De regels en het id voor de volgende pagina.
+ * @returns {Promise<{rows: any[], older: (string|null)}>} De regels en het id voor de volgende pagina.
  */
 async function loadAuditPage(db, filter, before) {
   const { where, params } = auditWhere(filter);
@@ -171,9 +172,9 @@ async function loadAuditPage(db, filter, before) {
 /**
  * De regels voor de export, nieuwste eerst; één regel meer dan het maximum om te zien of het past.
  * @param {{query: Function}} db Database.
- * @param {object} filter Uitkomst van `readAuditFilter`.
+ * @param {any} filter Uitkomst van `readAuditFilter`.
  * @param {number} [max] Maximum (tests).
- * @returns {Promise<{rows: object[], tooMany: boolean}>} De regels, of `tooMany` als het er meer zijn dan het maximum.
+ * @returns {Promise<{rows: any[], tooMany: boolean}>} De regels, of `tooMany` als het er meer zijn dan het maximum.
  */
 async function loadAuditExport(db, filter, max = AUDIT_EXPORT_MAX) {
   const { where, params } = auditWhere(filter);
@@ -199,7 +200,7 @@ function auditTime(value) {
 
 /**
  * Maakt het Excel-bestand van de export.
- * @param {{rows: object[], labels: Record<string, string>, filterLines: Array<[string, string]>, userName: string, now: Date}} input
+ * @param {{rows: any[], labels: Record<string, string>, filterLines: Array<[string, string]>, userName: string, now: Date}} input
  *   De regels, de omschrijving per actie, de gebruikte filters (als tekst), wie en wanneer.
  * @returns {Buffer} Het .xlsx-bestand.
  */

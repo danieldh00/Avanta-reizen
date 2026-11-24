@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Aanmelden voor een reis (`/aanmelden/?id=<oud reis-id>`, zoals op de huidige site). De aanmelding komt in de tabel
  * bookings, de persoon in persons (`persons/persons.js`, ontdubbeld). Bijzondere en paspoortgegevens worden per categorie
@@ -24,10 +25,10 @@ const { createBookingSaver } = require('./save-booking');
 /**
  * Het invoerelement van een veld op het openbare formulier, naar het type: keuzerondjes, vinkje (met links naar de
  * voorwaarden, behalve bij een vrijwillige toestemming voor art. 9), tekstvak of invoerveld met `autocomplete`.
- * @param {object} field Veld uit FIELDS.
- * @param {{id: string, value: string, error?: string, common: object}} control Id, ingevulde waarde, foutmelding en de
+ * @param {any} field Veld uit FIELDS.
+ * @param {{id: string, value: string, error?: string, common: any}} control Id, ingevulde waarde, foutmelding en de
  *   gedeelde attributen (id, naam, verplicht, lengte, aria).
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderFormControl(field, { id, value, error, common }) {
   if (field.type === 'radio') {
@@ -47,7 +48,7 @@ function renderFormControl(field, { id, value, error, common }) {
 
 /**
  * Bouwt de router voor aanmeldingen.
- * @param {{db: object, vault: object, formKey: Buffer, notifications?: object, captcha?: object, now?: () => number, listHeaders?: {get: Function}, prefill?: Function, customerFor?: Function}} options
+ * @param {{db: any, vault: any, formKey: Buffer, notifications?: any, captcha?: any, now?: () => number, listHeaders?: {get: (key: string) => any}, prefill?: Function, customerFor?: Function}} options
  *   Database, kluis, sleutel voor het formuliertoken, de meldingen aan kantoor, de captcha, een functie die bij een
  *   ingelogde reiziger de gewone gegevens van de vorige aanmelding geeft (`req => Promise<waarden>`, reizigersaccount
  *   J4), een functie die de ingelogde reiziger geeft (`req => Promise<{accountId, email}|null>`) en de koppen van de
@@ -72,8 +73,8 @@ function createBookingRouter(options) {
 
   /**
    * Zoekt de reis waarvoor iemand zich aanmeldt en of dat (nog) kan.
-   * @param {object} query Querystring of formulier (id of reis).
-   * @returns {Promise<{trip: (object|null), reason: string}>} De reis en anders de reden.
+   * @param {any} query Querystring of formulier (id of reis).
+   * @returns {Promise<{trip: (any|null), reason: string}>} De reis en anders de reden.
    */
   const findBookableTrip = async (query) => {
     const legacyId = Number.parseInt(query.id, 10);
@@ -87,7 +88,7 @@ function createBookingRouter(options) {
 
   /**
    * Canonical-pad van de aanmeldpagina: met het oude reis-id (zoals de links op de site), anders met de slug.
-   * @param {(object|null)} trip De reis, of null.
+   * @param {(any|null)} trip De reis, of null.
    * @returns {string} Pad met querystring.
    */
   const canonicalPath = (trip) => {
@@ -97,8 +98,8 @@ function createBookingRouter(options) {
 
   /**
    * Stuurt een pagina; altijd noindex, met een canonical naar de aanmeldpagina van de reis.
-   * @param {object} res Express-antwoord.
-   * @param {object} page Gegevens voor renderPage, met eventueel `trip` voor de canonical.
+   * @param {any} res Express-antwoord.
+   * @param {any} page Gegevens voor renderPage, met eventueel `trip` voor de canonical.
    * @param {number} [status] HTTP-status.
    * @returns {void}
    */
@@ -111,7 +112,7 @@ function createBookingRouter(options) {
 
   /**
    * De kop van de aanmeldpagina zoals de huidige site: foto, "Ja! Ik ga graag mee op reis" en "Aanmelden".
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const header = () => {
     const archive = listHeaders.get('aanmelden');
@@ -122,7 +123,7 @@ function createBookingRouter(options) {
    * Een melding in plaats van het formulier (geen of een onbekende reis, volgeboekt, vertrokken), met een knop naar het
    * reisaanbod.
    * @param {string} reason De melding.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const notice = (reason) => html`<div class="content-main">
     <div class="page-introduction">
@@ -133,10 +134,10 @@ function createBookingRouter(options) {
 
   /**
    * Eén formulierveld met label, hulptekst en foutmelding.
-   * @param {object} field Veld uit FIELDS.
+   * @param {any} field Veld uit FIELDS.
    * @param {Record<string, string>} values Ingevulde waarden.
    * @param {Record<string, string>} errors Fouten per veld.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderField = (field, values, errors) => {
     const id = `veld-${field.name}`;
@@ -155,11 +156,11 @@ function createBookingRouter(options) {
 
   /**
    * Het hele formulier met de reisgegevens bovenaan.
-   * @param {object} trip De reis.
+   * @param {any} trip De reis.
    * @param {Record<string, string>} values Ingevulde waarden.
    * @param {Record<string, string>} errors Fouten per veld.
    * @param {string} [notice] Melding boven het formulier (bijv. gegevens vooraf ingevuld).
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderForm = (trip, values, errors, notice = '') => {
     const hasErrors = Object.keys(errors).length > 0;

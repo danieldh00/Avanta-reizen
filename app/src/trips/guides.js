@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Reisleiders beheren (CMS-pakket I4, migratie 22): profiel (voornaam, achternaam, woonplaats, sinds, citaat,
  * inleiding, tekst), adres (`/reisleider/<slug>/`, een ander adres geeft een 301), portret en kopfoto uit de
@@ -32,8 +33,8 @@ const GUIDE_COLUMNS = `g.id, g.slug, g.legacy_id, g.name, g.surname, g.intro, g.
 
 /**
  * Leest en controleert het profiel van een reisleider uit een formulier; de tekst gaat door `sanitizeHtml`.
- * @param {object} body Ingezonden velden.
- * @returns {{values: object, errors: object}} Waarden (`name`, `surname`, `slug`, `city`, `since`, `quote`, `intro`,
+ * @param {any} body Ingezonden velden.
+ * @returns {{values: any, errors: any}} Waarden (`name`, `surname`, `slug`, `city`, `since`, `quote`, `intro`,
  *   `bodyHtml`, `bodyInput`, `sortOrder`: lager staat eerder in de lijst op de site, null = ongewijzigd) en fouten per veld.
  */
 function validateGuideFields(body) {
@@ -120,7 +121,7 @@ function arrangedPositions(body, count) {
  * Gebruikt bij het overzetten van de vaste inhoud (`site/content-transfer.js`).
  * @param {{query: Function}} client Transactie-client.
  * @param {number} guideId Id.
- * @param {object} [extra] Gegevens uit het bestand (`surname`, `city`, `since`, `quote`, `portrait`, `image`,
+ * @param {any} [extra] Gegevens uit het bestand (`surname`, `city`, `since`, `quote`, `portrait`, `image`,
  *   `galleryTitle`, `gallerySubtitle`, `gallery`).
  * @returns {Promise<void>}
  */
@@ -148,8 +149,8 @@ const validId = (id) => /^\d{1,9}$/.test(String(id));
 
 /**
  * Maakt de functies voor reisleiders.
- * @param {{db: object}} options Database.
- * @returns {object} Functies.
+ * @param {{db: any}} options Database.
+ * @returns {any} Functies.
  */
 function createGuides(options) {
   const { db } = options;
@@ -157,7 +158,7 @@ function createGuides(options) {
   /**
    * Alle reisleiders met het aantal reizen, op de volgorde van de site (daarna op naam); optioneel gefilterd op zoektermen (naam of achternaam).
    * @param {{patterns?: string[]}} [filter] LIKE-patronen.
-   * @returns {Promise<object[]>} Rijen.
+   * @returns {Promise<any[]>} Rijen.
    */
   const list = (filter = {}) => {
     const patterns = filter.patterns || [];
@@ -174,7 +175,7 @@ function createGuides(options) {
   /**
    * Eén reisleider met het aantal reizen.
    * @param {(number|string)} id Id.
-   * @returns {Promise<(object|null)>} Rij of null.
+   * @returns {Promise<(any|null)>} Rij of null.
    */
   const get = async (id) => {
     if (!validId(id)) return null;
@@ -187,7 +188,7 @@ function createGuides(options) {
 
   /**
    * Of een slug al door een andere reisleider wordt gebruikt.
-   * @param {object} client Client.
+   * @param {any} client Client.
    * @param {string} slug Slug.
    * @param {(number|null)} exceptId Eigen id.
    * @returns {Promise<boolean>} Bezet.
@@ -201,7 +202,7 @@ function createGuides(options) {
    * Maakt een reisleider (offline, beheerd in het CRM).
    * @param {{name: string, slug: string}} values Naam en slug.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, id) => Promise`).
-   * @returns {Promise<{id?: number, errors?: object, cleared?: boolean}>} Nieuw id (en of er een doorverwijzing
+   * @returns {Promise<{id?: number, errors?: any, cleared?: boolean}>} Nieuw id (en of er een doorverwijzing
    *   verviel; dan `redirects.reload()`) of fouten.
    */
   const create = (values, context) => db.transaction(async (client) => {
@@ -221,9 +222,9 @@ function createGuides(options) {
   /**
    * Wijzigt het profiel; een ander adres geeft een 301 vanaf het oude (daarna `redirects.reload()`).
    * @param {(number|string)} id Id.
-   * @param {object} values Uit `validateGuideFields`.
+   * @param {any} values Uit `validateGuideFields`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit.
-   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: object, moved?: boolean}>} Uitkomst.
+   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: any, moved?: boolean}>} Uitkomst.
    */
   const update = (id, values, context) => db.transaction(async (client) => {
     if (!validId(id)) return { status: 'weg' };
@@ -310,9 +311,9 @@ function createGuides(options) {
 
   /**
    * Vergrendelt een reisleider voor een wijziging aan de galerij.
-   * @param {object} client Transactie-client.
+   * @param {any} client Transactie-client.
    * @param {(number|string)} id Id.
-   * @returns {Promise<(object|null)>} Id en galerij, of null.
+   * @returns {Promise<(any|null)>} Id en galerij, of null.
    */
   const lockForGallery = async (client, id) => {
     if (!validId(id)) return null;
@@ -323,9 +324,9 @@ function createGuides(options) {
 
   /**
    * Schrijft de galerij en zet de reisleider op beheerd in het CRM.
-   * @param {object} client Transactie-client.
+   * @param {any} client Transactie-client.
    * @param {number} guideId Id.
-   * @param {object[]} gallery Nieuwe galerij.
+   * @param {any[]} gallery Nieuwe galerij.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit.
    * @returns {Promise<void>}
    */

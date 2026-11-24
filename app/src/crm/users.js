@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Gebruikersbeheer van het CRM (recht `gebruikers`): lijst, nieuwe gebruiker, rol/naam/e-mail wijzigen,
  * blokkeren, een nieuw wachtwoord instellen, de tweestapsverificatie uitzetten (toestel kwijt) en een activatiecode
@@ -95,7 +96,7 @@ const ACTION_LABELS = {
 
 /**
  * Maakt de routes voor gebruikersbeheer (het auditlog staat in `audit-routes.js`).
- * @param {{db: object, auth: object, twoFactor: object, passwordCheck: {problem: Function}, normalizeEmail: Function, textField: Function}} options
+ * @param {{db: any, auth: any, twoFactor: any, passwordCheck: {problem: Function}, normalizeEmail: Function, textField: Function}} options
  *   Database, sessie- en rechtenlaag, de 2FA-opslag (`crm/two-factor.js`), de wachtwoordcontrole
  *   (`security/password-check.js`) en de invoerhulpen uit `crm/routes.js`.
  * @returns {express.Router} Router.
@@ -107,9 +108,9 @@ function createUserRoutes(options) {
 
   /**
    * Leest de velden van het gebruikersformulier en controleert ze.
-   * @param {object} body Ingezonden velden.
+   * @param {any} body Ingezonden velden.
    * @param {{withPassword: boolean}} mode Of er een wachtwoord bij hoort (nieuwe gebruiker).
-   * @returns {Promise<{values: object, errors: object}>} Waarden en fouten per veld.
+   * @returns {Promise<{values: any, errors: any}>} Waarden en fouten per veld.
    */
   const readUserForm = async (body, mode) => {
     const values = {
@@ -137,7 +138,7 @@ function createUserRoutes(options) {
    * Keuzelijst voor de rol.
    * @param {string} selected Gekozen rol.
    * @param {string} [error] Foutmelding.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderRoleSelect = (selected, error) => html`<div class="field">
     <span class="field__label"><label for="veld-role">Rol</label></span>
@@ -159,7 +160,7 @@ function createUserRoutes(options) {
    * @param {(number|null)} selected Gekozen profiel.
    * @param {Array<{id: number, name: string}>} guides Profielen.
    * @param {string} [error] Foutmelding.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderGuideSelect = (selected, guides, error) => html`<div class="field">
     <span class="field__label"><label for="veld-guide">Reisleidersprofiel (alleen bij rol Reisleider)</label></span>
@@ -181,7 +182,7 @@ function createUserRoutes(options) {
   /**
    * Zoekt een gebruiker op id.
    * @param {string} id Id uit de URL (alleen cijfers, zie de route).
-   * @returns {Promise<(object|null)>} Gebruiker, of null.
+   * @returns {Promise<(any|null)>} Gebruiker, of null.
    */
   const findUser = async (id) => {
     const [user] = await db.query(
@@ -193,8 +194,8 @@ function createUserRoutes(options) {
 
   /**
    * 404-pagina binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => res.status(404).send(renderCrmPage({
@@ -204,7 +205,7 @@ function createUserRoutes(options) {
   /**
    * Of de wijziging de laatste actieve beheerder zou degraderen of blokkeren. Draait in een transactie met slot.
    * @param {{query: Function}} client Transactie-client.
-   * @param {object} current Huidige gebruiker.
+   * @param {any} current Huidige gebruiker.
    * @param {{role: string, active: boolean}} next Nieuwe rol en status.
    * @returns {Promise<boolean>} Waar als de wijziging niet mag.
    */
@@ -245,8 +246,8 @@ function createUserRoutes(options) {
 
   /**
    * Het formulier voor een nieuwe gebruiker.
-   * @param {object} req Express-verzoek.
-   * @param {{values?: object, errors?: object}} state Waarden en fouten.
+   * @param {any} req Express-verzoek.
+   * @param {{values?: any, errors?: any}} state Waarden en fouten.
    * @returns {Promise<string>} HTML-pagina.
    */
   const renderNewUser = async (req, state = {}) => {
@@ -308,9 +309,9 @@ function createUserRoutes(options) {
 
   /**
    * De pagina van één gebruiker: gegevens wijzigen en een nieuw wachtwoord instellen.
-   * @param {object} req Express-verzoek.
-   * @param {object} target De gebruiker.
-   * @param {{values?: object, errors?: object, passwordErrors?: object, notice?: string, activationCode?: string, activationUntil?: (Date|null)}} state
+   * @param {any} req Express-verzoek.
+   * @param {any} target De gebruiker.
+   * @param {{values?: any, errors?: any, passwordErrors?: any, notice?: string, activationCode?: string, activationUntil?: (Date|null)}} state
  *   Waarden, fouten, melding, een zojuist gemaakte activatiecode (één keer tonen) en tot wanneer een bestaande code geldt.
    * @returns {Promise<string>} HTML-pagina.
    */

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Pagina's beheren in het CRM (`/app/paginas/`, recht `content`, CMS-pakket H1 en H3): lijst met zoeken, nieuwe pagina,
  * adres wijzigen (met 301), offline/online, verwijderen, SEO-velden, een pagina bewerken
@@ -64,9 +65,9 @@ const STALE_MESSAGE = 'De pagina is intussen gewijzigd (in een ander tabblad of 
  * Velden voor het adres van een pagina: bovenliggende pagina en het laatste deel van het adres.
  * @param {{path: string, title: string}[]} parents Mogelijke bovenliggende pagina's.
  * @param {{slug: string, parentPath: string}} placement Ingevulde waarden.
- * @param {object} errors Fouten (`slug`, `parent`).
+ * @param {any} errors Fouten (`slug`, `parent`).
  * @param {string} prefix Voorvoegsel voor de id's.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderPlacementFields(parents, placement, errors, prefix) {
   return html`${fieldRow({
@@ -89,9 +90,9 @@ function renderPlacementFields(parents, placement, errors, prefix) {
 
 /**
  * Het tabblad *Inhoud* van een pagina: titel, bovenkop, inleiding, vindbaarheid en de kopfoto.
- * @param {{page: object, pageUrl: string, hiddenFields: object, values: object, errors: object, imageUrl: string}} panel
+ * @param {{page: any, pageUrl: string, hiddenFields: any, values: any, errors: any, imageUrl: string}} panel
  *   Pagina, adres van het bewerkscherm, verborgen velden, ingevulde waarden, fouten en de huidige kopfoto.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderPageContentPanel({ page, pageUrl, hiddenFields, values, errors, imageUrl }) {
   const isHomepage = page.path === '/';
@@ -122,10 +123,10 @@ function renderPageContentPanel({ page, pageUrl, hiddenFields, values, errors, i
 /**
  * Het tabblad *Adres en zichtbaarheid* van een pagina (op de homepage alleen *Zichtbaarheid*): adres wijzigen,
  * offline of online, en verwijderen als dat mag.
- * @param {{page: object, pageUrl: string, hiddenFields: object, parents: object[], placement: object, errors: object, canDelete: boolean}} panel
+ * @param {{page: any, pageUrl: string, hiddenFields: any, parents: any[], placement: any, errors: any, canDelete: boolean}} panel
  *   Pagina, adres van het bewerkscherm, verborgen velden, mogelijke bovenliggende pagina's, het ingevulde adres,
  *   fouten en of verwijderen mag.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderPageAddressPanel({ page, pageUrl, hiddenFields, parents, placement, errors, canDelete }) {
   const isHomepage = page.path === '/';
@@ -144,7 +145,7 @@ function renderPageAddressPanel({ page, pageUrl, hiddenFields, parents, placemen
 
 /**
  * Maakt de routes voor pagina's.
- * @param {{db: object, auth: object, library?: object, mediaDir?: string, redirects?: object, menus?: object}} options
+ * @param {{db: any, auth: any, library?: any, mediaDir?: string, redirects?: any, menus?: any}} options
  *   Database, sessie- en rechtenlaag, de fotobibliotheek en doorverwijzingen en menu's (opnieuw laden na verplaatsen).
  * @returns {express.Router} Router.
  */
@@ -158,14 +159,14 @@ function createPageRoutes(options) {
 
   /**
    * Het uitgelichte blogbericht (voor het blogblok van de homepage in het voorbeeld).
-   * @returns {string} Slug, of leeg.
+   * @returns {Promise<string>} Slug, of leeg.
    */
   const featuredSlug = async () => (await content.blogHighlights()).featuredSlug || '';
 
   /**
    * 404-pagina binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => {
@@ -176,7 +177,7 @@ function createPageRoutes(options) {
 
   /**
    * Audit voor een actie op een pagina.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {string} action Actie.
    * @returns {Function} `(client) => Promise`.
    */
@@ -184,7 +185,7 @@ function createPageRoutes(options) {
 
   /**
    * Context voor een wijziging van het concept.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {string} [action] Actie in de auditlog.
    * @returns {{userId: number, audit: Function}} Context.
    */
@@ -192,9 +193,9 @@ function createPageRoutes(options) {
 
   /**
    * Verborgen velden van elk formulier op het bewerkscherm.
-   * @param {object} req Express-verzoek.
-   * @param {object} page Pagina.
-   * @returns {object} HTML.
+   * @param {any} req Express-verzoek.
+   * @param {any} page Pagina.
+   * @returns {any} HTML.
    */
   const hidden = (req, page) => html`<input type="hidden" name="_csrf" value="${req.session.csrf}"><input type="hidden" name="versie" value="${page.draft_version}">`;
 
@@ -233,9 +234,10 @@ function createPageRoutes(options) {
 
   /**
    * Het bewerkscherm van een pagina.
-   * @param {object} req Express-verzoek.
-   * @param {object} page Pagina uit `pages.get`.
-   * @param {{notice?: string, error?: string, values?: object, errors?: object, blockErrors?: {id: string, block: object, errors: object}}} [state]
+   * @param {any} req Express-verzoek.
+   * @param {any} page Pagina uit `pages.get`.
+   * @param {{notice?: string, error?: string, values?: any, errors?: any, blockErrors?: {id: string, block: any, errors: any},
+   *   placement?: {slug: string, parentPath: string}}} [state]
    *   Meldingen, ingevulde gegevens met fouten, of een blok met fouten.
    * @returns {Promise<string>} HTML.
    */
@@ -289,9 +291,9 @@ function createPageRoutes(options) {
 
   /**
    * Haalt de pagina uit de URL op, of stuurt een 404.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
-   * @returns {Promise<(object|null)>} Pagina, of null als de 404 al verstuurd is.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
+   * @returns {Promise<(any|null)>} Pagina, of null als de 404 al verstuurd is.
    */
   const loadOr404 = async (req, res) => {
     const page = await pages.get(req.params.id);
@@ -301,11 +303,11 @@ function createPageRoutes(options) {
 
   /**
    * Verwerkt de uitkomst van een wijziging: doorsturen bij succes, anders het scherm met de melding.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
-   * @param {object} outcome Uitkomst van `pages.*`.
-   * @param {{notice: number, anchor?: string, onError?: (page: object) => Promise<string>}} next Melding en anker bij
-   *   succes; eigen scherm bij een fout (standaard het bewerkscherm met de melding).
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
+   * @param {any} outcome Uitkomst van `pages.*`.
+   * @param {{notice: number, anchor?: string, block?: string, onError?: (page: any) => Promise<string>}} next Melding,
+   *   anker en geopend blok bij succes; eigen scherm bij een fout (standaard het bewerkscherm met de melding).
    * @returns {Promise<void>}
    */
   const finish = async (req, res, outcome, next) => {
@@ -434,9 +436,9 @@ function createPageRoutes(options) {
 
   /**
    * Het formulier voor een nieuwe pagina.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{title: string, slug: string, parentPath: string}} values Ingevulde waarden.
-   * @param {object} [errors] Fouten.
+   * @param {any} [errors] Fouten.
    * @returns {Promise<string>} HTML.
    */
   const renderNewPage = async (req, values, errors = {}) => {

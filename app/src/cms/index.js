@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Ingang van de module Website-inhoud voor het CRM: koppelt de routes van pagina's, menu's, veelgestelde vragen,
  * de koppen van de lijstpagina's en het blog. Een nieuw scherm in deze module krijgt hier een regel; `crm/routes.js` hoeft daarvoor niet te veranderen.
@@ -13,7 +14,7 @@ const { createListHeaderRoutes } = require('./list-header-routes');
 /**
  * Bouwt de routes van de module Website-inhoud. De volgorde telt: categorieën en tags (`/blog/categorieen-en-tags/`)
  * staan vóór de blogberichten (`/blog/…`).
- * @param {object} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` (sessies en rechten) en
+ * @param {any} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` (sessies en rechten) en
  *   de gedeelde diensten uit `server.js`.
  * @returns {express.Router} Router, te koppelen binnen `/app`.
  */

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * De blokeditor van het CRM, gedeeld door pagina's (`page-routes.js`) en blogberichten (`post-routes.js`, CMS-pakket I):
  * de velden van een blok, de sectie *Blokken* op het bewerkscherm, het scherm om een foto uit de bibliotheek te kiezen
@@ -16,8 +17,8 @@ const {
 
 /**
  * Een veld met label, hulptekst en fout.
- * @param {{id: string, label: string, control: object, help?: string, error?: string}} field Veld.
- * @returns {object} HTML.
+ * @param {{id: string, label: string, control: any, help?: string, error?: string}} field Veld.
+ * @returns {any} HTML.
  */
 function fieldRow(field) {
   return html`<div class="field"><span class="field__label"><label for="${field.id}">${field.label}</label></span>
@@ -29,7 +30,7 @@ function fieldRow(field) {
  * Attributen voor een veld met een fout.
  * @param {string} id Id van het veld.
  * @param {string} [error] Fout.
- * @returns {object} HTML-attributen.
+ * @returns {any} HTML-attributen.
  */
 function invalidAttributes(id, error) {
   return error ? html` aria-invalid="true" aria-describedby="${id}-fout"` : '';
@@ -37,11 +38,11 @@ function invalidAttributes(id, error) {
 
 /**
  * Het invoerelement van één blokveld.
- * @param {object} field Velddefinitie uit `BLOCK_TYPES`.
+ * @param {any} field Velddefinitie uit `BLOCK_TYPES`.
  * @param {{name: string, id: string, value: *, error?: string}} control Naam in het formulier, id, huidige waarde en
  *   eventuele foutmelding.
- * @param {object} [options] Keuzes voor velden met een bron (`source`): `{types, countries, faq}` als `[waarde, naam][]`.
- * @returns {object} HTML.
+ * @param {any} [options] Keuzes voor velden met een bron (`source`): `{types, countries, faq}` als `[waarde, naam][]`.
+ * @returns {any} HTML.
  */
 function fieldControl(field, { name, id, value, error }, options = {}) {
   const invalid = invalidAttributes(id, error);
@@ -74,11 +75,11 @@ const FIELD_HELP = {
 
 /**
  * De velden en stijlopties van een blok in het formulier.
- * @param {object} block Blok.
- * @param {object} errors Fouten per veldnaam.
+ * @param {any} block Blok.
+ * @param {any} errors Fouten per veldnaam.
  * @param {string} photoUrl Adres van het fotoscherm van dit blok.
- * @param {object} options Keuzes voor velden met een bron (zie `fieldControl`).
- * @returns {object} HTML.
+ * @param {any} options Keuzes voor velden met een bron (zie `fieldControl`).
+ * @returns {any} HTML.
  */
 function blockFields(block, errors, photoUrl, options) {
   const definition = BLOCK_TYPES[block.type];
@@ -132,8 +133,8 @@ function blockFields(block, errors, photoUrl, options) {
 
 /**
  * Het fotoveld van een blok: het eerste veld van de soort `image` (één foto) of `images` (galerij).
- * @param {(object|undefined)} block Blok.
- * @returns {(object|null)} Velddefinitie, of null als het blok geen foto's heeft.
+ * @param {(any|undefined)} block Blok.
+ * @returns {(any|null)} Velddefinitie, of null als het blok geen foto's heeft.
  */
 function photoFieldOf(block) {
   return block ? BLOCK_TYPES[block.type].fields.find((field) => field.kind === 'image' || field.kind === 'images') || null : null;
@@ -141,7 +142,7 @@ function photoFieldOf(block) {
 
 /**
  * Leest de gekozen foto uit het formulier van de kiezer.
- * @param {object} body Ingezonden velden.
+ * @param {any} body Ingezonden velden.
  * @returns {{none: boolean, mediaId: (string|null), valid: boolean}} Keuze.
  */
 function chosenPhoto(body) {
@@ -153,10 +154,10 @@ function chosenPhoto(body) {
 /**
  * Het statusblok bovenaan een pagina of bericht: is er een concept (met Publiceren en Concept weggooien) of niet, en
  * de feiten (adres, op de site, laatst gewijzigd).
- * @param {{item: {draft: *}, url: string, hiddenFields: object, draftNote: string, publishedText: string, facts: Array<Array<*>>}} status
+ * @param {{item: {draft: *}, url: string, hiddenFields: any, draftNote: string, publishedText: string, facts: Array<Array<*>>}} status
  *   Pagina of bericht, adres van het bewerkscherm, verborgen velden, extra tekst bij een concept, wat er zonder
  *   concept geldt ("staat op de site", "is gepubliceerd") en de feiten als paren van label en waarde.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderDraftStatus({ item, url, hiddenFields, draftNote, publishedText, facts }) {
   return html`<section class="crm-block cms-status">
@@ -174,10 +175,10 @@ function renderDraftStatus({ item, url, hiddenFields, draftNote, publishedText, 
 /**
  * Het tabblad *Versies* van een pagina of bericht: elke gepubliceerde versie met een knop om hem als concept terug te
  * zetten.
- * @param {object[]} revisionRows Versies, nieuwste eerst.
+ * @param {any[]} revisionRows Versies, nieuwste eerst.
  * @param {string} itemUrl Adres van het bewerkscherm (eindigt op `/`).
- * @param {object} hiddenFields Verborgen velden (CSRF-token en conceptversie).
- * @returns {object} HTML.
+ * @param {any} hiddenFields Verborgen velden (CSRF-token en conceptversie).
+ * @returns {any} HTML.
  */
 function renderRevisions(revisionRows, itemUrl, hiddenFields) {
   return html`<section class="crm-block" id="versies">
@@ -196,10 +197,10 @@ function renderRevisions(revisionRows, itemUrl, hiddenFields) {
 
 /**
  * De knoppen om een pagina of bericht offline te halen of weer online te zetten, en (als het mag) te verwijderen.
- * @param {{item: {published: boolean}, url: string, hiddenFields: object, canDelete: boolean, deleteLabel: string}} actions
+ * @param {{item: {published: boolean}, url: string, hiddenFields: any, canDelete: boolean, deleteLabel: string}} actions
  *   Pagina of bericht, adres van het bewerkscherm, verborgen velden, of verwijderen mag en wat er verwijderd wordt
  *   ("deze pagina", "dit bericht").
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderVisibilityActions({ item, url, hiddenFields, canDelete, deleteLabel }) {
   return html`<div class="crm-actions">
@@ -214,7 +215,7 @@ function renderVisibilityActions({ item, url, hiddenFields, canDelete, deleteLab
 
 /**
  * Maakt de blokeditor voor één soort inhoud (pagina's of blogberichten).
- * @param {object} config Instellingen:
+ * @param {any} config Instellingen:
  *   - `base`: basispad van het scherm (bijv. `/app/paginas/`);
  *   - `route`: hetzelfde pad binnen de CRM-router (bijv. `/paginas/`);
  *   - `guard`: middleware die het recht controleert; `auth`: sessie- en rechtenlaag (`checkCsrf`);
@@ -238,11 +239,11 @@ function createBlockEditor(config) {
   /**
    * De sectie *Blokken* op het bewerkscherm: elk blok met zijn velden en acties, en het formulier om een blok toe te
    * voegen.
-   * @param {{item: object, hidden: object, options: object, state: object, openBlock: string, typeOptions: object, homeTypes?: boolean}} section
+   * @param {{item: any, hidden: any, options: any, state: any, openBlock: string, typeOptions: any, homeTypes?: boolean}} section
    *   Het item (met `id`), de verborgen velden van elk formulier, de keuzes voor velden met een bron, de stand van het
    *   bewerkscherm (`blockErrors`), het blok dat open staat, de keuzes voor de soort blok en of de homepage-secties
    *   meedoen (uitleg).
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderBlocksSection = (section) => {
     const { item, hidden, options, state, openBlock, typeOptions } = section;
@@ -287,9 +288,9 @@ function createBlockEditor(config) {
 
   /**
    * Het scherm om een foto te kiezen (voor een afbeeldingsblok of de kopfoto).
-   * @param {object} req Express-verzoek.
-   * @param {object} item Pagina of bericht.
-   * @param {{title: string, pageUrl: string, current: (object|null), allowNone: boolean, multiple?: boolean, error?: string}} screen
+   * @param {any} req Express-verzoek.
+   * @param {any} item Pagina of bericht.
+   * @param {{title: string, pageUrl: string, current: (any|null), allowNone: boolean, multiple?: boolean, error?: string}} screen
    *   Titel, adres van het scherm, huidige foto, of "geen foto" mag en of je er meer tegelijk kiest (galerij).
    * @returns {Promise<string>} HTML.
    */
@@ -316,7 +317,7 @@ function createBlockEditor(config) {
 
   /**
    * Registreert de routes van de blokeditor op de router.
-   * @param {object} router Express-router.
+   * @param {any} router Express-router.
    * @returns {void}
    */
   const addRoutes = (router) => {

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Reizen beheren in het CRM (`/app/reizen/`, recht `reizen`, CMS-pakket G2): lijst met filter (komend, vertrokken,
  * concept, alle) en zoeken, een nieuwe reis aanmaken en een reis wijzigen: alle velden van de huidige reis, meerdere
@@ -62,7 +63,7 @@ function formFieldHelpers(values, errors) {
 /**
  * De samenvatting boven een bestaande reis: status, volgeboekt, reiscode, vertrekdatum en plaatsen.
  * @param {any} trip Reis uit `trips.get`.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderTripSummary(trip) {
   const status = trip.published ? ui.renderStatus('gepubliceerd', 'Gepubliceerd') : ui.renderStatus('concept', 'Concept');
@@ -75,7 +76,7 @@ function renderTripSummary(trip) {
  * Een groep vinkjes voor één soort categorie (landen, reistypes of overig); landen krijgen een zoekveld erboven.
  * @param {{categories: any[], chosen: Set<string>, kind: string, title: string}} group Alle categorieën, de gekozen
  *   id's, de soort en de kop van de groep.
- * @returns {object|string} HTML, of een lege tekst als er van deze soort geen categorieën zijn.
+ * @returns {any|string} HTML, of een lege tekst als er van deze soort geen categorieën zijn.
  */
 function renderCategoryGroup({ categories, chosen, kind, title }) {
   const items = categories.filter((category) => category.kind === kind);
@@ -88,7 +89,7 @@ function renderCategoryGroup({ categories, chosen, kind, title }) {
  * De keuzelijst met reisleiders; een reisleider die niet online staat krijgt dat erachter.
  * @param {any[]} guides De reisleiders uit `trips.choices`.
  * @param {any} chosenId Het gekozen id uit het formulier.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderGuideSelect(guides, chosenId) {
   return html`<div class="field"><span class="field__label"><label for="veld-reisleider">Reisleider</label></span>
@@ -98,7 +99,7 @@ function renderGuideSelect(guides, chosenId) {
 /**
  * De tekst naast de knop Opslaan: wie de reis het laatst wijzigde, of bij een nieuwe reis dat hij een concept wordt.
  * @param {any} trip Reis uit `trips.get`, of `null` bij een nieuwe reis.
- * @returns {object|string} HTML of tekst.
+ * @returns {any|string} HTML of tekst.
  */
 function renderSaveNote(trip) {
   if (!trip) return 'De reis wordt als concept aangemaakt, tenzij je bij Zichtbaarheid Gepubliceerd kiest.';
@@ -108,7 +109,7 @@ function renderSaveNote(trip) {
 /**
  * De uitleg bij een reis die nog uit de import komt (nog niet in het CRM beheerd).
  * @param {any} trip Reis uit `trips.get`.
- * @returns {object|string} HTML, of een lege tekst als de reis al in het CRM wordt beheerd.
+ * @returns {any|string} HTML, of een lege tekst als de reis al in het CRM wordt beheerd.
  */
 function renderImportNote(trip) {
   return trip.managed_in_crm ? '' : html`<p class="field__help">Deze reis komt nog uit de import van de huidige site; na opslaan beheer je hem hier en slaat de import hem over.</p>`;
@@ -116,7 +117,7 @@ function renderImportNote(trip) {
 
 /**
  * Tekst voor de plaatsen in de lijst: bezet van totaal, of alleen bezet als het aantal plaatsen onbekend is.
- * @param {object} trip Reis met `booked_seats` en `capacity`.
+ * @param {any} trip Reis met `booked_seats` en `capacity`.
  * @returns {string} Tekst.
  */
 function seatsText(trip) {
@@ -126,8 +127,8 @@ function seatsText(trip) {
 
 /**
  * Zet een reis uit de database om naar de waarden van het formulier.
- * @param {object} trip Reis uit `trips.get`.
- * @returns {object} Waarden per veldnaam.
+ * @param {any} trip Reis uit `trips.get`.
+ * @returns {any} Waarden per veldnaam.
  */
 function formValues(trip) {
   const values = {
@@ -162,8 +163,9 @@ function defaultCapacity(settings) {
 
 /**
  * Maakt de routes voor reizen.
- * @param {{db: object, auth: object, redirects?: object, settings?: object}} options Database, sessie- en rechtenlaag,
- *   doorverwijzingen en de instellingen (standaard aantal plaatsen).
+ * @param {{db: any, auth: any, redirects?: any, settings?: any, library?: any, mediaDir?: string}} options Database,
+ *   sessie- en rechtenlaag, doorverwijzingen, de instellingen (standaard aantal plaatsen) en de fotobibliotheek (of de
+ *   map met bestanden om er een te maken).
  * @returns {express.Router} Router.
  */
 function createTripRoutes(options) {
@@ -184,8 +186,8 @@ function createTripRoutes(options) {
 
   /**
    * 404-pagina binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => res.status(404).send(renderCrmPage({
@@ -237,8 +239,8 @@ function createTripRoutes(options) {
 
   /**
    * Het formulier van een reis (nieuw of wijzigen).
-   * @param {object} req Express-verzoek.
-   * @param {{trip?: object, values: object, errors?: object, error?: string, notice?: string}} state De reis (bij
+   * @param {any} req Express-verzoek.
+   * @param {{trip?: any, values: any, errors?: any, error?: string, notice?: string}} state De reis (bij
    *   wijzigen), de waarden in het formulier, fouten en meldingen.
    * @returns {Promise<string>} HTML.
    */
@@ -333,9 +335,9 @@ function createTripRoutes(options) {
 
   /**
    * De plaatsen van een reis: bezet (aanmeldingen die niet geannuleerd zijn), vrij en of de reis daardoor volgeboekt is.
-   * @param {object} req Express-verzoek (voor het recht `aanmeldingen`).
-   * @param {object} trip Reis uit `trips.get`.
-   * @returns {object} HTML.
+   * @param {any} req Express-verzoek (voor het recht `aanmeldingen`).
+   * @param {any} trip Reis uit `trips.get`.
+   * @returns {any} HTML.
    */
   const renderSeats = (req, trip) => {
     const seats = seatSummary(trip);
@@ -348,9 +350,9 @@ function createTripRoutes(options) {
 
   /**
    * Het blok met foto's van een reis: kop- en kaartfoto, galerij met volgorde, galerijtekst, kiezer en direct uploaden.
-   * @param {object} req Express-verzoek.
-   * @param {object} trip Reis uit `trips.get`.
-   * @returns {Promise<object>} HTML.
+   * @param {any} req Express-verzoek.
+   * @param {any} trip Reis uit `trips.get`.
+   * @returns {Promise<any>} HTML.
    */
   const renderPhotos = async (req, trip) => {
     const [links, countries, imported] = await Promise.all([tripMedia.list(trip.id), library.countries(), tripMedia.imported(trip.id)]);
@@ -474,8 +476,8 @@ function createTripRoutes(options) {
 
   /**
    * Toont het bewerkscherm opnieuw met een foutmelding bij de foto's.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {number} status HTTP-status.
    * @param {string} message Melding.
    * @returns {Promise<void>}
@@ -488,7 +490,7 @@ function createTripRoutes(options) {
 
   /**
    * De audit en gebruiker voor een wijziging aan de foto's.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @returns {{userId: number, audit: Function}} Context.
    */
   const photoContext = (req) => ({
@@ -498,8 +500,8 @@ function createTripRoutes(options) {
 
   /**
    * Stuurt na een wijziging aan de foto's door, of toont de fout.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {string} outcome Uitkomst van `tripMedia`.
    * @returns {Promise<void>}
    */

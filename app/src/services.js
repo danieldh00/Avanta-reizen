@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * De diensten van de app: alles wat één keer wordt aangemaakt en daarna door de routes en de achtergrondtaken wordt
  * gedeeld (instellingen, logboek, mail, back-ups, bewaking, betalingen, …), gegroepeerd per module. `server.js` bouwt
@@ -40,9 +41,9 @@ const { MEDIA_DIR, DATA_DIR } = require('./paths');
 /**
  * Maakt alle diensten aan. Er start hier nog niets op de achtergrond: timers en planners starten pas in
  * `startBackgroundTasks`, zodat de tests een app kunnen bouwen zonder achtergrondwerk.
- * @param {object} options De opties van `createApp` (`server.js`): database, hoofdsleutel en wat de tests vervangen
+ * @param {any} options De opties van `createApp` (`server.js`): database, hoofdsleutel en wat de tests vervangen
  *   (eigen instellingen, logboek, mailer, fetch-functies, mappen, klok).
- * @returns {object} De diensten op naam.
+ * @returns {any} De diensten op naam.
  */
 function createServices(options) {
   // Platform: kluis, instellingen, logboek, captcha en wachtwoordcontrole.
@@ -144,8 +145,8 @@ function createBackupServices(options, settings) {
 /**
  * Start het achtergrondwerk van de diensten: opschonen van sessies, tellers, back-ups, kopie naar Google Drive,
  * hersteltest, bewaking, AVG-opschoning, betaalherinneringen, infobrieven, opruimen van foto's en de koppeling met het updatescript.
- * @param {object} services De diensten uit `createServices`.
- * @param {object} db De database.
+ * @param {any} services De diensten uit `createServices`.
+ * @param {any} db De database.
  * @returns {void}
  */
 function startBackgroundTasks(services, db) {

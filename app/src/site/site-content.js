@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Vaste inhoud van de huidige site uit `DATA_DIR/site-content.json`: de koppen van de lijstpagina's, de extra gegevens
  * van reisleiders (achternaam, woonplaats, bij Avanta sinds, citaat, foto's, galerij en volgorde), de tags van het
@@ -49,7 +50,7 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,119}$/;
 /**
  * Eén lijstkop met standaardwaarden.
  * @param {*} value Waarde uit het bestand.
- * @param {object} fallback Standaard.
+ * @param {any} fallback Standaard.
  * @returns {{pretitle: string, title: string, image: string, introduction: string}} De kop.
  */
 function normalizeArchive(value, fallback) {
@@ -65,7 +66,7 @@ function normalizeArchive(value, fallback) {
 /**
  * Extra gegevens van één reisleider.
  * @param {*} value Waarde uit het bestand.
- * @returns {object} Gecontroleerde gegevens.
+ * @returns {any} Gecontroleerde gegevens.
  */
 function normalizeGuide(value) {
   const own = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -86,7 +87,7 @@ function normalizeGuide(value) {
 /**
  * Eén tag van het weblog.
  * @param {*} value Waarde uit het bestand.
- * @returns {(object|null)} Gecontroleerde tag, of null zonder geldige slug of naam.
+ * @returns {(any|null)} Gecontroleerde tag, of null zonder geldige slug of naam.
  */
 function normalizeTag(value) {
   const own = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -124,7 +125,7 @@ function normalizePageGallery(value) {
 /**
  * Het object zelf als het een gewoon object is (geen array), anders een leeg object.
  * @param {*} value Waarde uit de JSON.
- * @returns {object} Object.
+ * @returns {any} Object.
  */
 function plainObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -132,8 +133,8 @@ function plainObject(value) {
 
 /**
  * De extra gegevens per reisleider, op een geldige slug, hoogstens `MAX_GUIDES`.
- * @param {object} guideSource `guides` uit het bestand.
- * @returns {Map<string, object>} Gegevens per slug.
+ * @param {any} guideSource `guides` uit het bestand.
+ * @returns {Map<string, any>} Gegevens per slug.
  */
 function normalizeGuides(guideSource) {
   const guides = new Map();
@@ -146,7 +147,7 @@ function normalizeGuides(guideSource) {
 /**
  * De tags van het blog, zonder dubbele slugs, hoogstens `MAX_TAGS`.
  * @param {*} value `blogTags` uit het bestand.
- * @returns {object[]} Tags.
+ * @returns {any[]} Tags.
  */
 function normalizeTags(value) {
   const blogTags = [];
@@ -159,8 +160,8 @@ function normalizeTags(value) {
 
 /**
  * De fotogalerijen per pagina-adres (geldig pad van hoogstens 300 tekens), hoogstens `MAX_PAGE_GALLERIES`.
- * @param {object} gallerySource `galleries` uit het bestand.
- * @returns {Map<string, object>} Galerij per pad.
+ * @param {any} gallerySource `galleries` uit het bestand.
+ * @returns {Map<string, any>} Galerij per pad.
  */
 function normalizeGalleries(gallerySource) {
   const galleries = new Map();
@@ -174,7 +175,7 @@ function normalizeGalleries(gallerySource) {
 /**
  * Controleert de inhoud van het bestand en vult ontbrekende delen aan met de standaard.
  * @param {*} data Ingelezen JSON.
- * @returns {{archives: object, guides: Map<string, object>, guideOrder: string[], blogTags: object[], blogArchiveLink: object, featuredPost: string, galleries: Map<string, object>}} Inhoud.
+ * @returns {{archives: any, guides: Map<string, any>, guideOrder: string[], blogTags: any[], blogArchiveLink: any, featuredPost: string, galleries: Map<string, any>}} Inhoud.
  */
 function normalizeSiteContent(data) {
   const source = plainObject(data);
@@ -198,7 +199,7 @@ function normalizeSiteContent(data) {
 /**
  * Leest `site-content.json` uit de datamap, voor de overname naar de database.
  * @param {string} dataDir De datamap.
- * @returns {object|null} De gecontroleerde inhoud, of null als het bestand ontbreekt of kapot is.
+ * @returns {any|null} De gecontroleerde inhoud, of null als het bestand ontbreekt of kapot is.
  */
 function readSiteContentFile(dataDir) {
   return readJsonFile(path.join(dataDir, SITE_CONTENT_FILE), normalizeSiteContent);

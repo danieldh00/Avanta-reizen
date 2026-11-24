@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Webserver van Avanta Reizen: de publieke website op `/` en het CRM op `/app/`.
  * Start met `node src/server.js`; vereist DATABASE_URL. Dit bestand bouwt de Express-app: beveiligingskoppen, de
@@ -59,7 +60,7 @@ const HSTS_PRELOAD_VALUE = 'max-age=63072000; includeSubDomains; preload';
 
 /**
  * De HSTS-kop voor dit verzoek: met preload alleen onder de voorwaarden bij `HSTS_PRELOAD_VALUE`.
- * @param {object} req Express-verzoek (`hostname` volgt de vertrouwde proxy).
+ * @param {any} req Express-verzoek (`hostname` volgt de vertrouwde proxy).
  * @param {{get: (key: string) => *}} [settings] Instellingen (synchroon); zonder instellingen nooit preload.
  * @returns {string} Waarde voor `Strict-Transport-Security`.
  */
@@ -114,7 +115,8 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, previousKeys?: Buffer[], settings?: object, appLog?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, statfs?: Function, monitorRequest?: Function, monitorDataDir?: string, retentionToday?: () => string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, passwordCheckFetch?: Function, now?: () => number}} options Database,
+ * @param {{db: any, masterKey: Buffer, previousKeys?: Buffer[], settings?: any, appLog?: any, systemUpdate?: any, updateStatusDir?: string, updateRequestDir?: string, mailer?: any, wanIp?: any, captcha?: any, captchaFetch?: Function, backups?: any, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, statfs?: Function, monitorRequest?: Function, monitorDataDir?: string, retentionToday?: () => string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, passwordCheckFetch?: Function, now?: () => number,
+ *   mediaLimits?: any, paymentOverviewMaxRows?: number, auditExportMax?: number}} options Database,
  *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), het logboek (standaard
  *   `system/app-log.js`; wegschrijven start pas met `appLog.start()` in `start()`), de koppeling met het updatescript
  *   (standaard `system/system-update.js` met de mappen uit `updateStatusDir`/`updateRequestDir` of UPDATE_STATUS_DIR/UPDATE_REQUEST_DIR), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), de back-updienst (standaard `backup/backups.js` met `databaseUrl`, `backupDir` en `pgDumpPath`; zonder `databaseUrl` geen back-ups), een eigen fetch voor Google Drive (`googleFetch`, tests) en voor de controle op gelekte wachtwoorden (`passwordCheckFetch`, tests), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt

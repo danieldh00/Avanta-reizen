@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Reistypes en landen (CMS-pakket G1, migratie 14): de tabel `trip_categories` met soort (`type`, `bestemming`,
  * `overig`), naam, slug, icoon (uit de vaste set eigen iconen), inleiding, tekst, foto uit de fotobibliotheek, volgorde
@@ -30,8 +31,8 @@ const CATEGORY_COLUMNS = `c.id, c.slug, c.name, c.kind, c.icon, c.intro, c.body_
 
 /**
  * Leest en controleert de velden van een categorie uit een formulier.
- * @param {object} body Ingezonden velden.
- * @returns {{values: object, errors: object}} Opgeschoonde waarden en fouten per veld.
+ * @param {any} body Ingezonden velden.
+ * @returns {{values: any, errors: any}} Opgeschoonde waarden en fouten per veld.
  */
 function validateCategory(body) {
   const text = (name) => (typeof body[name] === 'string' ? body[name] : '');
@@ -68,7 +69,7 @@ function validateCategory(body) {
 
 /**
  * Of een databasefout een dubbele slug is.
- * @param {Error} error Fout.
+ * @param {Error & {code?: string, constraint?: string, detail?: string}} error Fout van PostgreSQL.
  * @returns {boolean} Waar bij een schending van de unieke slug.
  */
 function isDuplicateSlug(error) {
@@ -77,8 +78,8 @@ function isDuplicateSlug(error) {
 
 /**
  * Maakt de functies voor reistypes en landen.
- * @param {{db: object}} options Database.
- * @returns {object} Functies.
+ * @param {{db: any}} options Database.
+ * @returns {any} Functies.
  */
 function createCategories(options) {
   const { db } = options;
@@ -86,7 +87,7 @@ function createCategories(options) {
   /**
    * Alle categorieën van een soort (of alle), met het aantal reizen (komend en totaal) en foto's.
    * @param {{kind?: string}} [filter] Soort.
-   * @returns {Promise<object[]>} Categorieën op volgorde en naam.
+   * @returns {Promise<any[]>} Categorieën op volgorde en naam.
    */
   const list = (filter = {}) => db.query(
     `SELECT c.id, c.slug, c.name, c.kind, c.icon, c.image_url, c.sort_order, c.show_on_home, c.iso_code,
@@ -103,7 +104,7 @@ function createCategories(options) {
   /**
    * Eén categorie met dezelfde tellingen als in de lijst.
    * @param {(number|string)} id Id.
-   * @returns {Promise<(object|null)>} Categorie of null.
+   * @returns {Promise<(any|null)>} Categorie of null.
    */
   const get = async (id) => {
     const [row] = await db.query(
@@ -118,9 +119,9 @@ function createCategories(options) {
 
   /**
    * Maakt een nieuwe categorie.
-   * @param {object} values Waarden uit `validateCategory`.
+   * @param {any} values Waarden uit `validateCategory`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, id) => Promise`).
-   * @returns {Promise<{id?: number, errors?: object}>} Het nieuwe id, of fouten.
+   * @returns {Promise<{id?: number, errors?: any}>} Het nieuwe id, of fouten.
    */
   const create = async (values, context) => {
     try {
@@ -144,9 +145,9 @@ function createCategories(options) {
   /**
    * Wijzigt een categorie; bij een andere slug komt er een 301 van het oude adres.
    * @param {(number|string)} id Id.
-   * @param {object} values Waarden uit `validateCategory`.
+   * @param {any} values Waarden uit `validateCategory`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client) => Promise`).
-   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: object, moved?: boolean}>} Uitkomst.
+   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: any, moved?: boolean}>} Uitkomst.
    */
   const update = async (id, values, context) => {
     try {
@@ -207,7 +208,7 @@ function createCategories(options) {
    * @param {(number|string)} sourceId Categorie die verdwijnt.
    * @param {(number|string)} targetId Categorie die blijft.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client) => Promise`).
-   * @returns {Promise<{status: ('ok'|'weg'|'doel-weg'|'zelfde'|'andere-soort'), trips?: number, target?: object}>} Uitkomst.
+   * @returns {Promise<{status: ('ok'|'weg'|'doel-weg'|'zelfde'|'andere-soort'), trips?: number, target?: any}>} Uitkomst.
    */
   const merge = (sourceId, targetId, context) => {
     if (Number(sourceId) === Number(targetId)) return Promise.resolve({ status: 'zelfde' });

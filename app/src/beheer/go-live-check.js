@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Controle voor de livegang (plan P6.3 en P6.5): welke stappen uit `docs/GO-LIVE.md` de app zelf kan nagaan, en of de
  * vaste inhoud van de huidige site in het CRM staat (bevinding F09, W28: overgezet en de homepage gepubliceerd).
@@ -68,7 +69,7 @@ function hostOf(url) {
  * De instellingen voor de livegang (`docs/GO-LIVE.md` §1 en §2), beoordeeld op de huidige waarden.
  * @param {{get: (key: string) => *}} settings Instellingen (synchroon geladen).
  * @param {{usersWithout2fa: number}} counts Aantal actieve gebruikers met bijzondere gegevens zonder tweestapsverificatie.
- * @returns {object[]} Regels, in de volgorde van het draaiboek.
+ * @returns {any[]} Regels, in de volgorde van het draaiboek.
  */
 function settingsChecks(settings, counts) {
   const mfa = settings.get('mfaRequiredFor');
@@ -95,7 +96,7 @@ function settingsChecks(settings, counts) {
  * `site-content.json` en `homepage.json` is gebeurd en of de homepage als blokpagina online staat.
  * @param {{homeInCrm: boolean, transfersDone: number}} counts Uit de database: homepage als blokpagina online en het
  *   aantal overgezette delen (`content_transfers`).
- * @returns {object[]} Regels.
+ * @returns {any[]} Regels.
  */
 function contentChecks(counts) {
   const transferred = counts.transfersDone >= TRANSFER_PARTS.length;
@@ -124,14 +125,14 @@ async function loadCounts(db) {
 
 /**
  * Voert de hele controle uit.
- * @param {{db: {query: Function}, settings: {get: Function}}} options Database en instellingen.
- * @returns {Promise<{settings: object[], content: object[], open: number}>} Regels per blok en het aantal open regels.
+ * @param {{db: {query: Function}, settings: {get: (key: string) => any}}} options Database en instellingen.
+ * @returns {Promise<{settings: any[], content: any[], open: number}>} Regels per blok en het aantal open regels.
  */
 async function runGoLiveCheck({ db, settings }) {
   const counts = await loadCounts(db);
   const result = { settings: settingsChecks(settings, counts), content: contentChecks(counts) };
-  result.open = [...result.settings, ...result.content].filter((row) => row.state === 'open').length;
-  return result;
+  const open = [...result.settings, ...result.content].filter((row) => row.state === 'open').length;
+  return { ...result, open };
 }
 
 module.exports = { runGoLiveCheck, settingsChecks, contentChecks, SPECIAL_DATA_ROLES, PRODUCTION_HOST };

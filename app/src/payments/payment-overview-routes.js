@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Overzicht van de betalingen in het CRM (`/app/betalingen/`, recht `betalingen`): welke aanmeldingen nog iets moeten
  * betalen, welke te laat zijn en waar te veel is betaald, met filter op reis en de totalen. Dezelfde lijst als Excel
@@ -84,9 +85,9 @@ async function outstandingByTrip(db, tripIds) {
 /**
  * Leest de aanmeldingen voor het overzicht en rekent per aanmelding de stand uit.
  * @param {{query: Function}} db Database.
- * @param {{view: string, tripId: (number|null), terms: object, today: string, maxRows?: number}} filter Weergave, reis,
+ * @param {{view: string, tripId: (number|null), terms: any, today: string, maxRows?: number}} filter Weergave, reis,
  *   termijnen, vandaag en (voor tests) het maximum aantal aanmeldingen.
- * @returns {Promise<{rows: object[], truncated: boolean, scanCapped: boolean}>} Regels met `summary`, of de lijst is
+ * @returns {Promise<{rows: any[], truncated: boolean, scanCapped: boolean}>} Regels met `summary`, of de lijst is
  *   afgekapt, en of dat kwam doordat de voorselectie vol zat (bij *te laat*: te veel openstaande om te bepalen welke te laat zijn).
  */
 async function loadOverview(db, filter) {
@@ -140,7 +141,7 @@ function truncationMessage(filter, maxRows, scanCapped, where) {
 
 /**
  * Maakt het Excel-bestand van het overzicht.
- * @param {{rows: object[], view: string, tripLabel: string, userName: string, now: Date}} input Regels, filter, wie en wanneer.
+ * @param {{rows: any[], view: string, tripLabel: string, userName: string, now: Date}} input Regels, filter, wie en wanneer.
  * @returns {Buffer} Het .xlsx-bestand.
  */
 function buildOverviewWorkbook(input) {
@@ -168,7 +169,7 @@ function buildOverviewWorkbook(input) {
 
 /**
  * Maakt de routes voor het betaaloverzicht.
- * @param {{db: object, auth: object, settings: object, now?: () => number, maxRows?: number}} options Database, sessie-
+ * @param {{db: any, auth: any, settings: any, now?: () => number, maxRows?: number}} options Database, sessie-
  *   en rechtenlaag, instellingen (termijnen), en voor tests de klok en het maximum aantal aanmeldingen.
  * @returns {express.Router} Router.
  */
@@ -182,7 +183,7 @@ function createPaymentOverviewRoutes(options) {
 
   /**
    * Leest het filter uit de querystring.
-   * @param {object} query `req.query`.
+   * @param {any} query `req.query`.
    * @returns {{view: string, tripId: (number|null)}} Filter.
    */
   const readFilter = (query) => ({
@@ -192,7 +193,7 @@ function createPaymentOverviewRoutes(options) {
 
   /**
    * Reizen met aanmeldingen, voor het filter.
-   * @returns {Promise<object[]>} Reizen.
+   * @returns {Promise<any[]>} Reizen.
    */
   const tripsWithBookings = () => db.query(
     `SELECT t.id, t.title, t.trip_code, t.departure_date FROM trips t

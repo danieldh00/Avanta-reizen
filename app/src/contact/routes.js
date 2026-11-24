@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Contactformulier onder de inhoud van `/contact/`. Een bericht komt in de tabel contact_messages (status 'nieuw'),
  * zodat het CRM het later kan tonen; daarna gaat er een melding naar kantoor (`mail/notifications.js`, als die aan staat). Komt een bezoeker vanaf een reis
@@ -28,7 +29,7 @@ function tripSlugFrom(value) {
 
 /**
  * Bouwt het contactformulier met verwerking.
- * @param {{db: object, formKey: Buffer, notifications?: object, captcha?: object, now?: () => number}} options Database,
+ * @param {{db: any, formKey: Buffer, notifications?: any, captcha?: any, now?: () => number}} options Database,
  *   sleutel voor het formuliertoken, de meldingen aan kantoor, de captcha en (voor tests) de klok.
  * @returns {{middleware: Function[], findTrip: Function, renderForm: Function, renderThanks: Function, submit: Function}} Het formulier.
  */
@@ -46,7 +47,7 @@ function createContactForm(options) {
   /**
    * Zoekt de (gepubliceerde) reis waar een bezoeker vandaan komt.
    * @param {*} value Slug uit querystring of formulier.
-   * @returns {Promise<(object|null)>} De reis, of null.
+   * @returns {Promise<(any|null)>} De reis, of null.
    */
   const findTrip = async (value) => {
     const slug = tripSlugFrom(value);
@@ -55,10 +56,10 @@ function createContactForm(options) {
 
   /**
    * Eén formulierveld met label, invoer en foutmelding.
-   * @param {object} field Veld uit CONTACT_FIELDS.
+   * @param {any} field Veld uit CONTACT_FIELDS.
    * @param {Record<string, string>} values Ingevulde waarden.
    * @param {Record<string, string>} errors Fouten per veld.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderField = (field, values, errors) => {
     const id = `contact-${field.name}`;
@@ -83,8 +84,8 @@ function createContactForm(options) {
 
   /**
    * Het formulier, eventueel met ingevulde waarden, fouten en de reis waar de bezoeker vandaan komt.
-   * @param {{values?: Record<string, string>, errors?: Record<string, string>, trip?: (object|null)}} state Toestand.
-   * @returns {object} HTML.
+   * @param {{values?: Record<string, string>, errors?: Record<string, string>, trip?: (any|null)}} state Toestand.
+   * @returns {any} HTML.
    */
   const renderForm = (state = {}) => {
     const errors = state.errors || {};
@@ -104,7 +105,7 @@ function createContactForm(options) {
 
   /**
    * De melding na het versturen.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderThanks = () => html`<div class="contact-form">
       <p class="notice" role="status">Bedankt voor je bericht! We nemen zo snel mogelijk contact met je op.</p>
@@ -113,9 +114,9 @@ function createContactForm(options) {
   /**
    * Verwerkt een inzending. Een ingevulde honeypot krijgt dezelfde bedanktmelding, zonder opslag; een ongeldig,
    * verlopen of te snel token geeft het formulier opnieuw met de ingevulde waarden, een melding en een nieuw token.
-   * @param {object} body Ingezonden velden.
+   * @param {any} body Ingezonden velden.
    * @param {{ip?: string}} [request] Adres van de bezoeker (voor de captcha).
-   * @returns {Promise<({redirect: string}|{values: object, errors: object, trip: (object|null), status?: number})>} Doorsturen, of het formulier met fouten.
+   * @returns {Promise<({redirect: string}|{values: any, errors: any, trip: (any|null), status?: number})>} Doorsturen, of het formulier met fouten.
    */
   const submit = async (body, request = {}) => {
     if (guard.isBot(body)) return { redirect: THANKS_PATH };

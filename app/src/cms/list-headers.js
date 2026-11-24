@@ -84,7 +84,7 @@ function headerFromRow(row) {
 /**
  * Maakt de functies voor de koppen van de lijstpagina's.
  * @param {{db: {query: Function, transaction: Function}, now?: () => number}} options Database en klok (tests).
- * @returns {object} Functies.
+ * @returns {any} Functies.
  */
 function createListHeaders(options) {
   const { db } = options;

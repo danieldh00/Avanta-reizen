@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Reisleiders beheren in het CRM (`/app/reisleiders/`, recht `reizen`, CMS-pakket I4): lijst met zoeken, nieuwe
  * reisleider (offline), profiel wijzigen (adres met 301, volgorde op de site), portret en tweede foto uit de
@@ -42,8 +43,8 @@ const NOTICES = {
 
 /**
  * De ingevulde waarden van het profielformulier.
- * @param {object} guide Rij uit `guides`.
- * @returns {object} Waarden per veld.
+ * @param {any} guide Rij uit `guides`.
+ * @returns {any} Waarden per veld.
  */
 function guideFormValues(guide) {
   return {
@@ -61,7 +62,7 @@ function guideFormValues(guide) {
 
 /**
  * De galerij van een reisleider.
- * @param {object} guide Rij uit `guides`.
+ * @param {any} guide Rij uit `guides`.
  * @returns {{title: string, subtitle: string, items: Array<{url: string, alt?: string}>}} Galerij.
  */
 function guideGallery(guide) {
@@ -70,9 +71,9 @@ function guideGallery(guide) {
 
 /**
  * Het blok *Status* van een reisleider: online of offline, aantal reizen en de knop om dat om te zetten.
- * @param {object} guide Rij uit `guides`.
+ * @param {any} guide Rij uit `guides`.
  * @param {string} csrf CSRF-token.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderGuideStatus(guide, csrf) {
   return html`<section class="crm-block" id="status">
@@ -88,10 +89,10 @@ function renderGuideStatus(guide, csrf) {
 
 /**
  * Het blok *Galerij* van een reisleider: titel en subtitel, de foto's met volgnummer en weghalen, en foto's toevoegen.
- * @param {object} guide Rij uit `guides`.
+ * @param {any} guide Rij uit `guides`.
  * @param {{title: string, subtitle: string, items: Array<{url: string, alt?: string}>}} gallery Galerij zoals de site hem toont.
  * @param {string} csrf CSRF-token.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderGallerySection(guide, gallery, csrf) {
   const action = `${BASE}${guide.id}/galerij/`;
@@ -121,7 +122,7 @@ function renderGallerySection(guide, gallery, csrf) {
 
 /**
  * Maakt de routes voor reisleiders.
- * @param {{db: object, auth: object, redirects?: object, library?: object, mediaDir?: string}} options
+ * @param {{db: any, auth: any, redirects?: any, library?: any, mediaDir?: string}} options
  *   Database, sessie- en rechtenlaag, doorverwijzingen (opnieuw laden na een nieuw adres) en de fotobibliotheek.
  * @returns {express.Router} Router.
  */
@@ -134,8 +135,8 @@ function createGuideRoutes(options) {
 
   /**
    * Context voor een wijziging: gebruiker en audit.
-   * @param {object} req Express-verzoek.
-   * @param {object} guide Rij.
+   * @param {any} req Express-verzoek.
+   * @param {any} guide Rij.
    * @param {string} action Actie.
    * @returns {{userId: number, audit: Function}} Context.
    */
@@ -146,18 +147,18 @@ function createGuideRoutes(options) {
 
   /**
    * Een CRM-pagina binnen reisleiders.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {string} title Titel.
-   * @param {object} body HTML.
-   * @param {object} [actions] Knoppen naast de titel (zie `renderActions` in `crm/ui.js`).
+   * @param {any} body HTML.
+   * @param {any} [actions] Knoppen naast de titel (zie `renderActions` in `crm/ui.js`).
    * @returns {string} HTML.
    */
   const page = (req, title, body, actions) => renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, body, actions });
 
   /**
    * 404 binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => {
@@ -179,9 +180,9 @@ function createGuideRoutes(options) {
 
   /**
    * Laadt de reisleider uit de URL, of stuurt een 404.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
-   * @returns {Promise<(object|null)>} Rij, of null als de 404 al is verstuurd.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
+   * @returns {Promise<(any|null)>} Rij, of null als de 404 al is verstuurd.
    */
   const loadOr404 = async (req, res) => {
     const guide = await guides.get(req.params.id);
@@ -191,8 +192,8 @@ function createGuideRoutes(options) {
 
   /**
    * De lijst met zoeken en een formulier voor een nieuwe reisleider.
-   * @param {object} req Express-verzoek.
-   * @param {{error?: string, values?: object, errors?: object}} [state] Fouten van het nieuw-formulier.
+   * @param {any} req Express-verzoek.
+   * @param {{error?: string, values?: any, errors?: any}} [state] Fouten van het nieuw-formulier.
    * @returns {Promise<string>} HTML.
    */
   const renderList = async (req, state = {}) => {
@@ -231,9 +232,9 @@ function createGuideRoutes(options) {
 
   /**
    * Het bewerkscherm van één reisleider.
-   * @param {object} req Express-verzoek.
-   * @param {object} guide Rij.
-   * @param {{error?: string, values?: object, errors?: object}} [state] Fouten.
+   * @param {any} req Express-verzoek.
+   * @param {any} guide Rij.
+   * @param {{error?: string, values?: any, errors?: any}} [state] Fouten.
    * @returns {string} HTML.
    */
   const renderEdit = (req, guide, state = {}) => {
@@ -247,7 +248,7 @@ function createGuideRoutes(options) {
      * @param {string} label Label.
      * @param {number} max Maximale lengte.
      * @param {string} [help] Uitleg.
-     * @returns {object} HTML.
+     * @returns {any} HTML.
      */
     const input = (name, label, max, help) => fieldRow({ id: `reisleider-${name}`, label, help, error: errors[name], control: html`<input id="reisleider-${name}" name="${name}" type="text" value="${values[name]}" maxlength="${max}"${name === 'name' ? raw(' required') : ''}${invalidAttributes(`reisleider-${name}`, errors[name])}>` });
     const notice = NOTICES[req.query.opgeslagen];
@@ -294,8 +295,8 @@ function createGuideRoutes(options) {
 
   /**
    * De fotokiezer voor het portret of de tweede foto.
-   * @param {object} req Express-verzoek.
-   * @param {object} guide Rij.
+   * @param {any} req Express-verzoek.
+   * @param {any} guide Rij.
    * @param {string} kind `portret` of `kopfoto`.
    * @param {{error?: string}} [state] Fout.
    * @returns {Promise<string>} HTML.
@@ -376,8 +377,8 @@ function createGuideRoutes(options) {
 
   /**
    * De fotokiezer om foto's aan de galerij toe te voegen (meerdere tegelijk).
-   * @param {object} req Express-verzoek.
-   * @param {object} guide Rij.
+   * @param {any} req Express-verzoek.
+   * @param {any} guide Rij.
    * @param {{error?: string}} [state] Fout.
    * @returns {Promise<string>} HTML.
    */

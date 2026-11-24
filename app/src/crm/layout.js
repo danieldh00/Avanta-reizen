@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Paginaopbouw van het CRM onder `/app/`: een vaste zijbalk links met het logo, de modules in vier vaste groepen
  * (Boekingen, Reisaanbod, Website en de ingang naar Beheer) op basis van de rechten van de gebruiker, en een kopbalk
@@ -118,7 +119,7 @@ function isBeheerPath(currentPath) {
 /**
  * Bepaalt het huidige menu-item: het item met de langste href waar het pad mee begint (`/app/` alleen exact). Een
  * Beheer-pagina zonder eigen sectie (bijv. 404) valt zo terug op niets in plaats van op een willekeurige sectie.
- * @param {object[]} groups Zichtbare groepen.
+ * @param {any[]} groups Zichtbare groepen.
  * @param {string} currentPath Huidig pad.
  * @returns {string} De href van het huidige item, of een lege tekst.
  */
@@ -135,8 +136,8 @@ function currentHref(groups, currentPath) {
 
 /**
  * De zichtbare groepen van het CRM-menu voor een gebruiker, volgens de rechten.
- * @param {object} user De ingelogde gebruiker.
- * @returns {object[]} De groepen.
+ * @param {any} user De ingelogde gebruiker.
+ * @returns {any[]} De groepen.
  */
 function visibleCrmMenu(user) {
   const allowed = (item) => !item.right || (item.global ? roleHasGlobalRight : roleHasRight)(user.role, item.right);
@@ -145,7 +146,7 @@ function visibleCrmMenu(user) {
 
 /**
  * Waar de ingang "Beheer" naartoe gaat, of null als de gebruiker niets in Beheer mag.
- * @param {object} user De ingelogde gebruiker.
+ * @param {any} user De ingelogde gebruiker.
  * @returns {(string|null)} `/app/beheer/` met recht `systeem`, anders `/app/gebruikers/` met recht `gebruikers`.
  */
 function beheerEntryHref(user) {
@@ -158,10 +159,10 @@ function beheerEntryHref(user) {
  * De groepen van de zijbalk van Beheer voor een gebruiker: eerst Gebruikers (recht `gebruikers`), dan de groepen van
  * de instellingen (recht `systeem`, sleutel `beheer-<n>`, links naar `/app/beheer/<id>/`). Met een zoekterm vallen
  * gebruikers en auditlog weg als ze niet passen; de instellingengroepen zijn dan al gefilterd door `filterGroups`.
- * @param {object} user De ingelogde gebruiker.
- * @param {(object[]|null)} settingGroups Gefilterde groepen uit `beheer/indeling.js`, of null voor alle.
+ * @param {any} user De ingelogde gebruiker.
+ * @param {(any[]|null)} settingGroups Gefilterde groepen uit `beheer/indeling.js`, of null voor alle.
  * @param {string} query De zoekterm (leeg = alles).
- * @returns {object[]} Groepen in de vorm van `CRM_MENU`.
+ * @returns {any[]} Groepen in de vorm van `CRM_MENU`.
  */
 function visibleBeheerMenu(user, settingGroups, query) {
   const terms = normalizeSearch(query).split(/\s+/).filter(Boolean).slice(0, 8);
@@ -182,10 +183,10 @@ function visibleBeheerMenu(user, settingGroups, query) {
 
 /**
  * Eén link in een zijbalk.
- * @param {{label: string, href: string, icon: string}} item Het menu-item.
+ * @param {{label: string, href: string, icon: string, counter?: string}} item Het menu-item.
  * @param {string} activeHref De href van het huidige item.
  * @param {Record<string, number>} [counters] Aantallen per teller (`req.user.counters`).
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderNavItem(item, activeHref, counters = {}) {
   const count = item.counter && Number.isInteger(counters[item.counter]) && counters[item.counter] > 0 ? counters[item.counter] : 0;
@@ -196,11 +197,11 @@ function renderNavItem(item, activeHref, counters = {}) {
 
 /**
  * Eén inklapbare groep in een zijbalk. De groep met de huidige pagina (of alle groepen tijdens zoeken) staat open.
- * @param {object} group De groep (key, title, icon, items).
+ * @param {any} group De groep (key, title, icon, items).
  * @param {string} activeHref De href van het huidige item.
  * @param {boolean} forceOpen Open ongeacht de huidige pagina (zoeken).
  * @param {string} [idPrefix] Voorvoegsel van het id van de groep (`crm-nav` of `crm-sub`).
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderNavGroup(group, activeHref, forceOpen, idPrefix = 'crm-nav') {
   if (group.key === 'top') return html`<div class="crm-nav-list crm-nav-top">${group.items.map((item) => renderNavItem(item, activeHref))}</div>`;
@@ -215,10 +216,10 @@ function renderNavGroup(group, activeHref, forceOpen, idPrefix = 'crm-nav') {
 
 /**
  * Eén vaste groep in de hoofdzijbalk: de titel met de onderdelen eronder, altijd zichtbaar.
- * @param {object} group De groep (key, title, items).
+ * @param {any} group De groep (key, title, items).
  * @param {string} activeHref De href van het huidige item.
  * @param {Record<string, number>} [counters] Aantallen per teller (`req.user.counters`).
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderMainGroup(group, activeHref, counters) {
   if (group.key === 'top') return html`<div class="crm-nav-list crm-nav-top">${group.items.map((item) => renderNavItem(item, activeHref, counters))}</div>`;
@@ -232,9 +233,9 @@ function renderMainGroup(group, activeHref, counters) {
 /**
  * De ingang naar Beheer in de hoofdzijbalk; op een Beheer-pagina gemarkeerd als huidig onderdeel (`aria-current="true"`,
  * de pagina zelf staat gemarkeerd in de tweede zijbalk).
- * @param {object} user De ingelogde gebruiker.
+ * @param {any} user De ingelogde gebruiker.
  * @param {string} currentPath Huidig pad.
- * @returns {(object|string)} HTML, of niets zonder rechten in Beheer.
+ * @returns {(any|string)} HTML, of niets zonder rechten in Beheer.
  */
 function renderBeheerEntry(user, currentPath) {
   const href = beheerEntryHref(user);
@@ -244,8 +245,8 @@ function renderBeheerEntry(user, currentPath) {
 
 /**
  * De hoofdzijbalk van het CRM.
- * @param {{user: object, path: string}} page De gebruiker en het huidige pad.
- * @returns {object} HTML van de zijbalk en de achtergrond van de lade.
+ * @param {{user: any, path: string}} page De gebruiker en het huidige pad.
+ * @returns {any} HTML van de zijbalk en de achtergrond van de lade.
  */
 function renderSidebar(page) {
   const { user } = page;
@@ -268,9 +269,9 @@ function renderSidebar(page) {
  * De tweede zijbalk van Beheer: kop met de weg terug naar het CRM, zoekveld (recht `systeem`, werkt zonder JavaScript
  * via een GET) en de onderdelen per onderwerp. Op een smal scherm opent een knop met de naam van het huidige onderdeel
  * de lijst (`public/js/crm.js`); zonder JavaScript staat de lijst gewoon open.
- * @param {{user: object, path: string, beheer?: {groups?: object[], query?: string}}} page De gebruiker, het huidige pad
+ * @param {{user: any, path: string, beheer?: {groups?: any[], query?: string}}} page De gebruiker, het huidige pad
  *   en (op instellingenpagina's) de gefilterde groepen en zoekterm.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderBeheerSidebar(page) {
   const { user } = page;
@@ -302,7 +303,7 @@ function renderBeheerSidebar(page) {
  * Het kruimelpad van een pagina: de groep en het onderdeel uit het menu, en de titel van de pagina als die afwijkt
  * (bijvoorbeeld een reis onder Reizen). In Beheer: Beheer en de titel; de startpagina van Beheer alleen Beheer. Een
  * pagina buiten het menu heeft alleen de titel.
- * @param {object} user De ingelogde gebruiker.
+ * @param {any} user De ingelogde gebruiker.
  * @param {string} currentPath Huidig pad.
  * @param {string} title Titel van de pagina.
  * @returns {Array<{label: string, href?: string}>} De kruimels; alleen een kruimel met `href` is een link.
@@ -316,6 +317,7 @@ function breadcrumbsFor(user, currentPath, title) {
   const group = menu.find((candidate) => candidate.items.some((item) => item.href === activeHref));
   if (!group) return [{ label: title }];
   const item = group.items.find((candidate) => candidate.href === activeHref);
+  /** @type {Array<{label: string, href?: string}>} */
   const crumbs = group.title ? [{ label: group.title }] : [];
   if (item.label === title) return crumbs.concat({ label: title });
   return crumbs.concat({ label: item.label, href: item.href }, { label: title });
@@ -326,9 +328,9 @@ function breadcrumbsFor(user, currentPath, title) {
  * op een smal scherm een knop naar de zoekpagina), een link naar de site en het gebruikersmenu.
  * Het gebruikersmenu is een `<details>` en werkt dus zonder JavaScript; `public/js/crm.js` sluit het bij een klik
  * ernaast of Esc. Zonder gebruiker (inloggen, installatie) alleen het logo.
- * @param {{user: (object|null), csrf?: string, path: string, title: string, search?: string}} page De gebruiker, het
+ * @param {{user: (any|null), csrf?: string, path: string, title: string, search?: string}} page De gebruiker, het
  *   CSRF-token voor de uitlogknop, het huidige pad, de titel en de zoekterm (op de zoekpagina).
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderHeader(page) {
   const { user } = page;
@@ -365,8 +367,8 @@ function renderHeader(page) {
 
 /**
  * De kop van een pagina: de titel met rechts de acties van de pagina (zie `renderActions` in `crm/ui.js`).
- * @param {{title: string, actions?: object}} page Pagina.
- * @returns {object} HTML.
+ * @param {{title: string, actions?: any}} page Pagina.
+ * @returns {any} HTML.
  */
 function renderPageHead(page) {
   return html`<div class="crm-pagehead"><h1 class="crm-title">${page.title}</h1>${page.actions || ''}</div>`;
@@ -374,7 +376,7 @@ function renderPageHead(page) {
 
 /**
  * Maakt een volledige CRM-pagina.
- * @param {{title: string, body: object, user?: (object|null), csrf?: string, path?: string, beheer?: object, actions?: object, search?: string}} page
+ * @param {{title: string, body: any, user?: (any|null), csrf?: string, path?: string, beheer?: any, actions?: any, search?: string}} page
  *   Titel, inhoud, de ingelogde gebruiker (zonder: geen zijbalk), het CSRF-token voor de uitlogknop, het huidige pad
  *   (een menu-item is actief op zijn eigen pad en alles eronder; het langste item wint; een pad van Beheer krijgt de
  *   tweede zijbalk), op instellingenpagina's de gefilterde groepen en zoekterm (`{groups, query}`) en op de zoekpagina
@@ -422,7 +424,7 @@ function renderCrmPage(page) {
 /**
  * Eén invoerveld met label en eventuele foutmelding.
  * @param {{name: string, label: string, type?: string, value?: string, error?: string, autocomplete?: string, required?: boolean, max?: number}} field Veld.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderInput(field) {
   const id = `veld-${field.name}`;
@@ -436,7 +438,7 @@ function renderInput(field) {
 /**
  * Een foutmelding boven een formulier, of niets.
  * @param {string} [message] Melding.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderAlert(message) {
   return message ? html`<div class="form-alert" role="alert">${message}</div>` : '';
