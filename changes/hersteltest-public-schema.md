@@ -11,5 +11,6 @@ titel: Hersteltest zet de back-up weer terug
   van de wegwerpdatabase ("schema public already exists") en de hele transactie afbrak.
 - Een mislukt terugzetten zet de eerste foutregel van `pg_restore` in de uitslag en de melding van de bewaking; waarden
   tussen aanhalingstekens die geen tabel-, kolom- of schemanaam zijn worden weggelaten en DETAIL/CONTEXT-regels niet
-  overgenomen (geen persoonsgegevens in meldingen).
+  overgenomen (geen persoonsgegevens in meldingen). Het hostlog krijgt alle fout- en waarschuwingsregels, op dezelfde
+  manier geschoond.
 - Test: de back-up wordt teruggezet met de opties uit het hostscript in een nieuwe database waarin het schema al bestaat.

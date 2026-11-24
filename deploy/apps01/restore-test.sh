@@ -53,14 +53,19 @@ record() {
 }
 fail() { log "MISLUKT: $1"; record "\"state\":\"mislukt\",\"message\":\"$1\""; exit 1; }
 
-# restore_error <bestand>: de eerste foutregel van pg_restore als veilige, korte tekst voor de melding. Alleen de regel
-# "pg_restore: error: …" (geen DETAIL/CONTEXT/Command, die rijgegevens kunnen bevatten); tekst tussen aanhalingstekens
-# blijft alleen staan als het een naam van een tabel, kolom of schema is, andere waarden worden "…". Geen tekens die de
-# JSON van record() kunnen breken.
+# restore_lines <bestand>: de fout- en waarschuwingsregels van pg_restore zonder rijgegevens, één per regel. Alleen
+# regels "pg_restore: error|warning: …" (DETAIL/CONTEXT/Command kunnen waarden uit de back-up bevatten en vallen weg);
+# tekst tussen aanhalingstekens blijft alleen staan als het een naam van een tabel, kolom of schema is, andere waarden
+# worden "…". Geen tekens die de JSON van record() kunnen breken.
+restore_lines() {
+  grep -E '^pg_restore: (error|warning):' "$1" \
+    | sed -E 's/^pg_restore: //; s/"([a-z_][a-z0-9_]{0,62})"/\x27\1\x27/g; s/"[^"]*"/…/g' \
+    | tr -d '"\\' | tr -d '\r' | tr -s '\t ' ' ' | cut -c 1-240
+}
+
+# restore_error <bestand>: de eerste foutregel uit restore_lines, zonder "error: ", voor de melding in Beheer.
 restore_error() {
-  grep -m 1 -E '^pg_restore: error:' "$1" \
-    | sed -E 's/^pg_restore: error: //; s/"([a-z_][a-z0-9_]{0,62})"/\x27\1\x27/g; s/"[^"]*"/…/g' \
-    | tr -d '"\\' | tr -s '[:cntrl:]' ' ' | sed 's/ *$//' | cut -c 1-240
+  restore_lines "$1" | grep -m 1 '^error: ' | sed 's/^error: //; s/ *$//'
 }
 
 # Eerst "bezig" vastleggen: zo ziet Beheer meteen een lopende test en vraagt een tweede klik geen extra run aan.
@@ -94,8 +99,8 @@ app_exec node src/backup/cli.js decrypt "$BACKUP" - \
 statuses=("${PIPESTATUS[@]}")
 [[ "${statuses[0]}" == 0 ]] || fail "Ontsleutelen mislukt (beschadigde back-up of andere hoofdsleutel)."
 if [[ "${statuses[1]}" != 0 ]]; then
-  # Volledige uitvoer alleen in het hostlog (journalctl, alleen root); de melding in Beheer krijgt de gesaneerde regel.
-  cat "$RESTORE_ERRORS" >&2
+  # Alle fout- en waarschuwingsregels in het hostlog (journalctl), net als de melding zonder rijgegevens.
+  restore_lines "$RESTORE_ERRORS" >&2
   detail="$(restore_error "$RESTORE_ERRORS")"
   fail "Terugzetten met pg_restore mislukt${detail:+: $detail}"
 fi
