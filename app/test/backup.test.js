@@ -236,12 +236,16 @@ test('hersteltest: de melding noemt de stap die echt mislukte (EPIPE na een fout
   assert.equal(failure(0, 0, '', ''), '');
 });
 
-test('hersteltest: wegwerpdatabase op een anoniem volume, niet in tmpfs binnen de geheugenlimiet', () => {
+test('hersteltest: wegwerpdatabase op een eigen volume, niet in tmpfs, en resten worden opgeruimd', () => {
   const script = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'apps01', 'restore-test.sh'), 'utf8');
   // tmpfs telt mee in --memory; met de foto's in de database stopte PostgreSQL midden in het terugzetten.
   assert.doesNotMatch(script, /--tmpfs\s+\/var\/lib\/postgresql\/data/);
-  assert.match(script, /--mount type=volume,dst=\/var\/lib\/postgresql\/data/);
-  assert.match(script, /docker rm -f -v "\$DB_CONTAINER"/, 'het anonieme volume wordt met de container opgeruimd');
+  assert.match(script, /--mount "type=volume,src=\$DB_VOLUME,dst=\/var\/lib\/postgresql\/data"/);
+  assert.match(script, /docker volume create --label "\$TEST_LABEL" "\$DB_VOLUME"/, 'volume herkenbaar aan het label');
+  assert.match(script, /docker volume rm -f "\$DB_VOLUME"/, 'het volume verdwijnt bij het opruimen');
+  // Resten van een afgebroken run (stroomuitval, kill) met persoonsgegevens ruimt de volgende run op.
+  assert.match(script, /cleanup_leftovers\(\) \{[\s\S]*?volume ls -q --filter "label=\$TEST_LABEL"/);
+  assert.match(script, /^cleanup_leftovers$/m);
 });
 
 test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {

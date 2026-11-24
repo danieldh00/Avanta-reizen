@@ -622,7 +622,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     tien minuten), *Ontkoppelen* (token ingetrokken bij Google) en de laatste 20 gebeurtenissen; koppelen en ontkoppelen
     in het auditlog. Een ingetrokken koppeling meldt "koppel opnieuw"; Google instellen: `docs/GOOGLE-DRIVE.md`.
   - *Back-ups en herstel > Hersteltest*: elke zondag rond 04:30 zet apps01 de nieuwste back-up terug in een
-    wegwerp-PostgreSQL (eigen container, intern netwerk zonder uitgang, opslag in een anoniem volume dat daarna verdwijnt), start daarop het huidige app-image en
+    wegwerp-PostgreSQL (eigen container, intern netwerk zonder uitgang, opslag in een eigen volume dat daarna verdwijnt; resten van een afgebroken run ruimt de volgende run op), start daarop het huidige app-image en
     vergelijkt de rijen per tabel met de echte database (`deploy/apps01/restore-test.sh`, systemd-timer
     `avanta-restore-test.timer`, door `install.sh` geïnstalleerd). De app bepaalt en toont de uitslag (geslaagd,
     waarschuwing bij meer dan 25% verschil, mislukt) via `cli.js restore-test-result`. *Nu testen op de server* zet een

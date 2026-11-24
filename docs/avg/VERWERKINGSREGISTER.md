@@ -86,6 +86,7 @@ Opzet, stand 23-11-2026. Avanta Reizen stelt het register vast en houdt het bij.
 | Grondslag | Wettelijke plicht tot beveiliging (art. 6.1c met art. 32) |
 | Gegevens | De hele database, versleuteld (AES-256-GCM) vóór opslag; de sleutel staat niet bij de back-up |
 | Bewaartermijn | Op de server en op Google Drive (als gekoppeld): de nieuwste 30. Gewiste gegevens verdwijnen zo binnen die termijn ook uit de back-ups |
+| Hersteltest | Elke week zet de server de nieuwste back-up terug in een wegwerpdatabase op dezelfde server, zonder netwerk naar buiten, om te controleren dat herstel werkt. Die tijdelijke, onversleutelde kopie staat in een eigen Docker-volume en wordt direct na de test verwijderd; blijft er na een stroomuitval of afgebroken run iets achter, dan ruimt de volgende run het eerst op. Er gaan geen gegevens uit de kopie naar het logboek of de melding, alleen foutregels zonder inhoud |
 
 ## Rechten van betrokkenen
 
