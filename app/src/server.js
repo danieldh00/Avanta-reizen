@@ -129,6 +129,13 @@ function createApp(options) {
   const trustedProxy = parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY);
   app.set('trust proxy', trustedProxy);
   app.use(securityHeaders());
+  // Express 5 laat `req.body` leeg (undefined) als er geen formulier is ingelezen, bijv. een POST zonder inhoud of met
+  // een ander inhoudstype. De routes lezen velden als `req.body.naam`; met een leeg object als begin krijgen die net als
+  // vroeger `undefined` in plaats van een TypeError (500). Een parser vervangt het object daarna door de echte velden.
+  app.use((req, res, next) => {
+    req.body = {};
+    next();
+  });
   // Elk verzoek een eigen request-id (nooit een id van buiten) in de context en in de kop X-Request-Id; trage verzoeken
   // komen in het logboek (genormaliseerd pad, geen querystring).
   app.use((req, res, next) => {

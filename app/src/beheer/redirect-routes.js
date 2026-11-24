@@ -4,6 +4,7 @@
  * (geheugen, tellers, opruimen) staat in `site/redirects.js`.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html } = require('../site/html');
 const { renderAlert, formatDateTime } = require('../crm/layout');
 const { validateRedirect, normalizePath, MAX_NOT_FOUND_ROWS, NOT_FOUND_RETENTION_DAYS } = require('../site/redirects');
@@ -264,7 +265,7 @@ function createRedirectRoutes(options) {
     }
   });
 
-  router.post('/beheer/doorverwijzingen/:id(\\d{1,9})/verwijderen', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/beheer/doorverwijzingen/:id(\\d{1,9})/verwijderen'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const id = Number(req.params.id);
       const deleted = await db.transaction(async (client) => {

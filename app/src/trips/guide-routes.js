@@ -4,6 +4,7 @@
  * en verwijderen. Elke wijziging in de auditlog.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
 const ui = require('../crm/ui');
@@ -277,12 +278,12 @@ function createGuideRoutes(options) {
     return res.redirect(303, `${BASE}${outcome.id}/?opgeslagen=6`);
   }));
 
-  router.get('/reisleiders/:id(\\d{1,9})/', guard, handle(async (req, res) => {
+  router.get(routePath('/reisleiders/:id(\\d{1,9})/'), guard, handle(async (req, res) => {
     const guide = await loadOr404(req, res);
     return guide ? res.send(renderEdit(req, guide)) : undefined;
   }));
 
-  router.post('/reisleiders/:id(\\d{1,9})/', guard, auth.checkCsrf, handle(async (req, res) => {
+  router.post(routePath('/reisleiders/:id(\\d{1,9})/'), guard, auth.checkCsrf, handle(async (req, res) => {
     const guide = await loadOr404(req, res);
     if (!guide) return undefined;
     const { values, errors } = validateGuideFields(req.body);
@@ -293,7 +294,7 @@ function createGuideRoutes(options) {
     return res.redirect(303, `${BASE}${guide.id}/?opgeslagen=${outcome.moved ? 2 : 1}#profiel`);
   }));
 
-  router.post('/reisleiders/:id(\\d{1,9})/online/', guard, auth.checkCsrf, handle(async (req, res) => {
+  router.post(routePath('/reisleiders/:id(\\d{1,9})/online/'), guard, auth.checkCsrf, handle(async (req, res) => {
     const guide = await loadOr404(req, res);
     if (!guide) return undefined;
     const online = req.body.stand === 'online';
@@ -303,12 +304,12 @@ function createGuideRoutes(options) {
     return res.redirect(303, `${BASE}${guide.id}/?opgeslagen=${online ? 4 : 5}#status`);
   }));
 
-  router.get('/reisleiders/:id(\\d{1,9})/foto/:kind(portret|kopfoto)/', guard, handle(async (req, res) => {
+  router.get(routePath('/reisleiders/:id(\\d{1,9})/foto/:kind(portret|kopfoto)/'), guard, handle(async (req, res) => {
     const guide = await loadOr404(req, res);
     return guide ? res.send(await renderPhoto(req, guide, req.params.kind)) : undefined;
   }));
 
-  router.post('/reisleiders/:id(\\d{1,9})/foto/:kind(portret|kopfoto)/', guard, auth.checkCsrf, handle(async (req, res) => {
+  router.post(routePath('/reisleiders/:id(\\d{1,9})/foto/:kind(portret|kopfoto)/'), guard, auth.checkCsrf, handle(async (req, res) => {
     const guide = await loadOr404(req, res);
     if (!guide) return undefined;
     const none = req.body.geen === '1';
@@ -320,7 +321,7 @@ function createGuideRoutes(options) {
     return res.redirect(303, `${BASE}${guide.id}/?opgeslagen=3#fotos`);
   }));
 
-  router.post('/reisleiders/:id(\\d{1,9})/verwijderen/', guard, auth.checkCsrf, handle(async (req, res) => {
+  router.post(routePath('/reisleiders/:id(\\d{1,9})/verwijderen/'), guard, auth.checkCsrf, handle(async (req, res) => {
     const guide = await loadOr404(req, res);
     if (!guide) return undefined;
     if (req.body.zeker !== 'ja') return res.status(422).send(renderEdit(req, guide, { error: 'Vink aan dat je wilt verwijderen.' }));

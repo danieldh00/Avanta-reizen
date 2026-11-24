@@ -5,6 +5,7 @@
  * kopfoto te kiezen. Werkt zonder JavaScript: elke actie is een eigen formulier met CSRF-token en de versie van het
  * concept. Wat per soort verschilt (opslag, bewerkscherm, meldingen) geeft de aanroeper mee.
  */
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
 const { lockMediaForUse } = require('../media/library');
@@ -262,7 +263,7 @@ function createBlockEditor(config) {
     const itemRoute = `${route}:id(\\d{1,9})/`;
     const blockRoute = `${itemRoute}blokken/:blockId(b[0-9a-f]{12})/`;
 
-    router.post(`${itemRoute}blokken/nieuw/`, guard, auth.checkCsrf, async (req, res, next) => {
+    router.post(routePath(`${itemRoute}blokken/nieuw/`), guard, auth.checkCsrf, async (req, res, next) => {
       try {
         const block = newBlock(typeof req.body.type === 'string' ? req.body.type : '');
         if (block && config.allowType) {
@@ -291,7 +292,7 @@ function createBlockEditor(config) {
       }
     });
 
-    router.post(blockRoute, guard, auth.checkCsrf, async (req, res, next) => {
+    router.post(routePath(blockRoute), guard, auth.checkCsrf, async (req, res, next) => {
       try {
         let failed = null;
         const outcome = await store.changeDraft(req.params.id, req.body.versie, async (state) => {
@@ -316,7 +317,7 @@ function createBlockEditor(config) {
       }
     });
 
-    router.post(`${blockRoute}actie/`, guard, auth.checkCsrf, async (req, res, next) => {
+    router.post(routePath(`${blockRoute}actie/`), guard, auth.checkCsrf, async (req, res, next) => {
       try {
         const action = typeof req.body.actie === 'string' ? req.body.actie : '';
         if (!['omhoog', 'omlaag', 'kopieren', 'verwijderen'].includes(action)) {
@@ -343,7 +344,7 @@ function createBlockEditor(config) {
       }
     });
 
-    router.get(`${itemRoute}kopfoto/`, guard, async (req, res, next) => {
+    router.get(routePath(`${itemRoute}kopfoto/`), guard, async (req, res, next) => {
       try {
         const item = await config.load(req, res);
         if (!item) return undefined;
@@ -356,7 +357,7 @@ function createBlockEditor(config) {
       }
     });
 
-    router.post(`${itemRoute}kopfoto/`, guard, auth.checkCsrf, async (req, res, next) => {
+    router.post(routePath(`${itemRoute}kopfoto/`), guard, auth.checkCsrf, async (req, res, next) => {
       try {
         const choice = chosenPhoto(req.body);
         const outcome = choice.valid ? await store.changeDraft(req.params.id, req.body.versie, async (state, client) => {
@@ -378,7 +379,7 @@ function createBlockEditor(config) {
       }
     });
 
-    router.get(`${blockRoute}foto/`, guard, async (req, res, next) => {
+    router.get(routePath(`${blockRoute}foto/`), guard, async (req, res, next) => {
       try {
         const item = await config.load(req, res);
         if (!item) return undefined;
@@ -398,7 +399,7 @@ function createBlockEditor(config) {
       }
     });
 
-    router.post(`${blockRoute}foto/`, guard, auth.checkCsrf, async (req, res, next) => {
+    router.post(routePath(`${blockRoute}foto/`), guard, auth.checkCsrf, async (req, res, next) => {
       try {
         const none = req.body.geen === '1';
         const ids = none ? [] : [].concat(req.body.media_id || []);

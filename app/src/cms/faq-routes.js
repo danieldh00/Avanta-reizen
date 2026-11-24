@@ -4,6 +4,7 @@
  * hernoemen, ordenen en (leeg) verwijderen. Elke wijziging in de auditlog.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
 const { fieldRow, invalidAttributes, RICHTEXT_HELP } = require('./block-editor');
@@ -222,13 +223,13 @@ function createFaqRoutes(options) {
     return res.redirect(303, `${BASE}?melding=1#categorie-${Number(values.categoryId)}`);
   }));
 
-  router.get('/faq/:id(\\d{1,9})/', guard, handle(async (req, res) => {
+  router.get(routePath('/faq/:id(\\d{1,9})/'), guard, handle(async (req, res) => {
     const question = await faqs.getQuestion(req.params.id);
     if (!question) return notFound(req, res);
     return res.send(await renderQuestion(req, question));
   }));
 
-  router.post('/faq/:id(\\d{1,9})/', guard, auth.checkCsrf, handle(async (req, res) => {
+  router.post(routePath('/faq/:id(\\d{1,9})/'), guard, auth.checkCsrf, handle(async (req, res) => {
     const question = await faqs.getQuestion(req.params.id);
     if (!question) return notFound(req, res);
     const { values, errors } = validateQuestionFields(req.body);
@@ -238,7 +239,7 @@ function createFaqRoutes(options) {
     return res.redirect(303, `${BASE}?melding=1#categorie-${Number(values.categoryId)}`);
   }));
 
-  router.post('/faq/:id(\\d{1,9})/verwijderen/', guard, auth.checkCsrf, handle(async (req, res) => {
+  router.post(routePath('/faq/:id(\\d{1,9})/verwijderen/'), guard, auth.checkCsrf, handle(async (req, res) => {
     const question = await faqs.getQuestion(req.params.id);
     if (!question) return notFound(req, res);
     if (req.body.zeker !== 'ja') return res.status(422).send(await renderQuestion(req, question, { error: 'Vink aan dat je wilt verwijderen.' }));
@@ -254,13 +255,13 @@ function createFaqRoutes(options) {
     return res.redirect(303, `${BASE}?melding=1#categorie-${outcome.id}`);
   }));
 
-  router.get('/faq/categorieen/:id(\\d{1,9})/', guard, handle(async (req, res) => {
+  router.get(routePath('/faq/categorieen/:id(\\d{1,9})/'), guard, handle(async (req, res) => {
     const category = await faqs.getCategory(req.params.id);
     if (!category) return notFound(req, res);
     return res.send(renderCategory(req, category));
   }));
 
-  router.post('/faq/categorieen/:id(\\d{1,9})/', guard, auth.checkCsrf, handle(async (req, res) => {
+  router.post(routePath('/faq/categorieen/:id(\\d{1,9})/'), guard, auth.checkCsrf, handle(async (req, res) => {
     const category = await faqs.getCategory(req.params.id);
     if (!category) return notFound(req, res);
     const { values, errors } = validateCategoryFields(req.body);
@@ -270,7 +271,7 @@ function createFaqRoutes(options) {
     return res.redirect(303, `${BASE}?melding=${outcome.renamed ? 4 : 1}#categorie-${category.id}`);
   }));
 
-  router.post('/faq/categorieen/:id(\\d{1,9})/verwijderen/', guard, auth.checkCsrf, handle(async (req, res) => {
+  router.post(routePath('/faq/categorieen/:id(\\d{1,9})/verwijderen/'), guard, auth.checkCsrf, handle(async (req, res) => {
     const category = await faqs.getCategory(req.params.id);
     if (!category) return notFound(req, res);
     if (req.body.zeker !== 'ja') return res.status(422).send(renderCategory(req, category, { error: 'Vink aan dat je wilt verwijderen.' }));

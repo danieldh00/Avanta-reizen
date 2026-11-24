@@ -8,6 +8,7 @@
  * (`trips/guide-window.js`, instelbaar in Beheer > CRM > Reisleider); daarbuiten worden ze niet aangeboden en geweigerd (403).
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html } = require('../site/html');
 const { formatDate } = require('../site/format');
 const { XLSX_TYPE } = require('../export/xlsx');
@@ -118,7 +119,7 @@ function createParticipantListRoutes(options) {
     }
   });
 
-  router.post('/deelnemerslijsten/:tripId(\\d{1,9})/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/deelnemerslijsten/:tripId(\\d{1,9})/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const requested = Object.keys(CATEGORIES).filter((slug) => req.body[slug] === 'ja');
       // Een reis van een ander vertrek bestaat voor de reisleider niet (404), net als een onbekende reis.

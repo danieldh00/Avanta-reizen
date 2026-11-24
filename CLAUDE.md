@@ -41,7 +41,7 @@ Details en open vragen: `docs/AVANTA-CONTEXT.md` en `docs/OPZET-WEBSITE.md`.
   Claude-abonnement (secret `CLAUDE_CODE_OAUTH_TOKEN`, aanmaken met `claude setup-token`).
 
 ## Stack en mappen
-Node 22 + Express, server-gerenderde HTML, PostgreSQL 17 (enige database), geen CDN's. Eén bouwstap, alleen in het image: `app/tools/minify-public.js`
+Node 22 + Express 5 (routes met een patroon per parameter via `routePath`, `app/src/route-path.js`), server-gerenderde HTML, PostgreSQL 17 (enige database), geen CDN's. Eén bouwstap, alleen in het image: `app/tools/minify-public.js`
 (esbuild, ontwikkelafhankelijkheid) verkleint de publieke CSS en JS; de bron in `app/public/` blijft leesbaar en lokaal
 en in de tests draait de app op die bron.
 Per map onder `app/src/` staat een eigen `CLAUDE.md` met de bestanden van die map; een feature-PR werkt dát bestand bij,

@@ -5,6 +5,7 @@
  * `countNewMessages` (`messages.js`) via `crm/menu-counters.js`.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html } = require('../site/html');
 const { tripPath } = require('../site/format');
 const { roleHasGlobalRight } = require('../crm/rights');
@@ -152,7 +153,7 @@ function createMessageRoutes(options) {
     });
   };
 
-  router.get(`${ROUTE}:id(\\d{1,9})/`, guard, async (req, res, next) => {
+  router.get(routePath(`${ROUTE}:id(\\d{1,9})/`), guard, async (req, res, next) => {
     try {
       const message = await messages.findMessage(db, req.params.id);
       if (!message) return notFound(req, res);
@@ -162,7 +163,7 @@ function createMessageRoutes(options) {
     }
   });
 
-  router.post(`${ROUTE}:id(\\d{1,9})/afhandelen/`, guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath(`${ROUTE}:id(\\d{1,9})/afhandelen/`), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const id = Number(req.params.id);
       const note = messages.messageNote(req.body.notitie);
@@ -181,7 +182,7 @@ function createMessageRoutes(options) {
     }
   });
 
-  router.post(`${ROUTE}:id(\\d{1,9})/heropenen/`, guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath(`${ROUTE}:id(\\d{1,9})/heropenen/`), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const id = Number(req.params.id);
       const changed = await db.transaction(async (client) => {
@@ -198,7 +199,7 @@ function createMessageRoutes(options) {
     }
   });
 
-  router.post(`${ROUTE}:id(\\d{1,9})/verwijderen/`, guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath(`${ROUTE}:id(\\d{1,9})/verwijderen/`), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const id = Number(req.params.id);
       if (req.body.bevestig !== 'ja') {

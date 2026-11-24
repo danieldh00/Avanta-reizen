@@ -6,6 +6,7 @@
  * Beide acties staan in het auditlog (nooit de waarden), de export eerst: wat niet gelogd kan worden, gaat niet de deur uit.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html } = require('../site/html');
 const { FIELDS } = require('../booking/fields');
 const { createXlsx, XLSX_TYPE } = require('../export/xlsx');
@@ -182,7 +183,7 @@ function createPersonPrivacyRoutes(options) {
     title: 'Niet gevonden', user: req.user, csrf: req.session.csrf, path: '/app/deelnemers/', body: html`<p>Deze deelnemer bestaat niet. <a href="/app/deelnemers/">Naar de deelnemers</a></p>`,
   }));
 
-  router.post('/deelnemers/:id(\\d{1,9})/inzage/', ...guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/deelnemers/:id(\\d{1,9})/inzage/'), ...guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const person = await persons.findPerson(db, req.params.id);
       if (!person) return notFound(req, res);
@@ -242,7 +243,7 @@ function createPersonPrivacyRoutes(options) {
     }
   });
 
-  router.post('/deelnemers/:id(\\d{1,9})/wissen/', ...guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/deelnemers/:id(\\d{1,9})/wissen/'), ...guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const person = await persons.findPerson(db, req.params.id);
       if (!person) return notFound(req, res);

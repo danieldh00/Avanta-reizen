@@ -6,6 +6,7 @@
  * De reisleider krijgt dit scherm pas met de beperking tot zijn eigen vertrekken (tot dan 403).
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { formatDate, formatPrice } = require('../site/format');
 const { FIELDS } = require('./fields');
@@ -291,7 +292,7 @@ function createBookingRoutes(options) {
     });
   };
 
-  router.get('/aanmeldingen/:id(\\d{1,9})/', guard, async (req, res, next) => {
+  router.get(routePath('/aanmeldingen/:id(\\d{1,9})/'), guard, async (req, res, next) => {
     try {
       const booking = await findBooking(db, req.params.id);
       if (!booking) return notFound(req, res);
@@ -302,7 +303,7 @@ function createBookingRoutes(options) {
     }
   });
 
-  router.post('/aanmeldingen/:id(\\d{1,9})/status/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/aanmeldingen/:id(\\d{1,9})/status/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const to = String(req.body.naar || '');
       const from = String(req.body.van || '');
@@ -342,7 +343,7 @@ function createBookingRoutes(options) {
     }
   });
 
-  router.post('/aanmeldingen/:id(\\d{1,9})/notitie/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/aanmeldingen/:id(\\d{1,9})/notitie/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const note = noteField(req.body.notitie);
       const booking = await findBooking(db, req.params.id);
