@@ -298,6 +298,23 @@
 .crm-manual label.choice { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: .5rem; font-weight: 400; }
 .crm-manual label.choice > input { margin-top: .3em; }
 .crm-manual label.choice > span { min-width: 0; overflow-wrap: break-word; }
+/* Zoeken over het hele CRM (crm/search.js): veld in de kopbalk; op een smal scherm een knop naar de zoekpagina. */
+.crm-header-search { position: relative; flex: 0 1 18rem; min-width: 10rem; display: flex; align-items: center; }
+.crm-header-search > .icon { position: absolute; left: 10px; color: var(--av-muted); pointer-events: none; }
+.crm-header-search-input { width: 100%; min-height: 36px; padding: 5px 10px 5px 32px; font: inherit; font-size: 14px; color: var(--av-heading); background: var(--av-soft); border: 1px solid var(--av-line); border-radius: 6px; }
+.crm-header-search-input:focus-visible, .crm-header-search-link:focus-visible { outline: 2px solid var(--av-accent); outline-offset: 1px; }
+.crm-header-search-link { display: none; flex: none; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; margin-left: auto; color: var(--crm-ink); border: 1px solid var(--crm-line); border-radius: 8px; }
+.crm-search-group { margin: 0 0 1.5rem; }
+.crm-search-group h2 { display: flex; align-items: center; gap: .5rem; margin: 0 0 .5rem; }
+.crm-search-results { display: grid; gap: 1px; margin: 0 0 .5rem; padding: 0; list-style: none; background: var(--crm-line); border: 1px solid var(--crm-line); border-radius: 8px; overflow: hidden; }
+.crm-search-results li { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem 1rem; padding: .6rem 1rem; background: var(--av-white); }
+.crm-search-results a { font-weight: 600; overflow-wrap: anywhere; }
+.crm-search-detail { color: var(--crm-text); font-size: 14px; overflow-wrap: anywhere; }
+.crm-search-group > p > a { display: inline-flex; align-items: center; min-height: 24px; }
+@media (max-width: 800px) {
+  .crm-header-search { display: none; }
+  .crm-header-search-link { display: inline-flex; }
+}
 
 @media (min-width: 801px) {
   .crm--nav .crm-page { padding-left: var(--crm-nav-w); }

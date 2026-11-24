@@ -16,6 +16,7 @@ const { icon } = require('../site/icons');
 const { roleHasRight, roleHasGlobalRight, roleLabel } = require('./rights');
 const { renderMaintenanceBanner } = require('../site/layout');
 const { GROUPS: BEHEER_GROUPS, normalizeSearch } = require('../beheer/indeling');
+const { canSearch } = require('./search');
 
 /** Versie van de statische bestanden, tegen verouderde caches. */
 const ASSET_VERSION = require('../../package.json').version;
@@ -319,11 +320,12 @@ function breadcrumbsFor(user, currentPath, title) {
 }
 
 /**
- * De kopbalk van het CRM: menuknop en logo (smal scherm), het kruimelpad, een link naar de site en het gebruikersmenu.
+ * De kopbalk van het CRM: menuknop en logo (smal scherm), het kruimelpad, het zoekveld voor het hele CRM (`crm/search.js`;
+ * op een smal scherm een knop naar de zoekpagina), een link naar de site en het gebruikersmenu.
  * Het gebruikersmenu is een `<details>` en werkt dus zonder JavaScript; `public/js/crm.js` sluit het bij een klik
  * ernaast of Esc. Zonder gebruiker (inloggen, installatie) alleen het logo.
- * @param {{user: (object|null), csrf?: string, path: string, title: string}} page De gebruiker, het CSRF-token voor
- *   de uitlogknop, het huidige pad en de titel.
+ * @param {{user: (object|null), csrf?: string, path: string, title: string, search?: string}} page De gebruiker, het
+ *   CSRF-token voor de uitlogknop, het huidige pad, de titel en de zoekterm (op de zoekpagina).
  * @returns {object} HTML.
  */
 function renderHeader(page) {
@@ -339,6 +341,12 @@ function renderHeader(page) {
       <button class="crm-nav-toggle" type="button" data-nav-toggle aria-controls="crm-nav" aria-expanded="false" aria-label="Menu openen">${icon('menu')}</button>
       <a class="crm-brand" href="/app/"><img src="/images/logo.png" alt="Avanta reizen" width="68" height="40"> <span>CRM</span></a>
       <nav class="crm-crumbs" aria-label="Kruimelpad"><ol>${crumbs.map((crumb, index) => html`<li${index === crumbs.length - 1 ? html` aria-current="location"` : ''}>${crumb.href ? html`<a href="${crumb.href}">${crumb.label}</a>` : crumb.label}</li>`)}</ol></nav>
+      ${canSearch(user.role) ? html`<form class="crm-header-search" method="get" action="/app/zoeken/" role="search">
+        ${icon('search')}
+        <label class="visually-hidden" for="crm-zoek">Zoeken in het CRM</label>
+        <input id="crm-zoek" class="crm-header-search-input" type="search" name="q" value="${page.search || ''}" maxlength="100" placeholder="Zoeken in het CRM">
+      </form>
+      <a class="crm-header-search-link" href="/app/zoeken/" aria-label="Zoeken in het CRM">${icon('search')}</a>` : ''}
       <a class="crm-header-site" href="/">Bekijk de site</a>
       <details class="crm-user">
         <summary class="crm-user-button"><span class="crm-user-ico">${icon('user')}</span><span class="crm-user-name">${user.name} <span class="crm-user-role">${roleLabel(user.role)}</span></span>${icon('chevron-down', { className: 'crm-user-chevron' })}</summary>
@@ -363,10 +371,11 @@ function renderPageHead(page) {
 
 /**
  * Maakt een volledige CRM-pagina.
- * @param {{title: string, body: object, user?: (object|null), csrf?: string, path?: string, beheer?: object, actions?: object}} page
+ * @param {{title: string, body: object, user?: (object|null), csrf?: string, path?: string, beheer?: object, actions?: object, search?: string}} page
  *   Titel, inhoud, de ingelogde gebruiker (zonder: geen zijbalk), het CSRF-token voor de uitlogknop, het huidige pad
  *   (een menu-item is actief op zijn eigen pad en alles eronder; het langste item wint; een pad van Beheer krijgt de
- *   tweede zijbalk) en op instellingenpagina's de gefilterde groepen en zoekterm (`{groups, query}`).
+ *   tweede zijbalk), op instellingenpagina's de gefilterde groepen en zoekterm (`{groups, query}`) en op de zoekpagina
+ *   de zoekterm voor het zoekveld in de kopbalk.
  * @returns {string} De HTML.
  */
 function renderCrmPage(page) {
@@ -387,7 +396,7 @@ function renderCrmPage(page) {
   <a class="skip-link" href="#inhoud">Naar de inhoud</a>
   <div class="crm-page">
     ${renderMaintenanceBanner()}
-    ${renderHeader({ user, csrf: page.csrf, path, title: page.title })}
+    ${renderHeader({ user, csrf: page.csrf, path, title: page.title, search: page.search })}
     ${user ? html`${renderSidebar({ user, path })}
     <script src="/js/crm.js?v=${ASSET_VERSION}"></script>` : ''}
     <main id="inhoud" class="crm-main${inBeheer ? ' crm-main--beheer' : ''}">
