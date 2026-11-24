@@ -9,22 +9,27 @@
 const { renderMail } = require('./layout');
 const { createRateLimiter } = require('../security/rate-limit');
 
-/** Hoogstens zoveel bevestigingen per ontvangend adres van een ouder of voogd per etmaal (tegen misbruik als spamkanaal). */
-const GUARDIAN_MAILS_PER_DAY = 3;
 const { formatDate, formatPrice } = require('../site/format');
 const { SGR_CENTS, BOOKING_FEE_CENTS } = require('../booking/fields');
+
+/**
+ * Hoogstens zoveel bevestigingen per ontvangend adres van een ouder of voogd per etmaal (tegen misbruik als spamkanaal).
+ * Ruim genoeg voor een gezin dat meerdere kinderen op één dag aanmeldt.
+ */
+const GUARDIAN_MAILS_PER_DAY = 10;
 
 /** Leesbare betaalkeuze in de melding. */
 const PAYMENT_LABELS = { aanbetaling: 'Aanbetaling', totaal: 'Totaalbedrag' };
 
 /**
  * Maakt de meldingen.
- * @param {{mailer: object, settings: object, now?: () => number}} options De mailer (`mail/mailer.js`) en de instellingen.
+ * @param {{mailer: object, settings: object, appLog?: object, now?: () => number}} options De mailer (`mail/mailer.js`),
+ *   de instellingen en het logboek (`system/app-log.js`, voor overgeslagen bevestigingen).
  * @returns {{contactMessage: Function, booking: Function, bookingConfirmation: Function, guardianConfirmation: Function, layoutOptions: Function}} Functies die een melding versturen
  *   (en nooit een fout gooien) en de opmaakinstellingen voor `renderMail`.
  */
 function createNotifications(options) {
-  const { mailer, settings } = options;
+  const { mailer, settings, appLog } = options;
   // Per ontvangend adres, alleen in het geheugen: het formulier zelf heeft een limiet per bezoeker, dit begrenst wat
   // één adres kan ontvangen, ook als de aanmeldingen van wisselende bezoekers komen.
   const guardianLimiter = createRateLimiter({ limit: GUARDIAN_MAILS_PER_DAY, windowMs: 24 * 60 * 60 * 1000, now: options.now });
@@ -171,7 +176,11 @@ function createNotifications(options) {
   const guardianConfirmation = async (booking) => {
     const { values, trip } = booking;
     if (!settings.get('bookingConfirmEnabled') || !values.guardian_email || !mailer.configured()) return false;
-    if (!guardianLimiter.hit(values.guardian_email.toLowerCase())) return false;
+    if (!guardianLimiter.hit(values.guardian_email.toLowerCase())) {
+      // Zichtbaar in het logboek, zonder adres of naam: alleen dat de limiet per adres is bereikt.
+      if (appLog) appLog.warn('mail', `bevestiging aan ouder of voogd overgeslagen: limiet van ${GUARDIAN_MAILS_PER_DAY} per adres per etmaal bereikt`);
+      return false;
+    }
     const participant = `${values.call_name || values.first_names} ${values.last_name}`.trim();
     try {
       const rendered = renderMail({

@@ -312,14 +312,21 @@ test('bevestiging aan de ouder of voogd: naam van de deelnemer en de reis, nooit
   assert.match(message.text, /^Beste ouder of voogd,/m, 'vaste aanhef, geen vrije tekst van de aanmelder');
   assert.match(message.text, /Ouder of voogd: Petra Jansen\nDeelnemer: Sam Jansen/);
   assert.doesNotMatch(message.text + message.html, /PKN|Notenallergie|2012|sam@example/, 'nooit bijzondere gegevens of het adres van de deelnemer');
-  // Hoogstens drie per ontvangend adres per etmaal, ongeacht hoofdletters; daarna pas weer na het venster.
+  // Hoogstens tien per ontvangend adres per etmaal, ongeacht hoofdletters; daarna pas weer na het venster. Een
+  // overgeslagen bevestiging komt in het logboek, zonder adres of naam.
   let clock = 1_000_000;
   const limited = fakeMailer();
-  const notifications = createNotifications({ mailer: limited, settings: fakeSettings({}), now: () => clock });
-  for (let i = 0; i < 3; i++) assert.equal(await notifications.guardianConfirmation(booking), true);
+  const logged = [];
+  const appLog = { warn: (source, text) => logged.push({ source, text }) };
+  const notifications = createNotifications({ mailer: limited, settings: fakeSettings({}), appLog, now: () => clock });
+  for (let i = 0; i < 10; i++) assert.equal(await notifications.guardianConfirmation(booking), true);
   assert.equal(await notifications.guardianConfirmation({ ...booking, values: { ...values, guardian_email: 'PETRA@example.nl' } }), false);
+  assert.equal(logged.length, 1);
+  assert.equal(logged[0].source, 'mail');
+  assert.match(logged[0].text, /limiet van 10 per adres/);
+  assert.doesNotMatch(logged[0].text, /petra|Jansen|example/i, 'geen persoonsgegevens in het logboek');
   assert.equal(await notifications.guardianConfirmation({ ...booking, values: { ...values, guardian_email: 'ander@example.nl' } }), true, 'ander adres telt apart');
   clock += 24 * 60 * 60 * 1000 + 1;
   assert.equal(await notifications.guardianConfirmation(booking), true);
-  assert.equal(limited.sent.length, 5);
+  assert.equal(limited.sent.length, 12);
 });

@@ -81,7 +81,7 @@ function createServices(options) {
   // E-mail via de mailserver uit Beheer (tests geven een eigen mailer en WAN-IP-opzoeker mee).
   const mailer = options.mailer || createMailer({ settings });
   const wanIp = options.wanIp || createWanIp();
-  const notifications = createNotifications({ mailer, settings });
+  const notifications = createNotifications({ mailer, settings, appLog });
   // Versleutelde back-ups (Beheer > Back-ups en herstel); alleen met een verbindings-URL voor pg_dump. Na elke back-up
   // gaat er een kopie naar Google Drive als die gekoppeld is (tests geven een eigen fetch mee als nep-Google).
   const backupDir = options.backupDir || path.join(DATA_DIR, 'backups');
