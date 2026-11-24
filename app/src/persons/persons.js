@@ -287,8 +287,9 @@ function createPersons(options) {
    * is veilig. Een aanmelding die niet te ontsleutelen of op te slaan is blijft staan en wordt geteld.
    * @param {{query: Function, transaction: Function}} db Database.
    * @param {{batchSize?: number}} [settings] Aantal per ronde.
-   * @returns {Promise<{converted: number, failed: number, purged: number}>} Aantallen (nooit persoonsgegevens): omgezet,
-   *   mislukt, en personen bij wie overgenomen art. 9-gegevens zijn gewist.
+   * @returns {Promise<{converted: number, failed: number, purged: number, purgeFailed: number}>} Aantallen (nooit
+   *   persoonsgegevens): omgezet, mislukt, personen bij wie overgenomen art. 9-gegevens zijn gewist, en personen bij wie
+   *   dat wissen mislukte (opnieuw bij de volgende start).
    */
   const backfillPersons = async (db, settings = {}) => {
     const batchSize = settings.batchSize || 100;
@@ -332,7 +333,8 @@ function createPersons(options) {
         converted++;
       }
     }
-    return { converted, failed, purged: await purgeLegacyArt9(db) };
+    const purge = await purgeLegacyArt9(db);
+    return { converted, failed, purged: purge.purged, purgeFailed: purge.failed };
   };
 
   /**
@@ -340,9 +342,10 @@ function createPersons(options) {
    * met tekstversie `LEGACY_ART9_TEXT_VERSION`, bevinding A10). Per persoon: het blok van die soort leeg, tenzij er ook
    * een echte, niet ingetrokken toestemming van dezelfde soort is (dan gaf de deelnemer later zelf toestemming), en de
    * oude regels krijgen `withdrawn_at`, zodat ze als bewijs blijven staan maar nergens meer tellen. Idempotent: na één
-   * ronde is er niets meer te doen. Elke persoon in een eigen transactie met de rij vergrendeld.
+   * ronde is er niets meer te doen. Elke persoon in een eigen transactie met de rij vergrendeld; een fout bij één persoon
+   * wordt geteld en houdt de anderen niet tegen (die persoon komt bij de volgende start opnieuw aan bod).
    * @param {{query: Function, transaction: Function}} db Database.
-   * @returns {Promise<number>} Aantal personen dat is opgeschoond (nooit persoonsgegevens).
+   * @returns {Promise<{purged: number, failed: number}>} Aantal opgeschoonde en mislukte personen (nooit persoonsgegevens).
    */
   const purgeLegacyArt9 = async (db) => {
     const people = await db.query(
@@ -350,28 +353,36 @@ function createPersons(options) {
       [LEGACY_ART9_TEXT_VERSION],
     );
     let purged = 0;
+    let failed = 0;
     for (const { person_id: personId } of people) {
-      await db.transaction(async (client) => {
-        await client.query('SELECT id FROM persons WHERE id = $1 FOR UPDATE', [personId]);
-        const kinds = await client.query(
-          `SELECT legacy.kind,
-                  EXISTS (SELECT 1 FROM consents valid WHERE valid.person_id = $1 AND valid.kind = legacy.kind
-                            AND valid.withdrawn_at IS NULL AND valid.text_version <> $2) AS still_valid
-             FROM (SELECT DISTINCT kind FROM consents WHERE person_id = $1 AND text_version = $2 AND withdrawn_at IS NULL) AS legacy`,
-          [personId, LEGACY_ART9_TEXT_VERSION],
-        );
-        for (const { kind, still_valid: stillValid } of kinds) {
-          const block = Object.keys(BLOCK_CONSENTS).find((name) => BLOCK_CONSENTS[name] === kind);
-          if (block && !stillValid) await writeBlock(client, personId, block, {});
-        }
-        await client.query(
-          'UPDATE consents SET withdrawn_at = now() WHERE person_id = $1 AND text_version = $2 AND withdrawn_at IS NULL',
-          [personId, LEGACY_ART9_TEXT_VERSION],
-        );
-      });
+      try {
+        await db.transaction(async (client) => {
+          await client.query('SELECT id FROM persons WHERE id = $1 FOR UPDATE', [personId]);
+          const kinds = await client.query(
+            `SELECT legacy.kind,
+                    EXISTS (SELECT 1 FROM consents valid WHERE valid.person_id = $1 AND valid.kind = legacy.kind
+                              AND valid.withdrawn_at IS NULL AND valid.text_version <> $2) AS still_valid
+               FROM (SELECT DISTINCT kind FROM consents WHERE person_id = $1 AND text_version = $2 AND withdrawn_at IS NULL) AS legacy`,
+            [personId, LEGACY_ART9_TEXT_VERSION],
+          );
+          for (const { kind, still_valid: stillValid } of kinds) {
+            const block = Object.keys(BLOCK_CONSENTS).find((name) => BLOCK_CONSENTS[name] === kind);
+            if (block && !stillValid) await writeBlock(client, personId, block, {});
+          }
+          await client.query(
+            'UPDATE consents SET withdrawn_at = now() WHERE person_id = $1 AND text_version = $2 AND withdrawn_at IS NULL',
+            [personId, LEGACY_ART9_TEXT_VERSION],
+          );
+        });
+      } catch (error) {
+        // Alleen het id en de foutcode in het log, nooit de melding zelf (die kan waarden bevatten).
+        console.error(`personen: art. 9-gegevens van persoon ${personId} niet gewist (${error.code || error.name})`);
+        failed++;
+        continue;
+      }
       purged++;
     }
-    return purged;
+    return { purged, failed };
   };
 
   /**

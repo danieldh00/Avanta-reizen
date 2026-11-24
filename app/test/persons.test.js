@@ -171,7 +171,7 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     // De eerste transactie (die van AV-OUD-0) mislukt; de rest gaat gewoon door.
     let calls = 0;
     const flakyDb = { ...db, transaction: (work) => (calls++ === 0 ? Promise.reject(new Error('slot verlopen')) : db.transaction(work)) };
-    assert.deepEqual(await persons.backfillPersons(flakyDb, { batchSize: 1 }), { converted: 1, failed: 2, purged: 0 });
+    assert.deepEqual(await persons.backfillPersons(flakyDb, { batchSize: 1 }), { converted: 1, failed: 2, purged: 0, purgeFailed: 0 });
     assert.equal((await db.query('SELECT person_id FROM bookings WHERE id = $1', [broken.id]))[0].person_id, null, 'mislukte blijft staan');
     const [row] = await db.query('SELECT person_id, sensitive_data FROM bookings WHERE id = $1', [good.id]);
     assert.equal(row.sensitive_data, null);
@@ -185,9 +185,9 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.deepEqual(consents.map((consent) => [consent.kind, consent.text_version]), [['voorwaarden', LEGACY_TEXT_VERSION]]);
     assert.ok(consents.every((consent) => consent.given_at.toISOString() === '2026-01-02T10:00:00.000Z'));
     assert.equal((await db.query('SELECT person_id FROM bookings WHERE id = $1', [bad.id]))[0].person_id, null);
-    assert.deepEqual(await persons.backfillPersons(db), { converted: 1, failed: 1, purged: 0 }, 'volgende start: de eerder mislukte lukt nu, de kapotte blijft');
+    assert.deepEqual(await persons.backfillPersons(db), { converted: 1, failed: 1, purged: 0, purgeFailed: 0 }, 'volgende start: de eerder mislukte lukt nu, de kapotte blijft');
     const [plain] = await insertOld('AV-OUD-3', 'zonder-art9@example.nl', vault.seal({ ...sensitive, church: '', particulars: '' }));
-    assert.deepEqual(await persons.backfillPersons(db), { converted: 1, failed: 1, purged: 0 });
+    assert.deepEqual(await persons.backfillPersons(db), { converted: 1, failed: 1, purged: 0, purgeFailed: 0 });
     const plainConsents = await db.query('SELECT kind FROM consents WHERE booking_id = $1', [plain.id]);
     assert.deepEqual(plainConsents.map((consent) => consent.kind), ['voorwaarden'], 'lege art. 9-velden: geen art. 9-toestemming');
   });
@@ -204,7 +204,11 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     const oldOnly = await legacy('oud-art9@example.nl', { church: 'GKV', particulars: 'Diabetes' });
     const laterConsent = await legacy('later@example.nl', { church: 'PKN', particulars: 'Astma' });
     await db.query("INSERT INTO consents (person_id, kind, text_version) VALUES ($1, 'art9_religie', '2026-11-21')", [laterConsent]);
-    assert.equal(await persons.purgeLegacyArt9(db), 2);
+    // Eén mislukte persoon houdt de rest niet tegen; die komt bij de volgende ronde opnieuw aan bod.
+    let purgeCalls = 0;
+    const flakyDb = { ...db, transaction: (work) => (purgeCalls++ === 0 ? Promise.reject(new Error('slot verlopen')) : db.transaction(work)) };
+    assert.deepEqual(await persons.purgeLegacyArt9(flakyDb), { purged: 1, failed: 1 });
+    assert.deepEqual(await persons.purgeLegacyArt9(db), { purged: 1, failed: 0 }, 'volgende ronde: de mislukte lukt nu');
     const cleaned = await personById(oldOnly);
     assert.equal(cleaned.special_data, null);
     assert.equal(cleaned.health_data, null);
@@ -214,6 +218,6 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal(kept.health_data, null, 'gezondheid had geen echte toestemming');
     const open = await db.query('SELECT count(*)::int AS total FROM consents WHERE text_version = $1 AND withdrawn_at IS NULL', [LEGACY_ART9_TEXT_VERSION]);
     assert.equal(open[0].total, 0, 'oude regels ingetrokken, als bewijs bewaard');
-    assert.equal(await persons.purgeLegacyArt9(db), 0, 'tweede keer niets te doen');
+    assert.deepEqual(await persons.purgeLegacyArt9(db), { purged: 0, failed: 0 }, 'daarna niets meer te doen');
   });
 });

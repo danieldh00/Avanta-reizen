@@ -257,9 +257,10 @@ async function start() {
   // Aanmeldingen van vóór de personen-tabel (migratie 10) omzetten naar personen, zonder art. 9-gegevens, en eerder
   // overgenomen art. 9-gegevens wissen (A10); alleen aantallen in het log.
   createPersons({ vault: createVault(masterKey) }).backfillPersons(db)
-    .then(({ converted, failed, purged }) => {
+    .then(({ converted, failed, purged, purgeFailed }) => {
       if (converted) console.log(`personen: ${converted} oude aanmelding(en) omgezet`);
       if (purged) console.log(`personen: bij ${purged} persoon/personen art. 9-gegevens van het oude formulier gewist`);
+      if (purgeFailed) console.error(`personen: bij ${purgeFailed} persoon/personen art. 9-gegevens van het oude formulier niet gewist (volgende start opnieuw)`);
       if (failed) console.error(`personen: ${failed} oude aanmelding(en) niet te ontsleutelen (andere hoofdsleutel?)`);
     })
     .catch((error) => console.error(`personen: omzetten mislukt (${error.code || error.name})`));
