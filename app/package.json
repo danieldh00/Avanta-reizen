@@ -1,6 +1,6 @@
 {
   "name": "avanta-reizen",
-  "version": "0.34.6",
+  "version": "0.35.0",
   "private": true,
   "description": "Avanta Reizen: website en (later) CRM",
   "main": "src/server.js",
