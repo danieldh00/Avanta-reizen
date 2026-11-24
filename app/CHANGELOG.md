@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.32.1 — 2026-11-24 — Hersteltest noemt de stap die echt mislukte
+
+- Mislukt de hersteltest, dan staat in Beheer nu de echte oorzaak: de fout van het terugzetten of de reden waarom het
+
+- `deploy/apps01/restore-test.sh`: stopt `pg_restore` bij een fout, dan eindigt het ontsleutelen met een gesloten pijp
+  (EPIPE) en werd dat als oorzaak gemeld. Nieuwe functie `restore_failure` kiest de echte oorzaak: het ontsleutelen
+  alleen bij een andere fout dan EPIPE, anders de foutregel van `pg_restore`. De melding van `cli.js decrypt` (eigen
+  tekst, geen gegevens uit de back-up) komt nu ook in de uitslag.
+- Test op de keuze van de oorzaak in `app/test/backup.test.js`.
+
 ## 0.32.0 — 2026-11-24 — Teksteditor (WYSIWYG) voor blokken en reisomschrijving
 
 - Tekstblokken, de reisomschrijving, reistypes en landen, reisleiders en FAQ-antwoorden bewerk je nu in een teksteditor: je ziet de tekst zoals op de site, Enter begint een nieuwe alinea en kopjes, vet, cursief, lijsten, citaat en links zet je met de knoppen. Geen `<p>` of `<br>` meer typen; met de knop *HTML* kan het nog wel.
