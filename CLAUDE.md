@@ -124,7 +124,8 @@ Regels:
 - Elke functie een `/** … */`-blok in het Nederlands (wat, `@param`, `@returns`); elk bestand een kopcommentaar.
 - **Lint en typecontrole**: `npm run lint` (ESLint, `app/eslint.config.js`) moet schoon zijn. Elk bestand onder
   `app/src/` en `app/tools/` begint met `// @ts-check` (B08; de test `test/ts-check.test.js` bewaakt het, `@ts-nocheck`
-  mag niet); `npm run typecheck` controleert ze op hun JSDoc. Typ in JSDoc met `any` of een echte vorm, niet met
+  mag niet; tijdelijke uitzonderingen staan in `PENDING` van die test tot B08 deel 2); `npm run typecheck` controleert ze
+  op hun JSDoc. Typ in JSDoc met `any` of een echte vorm, niet met
   `object` (daar kun je geen velden van lezen). Uitzondering op een regel alleen met
   `// eslint-disable-next-line <regel>` en de reden erboven.
 - **Dekking**: CI draait `npm run test:coverage` met een drempel (regels 95%, takken 85%, functies 93%); nieuwe code

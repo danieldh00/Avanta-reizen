@@ -741,7 +741,7 @@ Alleen docs/CI zonder effect op de app: label `geen-releasenotes`.
 ```sh
 cd app && TEST_DATABASE_URL=postgres://…/avanta_test npm test   # wist de testdatabase
 npm run lint                                                     # ESLint (in app/)
-npm run typecheck                                                # JSDoc-typecontrole (elk bestand in src/ en tools/ heeft // @ts-check)
+npm run typecheck                                                # JSDoc-typecontrole op // @ts-check (verplicht in src/ en tools/, zie test/ts-check.test.js)
 TEST_DATABASE_URL=… npm run test:coverage                        # tests met dekkingsdrempel, zoals in CI
 node --test "tests/*.test.js"                                    # releasescript (vanuit de root)
 node tools/release-notes.js --check                              # fragmenten controleren
