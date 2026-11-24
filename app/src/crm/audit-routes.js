@@ -51,7 +51,7 @@ function createAuditRoutes(options) {
   const filterChoices = async (current) => {
     const users = await db.query('SELECT id, name, active FROM users ORDER BY lower(name), id');
     const entities = Object.keys(audit.ENTITIES).sort((first, second) => audit.ENTITIES[first].label.localeCompare(audit.ENTITIES[second].label, 'nl'));
-    if (current && !audit.ENTITIES[current]) entities.push(current);
+    if (current && !audit.entityInfo(current)) entities.push(current);
     return { users, entities };
   };
 
@@ -65,8 +65,8 @@ function createAuditRoutes(options) {
     const user = filter.user === audit.SYSTEM_USER ? 'Systeem of onbekend' : (users.find((row) => String(row.id) === filter.user) || {}).name;
     return [
       ['Gebruiker', filter.user ? user || `#${filter.user}` : 'Alle'],
-      ['Actie', filter.action ? labels[filter.action] || filter.action : 'Alle'],
-      ['Soort record', filter.entity ? (audit.ENTITIES[filter.entity] ? audit.ENTITIES[filter.entity].label : filter.entity) : 'Alle'],
+      ['Actie', filter.action ? audit.actionLabel(labels, filter.action) : 'Alle'],
+      ['Soort record', filter.entity ? audit.entityLabel(filter.entity) : 'Alle'],
       ['Record', filter.record || 'Alle'],
       ['Van', filter.from || 'begin'],
       ['Tot en met', filter.to || 'nu'],
@@ -92,7 +92,7 @@ function createAuditRoutes(options) {
           ${actions.map(([key, label]) => html`<option value="${key}"${selected(key, filter.action)}>${label}</option>`)}</select></div>
       <div class="field"><span class="field__label"><label for="veld-soort">Soort record</label></span>
         <select id="veld-soort" name="soort"><option value="">Alle</option>
-          ${choices.entities.map((entity) => html`<option value="${entity}"${selected(entity, filter.entity)}>${audit.ENTITIES[entity] ? audit.ENTITIES[entity].label : entity}</option>`)}</select></div>
+          ${choices.entities.map((entity) => html`<option value="${entity}"${selected(entity, filter.entity)}>${audit.entityLabel(entity)}</option>`)}</select></div>
       <div class="field"><span class="field__label"><label for="veld-record">Record (nummer)</label></span>
         <input id="veld-record" name="record" type="text" inputmode="numeric" value="${filter.record}" maxlength="40"></div>
       <div class="field"><span class="field__label"><label for="veld-van">Van</label></span>
@@ -111,7 +111,7 @@ function createAuditRoutes(options) {
    */
   const recordCell = (row) => {
     if (!row.entity) return '–';
-    const entity = audit.ENTITIES[row.entity];
+    const entity = audit.entityInfo(row.entity);
     const name = entity ? entity.label : row.entity;
     const id = String(row.entity_id || '');
     const shortId = id.length > RECORD_ID_MAX ? `${id.slice(0, RECORD_ID_MAX - 1)}…` : id;
@@ -142,7 +142,7 @@ function createAuditRoutes(options) {
           columns: [
             { label: 'Tijdstip', cell: (row) => formatDateTime(row.created_at) },
             { label: 'Gebruiker', cell: (row) => row.user_name || '–' },
-            { label: 'Actie', cell: (row) => html`<span class="crm-audit-action">${labels[row.action] || row.action}</span>` },
+            { label: 'Actie', cell: (row) => html`<span class="crm-audit-action">${audit.actionLabel(labels, row.action)}</span>` },
             { label: 'Record', cell: recordCell },
             { label: 'IP-reeks', cell: (row) => row.ip_prefix || '–' },
           ],

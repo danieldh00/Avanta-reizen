@@ -43,6 +43,35 @@ const ENTITIES = {
   systeem: { label: 'Systeem' },
 };
 
+/**
+ * De gegevens van een soort record, alleen als die echt in `ENTITIES` staat (geen eigenschappen als `constructor`).
+ * @param {string} name Soort record.
+ * @returns {({label: string, href?: Function}|null)} Gegevens of null.
+ */
+function entityInfo(name) {
+  return typeof name === 'string' && Object.hasOwn(ENTITIES, name) ? ENTITIES[name] : null;
+}
+
+/**
+ * De naam van een soort record op het scherm; een onbekende soort houdt zijn technische naam.
+ * @param {string} name Soort record.
+ * @returns {string} Naam.
+ */
+function entityLabel(name) {
+  const info = entityInfo(name);
+  return info ? info.label : name;
+}
+
+/**
+ * De omschrijving van een actie, alleen uit de eigen sleutels van `labels`; anders de actiecode zelf.
+ * @param {Record<string, string>} labels Omschrijving per actie.
+ * @param {string} action Actiecode.
+ * @returns {string} Omschrijving.
+ */
+function actionLabel(labels, action) {
+  return Object.hasOwn(labels, action) ? labels[action] : action;
+}
+
 /** Waarde van het gebruikersfilter voor regels zonder gebruiker (systeem, mislukte inlogpogingen). */
 const SYSTEM_USER = 'systeem';
 
@@ -175,8 +204,8 @@ function auditTime(value) {
 function buildAuditWorkbook(input) {
   const header = ['Tijdstip', 'Gebruiker', 'Actie', 'Actiecode', 'Soort record', 'Record', 'IP-reeks'];
   const rows = input.rows.map((row) => [
-    auditTime(row.created_at), row.user_name || 'Systeem of onbekend', input.labels[row.action] || row.action, row.action,
-    row.entity ? (ENTITIES[row.entity] ? ENTITIES[row.entity].label : row.entity) : '', row.entity_id || '', row.ip_prefix || '',
+    auditTime(row.created_at), row.user_name || 'Systeem of onbekend', actionLabel(input.labels, row.action), row.action,
+    row.entity ? entityLabel(row.entity) : '', row.entity_id || '', row.ip_prefix || '',
   ]);
   const about = [
     ['Over deze export', ''],
@@ -194,6 +223,9 @@ module.exports = {
   AUDIT_EXPORT_MAX,
   ENTITIES,
   SYSTEM_USER,
+  entityInfo,
+  entityLabel,
+  actionLabel,
   readAuditFilter,
   auditFilterParams,
   hasAuditFilter,

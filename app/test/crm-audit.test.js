@@ -163,6 +163,9 @@ test('auditlog in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt
     const unknown = (await request('/app/auditlog/?soort=onbekend_ding', { cookie: beheerder })).text;
     assert.match(unknown, /<option value="onbekend_ding" selected>onbekend_ding<\/option>/, 'een gekozen soort buiten de vaste lijst blijft gekozen');
     assert.match(rowsOf((await request('/app/auditlog/?record=42', { cookie: beheerder })).text), /Aanmelding #42/, 'record zonder soort');
+    const proto = (await request('/app/auditlog/?soort=__proto__&actie=constructor', { cookie: beheerder })).text;
+    assert.match(proto, /<option value="__proto__" selected>__proto__<\/option>/, 'geen eigenschap van Object als soort');
+    assert.doesNotMatch(proto, /undefined|function|\[native code\]/);
   });
 
   await t.test('ongeldige filters vallen weg en komen niet terug in de pagina', async () => {
