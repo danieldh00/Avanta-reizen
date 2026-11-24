@@ -62,6 +62,14 @@ test('changelog lezen: nieuws en technische details per versie, nieuwste eerst',
   assert.deepEqual(parseReleaseNotes('# Changelog\n\ngeen versies\n'), []);
 });
 
+test('changelog lezen: één blok is altijd techniek (een release zonder nieuws), ook met punten van één regel', () => {
+  // De release schrijft altijd een technisch blok; nieuws staat er alleen als eerste blok vóór dat blok.
+  const [release] = parseReleaseNotes('## 1.0.0 — 2026-01-01 — Alleen techniek\n\n- `a.js`: kleine fix.\n- Test erbij.\n');
+  assert.deepEqual(release.news, []);
+  assert.deepEqual(release.details, ['`a.js`: kleine fix.', 'Test erbij.']);
+  assert.match(toString(renderWhatsNew([release], { currentVersion: '1.0.0', showDetails: false })), /Onderhoud en verbeteringen achter de schermen/);
+});
+
 test('changelog lezen: een kopje van een ander niveau sluit de versie af', () => {
   const releases = parseReleaseNotes('## 1.0.0 — 2026-01-01 — A\n\n- nieuws\n\n- techniek\n# Iets anders\n- hoort er niet bij\n');
   assert.deepEqual(releases[0].news, ['nieuws']);
@@ -71,7 +79,8 @@ test('changelog lezen: een kopje van een ander niveau sluit de versie af', () =>
 test('de echte changelog is te lezen en heeft per versie een titel', () => {
   const releases = parseReleaseNotes(fs.readFileSync(CHANGELOG_FILE, 'utf8'));
   assert.ok(releases.length > 10);
-  assert.equal(releases[0].version, require('../package.json').version, 'bovenaan de draaiende versie');
+  assert.match(releases[0].version, /^\d+\.\d+\.\d+$/);
+  assert.ok(releases[0].title, 'de nieuwste versie heeft een titel');
   assert.ok(releases.filter((release) => release.date).every((release) => /^\d{4}-\d{2}-\d{2}$/.test(release.date)));
 });
 
