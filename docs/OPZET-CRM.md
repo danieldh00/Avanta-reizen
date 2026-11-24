@@ -46,7 +46,7 @@ kolommen komen in nieuwe migraties (3, 4, …). Bedragen in centen (`INTEGER`), 
 | `payments` | `booking_id`, `amount_cents`, `method` (`bank`, `ideal`, `handmatig`), `received_on`, `provider_ref`, `user_id` | index `booking_id`; uniek `provider_ref` |
 | `invoices` (later) | `number` (uniek, doorlopend), `booking_id`, `issued_on`, `total_cents`, `pdf_name`, `exported_at` | index `booking_id` |
 | `emails` (later) | `booking_id`/`person_id`, `template`, `status`, `sent_at`, `error` (geen inhoud met bijzondere gegevens) | index `person_id` |
-| `audit_log` | `user_id`, `action`, `entity`, `entity_id`, `created_at`, `ip_prefix` (geen persoonsgegevens in `detail`) | index `(entity, entity_id)`, `created_at` |
+| `audit_log` | `user_id`, `action`, `entity`, `entity_id`, `created_at`, `ip_prefix` (geen persoonsgegevens in `detail`) | index `(entity, entity_id)`, `created_at`, `(user_id, id)`, `(action, id)` (M31) |
 | `consents` | `person_id`, `booking_id`, `kind` (`voorwaarden`, `art9_religie`, `art9_gezondheid`), `text_version`, `given_at`, `withdrawn_at` | index `person_id` |
 
 ### Wijzigingen aan bestaande tabellen

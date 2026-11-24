@@ -48,6 +48,7 @@ const SCREEN_RULES = [
   { pattern: /^app\/src\/crm\/(users|rights)\.js$/, screens: ['/app/gebruikers/*', '/app/auditlog/'] },
   { pattern: /^app\/src\/crm\/two-factor\.js$/, screens: ['/app/tweestaps/'] },
   { pattern: /^app\/src\/crm\/search(-routes)?\.js$/, screens: ['/app/zoeken/?q=test'] },
+  { pattern: /^app\/src\/crm\/audit-(log|routes)\.js$/, screens: ['/app/auditlog/', '/app/auditlog/?actie=inloggen'] },
   { pattern: /^app\/src\/persons\//, screens: ['/app/deelnemers/*', '/app/deelnemerslijsten/'] },
   { pattern: /^app\/src\/payments\//, screens: ['/app/betalingen/*'] },
   { pattern: /^app\/src\/trips\//, screens: ['/app/reizen/*', '/app/reisleiders/*', '/app/reistypes-en-landen/*', '/reis/*'] },

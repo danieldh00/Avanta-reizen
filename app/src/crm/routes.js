@@ -17,6 +17,7 @@ const { createDashboardRoutes } = require('./dashboard-routes');
 const { createSearchRoutes } = require('./search-routes');
 const { normalizeEmail, textField } = require('./input');
 const { createUserRoutes } = require('./users');
+const { createAuditRoutes } = require('./audit-routes');
 const { createPersonsModuleRoutes } = require('../persons');
 const { createBookingModuleRoutes } = require('../booking');
 const { createPaymentsModuleRoutes } = require('../payments');
@@ -32,7 +33,7 @@ const { createBeheerRoutes } = require('../beheer/routes');
 
 /**
  * Bouwt de CRM-router.
- * @param {{db: object, masterKey: Buffer, settings: object, passwordCheck?: object, mailer?: object, wanIp?: object, notifications?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
+ * @param {{db: object, masterKey: Buffer, settings: object, passwordCheck?: object, mailer?: object, wanIp?: object, notifications?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, auditExportMax?: number, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
  *   Database, hoofdsleutel, de instellingen (`beheer/settings.js`), de wachtwoordcontrole (`security/password-check.js`,
  *   anders een nieuwe), de mailer en WAN-IP-opzoeker (`mail/`), de captcha, de installatiecode voor de eerste beheerder (zonder code geen installatie), of de cookie
  *   `Secure` krijgt en (voor tests) de klok van de limieten.
@@ -85,6 +86,7 @@ function createCrmRouter(options) {
   router.use(createSearchRoutes({ db, auth }));
   router.use(createTwoFactorRoutes({ db, auth, twoFactor, now: options.now }));
   router.use(createUserRoutes({ db, auth, twoFactor, passwordCheck, normalizeEmail, textField }));
+  router.use(createAuditRoutes({ db, auth, now: options.now, exportMax: options.auditExportMax }));
   // De modules met een eigen ingang: elk koppelt zijn eigen routes (`<module>/index.js`). Elke module heeft eigen
   // adressen (`/deelnemers/`, `/aanmeldingen/`, `/betalingen/`, …), dus de volgorde tussen modules maakt niet uit.
   const moduleContext = { ...options, db, auth, persons };
