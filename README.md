@@ -141,6 +141,11 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   run nieuw), controleert op 1440 en 375 px en faalt bij ernst hoog. De samenvatting staat bij de job, het rapport
   (.xlsx met uitsneden) in het artefact `design-controle` (7 dagen). Een nieuwe module met eigen schermen krijgt een
   regel in `SCREEN_RULES`.
+  **Toegankelijkheid** (`--axe`, `tools/design-check/accessibility.js`; axe-core ernaast installeren met
+  `npm install --no-save axe-core`): op dezelfde schermen en breedtes controleert axe op WCAG 2.1 A en AA. Impact
+  *critical*/*serious* = ernst hoog (laat CI falen), *moderate*/*minor* = laag. Regels die op een punt van de wachtlijst
+  wachten staan in `PENDING_RULES` en tellen als midden: nu kleurcontrast van de huisstijl en links in lopende tekst in
+  het CRM (W26). In CI draait de controle altijd met `--axe`.
 - **CRM** op `/app/` (in opbouw, zie `docs/OPZET-CRM.md`): inloggen met e-mail en wachtwoord (scrypt, minimaal 12
   tekens), rollen `beheerder`, `kantoor`, `reisleider` en `boekhouding` met vaste rechten (`app/src/crm/rights.js`,
   per route gecontroleerd met `requireRight`), gebruikersbeheer en een auditlog op `/app/auditlog/`.

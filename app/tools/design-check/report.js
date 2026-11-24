@@ -21,6 +21,7 @@ const CHECK_LABEL = {
   afbeelding: 'Afbeelding laadt niet',
   'kleine-tekst': 'Tekst kleiner dan 12 px',
   klikdoel: 'Klikdoel kleiner dan 24 px',
+  toegankelijkheid: 'Toegankelijkheid (axe, WCAG 2.1 AA)',
 };
 
 /**

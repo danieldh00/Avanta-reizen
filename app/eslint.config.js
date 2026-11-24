@@ -45,7 +45,7 @@ module.exports = [
   },
   {
     // Hulpmiddelen met Playwright: Node-code met stukken die in de browser draaien (page.evaluate).
-    files: ['tools/design-check/check.js', 'tools/design-check/overview.js', 'tools/layout-compare.js'],
+    files: ['tools/design-check/check.js', 'tools/design-check/overview.js', 'tools/design-check/accessibility.js', 'tools/layout-compare.js'],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },
     },
