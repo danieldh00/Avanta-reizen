@@ -344,6 +344,7 @@ test('updates, onderhoudsmodus en servertaken in Beheer', { skip: !DATABASE_URL 
   const tasksPage = await request('/app/beheer/servertaken/', { cookie });
   assert.equal(tasksPage.status, 200);
   assert.match(tasksPage.text, /TASKS_REF=&quot;\$REF&quot; bash &quot;\$T&quot; openstaand/);
+  assert.match(tasksPage.text, /vervang <code>openstaand<\/code> door <code>schijf<\/code>/);
   const id = HOST_TASKS[0].id;
   assert.equal((await request(`/app/beheer/servertaken/${id}/`, { cookie: office.cookie, form: { _csrf: officeCsrf, done: 'ja' } })).status, 403);
   assert.equal((await request(`/app/beheer/servertaken/${id}/`, { cookie, form: { _csrf: 'fout', done: 'ja' } })).status, 403);

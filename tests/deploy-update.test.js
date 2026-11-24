@@ -182,6 +182,44 @@ test('servertaken.sh: dezelfde taken als HOST_TASKS, met een functie per taak', 
   assert.equal(new Set(ids).size, ids.length, 'id\'s uniek');
 });
 
+test('servertaken.sh schijf: toont de ruimte en ruimt alleen buildcache en oude Avanta-images op', (testContext) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'schijf-'));
+  testContext.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, 'bin'));
+  fs.mkdirSync(path.join(dir, 'base', 'repo'), { recursive: true });
+  const callsFile = path.join(dir, 'calls');
+  // Nep-docker: buildcache via CACHE, oude images via IMAGES; elke aanroep komt in het bestand calls.
+  fs.writeFileSync(path.join(dir, 'bin', 'docker'), `#!/bin/bash
+echo "$*" >> "${callsFile}"
+case "$1 $2" in
+  "system df") printf 'Images|1GB|0B\\nBuild Cache|%s|%s\\n' "$CACHE" "$CACHE" ;;
+  "images -q") [[ "$IMAGES" == 1 ]] && echo abc123 ;;
+esac
+exit 0
+`, { mode: 0o755 });
+  const run = (action, extra) => spawnSync('bash', [path.join(DEPLOY, 'servertaken.sh'), action], {
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${path.join(dir, 'bin')}:${process.env.PATH}`, SERVERTAKEN_REMOTE: '1', BASE_DIR: path.join(dir, 'base'), ...extra },
+  });
+
+  const nothing = run('schijf-check', { CACHE: '0B', IMAGES: '0' });
+  assert.equal(nothing.status, 0, nothing.stderr);
+  assert.match(nothing.stdout, /Niets te doen/);
+  assert.match(nothing.stdout, /buildcache: +0B/);
+
+  const something = run('schijf-check', { CACHE: '7.9GB', IMAGES: '1' });
+  assert.equal(something.status, 10, something.stderr);
+  assert.match(something.stdout, /Op te ruimen: de buildcache van de hele server.*7\.9GB.*andere stacks.* 1 ongebruikt/);
+  assert.doesNotMatch(fs.readFileSync(callsFile, 'utf8'), /prune/, 'de controle ruimt niets op');
+
+  const cleaned = run('schijf-run', {});
+  assert.equal(cleaned.status, 0, cleaned.stderr);
+  const calls = fs.readFileSync(callsFile, 'utf8');
+  assert.match(calls, /^builder prune -f --filter until=168h$/m);
+  assert.match(calls, /^image prune -f --filter label=nl\.avantareizen\.stack=avanta$/m);
+  assert.doesNotMatch(calls, /volume (rm|prune)|system prune|container prune/, 'volumes en containers blijven staan');
+});
+
 test('alle hostscripts zijn geldige bash', () => {
   for (const name of fs.readdirSync(DEPLOY).filter((file) => file.endsWith('.sh'))) {
     const out = spawnSync('bash', ['-n', path.join(DEPLOY, name)], { encoding: 'utf8' });

@@ -571,7 +571,10 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     controleren* en *Testmelding versturen*.
   - *Systeem > Servertaken*: afvinklijst met taken voor de server (`app/src/system/host-tasks.js`) en het ene vaste
     commando voor de Proxmox-host dat alle openstaande taken uitvoert (`deploy/apps01/servertaken.sh`, op een vaste
-    commit van `main`); de server vinkt gelukte taken zelf af, met de hand afvinken kan ook (auditlog).
+    commit van `main`); de server vinkt gelukte taken zelf af, met de hand afvinken kan ook (auditlog). Met `schijf`
+    aan het eind in plaats van `openstaand` toont het script waar de schijfruimte zit (Docker, back-ups, foto's,
+    database, logs) en ruimt het na bevestiging de Docker-buildcache ouder dan 7 dagen op (van de hele server: `docker
+    builder prune` kent geen label) plus ongebruikte Avanta-images zonder naam; volumes en draaiende containers blijven staan. Handig bij de melding "De schijf raakt vol" van de bewaking.
   - *Organisatie > Contact en organisatie*: telefoon en e-mail (voettekst), adres en social media (JSON-LD).
   - *Organisatie > Balk "in ontwikkeling"*: een balk bovenaan elke pagina van de publieke site (niet in het CRM) met
     een eigen tekst; standaard aan, uitzetten bij go-live.
