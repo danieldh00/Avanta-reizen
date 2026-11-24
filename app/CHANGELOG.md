@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.34.5 — 2026-11-24 — Uitkomst van de hersteltest breekt niet meer af
+
+- In Beheer > Hersteltest staat de uitkomst ("Geslaagd", "Mislukt") weer op één regel.
+
+- `beheer/restore-test-routes.js` en `crm.css`: de kolommen Uitkomst en Tabellen / rijen breken niet meer midden in een
+  woord af; de toelichting krijgt de rest van de breedte.
+
 ## 0.34.4 — 2026-11-24 — Lichtere foto's op de homepage, het blog en in blokken
 
 - Ook de homepage, het blog en pagina's in blokken laden nu kleinere versies van de foto's.
