@@ -10,13 +10,14 @@
  */
 const { createDatabase } = require('../../src/database/db');
 const { hashPassword } = require('../../src/crm/passwords');
-const { ADMIN, CUSTOMER, ROLE_USERS } = require('./credentials');
+const { accounts, ROLE_USERS, TRAVELLER_EMAIL } = require('./credentials');
+const { assertLocalDatabase, assertLocalBaseUrl } = require('./guards');
 
 const BASE_URL = process.env.DESIGN_BASE_URL || 'http://localhost:3400';
 
 /** Fictieve reizigers voor de aanmeldingen (geen echte personen). */
 const TRAVELLERS = [
-  { gender: 'vrouw', first: 'Anna Maria', call: 'Anna', last: 'de Vries', email: CUSTOMER.email, city: 'Goes', payment: 'aanbetaling', church: 'PKN', particulars: 'Notenallergie, heeft altijd een EpiPen bij zich.' },
+  { gender: 'vrouw', first: 'Anna Maria', call: 'Anna', last: 'de Vries', email: TRAVELLER_EMAIL, city: 'Goes', payment: 'aanbetaling', church: 'PKN', particulars: 'Notenallergie, heeft altijd een EpiPen bij zich.' },
   { gender: 'man', first: 'Johannes Pieter', call: 'Hans', last: 'van den Berg-Achternaamlang', email: 'hans@example.nl', city: 'Middelburg', payment: 'totaal' },
   { gender: 'vrouw', first: 'Elisabeth', call: 'Lisa', last: 'Jansen', email: 'lisa@example.nl', city: 'Rotterdam', payment: 'aanbetaling' },
   { gender: 'man', first: 'Daniël', call: 'Daan', last: 'Bakker', email: 'daan@example.nl', city: 'Utrecht', payment: 'aanbetaling' },
@@ -33,15 +34,16 @@ const pause = (milliseconds) => new Promise((resolve) => { setTimeout(resolve, m
 /**
  * Maakt de eerste beheerder aan via het installatiescherm.
  * @param {object} page Playwright-pagina.
+ * @param {object} admin Eerste beheerder uit `accounts()`.
  * @returns {Promise<void>}
  */
-async function installAdmin(page) {
+async function installAdmin(page, admin) {
   await page.goto(`${BASE_URL}/app/installatie/`);
   await page.fill('[name=code]', process.env.SETUP_CODE || '');
-  await page.fill('[name=name]', ADMIN.name);
-  await page.fill('[name=email]', ADMIN.email);
-  await page.fill('[name=password]', ADMIN.password);
-  await page.fill('[name=password2]', ADMIN.password);
+  await page.fill('[name=name]', admin.name);
+  await page.fill('[name=email]', admin.email);
+  await page.fill('[name=password]', admin.password);
+  await page.fill('[name=password2]', admin.password);
   await Promise.all([page.waitForLoadState('load'), page.click('button[type=submit]')]);
 }
 
@@ -129,58 +131,6 @@ async function recordPayment(page, db) {
   await Promise.all([page.waitForLoadState('load'), page.locator('form:has([name=bedrag][id=veld-bedrag]) button[type=submit]').first().click()]);
 }
 
-/** Hosts die als lokaal gelden. */
-const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1', '[::1]'];
-
-/**
- * Weigert te draaien tegen iets anders dan een lokale test- of ontwerpdatabase: de testaccounts hebben een bekend
- * wachtwoord en horen nooit op een omgeving met echte gegevens. Eisen: geen `NODE_ENV=production`, een lokale host (ook
- * in de query-parameters `host`/`hostaddr`, die de host uit het adres overschrijven, en in `PGHOST`/`PGHOSTADDR` als het
- * adres geen host heeft) en een databasenaam met `design` of
- * `test` als los deel van de naam (bijv. `avanta_design`, `avanta-test`). Alleen met `DESIGN_SEED_TOEGESTAAN=1` mag het afwijken (bijv. een wegwerpcontainer in CI).
- * @param {string} databaseUrl Verbindings-URL.
- * @returns {void} Gooit een fout als de database niet aan de eisen voldoet.
- */
-function assertLocalDatabase(databaseUrl) {
-  if (process.env.NODE_ENV === 'production') throw new Error('seed.js draait niet met NODE_ENV=production.');
-  let parsed;
-  try {
-    parsed = new URL(databaseUrl);
-  } catch {
-    throw new Error('DATABASE_URL ontbreekt of is ongeldig.');
-  }
-  if (process.env.DESIGN_SEED_TOEGESTAAN === '1') return;
-  // Zonder host in het adres valt de PostgreSQL-client terug op PGHOST/PGHOSTADDR; die tellen dan ook mee.
-  const fallback = parsed.hostname ? [] : [process.env.PGHOST || '', process.env.PGHOSTADDR || ''];
-  const hosts = [parsed.hostname, ...fallback, ...parsed.searchParams.getAll('host'), ...parsed.searchParams.getAll('hostaddr')]
-    .flatMap((value) => value.split(','))
-    .map((value) => value.trim())
-    .filter(Boolean);
-  // Een host die met / begint is een lokale Unix-socket.
-  const remote = hosts.filter((host) => !LOCAL_HOSTS.includes(host) && !host.startsWith('/'));
-  if (remote.length) throw new Error(`seed.js draait alleen tegen een lokale database (host ${remote.join(', ')}); zet DESIGN_SEED_TOEGESTAAN=1 voor een wegwerpcontainer.`);
-  const name = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
-  if (!/(^|[_-])(design|test)([_-]|$)/i.test(name)) throw new Error(`seed.js draait alleen tegen een test- of ontwerpdatabase ("design" of "test" als los deel van de naam, bijv. avanta_design), niet tegen "${name}".`);
-}
-
-/**
- * Weigert een ander basisadres dan een lokale app: het script verstuurt aanmeldingen via de echte formulieren en maakt
- * bij een lege database de eerste beheerder aan, dus nooit tegen een publieke omgeving. Alleen met
- * `DESIGN_SEED_TOEGESTAAN=1` mag het afwijken (bijv. een app-container in CI).
- * @param {string} baseUrl Basisadres van de app.
- * @returns {void} Gooit een fout bij een niet-lokaal adres.
- */
-function assertLocalBaseUrl(baseUrl) {
-  let parsed;
-  try {
-    parsed = new URL(baseUrl);
-  } catch {
-    throw new Error('DESIGN_BASE_URL is ongeldig.');
-  }
-  if (process.env.DESIGN_SEED_TOEGESTAAN === '1') return;
-  if (!LOCAL_HOSTS.includes(parsed.hostname)) throw new Error(`seed.js draait alleen tegen een lokale app (DESIGN_BASE_URL host ${parsed.hostname}); zet DESIGN_SEED_TOEGESTAAN=1 voor een wegwerpcontainer.`);
-}
-
 /**
  * Voert alle stappen uit.
  * @returns {Promise<void>}
@@ -188,6 +138,8 @@ function assertLocalBaseUrl(baseUrl) {
 async function main() {
   assertLocalDatabase(process.env.DATABASE_URL || '');
   assertLocalBaseUrl(BASE_URL);
+  // Alleen hier mag het wachtwoordbestand worden aangemaakt; check.js en overview.js lezen het.
+  const { ADMIN, CUSTOMER } = accounts({ create: true });
   // Playwright is geen dependency van de app; het staat in de ontwikkelomgeving.
   // eslint-disable-next-line global-require
   const { chromium } = require('playwright');
@@ -196,11 +148,15 @@ async function main() {
   try {
     const page = await browser.newPage();
     const [{ count }] = await db.query('SELECT count(*)::int AS count FROM users');
-    if (count === 0) await installAdmin(page);
+    if (count === 0) await installAdmin(page, ADMIN);
     const hash = await hashPassword(ADMIN.password);
     for (const user of ROLE_USERS) {
       await db.query(`INSERT INTO users (email, name, role, password_hash) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`, [user.email, user.name, user.role, hash]);
     }
+    // Bestaan de testaccounts al (eerdere run, wachtwoordbestand intussen opnieuw aangemaakt), dan krijgen ze het
+    // huidige wachtwoord; anders faalt het inloggen in de controle.
+    await db.query('UPDATE users SET password_hash = $1 WHERE lower(email) = ANY($2::text[])',
+      [hash, [ADMIN.email, ...ROLE_USERS.map((user) => user.email)].map((email) => email.toLowerCase())]);
     const [{ bookings }] = await db.query('SELECT count(*)::int AS bookings FROM bookings');
     if (bookings === 0) {
       const trips = await openTrips(db);
@@ -209,8 +165,8 @@ async function main() {
         console.log(`aanmelding ${traveller.call}: ${status}`);
       }
     }
-    await db.query(`INSERT INTO customer_accounts (email, password_hash, verified_at) VALUES ($1, $2, now()) ON CONFLICT DO NOTHING`,
-      [CUSTOMER.email, await hashPassword(CUSTOMER.password)]);
+    await db.query(`INSERT INTO customer_accounts (email, password_hash, verified_at) VALUES ($1, $2, now())
+      ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`, [CUSTOMER.email, await hashPassword(CUSTOMER.password)]);
     await loginCrm(page, ADMIN);
     await recordPayment(page, db);
     console.log('testgegevens klaar');
@@ -222,4 +178,5 @@ async function main() {
 
 if (require.main === module) main().catch((error) => { console.error(error); process.exitCode = 1; });
 
+// Doorgegeven voor bestaande aanroepers; de controles zelf staan in guards.js.
 module.exports = { assertLocalDatabase, assertLocalBaseUrl };

@@ -18,6 +18,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { runPageChecks } = require('./page-checks');
 const { login } = require('./login');
+const { accounts } = require('./credentials');
+const { assertLocalBaseUrl } = require('./guards');
 
 const BASE_URL = (process.env.DESIGN_BASE_URL || 'http://localhost:3400').replace(/\/$/, '');
 const VIEWPORTS = [
@@ -320,6 +322,9 @@ function groupFindings(pages) {
 async function main() {
   const options = parseArguments(process.argv.slice(2));
   if (!options.full && !options.paths.length) throw new Error('Geef --full of --paths=/pad/,/ander-pad/ mee.');
+  // Vóór de eerste login: alleen tegen een lokale app, en het wachtwoord moet er al zijn (seed.js maakt het aan).
+  assertLocalBaseUrl(BASE_URL);
+  accounts();
   const shotsDir = path.join(options.out, 'screenshots');
   fs.mkdirSync(shotsDir, { recursive: true });
   // Playwright is geen dependency van de app; het staat in de ontwikkelomgeving (cloud-sandbox, CI met browser).

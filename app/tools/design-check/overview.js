@@ -9,8 +9,9 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
-const { chromium } = require('playwright');
 const { login } = require('./login');
+const { accounts } = require('./credentials');
+const { assertLocalBaseUrl } = require('./guards');
 
 const BASE_URL = (process.env.DESIGN_BASE_URL || 'http://localhost:3400').replace(/\/$/, '');
 const VIEWPORTS = [{ name: 'desktop', width: 1440, height: 900 }, { name: 'mobiel', width: 375, height: 812 }];
@@ -47,6 +48,12 @@ async function loginFor(context, area) {
  * @returns {Promise<void>}
  */
 async function main() {
+  // Vóór de eerste login: alleen tegen een lokale app, en het wachtwoord moet er al zijn (seed.js maakt het aan).
+  assertLocalBaseUrl(BASE_URL);
+  accounts();
+  // Playwright is geen dependency van de app; het staat in de ontwikkelomgeving.
+  // eslint-disable-next-line global-require
+  const { chromium } = require('playwright');
   const results = JSON.parse(fs.readFileSync(option('results'), 'utf8'));
   const out = option('out') || path.join(path.dirname(option('results')), 'overzicht');
   fs.mkdirSync(out, { recursive: true });

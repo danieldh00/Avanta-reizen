@@ -4,12 +4,12 @@
  * Origin-kop, zodat de controle de schermen achter de login toch kan bekijken. Het resultaat zegt welke weg werkte, zodat
  * een kapot inlogformulier zelf als bevinding zichtbaar wordt.
  */
-const { ADMIN, CUSTOMER } = require('./credentials');
+const { accounts } = require('./credentials');
 
-/** Inlogschermen per soort gebruiker, met het scherm dat na een geslaagde login volgt. */
+/** Inlogschermen per soort gebruiker (sleutel uit `accounts()`), met het scherm dat na een geslaagde login volgt. */
 const LOGINS = {
-  crm: { path: '/app/inloggen/', user: ADMIN, landing: /\/app\/(?!inloggen)/ },
-  customer: { path: '/account/inloggen/', user: CUSTOMER, landing: /\/account\/(?!inloggen)/ },
+  crm: { path: '/app/inloggen/', account: 'ADMIN', landing: /\/app\/(?!inloggen)/ },
+  customer: { path: '/account/inloggen/', account: 'CUSTOMER', landing: /\/account\/(?!inloggen)/ },
 };
 
 /**
@@ -20,7 +20,9 @@ const LOGINS = {
  * @returns {Promise<{viaForm: boolean, formStatus: number}>} Of het formulier in de browser werkte, en zijn HTTP-status.
  */
 async function login(context, kind, baseUrl) {
-  const { path, user, landing } = LOGINS[kind];
+  const { path, account, landing } = LOGINS[kind];
+  // Leest het wachtwoord pas hier, en maakt het nooit aan: zonder seed.js volgt een duidelijke melding.
+  const user = accounts()[account];
   const page = await context.newPage();
   let formStatus = 0;
   try {

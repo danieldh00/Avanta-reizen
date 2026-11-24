@@ -118,7 +118,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   schermen van de site, het reizigersaccount, het CRM en Beheer op 1440 en 375 px en meet overloop, afgekapte en
   ingekorte tekst, overlap, knoppen/velden die niet even hoog of niet op één lijn staan, net-niet-gelijke linkerranden,
   tekst tegen de schermrand, kapotte afbeeldingen, tekst onder 12 px en klikdoelen onder 24 px. Uitsnede per bevinding
-  met het element rood omlijnd. Stappen tegen een verse lokale database met de import (databasenaam met `design` of `test`; `seed.js` weigert andere databases en een niet-lokale app; het wachtwoord van de testaccounts komt uit `DESIGN_WACHTWOORD` of een willekeurig wachtwoord in een tijdelijk bestand):
+  met het element rood omlijnd. Stappen tegen een verse lokale database met de import (databasenaam met `design` of `test`; `seed.js` weigert andere databases, en alle drie de scripts weigeren een niet-lokale app; het wachtwoord van de testaccounts komt uit `DESIGN_WACHTWOORD` (minimaal 12 tekens) of uit `~/.cache/avanta-design-check/wachtwoord`, dat alleen `seed.js` aanmaakt):
   `SETUP_CODE=<installatiecode> DATABASE_URL=… node tools/design-check/seed.js` (fictieve testgegevens via de echte
   schermen), dan `node tools/design-check/check.js --full --out=/tmp/design` (alles: sitemap + alle schermen onder
   `/app/`) of `--paths=/reis/,/app/beheer/*` (alleen de genoemde schermen; `*` = alles eronder), daarna

@@ -3,13 +3,15 @@
  * samenvoegen van bevindingen over pagina's en het Excel-rapport altijd; de metingen in de browser (`page-checks.js`)
  * alleen als Playwright met Chromium beschikbaar is (het is geen dependency van de app).
  */
+const { spawnSync } = require('node:child_process');
+const path = require('node:path');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { screenType, areaOf, groupFindings } = require('../tools/design-check/check');
 const { buildSheets } = require('../tools/design-check/report');
 const { runPageChecks } = require('../tools/design-check/page-checks');
-const { assertLocalDatabase, assertLocalBaseUrl } = require('../tools/design-check/seed');
-const { ADMIN } = require('../tools/design-check/credentials');
+const { assertLocalDatabase, assertLocalBaseUrl } = require('../tools/design-check/guards');
+const { accounts, designPassword } = require('../tools/design-check/credentials');
 
 /** Omgevingsvariabelen die de seed-controle lezen; per test leeg begonnen en daarna teruggezet. */
 const SEED_ENV = ['NODE_ENV', 'DESIGN_SEED_TOEGESTAAN', 'PGHOST', 'PGHOSTADDR'];
@@ -126,9 +128,28 @@ test('testgegevens: productie weigert altijd, de vlag staat een wegwerpcontainer
   assert.throws(() => assertLocalDatabase('postgres://avanta:x@localhost/avanta_design'), /NODE_ENV=production/, 'productie weigert, ook met de vlag');
 });
 
-test('testaccounts: geen vast wachtwoord in de repository', () => {
-  assert.ok(ADMIN.password.length >= 12, 'minimaal 12 tekens');
-  assert.notEqual(ADMIN.password, 'design-controle-lokaal-2026');
+test('testaccounts: wachtwoord uit DESIGN_WACHTWOORD, met de minimale lengte van het CRM', (t) => {
+  const saved = process.env.DESIGN_WACHTWOORD;
+  t.after(() => {
+    if (saved === undefined) delete process.env.DESIGN_WACHTWOORD;
+    else process.env.DESIGN_WACHTWOORD = saved;
+  });
+  process.env.DESIGN_WACHTWOORD = 'lokaal-wachtwoord-van-test';
+  const { ADMIN, CUSTOMER } = accounts();
+  assert.equal(ADMIN.password, 'lokaal-wachtwoord-van-test');
+  assert.equal(CUSTOMER.password, 'lokaal-wachtwoord-van-test');
+  process.env.DESIGN_WACHTWOORD = 'te-kort';
+  assert.throws(() => designPassword(), /minimaal 12 tekens/);
+});
+
+test('check.js en overview.js weigeren een niet-lokale app vóór de eerste login', () => {
+  const env = { ...process.env, DESIGN_BASE_URL: 'https://www.voorbeeld.nl', DESIGN_WACHTWOORD: 'lokaal-wachtwoord-van-test' };
+  delete env.DESIGN_SEED_TOEGESTAAN;
+  for (const [script, args] of [['check.js', ['--full']], ['overview.js', ['--results=/bestaat-niet.json']]]) {
+    const run = spawnSync(process.execPath, [path.join(__dirname, '../tools/design-check', script), ...args], { env, encoding: 'utf8' });
+    assert.notEqual(run.status, 0, `${script} stopt`);
+    assert.match(run.stderr, /alleen tegen een lokale app/, `${script} noemt de reden`);
+  }
 });
 
 const playwright = loadPlaywright();
