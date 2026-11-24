@@ -228,6 +228,11 @@ test('hersteltest: de melding noemt de stap die echt mislukte (EPIPE na een fout
   'Ontsleutelen mislukt: Deze back-up is gemaakt met een andere hoofdsleutel.');
   assert.equal(failure(0, 1, '', restoreError).startsWith('Terugzetten met pg_restore mislukt: '), true);
   assert.equal(failure(1, 0, 'Mislukt: "Onjuiste tag"\u001b\n', ''), 'Ontsleutelen mislukt: Onjuiste tag');
+  // docker compose exec stopt zelf door SIGPIPE (code 141, geen melding): de fout van pg_restore is de oorzaak.
+  assert.equal(failure(141, 1, '', restoreError).startsWith('Terugzetten met pg_restore mislukt: '), true);
+  // Ontsleutelen stopt zonder eigen melding en pg_restore krijgt te weinig invoer: het ontsleutelen is de oorzaak.
+  assert.equal(failure(1, 1, 'Error response from daemon\n', 'pg_restore: error: input file is too short (read 0, expected 5)\n'),
+    'Ontsleutelen mislukt (code 1)');
   assert.equal(failure(0, 0, '', ''), '');
 });
 

@@ -78,19 +78,19 @@ decrypt_error() {
 
 # restore_failure <code ontsleutelen> <code pg_restore> <stderr ontsleutelen> <stderr pg_restore>: de melding voor
 # de stap die echt mislukte, of niets als beide slaagden. Stopt pg_restore bij een fout, dan krijgt het ontsleutelen een
-# gesloten pijp (EPIPE) en eindigt het ook met een fout; een fout bij het ontsleutelen is dus alleen de oorzaak als het
-# geen EPIPE is. Stopt het ontsleutelen zelf (andere sleutel, beschadigd), dan meldt pg_restore daarna alleen een te
-# kort bestand, en is het ontsleutelen de oorzaak.
+# gesloten pijp en eindigt het ook met een fout: in de app als EPIPE, of zonder melding als `docker compose exec` zelf
+# door SIGPIPE stopt (code 141). Het ontsleutelen is daarom alleen de oorzaak als cli.js een eigen fout meldt (geen
+# EPIPE), of als pg_restore slaagde of alleen een te kort bestand kreeg.
 restore_failure() {
   local decrypt_detail restore_detail
   decrypt_detail="$(decrypt_error "$3")"
   restore_detail="$(restore_error "$4")"
-  if [[ "$1" != 0 && "$decrypt_detail" != *EPIPE* ]]; then
-    echo "Ontsleutelen mislukt${decrypt_detail:+: $decrypt_detail}"
-  elif [[ "$2" != 0 ]]; then
+  if [[ "$1" != 0 && -n "$decrypt_detail" && "$decrypt_detail" != *EPIPE* ]]; then
+    echo "Ontsleutelen mislukt: $decrypt_detail"
+  elif [[ "$2" != 0 && ( "$1" == 0 || "$restore_detail" != *'input file is too short'* ) ]]; then
     echo "Terugzetten met pg_restore mislukt${restore_detail:+: $restore_detail}"
   elif [[ "$1" != 0 ]]; then
-    echo "Ontsleutelen mislukt${decrypt_detail:+: $decrypt_detail}"
+    echo "Ontsleutelen mislukt (code $1)${decrypt_detail:+: $decrypt_detail}"
   fi
 }
 
@@ -109,7 +109,9 @@ docker run -d --name "$DB_CONTAINER" --network "$NETWORK" --network-alias db --m
   || fail "Wegwerpdatabase starten mislukt."
 ready=0
 for _ in $(seq 1 60); do
-  if docker exec "$DB_CONTAINER" pg_isready -U postgres -d postgres >/dev/null 2>&1; then ready=1; break; fi
+  # Via TCP: de tijdelijke server van het opstartscript van het image luistert alleen op de socket en stopt daarna
+  # weer; pas de echte server is via 127.0.0.1 bereikbaar.
+  if docker exec "$DB_CONTAINER" pg_isready -h 127.0.0.1 -U postgres -d postgres >/dev/null 2>&1; then ready=1; break; fi
   sleep 1
 done
 [[ "$ready" == 1 ]] || fail "Wegwerpdatabase werd niet gereed."
