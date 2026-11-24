@@ -238,11 +238,13 @@ test('hersteltest: de melding noemt de stap die echt mislukte (EPIPE na een fout
 
 test('hersteltest: de melding zegt waarom de wegwerp-app niet bruikbaar was, zonder gegevens', (testContext) => {
   const script = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'apps01', 'restore-test.sh'), 'utf8');
-  const functions = ['app_error', 'app_failure'].map((name) => {
+  const kinds = /^APP_ERROR_KINDS=.*$/m.exec(script);
+  assert.ok(kinds, 'APP_ERROR_KINDS staat in restore-test.sh');
+  const functions = [kinds[0], ...['app_error', 'app_failure'].map((name) => {
     const match = new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?^\\}`, 'm').exec(script);
     assert.ok(match, `${name} staat in restore-test.sh`);
     return match[0];
-  }).join('\n');
+  })].join('\n');
   const output = path.join(tempDir(testContext), 'app.log');
   /**
    * Draait app_failure met de gegeven toestand van de container en uitvoer van de app.
@@ -260,21 +262,24 @@ test('hersteltest: de melding zegt waarom de wegwerp-app niet bruikbaar was, zon
     'Avanta Reizen\nStarten mislukt: invalid input syntax for type integer: "jan@example.com" in "users"\u001b\n');
   assert.equal(crashed, 'de app stopte (code 1): Starten mislukt: invalid input syntax for type integer');
   assert.doesNotThrow(() => JSON.parse(`{"message":"${crashed}"}`), 'geldige JSON voor record()');
-  // Alleen de soort fout blijft over: waarden na ": ", tussen (enkele of dubbele) aanhalingstekens of haakjes, met
-  // cijfers, @, / of =, en namen met een hoofdletter vallen weg.
+  // Alleen een soort fout uit de vaste lijst blijft over; andere tekst (namen, paden, waarden) nooit.
   const leaks = {
-    'Onverwerkte fout: error: duplicate key value: Key (email)=(jan@example.com), id 4711 in /data/media/x': 'Onverwerkte fout: error',
-    'Starten mislukt: invalid input value for enum status "jansen"': 'Starten mislukt: invalid input value for enum status …',
-    "Starten mislukt: Persoon 'Jan Jansen' niet gevonden": 'Starten mislukt: Persoon … niet gevonden',
-    'Starten mislukt: naam Jansen ontbreekt': 'Starten mislukt: naam … ontbreekt',
-    'Starten mislukt: connect ECONNREFUSED 10.0.0.2:5432': 'Starten mislukt: connect ECONNREFUSED …',
+    'Onverwerkte fout: error: duplicate key value violates unique constraint "users_email_key": Key (email)=(jan@example.com)':
+      'Onverwerkte fout: duplicate key value violates unique constraint',
+    'Starten mislukt: invalid input value for enum status "jansen"': 'Starten mislukt',
+    "Starten mislukt: Persoon 'Jan Jansen' niet gevonden": 'Starten mislukt',
+    'Starten mislukt: Jansen ontbreekt': 'Starten mislukt',
+    'Starten mislukt: pad naar bestand jansen.pdf niet gevonden': 'Starten mislukt',
+    'Starten mislukt: gebruiker mevrouw dekker verwijderd': 'Starten mislukt',
+    'Starten mislukt: connect ECONNREFUSED 10.0.0.2:5432': 'Starten mislukt: ECONNREFUSED',
+    'Starten mislukt: password authentication failed for user "avanta_app"': 'Starten mislukt: password authentication failed',
   };
   for (const [line, expected] of Object.entries(leaks)) {
     assert.equal(failure(['exited', 'false', '1', '0'], `${line}\n`), `de app stopte (code 1): ${expected}`);
   }
   assert.equal(failure(['running', 'false', '0', '0'], ''), 'geen antwoord van /api/health binnen 120 s');
   assert.equal(failure(['running', 'false', '0', '0'], 'Onverwerkte fout: Error: kapot\n'),
-    'geen antwoord van /api/health binnen 120 s; Onverwerkte fout: Error');
+    'geen antwoord van /api/health binnen 120 s; Onverwerkte fout');
   assert.equal(failure(['running', 'false', '0', '1'], ''), '/api/health werkt, maar de homepage geeft geen HTML');
   assert.ok(script.includes('\\"appOk\\":$app_ok,\\"message\\":\\"$app_message\\"'), 'de reden gaat mee naar Beheer');
 });

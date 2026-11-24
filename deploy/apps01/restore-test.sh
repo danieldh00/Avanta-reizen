@@ -117,29 +117,20 @@ restore_failure() {
   fi
 }
 
-# app_error <bestand met de uitvoer van de app>: de soort fout uit de eigen foutmelding van de app bij het starten
-# ("Starten mislukt: …" of "Onverwerkte fout: …"), zonder gegevens. De tekst na de soort fout kan waarden bevatten (een
-# melding van PostgreSQL, een naam, een pad), dus alleen het deel vóór de eerste ": " blijft over, zonder tekst tussen
-# aanhalingstekens of haakjes; elk woord met een cijfer, @, / of = en elk woord met een hoofdletter gevolgd door kleine
-# letters (behalve het eerste) wordt "…". Geen tekens die de JSON van record() kunnen breken.
+# APP_ERROR_KINDS: soorten fout bij het starten die de melding mag noemen (een vaste lijst: zo komt er nooit vrije tekst
+# met een naam, pad of waarde in Beheer). Codes van Node (ECONNREFUSED, ENOSPC, …) zijn ook toegestaan.
+APP_ERROR_KINDS='password authentication failed|role [a-z_]+ does not exist|database [a-z_]+ does not exist|relation does not exist|column does not exist|does not exist|permission denied|invalid input syntax for type [a-z]+|duplicate key value violates unique constraint|violates foreign key constraint|violates not-null constraint|out of memory|JavaScript heap out of memory|no space left on device|Connection terminated unexpectedly|timeout exceeded when trying to connect|Invalid key length|Unsupported state or unable to authenticate data|Cannot find module|EADDRINUSE|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|ENOSPC|EACCES|EROFS|ENOMEM'
+
+# app_error <bestand met de uitvoer van de app>: de eigen foutmelding van de app bij het starten ("Starten mislukt" of
+# "Onverwerkte fout") met, als die erin staat, een soort fout uit APP_ERROR_KINDS. Andere tekst uit de melding komt er
+# nooit in: die kan een naam, pad of waarde uit de database bevatten.
 app_error() {
-  grep -m 1 -E '^(Starten mislukt|Onverwerkte fout): ' "$1" | tr -d '\\' | sed -E 's/[[:cntrl:]]+/ /g' | awk '
-    {
-      prefix = $0; sub(/: .*/, "", prefix)
-      rest = substr($0, length(prefix) + 3)
-      sub(/: .*/, "", rest)
-      gsub(/"[^"]*"|\047[^\047]*\047|\([^)]*\)/, "…", rest)
-      gsub(/["\047]/, "", rest)
-      count = split(rest, words, /[[:space:]]+/)
-      out = ""
-      for (i = 1; i <= count; i++) {
-        word = words[i]
-        if (word == "") continue
-        if (word ~ /[0-9@\/=]/ || (i > 1 && word ~ /^[A-Z][a-z]/)) word = "…"
-        out = out (out == "" ? "" : " ") word
-      }
-      print prefix (out == "" ? "" : ": " out)
-    }' | cut -c 1-240
+  local line prefix kind
+  line="$(grep -m 1 -E '^(Starten mislukt|Onverwerkte fout): ' "$1" | sed -E 's/[[:cntrl:]]+/ /g')"
+  [[ -n "$line" ]] || return 0
+  prefix="${line%%: *}"
+  kind="$(printf '%s' "${line#*: }" | grep -oE "$APP_ERROR_KINDS" | head -n 1)"
+  echo "$prefix${kind:+: $kind}"
 }
 
 # app_failure <status> <oom> <exitcode> <health gezien: 0/1> <uitvoer van de app>: waarom de wegwerp-app niet bruikbaar
