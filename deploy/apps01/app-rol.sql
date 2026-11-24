@@ -11,10 +11,14 @@
 
 DO $rol$
 DECLARE
-  app_role CONSTANT text := 'avanta_app';
+  -- Rolnaam: altijd avanta_app; alleen de test geeft een eigen naam mee (avanta.app_role), omdat rollen clusterbreed zijn.
+  app_role text := coalesce(nullif(current_setting('avanta.app_role', true), ''), 'avanta_app');
   app_password text := current_setting('avanta.app_password', true);
   item record;
 BEGIN
+  IF app_role !~ '^avanta_app[a-z0-9_]{0,40}$' THEN
+    RAISE EXCEPTION 'avanta.app_role moet met avanta_app beginnen (kleine letters, cijfers, _)';
+  END IF;
   IF app_password IS NULL OR app_password !~ '^[0-9a-f]{32,}$' THEN
     RAISE EXCEPTION 'avanta.app_password ontbreekt of is geen hex-tekst van minstens 32 tekens';
   END IF;
