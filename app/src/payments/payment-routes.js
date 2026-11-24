@@ -221,8 +221,8 @@ function createPaymentRoutes(options) {
         </table></div>` : html`<p>Nog geen betalingen ontvangen.</p>`}
         ${reminders ? html`<h2>Herinneringen</h2>
           ${reminderKind(summary) && booking.status !== 'geannuleerd' ? html`<form method="post" action="/app/betalingen/${booking.id}/herinnering/">${hidden}
-            <p>Stuur de reiziger een mail met het openstaande bedrag voor de ${KIND_LABELS[reminderKind(summary)]}, de vervaldatum en de betaalinstructie.
-            <button class="btn btn--small btn--outline" type="submit">Herinnering sturen</button></p>
+            <p>Stuur de reiziger een mail met het openstaande bedrag voor de ${KIND_LABELS[reminderKind(summary)]}, de vervaldatum en de betaalinstructie.</p>
+            <p><button class="btn btn--small btn--outline" type="submit">Herinnering sturen</button></p>
           </form>` : ''}
           ${sentReminders.length ? html`<ul class="crm-reminders">${sentReminders.map((line) => html`<li>${formatDateTime(line.created_at)}: ${KIND_LABELS[line.kind] || line.kind},
             ${line.trigger === 'automatisch' ? 'automatisch' : `door ${line.user_name || 'onbekend'}`}, ${line.sent ? 'verstuurd' : html`<strong>niet verstuurd</strong> (${line.error})`}</li>`)}</ul>`

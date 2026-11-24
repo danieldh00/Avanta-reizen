@@ -17,6 +17,6 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `rights.js`
 - `passwords.js`
 - `layout.js`
-- `ui.js` (bouwstenen voor lijsten)
+- `ui.js` (bouwstenen voor lijsten; `renderTable` wordt op mobiel kaarten via `data-label`)
 - `dashboard.js` (overzicht `/app/`: per recht ophalen en tekenen)
 - `guide-dashboard.js` (overzicht `/app/` voor de reisleider: eigen vertrekken, aantallen, stand van het venster, link naar de deelnemerslijst)

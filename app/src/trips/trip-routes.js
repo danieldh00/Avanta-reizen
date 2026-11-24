@@ -230,7 +230,7 @@ function createTripRoutes(options) {
       path: BASE,
       actions: ui.renderActions([trip && trip.published ? { label: 'Bekijk op de site', href: tripPath(trip.slug) } : null]),
       body: html`${trip ? html`<p class="crm-summary">${trip.published ? ui.renderStatus('gepubliceerd', 'Gepubliceerd') : ui.renderStatus('concept', 'Concept')}${seatSummary(trip).full ? html` ${ui.renderStatus('vol', 'Volgeboekt')}` : ''}
-          ${[trip.trip_code, formatDate(trip.departure_date), seatsText(trip)].filter(Boolean).join(' · ')}</p>` : ''}
+          ${[trip.trip_code, formatDate(trip.departure_date), seatsText(trip)].filter(Boolean).map((part, index) => html`${index ? ' · ' : ''}<span class="crm-nowrap">${part}</span>`)}</p>` : ''}
         ${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
         ${renderAlert(state.error)}
         ${trip && !trip.managed_in_crm ? html`<p class="field__help">Deze reis komt nog uit de import van de huidige site; na opslaan beheer je hem hier en slaat de import hem over.</p>` : ''}

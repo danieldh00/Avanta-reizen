@@ -185,7 +185,7 @@ test('overzicht in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.match(draftList, /Oud concept/);
     assert.match(page, /href="\/app\/aanmeldingen\/\?status=nieuw"/);
     assert.match(page, /href="\/app\/betalingen\/\?weergave=te-laat"/);
-    assert.match(page, new RegExp(`<a href="/app/reizen/${albania.id}/">Albanië</a> \\(27-ALB-1\\)`));
+    assert.match(page, new RegExp(`<a href="/app/reizen/${albania.id}/">Albanië</a> <span class="crm-nowrap">\\(27-ALB-1\\)</span>`));
     assert.match(page, /2 van 2 <span class="crm-status crm-status--vol">Volgeboekt<\/span>/, 'geannuleerd telt niet mee');
     assert.match(page, /<td class="crm-num">€1\.300,-<\/td>/, '1.000 + 300 openstaand; geannuleerd telt niet mee');
     assert.match(await pageFor('kantoor', `/app/betalingen/?reis=${albania.id}`), /2 aanmeldingen · openstaand €1\.300,-/, 'gelijk aan het betaaloverzicht van die reis');

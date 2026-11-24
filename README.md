@@ -407,7 +407,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   *Excel (.xlsx)*), filterknoppen met aantallen, een zoek- en filterregel, een tabel met statuslabels in kleur en
   bladeren onderaan. Aanmeldingen, Deelnemers, Betalingen en Reizen gebruiken deze bouwstenen; een nieuwe lijst bouw
   je met `renderFilterTabs`, `renderSearch`, `renderTable`, `renderStatus` en `renderPager`, en acties geef je mee
-  als `actions` aan `renderCrmPage`.
+  als `actions` aan `renderCrmPage`. Op een telefoon (≤ 800 px) toont `renderTable` elke rij als kaart met de
+  kolomnaam voor elke waarde; een kolom met lange tekst krijgt `wrap: true`, zodat hij op een breed scherm afbreekt.
 - **Bewerkschermen met tabbladen** (`renderTabNav`, `renderTabPanel` en `renderSaveBar` in `app/src/crm/ui.js`,
   `app/public/js/crm.js`): een reis (Algemeen, Prijs, Tekst en programma, Foto's, Aanmeldingen), een pagina en een
   blogbericht (Inhoud, Blokken, Adres en zichtbaarheid, Versies) en een reisleider (Profiel, Foto's, Verwijderen) tonen
