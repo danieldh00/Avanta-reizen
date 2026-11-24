@@ -15,7 +15,10 @@ RUN apk add --no-cache postgresql17-client
 ENV NODE_ENV=production PORT=3400 DATA_DIR=/data
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+# npm en corepack zijn na de installatie niet meer nodig (de app start met `node`); weghalen verkleint het image en haalt
+# de kwetsbaarheden in de meegeleverde npm-pakketten weg, die de image-scan (Trivy) anders terecht meldt.
+RUN npm ci --omit=dev && npm cache clean --force \
+  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /root/.npm
 COPY src ./src
 COPY public ./public
 COPY --from=minify /build/public-min ./public
