@@ -117,15 +117,29 @@ restore_failure() {
   fi
 }
 
-# app_error <bestand met de uitvoer van de app>: de eigen foutmelding van de app bij het starten ("Starten mislukt: …" of
-# "Onverwerkte fout: …"). De tekst na de soort fout kan waarden bevatten (een melding van PostgreSQL, een pad), dus
-# alleen woorden blijven staan: namen tussen aanhalingstekens blijven, andere tekst tussen aanhalingstekens of haakjes en
-# elk woord met een cijfer, @, / of = wordt "…". Geen tekens die de JSON van record() kunnen breken.
+# app_error <bestand met de uitvoer van de app>: de soort fout uit de eigen foutmelding van de app bij het starten
+# ("Starten mislukt: …" of "Onverwerkte fout: …"), zonder gegevens. De tekst na de soort fout kan waarden bevatten (een
+# melding van PostgreSQL, een naam, een pad), dus alleen het deel vóór de eerste ": " blijft over, zonder tekst tussen
+# aanhalingstekens of haakjes; elk woord met een cijfer, @, / of = en elk woord met een hoofdletter gevolgd door kleine
+# letters (behalve het eerste) wordt "…". Geen tekens die de JSON van record() kunnen breken.
 app_error() {
-  grep -m 1 -E '^(Starten mislukt|Onverwerkte fout): ' "$1" \
-    | sed -E 's/"([a-z_][a-z0-9_]{0,62})"/\x27\1\x27/g; s/"[^"]*"/…/g; s/\([^)]*\)/(…)/g' \
-    | sed -E 's/[^[:space:]]*[0-9@\/=][^[:space:]]*/…/g' \
-    | tr -d '"\\' | sed -E 's/[[:cntrl:]]+/ /g; s/  +/ /g; s/ *$//' | cut -c 1-240
+  grep -m 1 -E '^(Starten mislukt|Onverwerkte fout): ' "$1" | tr -d '\\' | sed -E 's/[[:cntrl:]]+/ /g' | awk '
+    {
+      prefix = $0; sub(/: .*/, "", prefix)
+      rest = substr($0, length(prefix) + 3)
+      sub(/: .*/, "", rest)
+      gsub(/"[^"]*"|\047[^\047]*\047|\([^)]*\)/, "…", rest)
+      gsub(/["\047]/, "", rest)
+      count = split(rest, words, /[[:space:]]+/)
+      out = ""
+      for (i = 1; i <= count; i++) {
+        word = words[i]
+        if (word == "") continue
+        if (word ~ /[0-9@\/=]/ || (i > 1 && word ~ /^[A-Z][a-z]/)) word = "…"
+        out = out (out == "" ? "" : " ") word
+      }
+      print prefix (out == "" ? "" : ": " out)
+    }' | cut -c 1-240
 }
 
 # app_failure <status> <oom> <exitcode> <health gezien: 0/1> <uitvoer van de app>: waarom de wegwerp-app niet bruikbaar

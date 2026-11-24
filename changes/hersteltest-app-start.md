@@ -7,8 +7,7 @@ titel: Hersteltest zegt waarom de app niet start
 
 ## Changelog
 - `deploy/apps01/restore-test.sh`: start de wegwerp-app niet, dan geeft het script de reden door aan Beheer: de
-  geheugenlimiet is bereikt (OOM), de app stopte met een eigen foutmelding ("Starten mislukt: …", waarden tussen
-  aanhalingstekens of haakjes en woorden met cijfers, @, / of = weggelaten), of `/api/health` gaf binnen de wachttijd geen antwoord. Een gestopte app wordt niet
+  geheugenlimiet is bereikt (OOM), de app stopte met een eigen foutmelding (alleen de soort fout, zoals "Starten mislukt: invalid input syntax for type integer", zonder waarden of namen), of `/api/health` gaf binnen de wachttijd geen antwoord. Een gestopte app wordt niet
   meer de hele wachttijd geprobeerd.
 - Geheugenlimiet van de wegwerp-app van 384 naar 768 MB: bij het starten zet de app alle foto's uit de database terug
   en na een minuut maakt hij een back-up, wat met de foto's in de database te krap was.
