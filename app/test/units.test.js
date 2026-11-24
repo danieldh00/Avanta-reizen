@@ -14,7 +14,7 @@ const { formatPrice, formatDate, isoDate } = require('../src/site/format');
 const { createVault, loadMasterKey } = require('../src/security/vault');
 const { createRateLimiter, clientKey } = require('../src/security/rate-limit');
 const { validateBooking } = require('../src/booking/fields');
-const { rewriteLink, cacheName } = require('../tools/import-wordpress');
+const { rewriteLink, cacheName, withoutLeftoverCategories } = require('../tools/import-wordpress');
 const { parseTrustProxy } = require('../src/server');
 const { isInternalRequest, isInternalAddress } = require('../src/system/health');
 const { securityTxt } = require('../src/site/seo');
@@ -348,4 +348,20 @@ test('wachtwoordcontrole: Have I Been Pwned met k-anonimiteit', async () => {
   reply = () => { throw new Error('weg'); };
   assert.equal(await check.problem('een prima wachtwoord'), '');
   assert.deepEqual(check.recent().map((event) => event.outcome), ['onbereikbaar', 'onbereikbaar', 'onbereikbaar', 'onbereikbaar', 'lokaal', 'gelekt', 'lokaal']);
+});
+
+test('import slaat restcategorieën over: plaatshouders, namen zonder hoofdletter en dubbelen van een gebruikte categorie', () => {
+  const { kept, skipped } = withoutLeftoverCategories([
+    { slug: 'bestemming', name: 'Bestemming', kind: 'overig' },
+    { slug: 'nan', name: 'NaN', kind: 'overig' },
+    { slug: 'type', name: 'Type', kind: 'overig' },
+    { slug: 'nederland', name: 'nederland', kind: 'overig' },
+    { slug: 'saudi-arabie-2', name: 'Saudi Arabië', kind: 'overig' },
+    { slug: 'saudi-arabie', name: 'Saudi-Arabië', kind: 'bestemming' },
+    { slug: 'wandelreizen', name: 'Wandelreizen', kind: 'overig' },
+    { slug: 'jongeren', name: 'jongeren', kind: 'type' },
+  ]);
+  assert.deepEqual(skipped.map((category) => category.slug), ['bestemming', 'nan', 'type', 'nederland', 'saudi-arabie-2']);
+  // Een echte, ongebruikte categorie en alles wat een reis gebruikt (ook zonder hoofdletter) blijven staan.
+  assert.deepEqual(kept.map((category) => category.slug), ['saudi-arabie', 'wandelreizen', 'jongeren']);
 });

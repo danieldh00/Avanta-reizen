@@ -30,6 +30,41 @@ const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 /** Lijstpagina's waarvan de kop (pretitel, titel, foto, inleiding) in site-content.json komt. */
 const ARCHIVE_PAGES = [['reis', '/reis/'], ['reisleider', '/reisleider/'], ['blog', '/blog/'], ['faq', '/faq/'], ['aanmelden', '/aanmelden/']];
 
+/** Namen van restcategorieën uit de oude site die geen echte bestemming of reistype zijn. */
+const PLACEHOLDER_CATEGORY_NAMES = new Set(['bestemming', 'type', 'nan', 'null', 'undefined', 'geen', 'overig']);
+
+/**
+ * Vergelijkingssleutel voor een categorienaam: kleine letters, zonder accenten en overbodige spaties.
+ * @param {string} name Naam.
+ * @returns {string} Sleutel, bijvoorbeeld `saudi arabie` voor `Saudi Arabië`.
+ */
+function categoryNameKey(name) {
+  return String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Laat restcategorieën weg die geen reis gebruikt en die alleen rommel geven in het CRM: een plaatshouder ('Bestemming',
+ * 'Type', 'NaN'), een naam zonder hoofdletter ('nederland', een los label uit de oude site) of een dubbele naam van een
+ * categorie die wél in gebruik is ('Saudi Arabië' naast 'Saudi-Arabië'). Categorieën die een reis gebruikt blijven altijd
+ * staan.
+ * @param {{slug: string, name: string, kind: string}[]} categories Categorieën met hun soort (`type`, `bestemming`, `overig`).
+ * @returns {{kept: object[], skipped: object[]}} De categorieën om op te slaan en de overgeslagen.
+ */
+function withoutLeftoverCategories(categories) {
+  const usedNames = new Set(categories.filter((category) => category.kind !== 'overig').map((category) => categoryNameKey(category.name).replace(/-/g, ' ')));
+  const kept = [];
+  const skipped = [];
+  for (const category of categories) {
+    const key = categoryNameKey(category.name);
+    const name = String(category.name || '').trim();
+    const withoutCapital = /\p{L}/u.test(name) && name === name.toLowerCase();
+    const leftover = category.kind === 'overig'
+      && (!key || PLACEHOLDER_CATEGORY_NAMES.has(key) || withoutCapital || usedNames.has(key.replace(/-/g, ' ')));
+    (leftover ? skipped : kept).push(category);
+  }
+  return { kept, skipped };
+}
+
 /**
  * Leest de opdrachtregel.
  * @param {string[]} argv Argumenten.
@@ -453,11 +488,11 @@ async function collect(fetchText, media) {
       legacyId: guide.legacyId, slug: guide.slug, name: guide.name, intro: guide.intro,
       bodyHtml: clean(guide.bodyHtml), photoUrl: media.local(guide.photo),
     })),
-    categories: categories.map((category) => ({
+    categories: withoutLeftoverCategories(categories.map((category) => ({
       legacyId: category.legacyId, slug: category.slug, name: category.name, intro: category.intro,
       kind: typeSlugs.has(category.slug) ? 'type' : destinationSlugs.has(category.slug) ? 'bestemming' : 'overig',
       bodyHtml: clean(category.bodyHtml), imageUrl: media.local(category.headerImage),
-    })),
+    }))).kept,
     trips: trips.map((trip) => {
       const teaser = teaserBySlug.get(trip.slug);
       return {
@@ -714,5 +749,5 @@ if (require.main === module) {
 
 module.exports = {
   cacheName, rewriteLink, summarize, readSitemaps, collect, store, createMediaStore, homepageLink, homepageData, withExistingImages,
-  collectArchives, siteContentData, withExistingSiteImages, galleriesOf,
+  collectArchives, siteContentData, withExistingSiteImages, galleriesOf, withoutLeftoverCategories,
 };

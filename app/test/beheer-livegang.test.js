@@ -189,7 +189,7 @@ test('livegang: de pagina in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     const saved = await request('/app/beheer/ontwikkeling/', { cookie: adminCookie, form: { _csrf: csrfFrom(form.text), devBannerText: 'Tekst' } });
     assert.equal(saved.status, 303);
     const page = await request('/app/beheer/livegang/', { cookie: adminCookie });
-    assert.match(page.text, /Balk &quot;in ontwikkeling&quot; uit<\/a><\/td>\s*<td><span class="crm-status crm-status--gepubliceerd">Klaar/);
+    assert.match(page.text, /Balk &quot;in ontwikkeling&quot; uit<\/a><\/td>\s*<td data-label="Stand"><span class="crm-status crm-status--gepubliceerd">Klaar/);
   });
 
   await t.test('limiet: na 60 verzoeken per minuut een 429', async () => {
