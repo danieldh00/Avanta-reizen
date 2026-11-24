@@ -6,6 +6,8 @@
 -- Herhaalbaar: install.sh draait dit bij elke installatie en update, als `avanta`, vóór de app start. Het wachtwoord
 -- komt niet op de opdrachtregel maar via stdin vooraf:
 --   SELECT set_config('avanta.app_password', '<APP_DB_PASSWORD>', false);
+-- install.sh zet daarvóór het loggen van de sessie dicht (log_statement, log_min_error_statement,
+-- log_error_verbosity), zodat het wachtwoord ook bij een fout niet in de databaselog komt.
 -- Wat bestaat blijft bestaan; alleen eigenaar, rechten en wachtwoord worden gelijkgetrokken.
 -- Test: app/test/app-role.test.js.
 
