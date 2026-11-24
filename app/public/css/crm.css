@@ -501,6 +501,21 @@
 .beheer-releases h3 { margin: 0; font-size: 1rem; }
 .beheer-releases ul { margin: .25rem 0 0; padding-left: 1.25rem; }
 .beheer-log td { vertical-align: top; }
+/* Tijd, niveau en bron nooit midden in een woord afbreken; de melding krijgt de overige breedte. */
+.beheer-content .beheer-log .beheer-log__time, .beheer-content .beheer-log .beheer-log__level,
+.beheer-content .beheer-log .beheer-log__source { width: 1%; white-space: nowrap; overflow-wrap: normal; }
+.beheer-content .beheer-log .beheer-log__message { overflow-wrap: anywhere; }
+@media (max-width: 800px) {
+  /* Smal scherm: per regel tijd met rechts het niveau, daaronder de bron en de melding over de volle breedte. */
+  .beheer-log thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .beheer-log tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .2rem .6rem; align-items: start; padding: .6rem .75rem; border-bottom: 1px solid var(--crm-line); }
+  .beheer-log tbody tr:last-child { border-bottom: 0; }
+  .beheer-log, .beheer-log tbody { display: block; }
+  .beheer-content .beheer-log td, .beheer-content .beheer-log .beheer-log__time, .beheer-content .beheer-log .beheer-log__level,
+  .beheer-content .beheer-log .beheer-log__source { display: block; width: auto; padding: 0; border-bottom: 0; }
+  .beheer-content .beheer-log .beheer-log__source { grid-column: 1 / -1; font-weight: 600; }
+  .beheer-content .beheer-log .beheer-log__message { grid-column: 1 / -1; min-width: 0; }
+}
 .beheer-log pre { margin: .25rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8rem; }
 .beheer-log-filter { flex-wrap: wrap; max-width: 48rem; }
 .beheer-log-filter select { flex: 1 1 9rem; min-width: 0; }
@@ -510,6 +525,7 @@
 .monitor-state--warn { background: #fff3d6; color: #6b4a00; }
 .monitor-state--error { background: #fbe3e3; color: #8a1c1c; }
 .monitor-state--uit { background: var(--av-line); color: inherit; }
+.monitor-state--info { background: #e6eef8; color: #1f3d66; }
 /* Startpagina van Beheer: elk onderwerp als kaart met zijn onderdelen. */
 .beheer-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .75rem; }
 .beheer-card { padding: .9rem 1rem; background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 8px; }

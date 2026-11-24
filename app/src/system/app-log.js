@@ -16,6 +16,35 @@ const path = require('node:path');
 const util = require('node:util');
 
 const LEVELS = ['info', 'warn', 'error'];
+
+/**
+ * Leesbare namen van de bronnen in het logboek (Beheer > Logboek: kolom Bron en het filter). Wie een nieuwe bron gaat
+ * schrijven, zet hem hier bij; een onbekende bron krijgt via `sourceLabel` een hoofdletter.
+ */
+const SOURCE_LABELS = {
+  fout: 'Fout (foutcode)',
+  traag: 'Traag verzoek',
+  app: 'Achtergrond',
+  proces: 'Proces',
+  bewaking: 'Bewaking',
+  fotobibliotheek: 'Fotobibliotheek',
+  mail: 'Mail',
+  menu: "Menu's",
+  mollie: 'Online betalen',
+  overzicht: 'Overzicht',
+  wachtwoordcontrole: 'Wachtwoordcontrole',
+};
+
+/**
+ * Leesbare naam van een bron in het logboek.
+ * @param {string} source Bron zoals opgeslagen (kleine letters, cijfers en streepjes).
+ * @returns {string} De naam uit `SOURCE_LABELS`, anders de bron met een hoofdletter en spaties voor streepjes.
+ */
+function sourceLabel(source) {
+  if (Object.hasOwn(SOURCE_LABELS, source)) return SOURCE_LABELS[source];
+  const text = String(source || '').replace(/-/g, ' ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 const MAX_MESSAGE = 500;
 const MAX_DATA = 4000;
 const MAX_FRAMES = 12;
@@ -338,4 +367,4 @@ function createAppLog({ db, settings, flushMs = 2000, batchSize = 50, perMinuteL
   };
 }
 
-module.exports = { createAppLog, cleanText, cleanData, normalizePath, ownFrames, describeError, newErrorCode, newRequestId, LEVELS, MAX_ROWS };
+module.exports = { createAppLog, cleanText, cleanData, normalizePath, ownFrames, describeError, newErrorCode, newRequestId, LEVELS, MAX_ROWS, SOURCE_LABELS, sourceLabel };

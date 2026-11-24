@@ -11,7 +11,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
-const { createAppLog, cleanText, cleanData, normalizePath, describeError } = require('../src/system/app-log');
+const { createAppLog, cleanText, cleanData, normalizePath, describeError, sourceLabel } = require('../src/system/app-log');
 const { COOKIE_NAME } = require('../src/crm/auth');
 const { loginWithTwoFactor } = require('./helpers/two-factor');
 
@@ -20,6 +20,14 @@ const SCHEMA = 'app_log_test';
 const MASTER_KEY = Buffer.alloc(32, 7);
 const SETUP_CODE = 'ABCDE-FGHJK-LMNPQ-RSTUV';
 const ADMIN_PASSWORD = 'correct paard batterij';
+
+test('leesbare namen van de bronnen in het logboek', () => {
+  assert.equal(sourceLabel('fotobibliotheek'), 'Fotobibliotheek');
+  assert.equal(sourceLabel('mollie'), 'Online betalen');
+  assert.equal(sourceLabel('nieuwe-bron'), 'Nieuwe bron');
+  assert.equal(sourceLabel(''), '');
+  assert.equal(sourceLabel('toString'), 'ToString');
+});
 
 test('privacyfilter, paden en foutbeschrijving', () => {
   const text = cleanText('mail jan@example.nl, iban NL91 ABNA 0417 1643 00, postgres://avanta:geheim@db/avanta, Bearer abcdefghijkl, password=hunter2\nnieuwe regel');
@@ -177,6 +185,10 @@ test('logboek, foutcodes, debugmodus en Beheer > Logboek', { skip: !DATABASE_URL
   const all = await request('/app/beheer/logboek/', { cookie });
   assert.equal(all.status, 200);
   assert.match(all.text, /gewone melding/);
+  // Bronnen met een leesbare naam (ook in het filter) en het niveau als label.
+  assert.match(all.text, /<td class="beheer-log__source">Achtergrond<\/td>/);
+  assert.match(all.text, /<option value="fotobibliotheek">Fotobibliotheek<\/option>/);
+  assert.match(all.text, /monitor-state--info">Info</);
   const byCode = await request(`/app/beheer/logboek/?zoek=${code}`, { cookie });
   assert.match(byCode.text, new RegExp(code));
   assert.doesNotMatch(byCode.text, /gewone melding/);

@@ -77,8 +77,11 @@ async function decrypt(source, target) {
   }
   if (fs.existsSync(target)) throw new Error(`${target} bestaat al; kies een ander doel.`);
   const partFile = `${target}.part`;
+  // Het .part-bestand synchroon openen: een stroom opent het pas later, waardoor het bij een snelle fout (verkeerde
+  // sleutel) ná het opruimen in finally alsnog kon ontstaan.
+  const output = fs.createWriteStream(partFile, { fd: fs.openSync(partFile, 'w', 0o600) });
   try {
-    await backups.decryptTo(file, [existingMasterKey(), ...loadPreviousKeys()], fs.createWriteStream(partFile, { mode: 0o600 }));
+    await backups.decryptTo(file, [existingMasterKey(), ...loadPreviousKeys()], output);
     fs.renameSync(partFile, target);
   } finally {
     fs.rmSync(partFile, { force: true });
