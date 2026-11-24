@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.30.2 — 2026-11-24 — Zoeken over het hele CRM vanuit de kopbalk
+
+- Bovenin het CRM staat nu een zoekveld (op de telefoon een zoekknop). Je zoekt in één keer in aanmeldingen,
+
+Pakket P4.3 (bevinding B03).
+- `crm/search.js` (`SEARCH_SOURCES`: per bron het recht, vaste SQL, link en toelichting; `searchCrm` met
+  `searchPatterns`) en `crm/search-routes.js` (`/app/zoeken/`, 403 zonder doorzoekbare bron).
+- Kopbalk (`crm/layout.js`): zoekveld met de zoekterm, op ≤ 800 px een knop naar de zoekpagina; opmaak in `crm.css`.
+- Design-controle: `crm/search*` koppelt aan `/app/zoeken/?q=test`.
+
 ## 0.30.1 — 2026-11-24 — Aanmelding handmatig invoeren in het CRM
 
 - Kantoor kan een aanmelding die per telefoon, mail of op papier binnenkomt zelf invoeren: knop **Aanmelding
