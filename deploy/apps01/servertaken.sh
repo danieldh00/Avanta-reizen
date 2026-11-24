@@ -17,7 +17,7 @@
 #                                        (de oude naar AVANTA_MASTER_KEY_PREVIOUS), app herstarten en alles opnieuw
 #                                        versleutelen (app/src/security/key-rotation-cli.js); toont nooit een sleutel
 #   bash servertaken.sh schijf           schijfruimte per onderdeel (Docker, back-ups, foto's, database, logs) en daarna,
-#                                        na bevestiging, de Docker-buildcache ouder dan 7 dagen en oude Avanta-images opruimen
+#                                        na bevestiging de Docker-buildcache ouder dan 7 dagen (hele server) opruimen
 #   bash servertaken.sh help             deze uitleg
 #
 # Het vaste commando voor Daniël staat in de app (Beheer > Systeem > Servertaken); het haalt de nieuwste commit van main
@@ -366,17 +366,18 @@ remote_schijf_check() {
     echo; echo "Geen buildcache of oude Avanta-images om op te ruimen. Niets te doen."
     return 0
   fi
-  echo; echo "Op te ruimen: buildcache die 7 dagen niet gebruikt is (nu ${cache_size:-0B} in totaal) en ${old_images} oud(e) Avanta-image(s)."
+  echo; echo "Op te ruimen: de buildcache van de hele server die 7 dagen niet gebruikt is (nu ${cache_size:-0B} in totaal, ook van andere stacks) en ${old_images} ongebruikt(e) Avanta-image(s) zonder naam."
   return 10
 }
 
-# Ruimt de oude buildcache en de oude Avanta-images op; volumes, draaiende containers en images in gebruik blijven staan.
+# Ruimt de oude buildcache op (`docker builder prune` kent geen label: dit geldt voor alle stacks op de server) en de
+# ongebruikte Avanta-images zonder naam; volumes, draaiende containers en images in gebruik blijven staan.
 remote_schijf_run() {
   local before after
   before="$(df --output=avail -B1M / 2>/dev/null | tail -n1 | tr -dc '0-9')"
   log "Buildcache ouder dan 7 dagen opruimen."
   docker builder prune -f --filter "until=$BUILD_CACHE_KEEP" >/dev/null
-  log "Oude Avanta-images opruimen."
+  log "Ongebruikte Avanta-images zonder naam opruimen."
   docker image prune -f --filter label=nl.avantareizen.stack=avanta >/dev/null
   after="$(df --output=avail -B1M / 2>/dev/null | tail -n1 | tr -dc '0-9')"
   if [[ -n "$before" && -n "$after" ]]; then
@@ -501,6 +502,6 @@ case "$ACTION" in
   sleutel-roteren)
     confirm "Er komt een nieuwe hoofdsleutel. Eerst wordt een back-up gemaakt, daarna start de app opnieuw (enkele seconden) en worden alle versleutelde gegevens opnieuw versleuteld. Zet daarna de nieuwe sleutel in de wachtwoordkluis."
     remote sleutel-roteren ;;
-  schijf) two_step schijf "De Docker-buildcache die 7 dagen niet gebruikt is en oude Avanta-images worden verwijderd. Volumes (database, foto's, back-ups) en draaiende containers blijven staan; een volgende update bouwt alleen wat nodig is opnieuw." ;;
+  schijf) two_step schijf "De Docker-buildcache van de hele server die 7 dagen niet gebruikt is (ook die van andere stacks) en ongebruikte Avanta-images zonder naam worden verwijderd. Volumes (database, foto's, back-ups), images in gebruik en draaiende containers blijven staan; een volgende build maakt de cache opnieuw (eenmalig trager)." ;;
   openstaand) two_step openstaand "De openstaande servertaken worden nu uitgevoerd (ze staan hierboven; de app kan daarbij even herstarten). Elke gelukte taak wordt afgevinkt in de app." ;;
 esac

@@ -209,7 +209,7 @@ exit 0
 
   const something = run('schijf-check', { CACHE: '7.9GB', IMAGES: '1' });
   assert.equal(something.status, 10, something.stderr);
-  assert.match(something.stdout, /Op te ruimen: .*7\.9GB.* 1 oud/);
+  assert.match(something.stdout, /Op te ruimen: de buildcache van de hele server.*7\.9GB.*andere stacks.* 1 ongebruikt/);
   assert.doesNotMatch(fs.readFileSync(callsFile, 'utf8'), /prune/, 'de controle ruimt niets op');
 
   const cleaned = run('schijf-run', {});
