@@ -23,7 +23,7 @@ function post(index) {
 }
 
 test('blokken: tekst, losse foto, galerij en YouTube-video uit de opgeschoonde HTML', () => {
-  const body = '<p>Eerste</p>\n<img src="/media/a.jpg" alt=""><p>Tweede &amp; <strong>derde</strong></p>'
+  const body = '<p>Eerste</p>\n<img src="/media/a.jpg?x=1&amp;y=&quot;2" alt="Tom &amp; Jan" width="600" height="400"><p>Tweede &amp; <strong>derde</strong></p>'
     + '<p><a href="https://www.youtube.com/embed/el9qys7UK9A?feature=oembed" rel="noopener" target="_blank">Bekijk de video</a></p>'
     + '<div class="gallery"><img src="/media/g1.jpg" alt="Berg"><img src="/media/g2.jpg"></div><p>Slot</p>';
   const { blocks, hasVideo } = views.contentBlocks(body, 'Avanta "in" 2017');
@@ -31,7 +31,8 @@ test('blokken: tekst, losse foto, galerij en YouTube-video uit de opgeschoonde H
   assert.equal(hasVideo, true);
   assert.equal(out.length, 6);
   assert.equal(out[0], '<div class="page-content__text"><p>Eerste</p></div>');
-  assert.equal(out[1], '<div class="page-content__image"><img src="/media/a.jpg" alt=""></div>');
+  assert.equal(out[1], '<div class="page-content__image"><img src="/media/a.jpg?x=1&amp;y=&quot;2" alt="Tom &amp; Jan" width="600" height="400" loading="lazy"></div>', 'opnieuw opgebouwd, niet dubbel ge-escaped');
+  assert.equal(toString(views.contentBlocks('<img src="/media/b.jpg" width="breed" height="1">').blocks[0]), '<div class="page-content__image"><img src="/media/b.jpg" alt="" loading="lazy"></div>');
   assert.equal(out[2], '<div class="page-content__text"><p>Tweede &amp; <strong>derde</strong></p></div>', 'tekst blijft letterlijk');
   assert.match(out[3], /<iframe src="https:\/\/www\.youtube-nocookie\.com\/embed\/el9qys7UK9A" title="Video: Avanta &quot;in&quot; 2017"/);
   assert.match(out[4], /class="page-content__gallery"><section class="section page-gallery">/);

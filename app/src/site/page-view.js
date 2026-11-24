@@ -11,6 +11,7 @@ const { icon } = require('./icons');
 const { postTeaser } = require('./home-view');
 const { YOUTUBE_ORIGIN } = require('./homepage');
 const { renderGallery } = require('./trip-view');
+const { imageAttributes } = require('../media/formats');
 const { parse } = require('node-html-parser');
 
 /** Lengte van de samenvatting in een teaser, zoals de huidige site (200 tekens en " ..."). */
@@ -36,6 +37,18 @@ function videoBlock(videoId, title) {
   return html`<div class="page-content__video-wrapper"><div class="page-content__video">
     <iframe src="${`${YOUTUBE_ORIGIN}/embed/${videoId}`}" title="${`Video: ${title}`}" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" loading="lazy"></iframe>
   </div></div>`;
+}
+
+/**
+ * Een losse foto uit opgeschoonde tekst opnieuw opgebouwd, met `srcset` als er lichtere versies zijn.
+ * @param {{getAttribute: (name: string) => (string|undefined)}} node Het `<img>`-element uit de opgeschoonde HTML.
+ * @returns {object} HTML.
+ */
+function bodyImage(node) {
+  const width = node.getAttribute('width');
+  const height = node.getAttribute('height');
+  const size = /^\d{1,5}$/.test(width || '') && /^\d{1,5}$/.test(height || '') ? html` width="${width}" height="${height}"` : '';
+  return html`<img${imageAttributes(node.getAttribute('src') || '', '(max-width: 768px) 100vw, 800px', 800)} alt="${node.getAttribute('alt') || ''}"${size} loading="lazy">`;
 }
 
 /**
@@ -70,7 +83,10 @@ function contentBlocks(bodyHtml, title) {
     const part = source.slice(from, to);
     const tag = node.nodeType === 1 ? node.rawTagName.toLowerCase() : '';
     const video = tag === 'p' ? VIDEO_PARAGRAPH.exec(part) : null;
-    if (tag === 'img' || tag === 'figure') {
+    if (tag === 'img') {
+      flushText();
+      blocks.push(html`<div class="page-content__image">${bodyImage(node)}</div>`);
+    } else if (tag === 'figure') {
       flushText();
       blocks.push(html`<div class="page-content__image">${raw(part)}</div>`);
     } else if (tag === 'div' && /(^|\s)gallery(\s|$)/.test(node.getAttribute('class') || '')) {
