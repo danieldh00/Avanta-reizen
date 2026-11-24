@@ -54,9 +54,10 @@ function createBookingSaver(options) {
     if (booking.refuseExisting) {
       const [existing] = await client.query(
         `SELECT id, reference FROM bookings
-          WHERE trip_id = $1 AND lower(email) = lower($2) AND lower(last_name) = lower($3) AND status <> 'geannuleerd'
+          WHERE trip_id = $1 AND lower(email) = lower($2) AND lower(last_name) = lower($3) AND lower(first_names) = lower($4)
+            AND status <> 'geannuleerd'
           ORDER BY id DESC LIMIT 1`,
-        [trip.id, values.email, values.last_name],
+        [trip.id, values.email, values.last_name, values.first_names],
       );
       if (existing) return { existing };
     }
@@ -87,7 +88,7 @@ function createBookingSaver(options) {
    *   afterSave?: (client: object, saved: {bookingId: number, personId: number, reference: string}) => Promise<void>}} booking
    *   De reis (id, trip_code, title, departure_date, price_cents), de gecontroleerde formulierwaarden, het
    *   reizigersaccount (of null), of een bestaande niet-geannuleerde aanmelding voor dezelfde reis met hetzelfde
-   *   e-mailadres en dezelfde achternaam het opslaan tegenhoudt, en eventueel extra stappen in dezelfde transactie.
+   *   e-mailadres, achternaam en voornamen het opslaan tegenhoudt, en eventueel extra stappen in dezelfde transactie.
    * @returns {Promise<({reference: string, bookingId: number, personId: number, depositCents: (number|null)}|{existing: {id: number, reference: string}}|null)>}
    *   De opgeslagen aanmelding; `{existing}` als `refuseExisting` een bestaande aanmelding vond; null als de reis
    *   intussen volgeboekt of weg is.

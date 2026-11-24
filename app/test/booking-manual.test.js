@@ -201,6 +201,12 @@ test('aanmelding handmatig invoeren', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.equal((await db.query("SELECT count(*)::int AS total FROM bookings WHERE lower(last_name) = 'jansen'"))[0].total, 2);
   });
 
+  await t.test('broer of zus met hetzelfde mailadres en dezelfde achternaam: gewoon opgeslagen', async () => {
+    const sibling = await submit(adultForm({ first_names: 'Marieke', call_name: 'Marieke' }));
+    assert.equal(sibling.status, 303);
+    assert.equal((await db.query("SELECT count(*)::int AS total FROM bookings WHERE first_names = 'Marieke'"))[0].total, 1);
+  });
+
   await t.test('zonder vinkje geen mail; ouder onder de 16 met toestemming van de ouder', async () => {
     sent.length = 0;
     const child = await submit(adultForm({

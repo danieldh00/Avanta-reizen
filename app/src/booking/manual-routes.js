@@ -224,7 +224,7 @@ function createManualBookingRoutes(options) {
       path: '/app/aanmeldingen/',
       body: html`<p><a href="${BASE}">Andere reis kiezen</a></p>
         ${hasErrors ? renderAlert(errors._form || 'Controleer de gemarkeerde velden.') : ''}
-        ${state.existing ? html`<div class="form-alert" role="alert">Er staat al een aanmelding voor deze reis met dit e-mailadres en deze achternaam:
+        ${state.existing ? html`<div class="form-alert" role="alert">Er staat al een aanmelding voor deze reis met dit e-mailadres en deze naam:
           <a href="/app/aanmeldingen/${state.existing.id}/">${state.existing.reference}</a>. Er is niets opgeslagen. Is dit echt een tweede aanmelding, vink dan onderaan <em>Toch opslaan</em> aan.</div>` : ''}
         <form class="form crm-narrow crm-narrow--wide crm-manual" method="post" action="${BASE}" novalidate aria-label="Aanmelding invoeren voor ${trip.title}">
           <input type="hidden" name="_csrf" value="${req.session.csrf}">
