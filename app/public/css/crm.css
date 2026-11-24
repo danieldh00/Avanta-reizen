@@ -311,9 +311,20 @@
 .crm-search-results a { font-weight: 600; overflow-wrap: anywhere; }
 .crm-search-detail { color: var(--crm-text); font-size: 14px; overflow-wrap: anywhere; }
 .crm-search-group > p > a { display: inline-flex; align-items: center; min-height: 24px; }
+/* Filters van het auditlog (crm/audit-routes.js): raster van keuzes en datums, knoppen onderaan rechts uitgelijnd. */
+.crm-audit-filter { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: .75rem 1rem; align-items: end; margin: 0 0 1rem; padding: .75rem; background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 8px; }
+.crm-audit-filter .field { min-width: 0; }
+.crm-audit-filter select, .crm-audit-filter input { width: 100%; min-width: 0; min-height: 40px; }
+.crm-audit-filter-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0; }
+.crm-audit-filter-buttons .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; }
+.crm-audit-record { white-space: nowrap; }
+/* Een lange omschrijving van de actie mag afbreken, zodat alle kolommen op een breed scherm zonder schuiven passen. */
+.crm-audit-action { display: inline-block; min-width: 9rem; white-space: normal; }
 @media (max-width: 800px) {
   .crm-header-search { display: none; }
   .crm-header-search-link { display: inline-flex; }
+  .crm-audit-filter { grid-template-columns: 1fr; }
+  .crm-audit-filter-buttons .btn { flex: 1 1 auto; min-height: 44px; }
 }
 
 @media (min-width: 801px) {

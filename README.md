@@ -171,6 +171,12 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     en een ingekort IP-adres (/24 of /48), nooit e-mailadressen, wachtwoorden of andere waarden; regels ouder dan de
     bewaartermijn (standaard 2 jaar) en IP-voorvoegsels ouder dan hun termijn (standaard 90 dagen) worden bij het starten
     en daarna dagelijks opgeruimd, net als verlopen sessies (instelbaar in Beheer).
+    Op `/app/auditlog/` (`app/src/crm/audit-routes.js`, logica in `audit-log.js`) filter je op gebruiker (ook
+    *Systeem of onbekend*), actie, soort record, recordnummer en periode (hele dagen in Nederlandse tijd); de filters
+    blijven staan bij *Oudere regels*. **Excel (.xlsx)** exporteert dezelfde selectie (blad *Auditlog* plus *Over deze
+    export* met de filters, wie en wanneer), hoogstens 50.000 regels (daarboven een melding in plaats van een onvolledig
+    bestand) en 10 exports per 10 minuten per gebruiker; elke export staat zelf in het auditlog (`export.auditlog`).
+    Indexen op `(user_id, id)`, `(action, id)` en `(entity_id, id)` (migratie 31) houden de filters snel.
   - **Fotobibliotheek** op `/app/fotobibliotheek/` (recht `media`: beheerder, kantoor en de nieuwe rol *Redacteur*;
     `app/src/media/`, migratie 12): foto's per land bekijken, filteren (land, *zonder land*) en zoeken; meerdere foto's
     tegelijk uploaden (JPEG, PNG of WebP, maximaal 10 per keer, 15 MB per foto, 200 per gebruiker per uur, 60

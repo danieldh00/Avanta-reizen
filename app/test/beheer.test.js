@@ -231,7 +231,7 @@ test('Beheer: instellingenlaag en routes', { skip: !DATABASE_URL && 'TEST_DATABA
     assert.doesNotMatch(withTwo.text, /maar één actieve beheerder/);
     const system = await request('/app/beheer/overzicht/', { cookie: adminCookie });
     assert.match(system.text, /Systeemoverzicht/);
-    assert.match(system.text, /30: CRM: berichten afhandelen/);
+    assert.match(system.text, /31: CRM: auditlog filteren/);
     assert.match(system.text, /href="\/app\/beheer\/instellingen\/"/);
     const settingsList = await request('/app/beheer/instellingen/', { cookie: adminCookie });
     assert.equal(settingsList.status, 200);
