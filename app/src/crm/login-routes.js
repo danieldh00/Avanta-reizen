@@ -55,6 +55,18 @@ function normalizeSetupCode(value) {
 }
 
 /**
+ * De actie in het auditlog bij een mislukte login.
+ * @param {(object|undefined)} user Gevonden gebruiker.
+ * @param {boolean} blocked Of het account geblokkeerd is door te veel pogingen.
+ * @returns {string} `inloggen.inactief`, `inloggen.geblokkeerd` of `inloggen.mislukt`.
+ */
+function failedLoginAction(user, blocked) {
+  if (user && !user.active) return 'inloggen.inactief';
+  if (blocked) return 'inloggen.geblokkeerd';
+  return 'inloggen.mislukt';
+}
+
+/**
  * Bouwt de routes voor inloggen, uitloggen, installatie en wachtwoord wijzigen.
  * @param {{db: object, auth: object, twoFactor: object, passwordCheck: object, setupCode?: string, now?: () => number}} options
  *   Database, sessies (`crm/auth.js`), tweestapsverificatie, de wachtwoordcontrole, de installatiecode voor de eerste
@@ -123,6 +135,25 @@ function createLoginRoutes(options) {
     }
   });
 
+  /**
+   * Telt een inlogpoging mee in de limieten voor mislukte pogingen: per account en IP-voorvoegsel, en per account over
+   * alle reeksen samen (een nieuwe reeks telt één keer). Bij een geslaagde login wist de route de tellers weer.
+   * Bij een onbekend adres telt er niets (er is geen account om te blokkeren).
+   * @param {object} req Express-verzoek (voor het IP-voorvoegsel).
+   * @param {(object|undefined)} user Gevonden gebruiker.
+   * @returns {{blocked: boolean, failureKey: string, accountKey: string}} Of het account nu geblokkeerd is, en de
+   *   sleutels van de tellers.
+   */
+  const countLoginAttempt = (req, user) => {
+    const failureKey = `${user ? user.id : 'onbekend'}:${ipPrefix(req)}`;
+    const accountKey = user ? `account:${user.id}` : '';
+    if (!user) return { blocked: false, failureKey, accountKey };
+    const pairAllowed = failedLoginLimiter.hit(failureKey);
+    const newRange = accountRangeLimiter.hit(failureKey);
+    const accountAllowed = newRange ? accountFailureLimiter.hit(accountKey) : !accountFailureLimiter.isBlocked(accountKey);
+    return { blocked: !pairAllowed || !accountAllowed, failureKey, accountKey };
+  };
+
   router.post('/inloggen/', sameSiteOnly, limit(loginLimiter), async (req, res, next) => {
     try {
       const email = normalizeEmail(req.body.email);
@@ -130,23 +161,12 @@ function createLoginRoutes(options) {
       const [user] = email
         ? await db.query('SELECT id, role, password_hash, active, (totp_enabled_at IS NOT NULL) AS mfa_enabled FROM users WHERE lower(email) = $1', [email])
         : [];
-      const failureKey = `${user ? user.id : 'onbekend'}:${ipPrefix(req)}`;
-      const accountKey = user ? `account:${user.id}` : '';
       // Tel de poging vóór de (trage) wachtwoordcontrole, zodat gelijktijdige verzoeken de limiet niet kunnen omzeilen.
-      // Bij een geslaagde login worden de tellers weer gewist.
-      let blocked = false;
-      if (user) {
-        const pairAllowed = failedLoginLimiter.hit(failureKey);
-        const newRange = accountRangeLimiter.hit(failureKey);
-        const accountAllowed = newRange ? accountFailureLimiter.hit(accountKey) : !accountFailureLimiter.isBlocked(accountKey);
-        blocked = !pairAllowed || !accountAllowed;
-      }
+      const { blocked, failureKey, accountKey } = countLoginAttempt(req, user);
       // Ook bij een onbekend adres een volledige controle, zodat de responstijd niets verraadt.
       const passwordOk = await verifyPassword(password, user ? user.password_hash : await getDummyHash());
       if (!user || !user.active || blocked || !passwordOk) {
-        let action = 'inloggen.mislukt';
-        if (user && !user.active) action = 'inloggen.inactief';
-        else if (blocked) action = 'inloggen.geblokkeerd';
+        const action = failedLoginAction(user, blocked);
         await auth.audit(req, { userId: user ? user.id : null, action, entity: 'users', entityId: user ? user.id : undefined });
         return res.status(401).send(renderLogin({ email: textField(req.body.email, 200), error: LOGIN_FAILED }));
       }
