@@ -101,7 +101,7 @@ function renderSettingInput({ key, definition, id, value, current, invalid }) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: any, auth: any, settings: any, redirects?: any, mailer?: any, wanIp?: any, captcha?: any, passwordCheck?: any, backups?: any, drive?: any, restoreTests?: any, systemUpdate?: any, hostTasks?: any, appLog?: any, monitor?: any, retention?: any, siteContent?: {load: Function}, now?: () => number}} options
+ * @param {{db: any, auth: any, settings: any, redirects?: any, mailer?: any, wanIp?: any, captcha?: any, passwordCheck?: any, backups?: any, drive?: any, restoreTests?: any, systemUpdate?: any, hostTasks?: any, appLog?: any, monitor?: any, retention?: any, now?: () => number}} options
  *   Database, sessie- en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`), de mailer en
  *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de wachtwoordcontrole (`security/password-check.js`), de back-updienst (`backup/backups.js`), de Drive-koppeling (`backup/drive.js`), de hersteltests
  *   (`backup/restore-test.js`), de koppeling met het updatescript (`system/system-update.js`), de servertaken
@@ -364,7 +364,7 @@ function createBeheerRoutes(options) {
   if (options.systemUpdate) router.use(createUpdateRoutes({ db, auth, guard, settings, systemUpdate: options.systemUpdate, renderBeheerPage, now: options.now }).router);
   if (options.hostTasks) router.use(createHostTaskRoutes({ auth, guard, settings, hostTasks: options.hostTasks, renderBeheerPage, notFound, now: options.now }));
   // De lezer van site-content.json is dezelfde als die van de publieke site (`services.js`), zodat de controle toont wat de site uitlevert.
-  if (options.siteContent) router.use(createGoLiveRoutes({ db, guard, settings, siteContent: options.siteContent, renderBeheerPage, now: options.now }));
+  router.use(createGoLiveRoutes({ db, guard, settings, renderBeheerPage, now: options.now }));
   router.use(createLogRoutes({ db, guard, settings, appLog: options.appLog, renderBeheerPage, now: options.now }));
   if (options.restoreTests) router.use(createRestoreTestRoutes({ auth, guard, settings, restoreTests: options.restoreTests, renderBeheerPage, now: options.now }));
   // Doorverwijzingen en de 404-lijst hebben eigen routes (vóór de algemene secties).

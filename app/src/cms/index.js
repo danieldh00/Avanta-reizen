@@ -18,15 +18,15 @@ const { createListHeaderRoutes } = require('./list-header-routes');
  * @returns {express.Router} Router, te koppelen binnen `/app`.
  */
 function createCmsModuleRoutes(context) {
-  const { db, auth, redirects, menus, siteContent } = context;
+  const { db, auth, redirects, menus } = context;
   const library = context.mediaLibrary;
   const router = express.Router();
-  router.use(createPageRoutes({ db, auth, library, redirects, menus, homepage: context.homepage, siteContent }));
+  router.use(createPageRoutes({ db, auth, library, redirects, menus }));
   router.use(createMenuRoutes({ db, auth, menus }));
   router.use(createFaqRoutes({ db, auth }));
   router.use(createListHeaderRoutes({ db, auth, library, listHeaders: context.listHeaders }));
-  router.use(createPostTermRoutes({ db, auth, redirects, siteContent }));
-  router.use(createPostRoutes({ db, auth, library, redirects, menus, siteContent }));
+  router.use(createPostTermRoutes({ db, auth, redirects }));
+  router.use(createPostRoutes({ db, auth, library, redirects, menus }));
   return router;
 }
 

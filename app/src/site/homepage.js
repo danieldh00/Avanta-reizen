@@ -3,14 +3,14 @@
  * De vaste inhoud van de homepage die niet uit reizen, categorieën of blog komt: de slider bovenaan, de vier
  * "inspiratie"-dia's, het blok "Voor Avanta Reizen is geen bestemming te ver" en de titels van de secties.
  *
- * Tot de homepage in CMS-pakket H uit blokken bestaat, staat die inhoud in `DATA_DIR/homepage.json`. De import van de
- * huidige site (`tools/import-wordpress.js`, ook los met `--alleen-homepage`) schrijft dat bestand, met de
- * afbeeldingen lokaal onder `/media/`. Ontbreekt het, dan gelden de teksten van de huidige site hieronder (zonder
- * foto's; de route vult dan foto's van reizen in). Alles uit het bestand wordt gecontroleerd voordat het op de pagina
- * komt: alleen tekst met een maximumlengte, links naar een eigen pad of https en afbeeldingen onder `/media/`.
+ * De homepage is een blokpagina in het CRM (pagina `/`). `homepage.json` (geschreven door de import, ook los met
+ * `--alleen-homepage`) is sinds W28 alleen nog bron voor de eenmalige overname (`content-transfer.js`). Staat de
+ * blokpagina offline of ontbreekt ze, dan toont de site de standaardteksten hieronder (`normalizeHomepage(null)`,
+ * zonder foto's; de route vult dan foto's van reizen in). Alles uit het bestand wordt gecontroleerd voordat het in de
+ * database komt: alleen tekst met een maximumlengte, links naar een eigen pad of https en afbeeldingen onder `/media/`.
  */
 const path = require('node:path');
-const { createJsonFileStore } = require('./json-store');
+const { readJsonFile } = require('./json-store');
 
 /** Naam van het bestand in DATA_DIR. */
 const HOMEPAGE_FILE = 'homepage.json';
@@ -156,12 +156,12 @@ function normalizeHomepage(data) {
 }
 
 /**
- * Maakt een lezer die `homepage.json` uit DATA_DIR leest en onthoudt tot het bestand verandert.
+ * Leest `homepage.json` uit de datamap, voor de overname naar de database.
  * @param {string} dataDir De datamap.
- * @returns {{load: Function}} `load()` geeft de (gecontroleerde) inhoud.
+ * @returns {object|null} De gecontroleerde inhoud, of null als het bestand ontbreekt of kapot is.
  */
-function createHomepageStore(dataDir) {
-  return createJsonFileStore(path.join(dataDir, HOMEPAGE_FILE), normalizeHomepage);
+function readHomepageFile(dataDir) {
+  return readJsonFile(path.join(dataDir, HOMEPAGE_FILE), normalizeHomepage);
 }
 
-module.exports = { HOMEPAGE_FILE, DEFAULT_HOMEPAGE, normalizeHomepage, createHomepageStore, cleanString, cleanHref, cleanImage, cleanVideoId, YOUTUBE_ORIGIN };
+module.exports = { HOMEPAGE_FILE, DEFAULT_HOMEPAGE, normalizeHomepage, readHomepageFile, cleanString, cleanHref, cleanImage, cleanVideoId, YOUTUBE_ORIGIN };

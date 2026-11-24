@@ -56,7 +56,7 @@ Servertaken) of staat in `docs/DRAAIBOEK-VPS-VERHUIZING.md`.
 
 | # | Stap | Eigenaar | Klaar als |
 |---|---|---|---|
-| 1.16 | Vaste inhoud staat in het CRM, niet meer in de terugvalbestanden (F09) | Avanta, met Daniël | Beheer > Systeem > Livegang, blok *Vaste inhoud in het CRM*: niets meer *Open* |
+| 1.16 | Vaste inhoud staat in het CRM: homepage gepubliceerd en alle delen overgezet (F09, W28) | Avanta, met Daniël | Beheer > Systeem > Livegang, blok *Vaste inhoud in het CRM*: niets meer *Open* |
 | 1.17 | Adres, KvK-nummer en social media (Beheer > Organisatie > Contact en organisatie) | Avanta | voettekst en contactpagina kloppen |
 | 1.18 | Privacyverklaring bijgewerkt: captcha, Analytics (als aan), verwerkers, bewaartermijnen (A03) | Avanta | pagina gepubliceerd in het CRM |
 | 1.19 | Verwerkersovereenkomsten (hosting, mail, Google, Mollie) en bewaartermijnen vastgesteld (A03, A16) | Avanta | getekend; termijnen in Beheer > Toegang en beveiliging > AVG en bewaartermijnen |

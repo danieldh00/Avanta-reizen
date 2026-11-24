@@ -15,7 +15,6 @@ const { createVault } = require('../src/security/vault');
 const { createPersons } = require('../src/persons/persons');
 const { summarize, statusMismatch, nextBookingStatus, localDay } = require('../src/payments/payments');
 const { verifyPassword, hashPassword } = require('../src/crm/passwords');
-const { normalizeSiteContent } = require('../src/site/site-content');
 const { runSeed, seedBlockReason, createRandom, emailPart } = require('../src/dev/seed/seed');
 const { main, countLines } = require('../src/dev/seed/cli');
 
@@ -199,7 +198,7 @@ test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
   await testContext.test('de site toont de testdata', async () => {
     const mediaDir = path.join(dataDir, 'media');
     await fs.mkdir(mediaDir, { recursive: true });
-    const app = createApp({ db, masterKey: MASTER_KEY, mediaDir, siteContent: { load: () => normalizeSiteContent({}) } });
+    const app = createApp({ db, masterKey: MASTER_KEY, mediaDir });
     const server = app.listen(0);
     testContext.after(() => server.close());
     const base = `http://127.0.0.1:${server.address().port}`;

@@ -20,6 +20,7 @@ const { newBlock, validateBlockForm } = require('../src/cms/blocks');
 const { validatePostFields, blocksText, isLocalDateTime, toLocalDateTime, fromLocalDateTime, editablePostState, postStatus } = require('../src/cms/posts');
 const { store } = require('../tools/import-wordpress');
 const { normalizeSiteContent } = require('../src/site/site-content');
+const { transferFixedContent } = require('../src/site/content-transfer');
 const { validateTermFields } = require('../src/cms/post-terms');
 const { MIGRATIONS } = require('../src/database/migrations');
 const { createContent } = require('../src/site/content');
@@ -87,8 +88,8 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'avanta-blog-'));
   const mediaDir = path.join(dataDir, 'media');
   await fs.mkdir(mediaDir);
-  const siteContent = { load: () => normalizeSiteContent({ blogTags: [{ slug: 'jongeren', name: 'Jongeren', image: '/media/tag-jongeren.jpg', posts: ['kamp-in-zweden'] }], featuredPost: 'kamp-in-zweden' }) };
-  const app = createApp({ db, masterKey: MASTER_KEY, mediaDir, siteContent });
+  const siteContent = normalizeSiteContent({ blogTags: [{ slug: 'jongeren', name: 'Jongeren', image: '/media/tag-jongeren.jpg', posts: ['kamp-in-zweden'] }], featuredPost: 'kamp-in-zweden', blogArchiveLink: { label: 'Oud archief', href: 'https://archief.example.nl/' } });
+  const app = createApp({ db, masterKey: MASTER_KEY, mediaDir });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   testContext.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
@@ -346,7 +347,7 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.match((await request('/blog/')).text, /Tekst uit WordPress over kano/);
   });
 
-  await testContext.test('categorieën en tags: beheren, koppelen, uitgelicht, pagina\'s op de site en tags overnemen', async () => {
+  await testContext.test('categorieën en tags: beheren, koppelen, uitgelicht, pagina\'s op de site en tags overzetten', async () => {
     const termsUrl = '/app/blog/categorieen-en-tags/';
     for (const session of [leider, boekhouding]) {
       assert.equal((await request(termsUrl, { cookie: session.cookie })).status, 403);
@@ -356,18 +357,19 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.equal((await request(`${termsUrl}nieuw/`, { cookie: redactie.cookie, form: { _csrf: 'fout', kind: 'tag', name: 'X' } })).status, 403);
     assert.equal((await request(`${termsUrl}999999/`, { cookie: redactie.cookie })).status, 404);
 
-    // Voor het overnemen: de site toont de tag uit site-content.json.
-    let tagPage = await request('/tag/jongeren/');
-    assert.equal(tagPage.status, 200);
-    assert.match(tagPage.text, /Kamp in Zweden/);
-    const list = await request(termsUrl, { cookie: redactie.cookie });
-    assert.match(list.text, /Tags van de huidige site overnemen/);
-    assert.equal((await request(`${termsUrl}overnemen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).headers.get('location'), `${termsUrl}?melding=4`);
-    assert.equal((await request(`${termsUrl}overnemen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).headers.get('location'), `${termsUrl}?melding=5`, 'tweede keer niets');
+    // Vóór de overname: geen tags, een onbekende tag gaat naar het blog en de archieflink is de standaard.
+    assert.equal((await request('/tag/jongeren/')).headers.get('location'), '/blog/');
+    assert.match((await request('/blog/')).text, /href="https:\/\/avantareizen\.blogspot\.com\/"/);
+    const parts = await transferFixedContent({ db, siteContent });
+    assert.ok(parts.some((part) => part.part === 'blog' && /1 tag/.test(part.summary)), JSON.stringify(parts));
+    assert.deepEqual(await transferFixedContent({ db, siteContent }), [], 'tweede keer niets');
+    await app.locals.services.settings.load();
+    const blogPage = (await request('/blog/')).text;
+    assert.match(blogPage, /<a[^>]*href="https:\/\/archief\.example\.nl\/?"[^>]*>Oud archief</, 'archieflink overgezet als instelling');
     const [tag] = await db.query("SELECT id, image_url FROM post_terms WHERE kind = 'tag' AND slug = 'jongeren'");
     assert.equal(tag.image_url, '/media/tag-jongeren.jpg');
     assert.equal((await db.query('SELECT featured FROM posts WHERE id = $1', [imported.id]))[0].featured, true, 'uitgelicht overgenomen');
-    tagPage = await request('/tag/jongeren/');
+    const tagPage = await request('/tag/jongeren/');
     assert.match(tagPage.text, /Kamp in Zweden/);
 
     // Categorie maken (adres uit de naam), dubbel adres geweigerd, ongeldige velden.
@@ -419,7 +421,7 @@ test('blog in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }
     assert.equal((await request(`${termsUrl}${category.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf, zeker: 'ja' } })).status, 303);
     assert.equal((await db.query('SELECT count(*)::int AS count FROM post_term_links WHERE term_id = $1', [category.id]))[0].count, 0);
     assert.equal((await db.query('SELECT count(*)::int AS count FROM posts WHERE id = $1', [imported.id]))[0].count, 1);
-    for (const action of ['blog-indeling.nieuw', 'blog-indeling.gewijzigd', 'blog-indeling.verwijderd', 'blog-indeling.overgenomen', 'blog.indeling']) assert.ok(await audits(action) >= 1, action);
+    for (const action of ['blog-indeling.nieuw', 'blog-indeling.gewijzigd', 'blog-indeling.verwijderd', 'blog.indeling']) assert.ok(await audits(action) >= 1, action);
     assert.deepEqual(validateTermFields({ name: ' Café ', sort_order: '-3' }).values, { name: 'Café', slug: 'cafe', intro: '', sortOrder: -3 });
   });
 

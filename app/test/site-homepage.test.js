@@ -1,5 +1,5 @@
 /**
- * Tests voor de homepage (CMS-pakket E2) zonder database: de controle van `homepage.json`, de lezer met cache, het
+ * Tests voor de homepage (CMS-pakket E2) zonder database: de controle van `homepage.json`, het inlezen voor de overname, het
  * uitlezen van de huidige homepage bij de import (`parseHome`, `homepageLink`, `homepageData`) en de HTML van de
  * homepage (slider, filterbalk, last-minutes, reistypes, inspiratie, bestemmingen, blog en "over Avanta").
  */
@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { DEFAULT_HOMEPAGE, normalizeHomepage, createHomepageStore, cleanHref, cleanImage, HOMEPAGE_FILE } = require('../src/site/homepage');
+const { DEFAULT_HOMEPAGE, normalizeHomepage, readHomepageFile, cleanHref, cleanImage, HOMEPAGE_FILE } = require('../src/site/homepage');
 const { renderHome, renderFilterBar, tripBox, withFallbackImages, truncate, slashDate } = require('../src/site/home-view');
 const { parseHome } = require('../tools/import/parse');
 const { homepageLink, homepageData } = require('../tools/import-wordpress');
@@ -122,20 +122,27 @@ test('homepage.json: links en foto\'s', () => {
   }
 });
 
-test('homepage.json: lezer gebruikt het bestand, onthoudt het tot het verandert en valt terug bij een kapot bestand', () => {
+test('homepage.json: inlezen voor de overname; ontbrekend of kapot bestand geeft null', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'avanta-home-'));
   try {
-    const store = createHomepageStore(dir);
-    assert.equal(store.load().about.title, DEFAULT_HOMEPAGE.about.title, 'zonder bestand de standaard');
+    assert.equal(readHomepageFile(dir), null, 'zonder bestand niets over te zetten');
     const file = path.join(dir, HOMEPAGE_FILE);
     fs.writeFileSync(file, JSON.stringify({ about: { title: 'Eerste titel' } }));
-    const first = store.load();
-    assert.equal(first.about.title, 'Eerste titel');
-    assert.equal(store.load(), first, 'zelfde bestand: uit de cache');
-    fs.writeFileSync(file, JSON.stringify({ about: { title: 'Tweede, langere titel' } }));
-    assert.equal(store.load().about.title, 'Tweede, langere titel');
-    fs.writeFileSync(file, '{kapot');
-    assert.equal(store.load().about.title, DEFAULT_HOMEPAGE.about.title);
+    assert.equal(readHomepageFile(dir).about.title, 'Eerste titel');
+    assert.equal(readHomepageFile(dir).slides.length, DEFAULT_HOMEPAGE.slides.length, 'ontbrekende delen: de standaard');
+    const originalError = console.error;
+    const logged = [];
+    console.error = (line) => logged.push(line);
+    try {
+      fs.writeFileSync(file, '{kapot');
+      assert.equal(readHomepageFile(dir), null);
+      fs.rmSync(file);
+      fs.mkdirSync(file);
+      assert.equal(readHomepageFile(dir), null, 'onleesbaar (een map)');
+    } finally {
+      console.error = originalError;
+    }
+    assert.deepEqual(logged, ['vaste inhoud: homepage.json is geen geldige JSON en wordt niet overgezet', 'vaste inhoud: homepage.json niet leesbaar (EISDIR)']);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

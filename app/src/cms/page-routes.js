@@ -13,16 +13,13 @@ const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
 const ui = require('../crm/ui');
 const { renderPage, renderPageHeader } = require('../site/layout');
 const { addCspSources } = require('../security/csp');
-const { YOUTUBE_ORIGIN } = require('../site/homepage');
+const { YOUTUBE_ORIGIN, normalizeHomepage } = require('../site/homepage');
 const { searchPatterns } = require('../persons/person-routes');
 const { createMediaLibrary } = require('../media/library');
 const { BLOCK_TYPES, BLOCK_ID_PATTERN } = require('./blocks');
 const { createBlockEditor, fieldRow, invalidAttributes, renderDraftStatus, renderRevisions, renderVisibilityActions } = require('./block-editor');
 const { createPages, validatePageFields, editableState, imageFromMedia, PAGE_LIMITS } = require('./pages');
 const { slugify, MAX_SLUG_LENGTH } = require('../trips/slugs');
-const { createHomepageStore } = require('../site/homepage');
-const { createSiteContentStore } = require('../site/site-content');
-const { DATA_DIR } = require('../paths');
 const { renderPageArticle } = require('./page-render');
 const { createContent } = require('../site/content');
 
@@ -54,7 +51,7 @@ const NOTICES = {
   8: 'Het adres is gewijzigd. Het oude adres verwijst automatisch door (ook voor de pagina\'s eronder) en het menu is bijgewerkt.',
   9: 'De pagina staat offline; bezoekers krijgen een 404.',
   10: 'De pagina staat weer online.',
-  11: 'De homepage staat klaar als blokpagina, met de huidige inhoud. Tot je publiceert toont de site de vaste homepage.',
+  11: 'De homepage staat klaar als blokpagina, met de huidige inhoud. Tot je publiceert toont de site de vaste homepage met de standaardteksten.',
 };
 
 /** Meldingen op de lijst (`?melding=<n>`). */
@@ -134,7 +131,7 @@ function renderPageAddressPanel({ page, pageUrl, hiddenFields, parents, placemen
   const isHomepage = page.path === '/';
   return html`<section class="crm-block" id="adres">
           <h2>${isHomepage ? 'Zichtbaarheid' : 'Adres en zichtbaarheid'}</h2>
-          ${isHomepage ? html`<p class="field__help">Staat de homepage offline (of is hij nog nooit gepubliceerd), dan toont de site de vaste homepage.</p>` : html`<form class="form crm-narrow" method="post" action="${pageUrl}adres/">
+          ${isHomepage ? html`<p class="field__help">Staat de homepage offline (of is hij nog nooit gepubliceerd), dan toont de site de vaste homepage met de standaardteksten en foto's van reizen.</p>` : html`<form class="form crm-narrow" method="post" action="${pageUrl}adres/">
             ${hiddenFields}
             ${renderPlacementFields(parents, placement, errors, 'adres')}
             <p class="field__help">Wijzig je het adres, dan verwijst het oude adres automatisch door (ook voor de pagina's eronder) en gaan menu-items mee.</p>
@@ -147,9 +144,8 @@ function renderPageAddressPanel({ page, pageUrl, hiddenFields, parents, placemen
 
 /**
  * Maakt de routes voor pagina's.
- * @param {{db: object, auth: object, library?: object, mediaDir?: string, redirects?: object, menus?: object, homepage?: object, siteContent?: object}} options
- *   Database, sessie- en rechtenlaag, de fotobibliotheek, doorverwijzingen en menu's (opnieuw laden na verplaatsen) en
- *   de vaste inhoud van de homepage en `site-content.json` (homepage opzetten, uitgelicht blogbericht).
+ * @param {{db: object, auth: object, library?: object, mediaDir?: string, redirects?: object, menus?: object}} options
+ *   Database, sessie- en rechtenlaag, de fotobibliotheek en doorverwijzingen en menu's (opnieuw laden na verplaatsen).
  * @returns {express.Router} Router.
  */
 function createPageRoutes(options) {
@@ -159,14 +155,12 @@ function createPageRoutes(options) {
   const library = options.library || createMediaLibrary({ db, mediaDir: options.mediaDir || '' });
   const router = express.Router();
   const guard = auth.requireRight('content');
-  const homepageStore = options.homepage || createHomepageStore(DATA_DIR);
-  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
 
   /**
-   * Het uitgelichte blogbericht uit `site-content.json` (voor het blogblok van de homepage in het voorbeeld).
+   * Het uitgelichte blogbericht (voor het blogblok van de homepage in het voorbeeld).
    * @returns {string} Slug, of leeg.
    */
-  const featuredSlug = async () => (await content.blogHighlights(siteContent.load())).featuredSlug || '';
+  const featuredSlug = async () => (await content.blogHighlights()).featuredSlug || '';
 
   /**
    * 404-pagina binnen het CRM.
@@ -385,7 +379,7 @@ function createPageRoutes(options) {
       if (!page) return undefined;
       const current = editableState(page);
       const isHomepage = page.path === '/';
-      const article = await renderPageArticle({ title: current.title, path: page.path, intro: current.intro, blocks: current.blocks }, content, null, { featuredSlug: await featuredSlug() });
+      const article = await renderPageArticle({ title: current.title, path: page.path, intro: current.intro, blocks: current.blocks }, content, { featuredSlug: await featuredSlug() });
       if (article.hasVideo) res.set('Content-Security-Policy', addCspSources(res.get('Content-Security-Policy'), { 'frame-src': [YOUTUBE_ORIGIN] }));
       const bar = html`<div class="cms-preview-bar" role="status">Voorbeeld van ${page.draft ? 'het concept' : 'de gepubliceerde pagina'}, niet zichtbaar voor bezoekers. <a href="${BASE}${page.id}/">Terug naar bewerken</a></div>`;
       return res.send(renderPage({
@@ -466,7 +460,7 @@ function createPageRoutes(options) {
 
   router.post('/paginas/homepage/', guard, auth.checkCsrf, async (req, res, next) => {
     try {
-      const outcome = await pages.createHomepage(homepageStore.load(), {
+      const outcome = await pages.createHomepage(normalizeHomepage(null), {
         userId: req.user.id,
         audit: (client, id) => auth.audit(req, { userId: req.user.id, action: 'pagina.nieuw', entity: 'pages', entityId: id }, client),
       });

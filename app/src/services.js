@@ -15,8 +15,6 @@ const { createSystemUpdate } = require('./system/system-update');
 const { createHostTasks } = require('./system/host-tasks');
 const { createMonitor } = require('./system/monitor');
 const { createRedirects } = require('./site/redirects');
-const { createSiteContentStore } = require('./site/site-content');
-const { createHomepageStore } = require('./site/homepage');
 const { createListHeaders } = require('./cms/list-headers');
 const { createMenus } = require('./cms/menus');
 const { createMediaLibrary } = require('./media/library');
@@ -104,9 +102,6 @@ function createServices(options) {
   // Infobrief aan de deelnemers van een vertrek: versturen in de achtergrond; de rondes starten pas in `start()`.
   const infobriefSender = options.infobriefSender || createInfobriefSender({ db: options.db, mailer, settings, persons: createPersons({ vault }), now: options.now });
 
-  // Vaste inhoud van de homepage en lijstkoppen (DATA_DIR); ook het CRM gebruikt ze (homepage als blokpagina opzetten).
-  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
-  const homepage = options.homepage || createHomepageStore(DATA_DIR);
   // Koppen van de lijstpagina's (W28): uit de database, in het geheugen voor de site (`listHeaders.get`).
   const listHeaders = createListHeaders({ db: options.db });
   // Reizigersaccounts onder /account/ (eigen sessies, los van het CRM).
@@ -115,7 +110,7 @@ function createServices(options) {
   return {
     vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary, imageFormats,
     mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders,
-    infobriefSender, siteContent, homepage, listHeaders, accounts,
+    infobriefSender, listHeaders, accounts,
   };
 }
 

@@ -13,8 +13,6 @@ const { createMediaLibrary } = require('../media/library');
 const { pickerFilter, pickerPhotos, renderPhotoPicker } = require('../media/picker');
 const { searchPatterns } = require('../persons/person-routes');
 const { fieldRow, invalidAttributes, RICHTEXT_HELP } = require('../cms/block-editor');
-const { createSiteContentStore, EMPTY_GUIDE } = require('../site/site-content');
-const { DATA_DIR } = require('../paths');
 const { MAX_SLUG_LENGTH, slugify, isValidSlug } = require('./slugs');
 const { createGuides, validateGuideFields, galleryFingerprint, GUIDE_LIMITS, PHOTO_FIELDS } = require('./guides');
 
@@ -43,21 +41,18 @@ const NOTICES = {
 };
 
 /**
- * De ingevulde waarden van het profielformulier. Een reisleider die nog niet in het CRM is gewijzigd, krijgt de
- * gegevens die de site nu uit `site-content.json` toont alvast in het formulier.
+ * De ingevulde waarden van het profielformulier.
  * @param {object} guide Rij uit `guides`.
- * @param {object} fixed Gegevens uit het bestand (`extraOf`), leeg als de reisleider al in het CRM wordt beheerd.
  * @returns {object} Waarden per veld.
  */
-function guideFormValues(guide, fixed) {
-  const own = Boolean(guide.managed_in_crm);
+function guideFormValues(guide) {
   return {
     name: guide.name,
-    surname: own ? guide.surname : fixed.surname || '',
+    surname: guide.surname,
     slug: guide.slug,
-    city: own ? guide.city : fixed.city || '',
-    since: own ? guide.since : fixed.since || '',
-    quote: own ? guide.quote : fixed.quote || '',
+    city: guide.city,
+    since: guide.since,
+    quote: guide.quote,
     intro: guide.intro,
     bodyInput: guide.body_html,
     sortOrder: guide.sort_order,
@@ -65,27 +60,12 @@ function guideFormValues(guide, fixed) {
 }
 
 /**
- * De galerij zoals de site hem nu toont: uit het CRM, of (zolang die leeg is en de reisleider nog niet beheerd wordt)
- * uit het bestand. Gelijk aan wat `adopt` in `guides.js` bij de eerste wijziging overneemt.
+ * De galerij van een reisleider.
  * @param {object} guide Rij uit `guides`.
- * @param {object} fixed Gegevens uit het bestand (`extraOf`).
  * @returns {{title: string, subtitle: string, items: Array<{url: string, alt?: string}>}} Galerij.
  */
-function guideGallery(guide, fixed) {
-  const own = Array.isArray(guide.gallery) ? guide.gallery : [];
-  if (guide.managed_in_crm || own.length) return { title: guide.gallery_title || '', subtitle: guide.gallery_subtitle || '', items: own };
-  return { title: fixed.galleryTitle || '', subtitle: fixed.gallerySubtitle || '', items: (fixed.gallery || []).map((url) => ({ url, alt: '' })) };
-}
-
-/**
- * Het portret en de tweede foto zoals de site ze nu toont: uit het CRM, of nog uit het bestand.
- * @param {object} guide Rij uit `guides`.
- * @param {object} fixed Gegevens uit het bestand (`extraOf`).
- * @returns {{portrait: string, image: string}} Adressen.
- */
-function guidePhotos(guide, fixed) {
-  if (guide.managed_in_crm) return { portrait: guide.photo_url, image: guide.image_url };
-  return { portrait: fixed.portrait || guide.photo_url, image: fixed.image || guide.image_url };
+function guideGallery(guide) {
+  return { title: guide.gallery_title || '', subtitle: guide.gallery_subtitle || '', items: Array.isArray(guide.gallery) ? guide.gallery : [] };
 }
 
 /**
@@ -97,7 +77,7 @@ function guidePhotos(guide, fixed) {
 function renderGuideStatus(guide, csrf) {
   return html`<section class="crm-block" id="status">
         <h2>Status</h2>
-        <p>${guide.published ? 'Online' : 'Offline'} · ${String(guide.trip_count)} ${guide.trip_count === 1 ? 'reis' : 'reizen'}${guide.managed_in_crm ? '' : ' · nog niet gewijzigd in het CRM (de site toont de gegevens van de huidige site)'}</p>
+        <p>${guide.published ? 'Online' : 'Offline'} · ${String(guide.trip_count)} ${guide.trip_count === 1 ? 'reis' : 'reizen'}</p>
         <form method="post" action="${BASE}${guide.id}/online/">
           <input type="hidden" name="_csrf" value="${csrf}">
           <input type="hidden" name="stand" value="${guide.published ? 'offline' : 'online'}">
@@ -141,36 +121,26 @@ function renderGallerySection(guide, gallery, csrf) {
 
 /**
  * Maakt de routes voor reisleiders.
- * @param {{db: object, auth: object, redirects?: object, library?: object, siteContent?: object, mediaDir?: string}} options
- *   Database, sessie- en rechtenlaag, doorverwijzingen (opnieuw laden na een nieuw adres), fotobibliotheek en
- *   `site-content.json` (gegevens van reisleiders die nog niet in het CRM beheerd worden).
+ * @param {{db: object, auth: object, redirects?: object, library?: object, mediaDir?: string}} options
+ *   Database, sessie- en rechtenlaag, doorverwijzingen (opnieuw laden na een nieuw adres) en de fotobibliotheek.
  * @returns {express.Router} Router.
  */
 function createGuideRoutes(options) {
   const { db, auth } = options;
   const guides = createGuides({ db });
   const library = options.library || createMediaLibrary({ db, mediaDir: options.mediaDir || '' });
-  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
   const router = express.Router();
   const guard = auth.requireRight('reizen');
 
   /**
-   * De gegevens uit `site-content.json` van een reisleider.
-   * @param {{slug: string}} guide Rij.
-   * @returns {object} Gegevens (leeg als er niets is).
-   */
-  const extraOf = (guide) => siteContent.load().guides.get(guide.slug) || EMPTY_GUIDE;
-
-  /**
-   * Context voor een wijziging: gebruiker, audit en de gegevens uit `site-content.json`.
+   * Context voor een wijziging: gebruiker en audit.
    * @param {object} req Express-verzoek.
    * @param {object} guide Rij.
    * @param {string} action Actie.
-   * @returns {{userId: number, audit: Function, extra: object}} Context.
+   * @returns {{userId: number, audit: Function}} Context.
    */
   const contextFor = (req, guide, action) => ({
     userId: req.user.id,
-    extra: extraOf(guide),
     audit: (client) => auth.audit(req, { userId: req.user.id, action, entity: 'guides', entityId: guide.id }, client),
   });
 
@@ -267,11 +237,10 @@ function createGuideRoutes(options) {
    * @returns {string} HTML.
    */
   const renderEdit = (req, guide, state = {}) => {
-    // Nog niet beheerd: de gegevens die de site nu uit site-content.json toont, staan alvast in het formulier.
-    const fixed = guide.managed_in_crm ? {} : extraOf(guide);
-    const values = state.values || guideFormValues(guide, fixed);
+    const values = state.values || guideFormValues(guide);
     const errors = state.errors || {};
-    const { portrait, image } = guidePhotos(guide, fixed);
+    const portrait = guide.photo_url;
+    const image = guide.image_url;
     /**
      * Eén tekstveld.
      * @param {string} name Veldnaam.
@@ -299,7 +268,7 @@ function createGuideRoutes(options) {
         ${fieldRow({ id: 'reisleider-sort_order', label: 'Volgorde', error: errors.sort_order, help: 'Lager staat eerder in de lijst met reisleiders op de site; bij gelijke nummers op naam.', control: html`<input id="reisleider-sort_order" name="sort_order" type="number" step="1" value="${values.sortOrder === null || values.sortOrder === undefined ? '' : String(values.sortOrder)}"${invalidAttributes('reisleider-sort_order', errors.sort_order)}>` })}
         ${fieldRow({ id: 'reisleider-intro', label: 'Korte inleiding (zoekmachines en delen)', error: errors.intro, control: html`<textarea id="reisleider-intro" name="intro" rows="3" maxlength="${GUIDE_LIMITS.intro}"${invalidAttributes('reisleider-intro', errors.intro)}>${values.intro}</textarea>` })}
         ${fieldRow({ id: 'reisleider-body', label: 'Over deze reisleider', error: errors.body, help: RICHTEXT_HELP, control: html`<textarea id="reisleider-body" name="body" rows="14" class="cms-richtext" maxlength="${GUIDE_LIMITS.body}"${invalidAttributes('reisleider-body', errors.body)}>${values.bodyInput}</textarea>` })}
-        ${ui.renderSaveBar({ label: 'Opslaan', note: guide.managed_in_crm ? '' : 'Na opslaan toont de site de gegevens uit het CRM.' })}
+        ${ui.renderSaveBar({ label: 'Opslaan' })}
       </form>`)}
         ${ui.renderTabPanel('fotos-tab', html`<section class="crm-block" id="fotos">
         <h2>Foto's</h2>
@@ -313,7 +282,7 @@ function createGuideRoutes(options) {
         })}
         <p class="field__help">Het portret staat in de lijst met reisleiders en op de eigen pagina; de tweede foto staat op de pagina naast het portret.</p>
       </section>
-      ${renderGallerySection(guide, guideGallery(guide, fixed), req.session.csrf)}`)}
+      ${renderGallerySection(guide, guideGallery(guide), req.session.csrf)}`)}
         ${ui.renderTabPanel('verwijderen', html`<form class="crm-block crm-actions" method="post" action="${BASE}${guide.id}/verwijderen/">
         <input type="hidden" name="_csrf" value="${req.session.csrf}">
         <p class="field__help">Verwijderen kan alleen bij een reisleider die offline staat, niet van de huidige site komt en aan geen reis hangt. Anders: offline halen.</p>

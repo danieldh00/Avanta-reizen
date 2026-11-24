@@ -38,6 +38,12 @@ const MAX_HOME_SLIDES = 8;
 /** Maximaal aantal foto's in een galerijblok. */
 const MAX_GALLERY_IMAGES = 40;
 
+/**
+ * Weergave van een galerijblok: binnen de tekstkolom, of als strook op volle breedte buiten de tekst (zoals de galerij
+ * onder een reis en onder berichten en pagina's van de huidige site).
+ */
+const GALLERY_DISPLAYS = { tekst: 'In de tekstkolom', strook: 'Strook op volle breedte (zoals onder een reis)' };
+
 /** Vorm van een YouTube-id. */
 const YOUTUBE_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 
@@ -113,6 +119,7 @@ const BLOCK_TYPES = {
       { name: 'titel', label: 'Titel', kind: 'text', max: 200 },
       { name: 'subtitel', label: 'Subtitel', kind: 'text', max: 200 },
       { name: 'fotos', label: 'Foto\'s', kind: 'images', max: MAX_GALLERY_IMAGES },
+      { name: 'weergave', label: 'Weergave', kind: 'select', choices: GALLERY_DISPLAYS },
     ],
   },
   kolommen: {
@@ -680,4 +687,5 @@ module.exports = {
   YOUTUBE_ID_PATTERN,
   youtubeId,
   MAX_GALLERY_IMAGES,
+  GALLERY_DISPLAYS,
 };

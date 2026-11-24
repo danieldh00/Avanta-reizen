@@ -33,8 +33,30 @@ function withSummary(row) {
  */
 const VISIBLE_POST_SQL = '(published AND (published_at IS NULL OR published_at <= now()))';
 
-/** Gegevens van een reisleider die het CRM beheert (CMS-pakket I4); zie `guideExtra` in `site-content.js`. */
-const GUIDE_EXTRA_COLUMNS = 'surname, city, since, quote, image_url, managed_in_crm, gallery, gallery_title, gallery_subtitle';
+/** Gegevens van een reisleider naast naam en tekst (CMS-pakket I4, galerij W28); zie `guideExtra`. */
+const GUIDE_EXTRA_COLUMNS = 'surname, city, since, quote, image_url, gallery, gallery_title, gallery_subtitle';
+
+/**
+ * De extra gegevens van een reisleider voor de weergave (`trip-view.js`): achternaam, woonplaats, sinds, citaat, tweede
+ * foto en de galerij met titel en subtitel; het portret is `photo_url`.
+ * @param {{surname?: string, city?: string, since?: string, quote?: string, image_url?: (string|null), gallery?: *, gallery_title?: string, gallery_subtitle?: string}} guide
+ *   Reisleider uit de database.
+ * @returns {{surname: string, city: string, since: string, quote: string, portrait: string, image: string, galleryTitle: string, gallerySubtitle: string, gallery: object[]}}
+ *   Gegevens.
+ */
+function guideExtra(guide) {
+  return {
+    surname: guide.surname || '',
+    city: guide.city || '',
+    since: guide.since || '',
+    quote: guide.quote || '',
+    portrait: '',
+    image: guide.image_url || '',
+    galleryTitle: guide.gallery_title || '',
+    gallerySubtitle: guide.gallery_subtitle || '',
+    gallery: Array.isArray(guide.gallery) ? guide.gallery : [],
+  };
+}
 
 /** Kolommen voor een reis in een lijst (teaser). */
 const TRIP_CARD_COLUMNS = `t.id, t.slug, t.title, t.summary, t.trip_code, t.departure_date, t.duration_label, t.price_cents,
@@ -240,17 +262,14 @@ function createContent(db) {
     },
 
     /**
-     * De tags boven het blog en het uitgelichte bericht (CMS-pakket I2). Zolang er in de database nog geen tags zijn
-     * (niet overgenomen in het CRM), gelden de tags en het uitgelichte bericht uit `site-content.json`.
-     * @param {{blogTags: object[], featuredPost: string}} fixed Inhoud uit `site-content.json`.
+     * De tags boven het blog en het uitgelichte bericht (CMS-pakket I2, uit het CRM).
      * @returns {Promise<{tags: {slug: string, name: string}[], featuredSlug: string}>} Tags en slug van het uitgelichte bericht.
      */
-    async blogHighlights(fixed) {
+    async blogHighlights() {
       const [tags, featured] = await Promise.all([
         db.query("SELECT slug, name FROM post_terms WHERE kind = 'tag' ORDER BY sort_order, name LIMIT 200"),
         db.query(`SELECT slug FROM posts WHERE featured AND ${VISIBLE_POST_SQL} LIMIT 1`),
       ]);
-      if (!tags.length) return { tags: fixed.blogTags, featuredSlug: featured.length ? featured[0].slug : fixed.featuredPost };
       return { tags, featuredSlug: featured.length ? featured[0].slug : '' };
     },
 
@@ -343,4 +362,4 @@ function createContent(db) {
   };
 }
 
-module.exports = { createContent, today, VISIBLE_POST_SQL };
+module.exports = { createContent, guideExtra, today, VISIBLE_POST_SQL };

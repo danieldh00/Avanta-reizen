@@ -53,6 +53,7 @@ function siteSettingsOf(settings) {
     robotsExtra: linesOf(settings.get('robotsExtra')),
     sitemapExclude: linesOf(settings.get('sitemapExclude')),
     llms: { enabled: settings.get('llmsEnabled') === true, intro: settings.get('llmsIntro') },
+    blogArchiveLink: settings.get('blogArchiveUrl') ? { label: settings.get('blogArchiveLabel'), href: settings.get('blogArchiveUrl') } : null,
     devBanner: settings.get('devBannerEnabled') === true ? settings.get('devBannerText') : '',
     analytics: { measurementId: activeMeasurementId(settings.get('analyticsEnabled'), settings.get('analyticsMeasurementId')) },
   };

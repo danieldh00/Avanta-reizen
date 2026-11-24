@@ -2,7 +2,8 @@
 /**
  * Categorieën en tags van het blog beheren in het CRM (`/app/blog/categorieen-en-tags/`, recht `content`, CMS-pakket
  * I2): lijst per soort met het aantal berichten, nieuw, wijzigen (naam, adres met 301, inleiding, volgorde),
- * verwijderen en de tags van de huidige site overnemen uit `site-content.json`. Elke wijziging in de auditlog.
+ * verwijderen. De tags van de huidige site zijn bij de update overgenomen (`site/content-transfer.js`). Elke wijziging
+ * in de auditlog.
  */
 const express = require('express');
 const { routePath } = require('../route-path');
@@ -11,8 +12,6 @@ const { renderCrmPage, renderAlert } = require('../crm/layout');
 const { fieldRow, invalidAttributes } = require('./block-editor');
 const { createPostTerms, validateTermFields, TERM_KINDS, TERM_LIMITS } = require('./post-terms');
 const { MAX_SLUG_LENGTH } = require('../trips/slugs');
-const { createSiteContentStore } = require('../site/site-content');
-const { DATA_DIR } = require('../paths');
 
 /** Basispad van het scherm. */
 const BASE = '/app/blog/categorieen-en-tags/';
@@ -31,8 +30,6 @@ const NOTICES = {
   1: 'Opgeslagen.',
   2: 'Verwijderd. Het adres verwijst nu naar het blog.',
   3: 'Het adres is gewijzigd; het oude adres verwijst automatisch door.',
-  4: 'De tags van de huidige site zijn overgenomen, met hun berichten en het uitgelichte bericht.',
-  5: 'Er zijn al tags; er is niets overgenomen.',
 };
 
 /**
@@ -52,8 +49,8 @@ function termFields(values, errors, prefix) {
 
 /**
  * Maakt de routes voor categorieën en tags.
- * @param {{db: any, auth: any, redirects?: any, siteContent?: any}} options Database, sessie- en rechtenlaag,
- *   doorverwijzingen (opnieuw laden na een nieuw adres) en `site-content.json` (tags overnemen).
+ * @param {{db: any, auth: any, redirects?: any}} options Database, sessie- en rechtenlaag en doorverwijzingen
+ *   (opnieuw laden na een nieuw adres).
  * @returns {express.Router} Router.
  */
 function createPostTermRoutes(options) {
@@ -61,7 +58,6 @@ function createPostTermRoutes(options) {
   const terms = createPostTerms({ db });
   const router = express.Router();
   const guard = auth.requireRight('content');
-  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
 
   /**
    * Audit voor een actie.
@@ -81,8 +77,6 @@ function createPostTermRoutes(options) {
    */
   const renderList = async (req, state = {}) => {
     const rows = await terms.list();
-    const hasTags = rows.some((row) => row.kind === 'tag');
-    const oldTags = siteContent.load().blogTags;
     return renderCrmPage({
       title: 'Categorieën en tags',
       user: req.user,
@@ -91,10 +85,6 @@ function createPostTermRoutes(options) {
       body: html`<p><a href="/app/blog/">Naar het blog</a></p>
         ${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
         ${renderAlert(state.error)}
-        ${!hasTags && oldTags.length ? html`<section class="crm-block">
-          <p>De huidige site heeft ${String(oldTags.length)} tags (met hun berichten). Neem ze over om ze hier te beheren; tot dan toont de site die tags zoals nu.</p>
-          <form method="post" action="${BASE}overnemen/"><input type="hidden" name="_csrf" value="${req.session.csrf}"><button class="btn btn--small" type="submit">Tags van de huidige site overnemen</button></form>
-        </section>` : ''}
         ${Object.entries(TERM_KINDS).map(([kind, definition]) => {
           const own = rows.filter((row) => row.kind === kind);
           const values = state.kind === kind ? state.values : { name: '', slug: '', intro: '', sortOrder: 0 };
@@ -178,15 +168,6 @@ function createPostTermRoutes(options) {
       const outcome = Object.keys(errors).length ? { errors } : await terms.create(kind, values, { userId: req.user.id, audit: auditFor(req, 'blog-indeling.nieuw', null) });
       if (outcome.errors) return res.status(422).send(await renderList(req, { error: 'Controleer de velden.', kind, values, errors: outcome.errors }));
       return res.redirect(303, `${BASE}?melding=1#${kind}`);
-    } catch (error) {
-      return next(error);
-    }
-  });
-
-  router.post('/blog/categorieen-en-tags/overnemen/', guard, auth.checkCsrf, async (req, res, next) => {
-    try {
-      const outcome = await terms.importSiteTags(siteContent.load(), { userId: req.user.id, audit: auditFor(req, 'blog-indeling.overgenomen', null) });
-      return res.redirect(303, `${BASE}?melding=${outcome.status === 'ok' ? 4 : 5}`);
     } catch (error) {
       return next(error);
     }

@@ -39,13 +39,13 @@ function renderCheckTable(caption, rows) {
 
 /**
  * Maakt de route.
- * @param {{db: any, guard: Function, settings: any, siteContent: {load: Function}, renderBeheerPage: Function, now?: () => number}} options
- *   Database, rechtencontrole, instellingen, de lezer van `site-content.json`, de weergave van een Beheer-pagina en
+ * @param {{db: any, guard: Function, settings: any, renderBeheerPage: Function, now?: () => number}} options
+ *   Database, rechtencontrole, instellingen, de weergave van een Beheer-pagina en
  *   (voor tests) de klok van de limiet.
  * @returns {express.Router} Router.
  */
 function createGoLiveRoutes(options) {
-  const { db, guard, settings, siteContent } = options;
+  const { db, guard, settings } = options;
   const router = express.Router();
   const limiter = createRateLimiter({ limit: 60, windowMs: 60 * 1000, now: options.now });
 
@@ -55,7 +55,7 @@ function createGoLiveRoutes(options) {
       if (!limiter.hit(`gebruiker:${req.user.id}`)) {
         return res.status(429).send(options.renderBeheerPage(req, { title: 'Livegang', sectionId: 'livegang', body: html`<p class="form-alert" role="alert">Te veel verzoeken. Probeer het over een minuut opnieuw.</p>` }));
       }
-      const check = await runGoLiveCheck({ db, settings, siteContent });
+      const check = await runGoLiveCheck({ db, settings });
       return res.send(options.renderBeheerPage(req, {
         title: 'Livegang',
         sectionId: 'livegang',
@@ -68,7 +68,7 @@ function createGoLiveRoutes(options) {
           </section>
           <section class="crm-panel" aria-labelledby="livegang-inhoud">
             <h2 id="livegang-inhoud">Vaste inhoud in het CRM</h2>
-            <p>Inhoud die nog uit de bestanden van de import komt (homepage.json, site-content.json) in plaats van uit het CRM. "Open" zet je vóór de livegang over; "Later" heeft nog geen plek in het CRM en wordt in een later pakket opgeruimd.</p>
+            <p>De site leest alle inhoud uit het CRM. De vaste inhoud van de huidige site (homepage.json, site-content.json uit de import) wordt bij de start van de app eenmalig overgezet.</p>
             ${renderCheckTable('Vaste inhoud in het CRM', check.content)}
           </section>`,
       }));

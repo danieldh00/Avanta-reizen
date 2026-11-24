@@ -1,6 +1,6 @@
 /**
- * Controle voor de livegang (plan P6.3 en P6.5): welke stappen uit `docs/GO-LIVE.md` de app zelf kan nagaan, en welke
- * vaste inhoud nog uit de terugvalbestanden in DATA_DIR komt in plaats van uit het CRM (bevinding F09).
+ * Controle voor de livegang (plan P6.3 en P6.5): welke stappen uit `docs/GO-LIVE.md` de app zelf kan nagaan, en of de
+ * vaste inhoud van de huidige site in het CRM staat (bevinding F09, W28: overgezet en de homepage gepubliceerd).
  *
  * Elke controle geeft een regel met een stand:
  * - `klaar`: in orde voor de livegang;
@@ -16,6 +16,8 @@ const SPECIAL_DATA_ROLES = ['beheerder', 'kantoor', 'reisleider'];
 
 /** Het productiedomein van de site. */
 const PRODUCTION_HOST = 'www.avantareizen.nl';
+
+const { TRANSFER_PARTS } = require('../site/content-transfer');
 
 /**
  * Maakt een regel van de controle.
@@ -89,34 +91,24 @@ function settingsChecks(settings, counts) {
 }
 
 /**
- * De vaste inhoud: wat al in het CRM staat en wat nog uit `homepage.json` of `site-content.json` komt (F09).
- * @param {object} fixed Gecontroleerde inhoud van `site-content.json` (`normalizeSiteContent`).
- * @param {{homeInCrm: boolean, postTags: number, featuredPosts: number, guides: number, guidesInFile: number}} counts
- *   Uit de database: homepage als blokpagina online, aantal tags, uitgelichte berichten, reisleiders en reisleiders
- *   die nog niet in het CRM worden beheerd.
+ * De vaste inhoud (F09, W28): alles staat in het CRM; de app controleert of het eenmalig overzetten uit
+ * `site-content.json` en `homepage.json` is gebeurd en of de homepage als blokpagina online staat.
+ * @param {{homeInCrm: boolean, transfersDone: number}} counts Uit de database: homepage als blokpagina online en het
+ *   aantal overgezette delen (`content_transfers`).
  * @returns {object[]} Regels.
  */
-function contentChecks(fixed, counts) {
-  const rows = [
-    checkRow('Homepage', counts.homeInCrm ? 'klaar' : 'open', counts.homeInCrm ? 'Gepubliceerd als blokpagina in het CRM.' : 'Komt nog uit homepage.json. Zet hem over met "Homepage in blokken" bij Pagina\'s en publiceer hem.', '/app/paginas/'),
-    checkRow('Reisleiders', counts.guidesInFile === 0 ? 'klaar' : 'open', counts.guidesInFile === 0 ? `Alle ${counts.guides} reisleider(s) worden in het CRM beheerd.` : `${counts.guidesInFile} van de ${counts.guides} reisleider(s) tonen nog de gegevens uit site-content.json. Open ze in het CRM en sla ze op.`, '/app/reisleiders/'),
+function contentChecks(counts) {
+  const transferred = counts.transfersDone >= TRANSFER_PARTS.length;
+  return [
+    checkRow('Homepage', counts.homeInCrm ? 'klaar' : 'open', counts.homeInCrm ? 'Gepubliceerd als blokpagina in het CRM.' : 'Staat offline of ontbreekt; de site toont dan de vaste homepage met de standaardteksten. Publiceer hem bij Pagina\'s.', '/app/paginas/'),
+    checkRow('Vaste inhoud van de huidige site overgezet', transferred ? 'klaar' : 'open', transferred ? 'Koppen van de lijstpagina\'s, reisleiders (met volgorde en galerij), tags, uitgelicht bericht, fotogalerijen en homepage staan in het CRM.' : `${counts.transfersDone} van de ${TRANSFER_PARTS.length} delen overgezet. De rest gebeurt bij de volgende start van de app, zodra site-content.json en homepage.json in de datamap staan.`, '/app/lijstpaginas/'),
   ];
-  if (counts.postTags > 0) rows.push(checkRow('Tags van het blog', 'klaar', `${counts.postTags} tag(s) in het CRM.`, '/app/blog/categorieen-en-tags/'));
-  else rows.push(checkRow('Tags van het blog', fixed.blogTags.length ? 'open' : 'klaar', fixed.blogTags.length ? `${fixed.blogTags.length} tag(s) komen nog uit site-content.json. Neem ze over bij Categorieën en tags.` : 'Geen tags.', '/app/blog/categorieen-en-tags/'));
-  if (counts.featuredPosts > 0) rows.push(checkRow('Uitgelicht bericht', 'klaar', 'Gekozen in het CRM.', '/app/blog/'));
-  else rows.push(checkRow('Uitgelicht bericht', fixed.featuredPost ? 'open' : 'klaar', fixed.featuredPost ? 'Komt nog uit site-content.json. Kies een uitgelicht bericht in het blog.' : 'Geen uitgelicht bericht.', '/app/blog/'));
-  rows.push(
-    checkRow('Koppen van de lijstpagina\'s', 'klaar', 'Beheerd in het CRM bij Website > Lijstpagina\'s.', '/app/lijstpaginas/'),
-    checkRow('Volgorde en galerij van reisleiders', counts.guidesInFile === 0 ? 'klaar' : 'open', counts.guidesInFile === 0 ? 'Beheerd in het CRM bij elke reisleider (Profiel > Volgorde, Foto\'s > Galerij).' : 'Nog niet overgezet: de volgende start van de app zet ze over uit site-content.json.', '/app/reisleiders/'),
-    checkRow('Fotogalerijen onder berichten en pagina\'s', fixed.galleries.size ? 'later' : 'klaar', fixed.galleries.size ? `${fixed.galleries.size} galerij(en) komen uit site-content.json.` : 'Niets meer uit het bestand.', ''),
-  );
-  return rows;
 }
 
 /**
  * Haalt de aantallen voor beide controles in één ronde uit de database.
  * @param {{query: Function}} db Database.
- * @returns {Promise<{usersWithout2fa: number, homeInCrm: boolean, postTags: number, featuredPosts: number, guides: number, guidesInFile: number}>}
+ * @returns {Promise<{usersWithout2fa: number, homeInCrm: boolean, transfersDone: number}>}
  *   Aantallen.
  */
 async function loadCounts(db) {
@@ -124,24 +116,20 @@ async function loadCounts(db) {
     `SELECT
        (SELECT count(*)::int FROM users WHERE active AND role = ANY($1::text[]) AND totp_enabled_at IS NULL) AS "usersWithout2fa",
        EXISTS (SELECT 1 FROM pages WHERE path = '/' AND managed_in_crm AND published) AS "homeInCrm",
-       (SELECT count(*)::int FROM post_terms WHERE kind = 'tag') AS "postTags",
-       (SELECT count(*)::int FROM posts WHERE featured) AS "featuredPosts",
-       (SELECT count(*)::int FROM guides) AS guides,
-       (SELECT count(*)::int FROM guides WHERE NOT managed_in_crm) AS "guidesInFile"`,
-    [SPECIAL_DATA_ROLES],
+       (SELECT count(*)::int FROM content_transfers WHERE part = ANY($2::text[])) AS "transfersDone"`,
+    [SPECIAL_DATA_ROLES, TRANSFER_PARTS],
   );
   return row;
 }
 
 /**
  * Voert de hele controle uit.
- * @param {{db: {query: Function}, settings: {get: Function}, siteContent: {load: Function}}} options Database,
- *   instellingen en de lezer van `site-content.json`.
+ * @param {{db: {query: Function}, settings: {get: Function}}} options Database en instellingen.
  * @returns {Promise<{settings: object[], content: object[], open: number}>} Regels per blok en het aantal open regels.
  */
-async function runGoLiveCheck({ db, settings, siteContent }) {
+async function runGoLiveCheck({ db, settings }) {
   const counts = await loadCounts(db);
-  const result = { settings: settingsChecks(settings, counts), content: contentChecks(siteContent.load(), counts) };
+  const result = { settings: settingsChecks(settings, counts), content: contentChecks(counts) };
   result.open = [...result.settings, ...result.content].filter((row) => row.state === 'open').length;
   return result;
 }

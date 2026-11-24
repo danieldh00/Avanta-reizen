@@ -1,8 +1,8 @@
 /**
  * Tests voor reisleiders beheren in het CRM (pakket I4, migratie 22): velden controleren (zonder database), de extra
- * gegevens voor de site (bestand of database), en de routes onder `/app/reisleiders/`: rechten (zonder sessie naar
+ * gegevens voor de site (uit de database), en de routes onder `/app/reisleiders/`: rechten (zonder sessie naar
  * inloggen, redacteur en boekhouding 403, kantoor wel), onbekend id → 404, CSRF, het profiel (gegevens uit
- * `site-content.json` gaan bij de eerste wijziging mee), adres wijzigen met 301, portret uit de bibliotheek,
+ * `site-content.json` staan na de overname in de database), adres wijzigen met 301, portret uit de bibliotheek,
  * online/offline, nieuw en verwijderen (alleen offline, niet uit de import, zonder reizen), de auditlog en de
  * WordPress-import die een reisleider uit het CRM laat staan. Draait in een eigen schema.
  */
@@ -16,7 +16,9 @@ const { createApp } = require('../src/server');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
 const { validateGuideFields, arrangedPositions, galleryFingerprint, GUIDE_LIMITS } = require('../src/trips/guides');
-const { normalizeSiteContent, guideExtra } = require('../src/site/site-content');
+const { normalizeSiteContent } = require('../src/site/site-content');
+const { guideExtra } = require('../src/site/content');
+const { transferFixedContent } = require('../src/site/content-transfer');
 const { store } = require('../tools/import-wordpress');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -56,11 +58,9 @@ test('reisleiders: velden en de gegevens voor de site (zonder database)', () => 
   assert.deepEqual(Object.keys(bad.errors).sort(), ['body', 'city', 'intro', 'name', 'since', 'slug']);
   assert.ok(validateGuideFields({ name: ['lijst'] }).errors.name, 'geen lijst');
 
-  const guides = normalizeSiteContent(FIXED).guides;
-  assert.equal(guideExtra({ slug: 'martijn', managed_in_crm: false }, guides).city, 'Goes', 'nog uit het bestand');
-  const managed = guideExtra({ slug: 'martijn', managed_in_crm: true, surname: 'Jansen', city: '', since: '', quote: '', image_url: null }, guides);
+  const managed = guideExtra({ slug: 'martijn', surname: 'Jansen', city: '', since: '', quote: '', image_url: null });
   assert.deepEqual([managed.surname, managed.city, managed.portrait, managed.image, managed.gallery], ['Jansen', '', '', '', []], 'uit de database, ook de galerij');
-  const withGallery = guideExtra({ slug: 'martijn', managed_in_crm: true, gallery: [{ url: '/media/a.jpg', alt: 'A' }], gallery_title: 'T', gallery_subtitle: 'S' }, guides);
+  const withGallery = guideExtra({ slug: 'martijn', gallery: [{ url: '/media/a.jpg', alt: 'A' }], gallery_title: 'T', gallery_subtitle: 'S' });
   assert.deepEqual([withGallery.galleryTitle, withGallery.gallerySubtitle, withGallery.gallery], ['T', 'S', [{ url: '/media/a.jpg', alt: 'A' }]]);
 
   assert.deepEqual(arrangedPositions({ volgorde_0: '3', volgorde_1: '1', volgorde_2: 'x', weg: '3' }, 4), [1, 0, 2], 'nummers, foute nummers houden hun plek, weghalen');
@@ -82,8 +82,7 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'avanta-guides-'));
   const mediaDir = path.join(dataDir, 'media');
   await fs.mkdir(mediaDir);
-  const siteContent = { load: () => normalizeSiteContent(FIXED) };
-  const app = createApp({ db, masterKey: MASTER_KEY, mediaDir, siteContent });
+  const app = createApp({ db, masterKey: MASTER_KEY, mediaDir });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   testContext.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
@@ -93,6 +92,8 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     await db.query('INSERT INTO users (email, name, role, password_hash) VALUES ($1, $2, $3, $4)', [email, role, role, hash]);
   }
   const [martijn] = await db.query("INSERT INTO guides (legacy_id, slug, name, intro, body_html, photo_url) VALUES (77, 'martijn', 'Martijn', 'Reisleider', '<p>Oud</p>', '/media/import-martijn.jpg') RETURNING id");
+  // De gegevens van de huidige site staan na de eenmalige overname in de database (W28).
+  await transferFixedContent({ db, siteContent: normalizeSiteContent(FIXED) });
   const [trip] = await db.query("INSERT INTO trips (slug, title, departure_date, published) VALUES ('noorwegen', 'Noorwegen', '2099-07-01', true) RETURNING id");
   await db.query('INSERT INTO trip_guides (trip_id, guide_id) VALUES ($1, $2)', [trip.id, martijn.id]);
   const [photo] = await db.query(
@@ -153,8 +154,8 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     const list = await request('/app/reisleiders/?q=mart', { cookie: kantoor.cookie });
     assert.equal(list.status, 200);
     assert.match(list.text, /href="\/app\/reisleiders\/" aria-current="page"/);
-    assert.match(list.text, />Martijn</);
-    assert.doesNotMatch((await request('/app/reisleiders/?q=zzz', { cookie: kantoor.cookie })).text, />Martijn</);
+    assert.match(list.text, />Martijn de Vries</);
+    assert.doesNotMatch((await request('/app/reisleiders/?q=zzz', { cookie: kantoor.cookie })).text, />Martijn de Vries</);
     assert.equal((await request('/app/reisleiders/999999/', { cookie: kantoor.cookie })).status, 404);
     assert.equal((await request('/app/reisleiders/999999/foto/portret/', { cookie: kantoor.cookie })).status, 404);
     assert.equal((await request(`${url}foto/anders/`, { cookie: kantoor.cookie })).status, 404, 'onbekende soort foto');
@@ -162,9 +163,9 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal((await request(url, { cookie: kantoor.cookie, form: { _csrf: 'fout', ...profile } })).status, 403, 'CSRF');
   });
 
-  await testContext.test('profiel: eerst de gegevens van de huidige site, bij opslaan beheerd in het CRM', async () => {
+  await testContext.test('profiel: de overgezette gegevens van de huidige site, wijzigen in het CRM', async () => {
     const edit = await request(url, { cookie: kantoor.cookie });
-    assert.match(edit.text, /value="Goes"/, 'woonplaats uit site-content.json in het formulier');
+    assert.match(edit.text, /value="Goes"/, 'woonplaats van de huidige site in het formulier');
     assert.match(edit.text, /martijn-portret\.jpg/);
     assert.match((await request('/reisleider/martijn/')).text, /Goes/);
 
@@ -176,7 +177,7 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.match(site, /Middelburg/);
     assert.doesNotMatch(site, /Goes/);
     assert.match(site, /martijn-portret\.jpg/, 'portret overgenomen');
-    assert.match(site, /martijn-galerij\.jpg/, 'galerij nog uit het bestand');
+    assert.match(site, /martijn-galerij\.jpg/, 'overgezette galerij');
     assert.match(site, /Nieuw verhaal/);
   });
 
@@ -206,9 +207,9 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal((await post(`${url}verwijderen/`, { zeker: 'ja' })).status, 409, 'online');
   });
 
-  await testContext.test('galerij en volgorde: overgenomen uit het bestand, fotos toevoegen, ordenen, weghalen en tekst', async () => {
+  await testContext.test('galerij en volgorde: overgezet van de huidige site, fotos toevoegen, ordenen, weghalen en tekst', async () => {
     const edit = await request(url, { cookie: kantoor.cookie });
-    assert.match(edit.text, /martijn-galerij\.jpg/, 'galerij uit het bestand staat in het scherm');
+    assert.match(edit.text, /martijn-galerij\.jpg/, 'overgezette galerij staat in het scherm');
     const fingerprint = (edit.text.match(/name="galerij" value="([^"]+)"/) || [])[1];
     assert.ok(fingerprint);
     for (const session of [redactie, boekhouding]) {
@@ -229,7 +230,7 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal((await post(`${url}galerij/toevoegen/`, { media_id: String(photo.id) })).status, 303, 'dezelfde foto niet dubbel');
     let [row] = await db.query('SELECT gallery, gallery_title FROM guides WHERE id = $1', [martijn.id]);
     assert.deepEqual(row.gallery.map((item) => item.url), ['/media/martijn-galerij.jpg', '/media/bib-00000000000000ee-1600.webp']);
-    assert.equal(row.gallery_title, 'Onderweg', 'titel uit het bestand');
+    assert.equal(row.gallery_title, 'Onderweg', 'overgezette titel');
 
     assert.equal((await post(`${url}galerij/`, { galerij: fingerprint, volgorde_0: '2', volgorde_1: '1' })).status, 409, 'oude stand');
     const current = (await request(url, { cookie: kantoor.cookie })).text.match(/name="galerij" value="([^"]+)"/)[1];

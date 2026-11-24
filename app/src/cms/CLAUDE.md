@@ -14,8 +14,9 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `block-editor.js` (blokeditor: velden, sectie *Blokken*, fotokiezer en blokroutes, gedeeld door pagina's en blog; `RICHTEXT_HELP`; ook de gedeelde zijkolom: `renderDraftStatus`, `renderRevisions`, `renderVisibilityActions`)
 - opgemaakte tekst = `textarea.cms-richtext` + `RICHTEXT_HELP`: de teksteditor (`public/js/rich-editor.js`) zet zich daar vanzelf op; de server schoont altijd op met `sanitizeHtml`
 - `posts.js` + `post-routes.js` (`/app/blog/`: blog in blokken zoals pagina's, inplannen via `published_at` in de toekomst; elke query op `posts` voor de site met `VISIBLE_POST_SQL` uit `site/content.js`)
-- `post-terms.js` + `post-term-routes.js` (`/app/blog/categorieen-en-tags/`: categorieën en tags in `post_terms`, uitgelicht = `posts.featured`; site via `content.blogHighlights`, tot de overname nog uit `site-content.json`)
+- `post-terms.js` + `post-term-routes.js` (`/app/blog/categorieen-en-tags/`: categorieën en tags in `post_terms`, uitgelicht = `posts.featured`; site via `content.blogHighlights`; `copySiteTags` alleen voor de overname in `site/content-transfer.js`)
 - `faqs.js` + `faq-routes.js` (`/app/faq/`: categorieën in `faq_categories` met volgorde, `faqs.category` is een afgeleide kopie van de naam, `managed_in_crm` → import slaat over)
 - `list-headers.js` + `list-header-routes.js` (`/app/lijstpaginas/`: koppen van Reizen, Reisleiders, Blog, FAQ en het aanmeldformulier in `list_headers`, migratie 34; site en aanmelden synchroon via `listHeaders.get(key)` uit een kopie in het geheugen, geladen door de middleware in `server.js`)
 - homepage = pagina `/` met `home-*`-blokken (`homeOnly`, opmaak uit `site/home-view.js`)
-- offline of ontbrekend → vaste homepage uit `homepage.json`
+- offline of ontbrekend → vaste homepage met de standaardteksten (`normalizeHomepage(null)`)
+- galerijblok: `weergave` *tekst* (in de tekstkolom) of *strook* (volle breedte buiten `page-content`, zoals de galerij onder een reis; `renderBlocks` zet gewone blokken samen in `page-content` en een strook erbuiten)

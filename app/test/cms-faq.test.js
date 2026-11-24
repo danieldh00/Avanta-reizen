@@ -16,7 +16,6 @@ const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
 const { validateCategoryFields, validateQuestionFields, FAQ_LIMITS } = require('../src/cms/faqs');
 const { store } = require('../tools/import-wordpress');
-const { normalizeSiteContent } = require('../src/site/site-content');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'cms_faq_test';
@@ -61,8 +60,7 @@ test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'avanta-faq-'));
   const mediaDir = path.join(dataDir, 'media');
   await fs.mkdir(mediaDir);
-  const siteContent = { load: () => normalizeSiteContent({}) };
-  const app = createApp({ db, masterKey: MASTER_KEY, mediaDir, siteContent });
+  const app = createApp({ db, masterKey: MASTER_KEY, mediaDir });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   testContext.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });

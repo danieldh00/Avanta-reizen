@@ -20,11 +20,9 @@ const USAGE_SOURCES = [
   { kind: 'Pagina', table: 'pages', title: 'title', key: 'path', columns: ['image_url', 'body_html', 'blocks::text', 'draft::text'], href: (key) => key },
   { kind: 'Reisleider', table: 'guides', title: 'name', key: 'slug', columns: ['photo_url', 'image_url', 'body_html', 'gallery::text'], href: (key) => `/reisleider/${key}/` },
   { kind: 'Kop van een lijstpagina', table: 'list_headers', title: 'title', key: 'key', columns: ['image_url'], href: (key) => `/app/lijstpaginas/${key}/` },
+  { kind: 'Categorie of tag van het blog', table: 'post_terms', title: 'name', key: "(CASE kind WHEN 'tag' THEN '/tag/' ELSE '/category/' END || slug || '/')", columns: ['image_url', 'intro'], href: (key) => key },
   { kind: 'Reistype of land', table: 'trip_categories', title: 'name', key: 'slug', columns: ['image_url', 'body_html'], href: (key) => `/reis-categorie/${key}/` },
 ];
-
-/** Bestanden in DATA_DIR met vaste inhoud die naar foto's kan verwijzen (tot pakket G/H dit overneemt). */
-const USAGE_FILES = [{ file: 'homepage.json', kind: 'Homepage', href: '/' }, { file: 'site-content.json', kind: 'Vaste inhoud van de site', href: '' }];
 
 /** Maximaal aantal plekken dat "gebruikt in" toont. */
 const USAGE_LIMIT = 50;
@@ -156,14 +154,12 @@ function fileNamesOf(media) {
 
 /**
  * Maakt de fotobibliotheek.
- * @param {{db: object, mediaDir: string, dataDir?: string, appLog?: object}} options Database, map met de bestanden,
- *   de datamap met de vaste-inhoudbestanden (standaard de map boven `mediaDir`) en het logboek van de app
- *   (`system/app-log.js`, voor de meldingen van het onderhoud; zonder logboek naar de console).
+ * @param {{db: object, mediaDir: string, appLog?: object}} options Database, map met de bestanden en het logboek van
+ *   de app (`system/app-log.js`, voor de meldingen van het onderhoud; zonder logboek naar de console).
  * @returns {object} Functies van de bibliotheek.
  */
 function createMediaLibrary(options) {
   const { db, mediaDir } = options;
-  const dataDir = options.dataDir || path.dirname(mediaDir);
   const appLog = options.appLog || {
     info: (source, message) => console.log(`${source}: ${message}`),
     error: (source, message) => console.error(`${source}: ${message}`),
@@ -293,7 +289,7 @@ function createMediaLibrary(options) {
   });
 
   /**
-   * Waar een foto gebruikt wordt: reizen, berichten, pagina's, reisleiders, reiscategorieën en de vaste inhoud.
+   * Waar een foto gebruikt wordt: reizen, berichten, pagina's, reisleiders, koppen van lijstpagina's, blogcategorieën en -tags en reiscategorieën.
    * @param {{query: Function}} client Database of transactie-client.
    * @param {{local_name: string, variants?: object}} media Foto.
    * @returns {Promise<{kind: string, title: string, href: string}[]>} Plekken (hoogstens `USAGE_LIMIT`).
@@ -315,18 +311,6 @@ function createMediaLibrary(options) {
         const href = USAGE_SOURCES[0].href(trip.slug);
         if (!places.some((place) => place.href === href)) places.push({ kind: 'Reis', title: trip.title, href });
       }
-    }
-    for (const entry of USAGE_FILES) {
-      let text = '';
-      try {
-        text = await fs.readFile(path.join(dataDir, entry.file), 'utf8');
-      } catch (error) {
-        // Alleen een ontbrekend bestand betekent "niet gebruikt"; elke andere leesfout gaat door, zodat verwijderen
-        // dan veilig mislukt in plaats van een gebruikte foto weg te halen.
-        if (error.code === 'ENOENT') continue;
-        throw error;
-      }
-      if (names.some((name) => text.includes(`/media/${name}`))) places.push({ kind: entry.kind, title: entry.file, href: entry.href });
     }
     return places;
   };

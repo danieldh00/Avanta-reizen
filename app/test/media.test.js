@@ -362,16 +362,13 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
     const blocked = await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } });
     assert.equal(blocked.status, 409);
     assert.match(blocked.text, /wordt nog gebruikt/);
-    // Ook gebruik in de vaste inhoud (homepage.json) telt.
+    // Ook een tag van het blog met deze foto telt (de vaste inhoud staat sinds W28 in de database).
     await db.query("UPDATE trips SET hero_image_url = NULL WHERE slug = 'namibie-reis'");
-    await fs.writeFile(path.join(dataDir, 'homepage.json'), JSON.stringify({ slides: [{ image: `/media/${item.local_name}` }] }));
+    await db.query("INSERT INTO post_terms (kind, slug, name, image_url) VALUES ('tag', 'safari', 'Safari', $1)", [`/media/${item.local_name}`]);
+    const tagged = await request(`/app/fotobibliotheek/${item.id}/`, { cookie: redactie.cookie });
+    assert.match(tagged.text, /Categorie of tag van het blog: <a href="\/tag\/safari\/">Safari<\/a>/);
     assert.equal((await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 409);
-    await fs.rm(path.join(dataDir, 'homepage.json'));
-    // Een onleesbaar bestand (hier een map) telt niet als "niet gebruikt": verwijderen mislukt veilig.
-    await fs.mkdir(path.join(dataDir, 'homepage.json'));
-    assert.equal((await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } })).status, 500);
-    assert.equal((await db.query('SELECT id FROM media WHERE id = $1', [item.id])).length, 1, 'foto blijft staan');
-    await fs.rm(path.join(dataDir, 'homepage.json'), { recursive: true });
+    await db.query("DELETE FROM post_terms WHERE slug = 'safari'");
     assert.equal((await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: boek.cookie, form: { _csrf: boek.csrf } })).status, 403);
     assert.equal((await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: {} })).status, 403);
     const removed = await request(`/app/fotobibliotheek/${item.id}/verwijderen/`, { cookie: redactie.cookie, form: { _csrf: redactie.csrf } });
