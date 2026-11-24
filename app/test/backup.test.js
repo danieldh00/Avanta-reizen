@@ -236,6 +236,55 @@ test('hersteltest: de melding noemt de stap die echt mislukte (EPIPE na een fout
   assert.equal(failure(0, 0, '', ''), '');
 });
 
+test('hersteltest: de melding zegt waarom de wegwerp-app niet bruikbaar was, zonder gegevens', (testContext) => {
+  const script = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'apps01', 'restore-test.sh'), 'utf8');
+  const kinds = /^APP_ERROR_KINDS=.*$/m.exec(script);
+  assert.ok(kinds, 'APP_ERROR_KINDS staat in restore-test.sh');
+  const functions = [kinds[0], ...['app_error', 'app_failure'].map((name) => {
+    const match = new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?^\\}`, 'm').exec(script);
+    assert.ok(match, `${name} staat in restore-test.sh`);
+    return match[0];
+  })].join('\n');
+  const output = path.join(tempDir(testContext), 'app.log');
+  /**
+   * Draait app_failure met de gegeven toestand van de container en uitvoer van de app.
+   * @param {string[]} state Status, OOMKilled, afsluitcode en of /api/health antwoordde (0/1).
+   * @param {string} appOutput Uitvoer van de app.
+   * @returns {string} De reden.
+   */
+  const failure = (state, appOutput) => {
+    fs.writeFileSync(output, appOutput);
+    return execFileSync('bash', ['-c', `APP_MEMORY=384m APP_WAIT_SEC=120\n${functions}\napp_failure "$@"`, 'test', ...state, output])
+      .toString().trim();
+  };
+  assert.equal(failure(['exited', 'true', '137', '0'], ''), 'geheugenlimiet van de wegwerp-app (384m) bereikt');
+  const crashed = failure(['exited', 'false', '1', '0'],
+    'Avanta Reizen\nStarten mislukt: invalid input syntax for type integer: "jan@example.com" in "users"\u001b\n');
+  assert.equal(crashed, 'de app stopte (code 1): Starten mislukt: invalid input syntax for type integer');
+  assert.doesNotThrow(() => JSON.parse(`{"message":"${crashed}"}`), 'geldige JSON voor record()');
+  // Alleen een soort fout uit de vaste lijst blijft over; andere tekst (namen, paden, waarden) nooit.
+  const leaks = {
+    'Onverwerkte fout: error: duplicate key value violates unique constraint "users_email_key": Key (email)=(jan@example.com)':
+      'Onverwerkte fout: duplicate key value violates unique constraint',
+    'Starten mislukt: invalid input value for enum status "jansen"': 'Starten mislukt',
+    "Starten mislukt: Persoon 'Jan Jansen' niet gevonden": 'Starten mislukt',
+    'Starten mislukt: Jansen ontbreekt': 'Starten mislukt',
+    'Starten mislukt: pad naar bestand jansen.pdf niet gevonden': 'Starten mislukt',
+    'Starten mislukt: gebruiker mevrouw dekker verwijderd': 'Starten mislukt',
+    'Starten mislukt: connect ECONNREFUSED 10.0.0.2:5432': 'Starten mislukt: ECONNREFUSED',
+    'Starten mislukt: role jansen does not exist': 'Starten mislukt: does not exist',
+    'Starten mislukt: password authentication failed for user "avanta_app"': 'Starten mislukt: password authentication failed',
+  };
+  for (const [line, expected] of Object.entries(leaks)) {
+    assert.equal(failure(['exited', 'false', '1', '0'], `${line}\n`), `de app stopte (code 1): ${expected}`);
+  }
+  assert.equal(failure(['running', 'false', '0', '0'], ''), 'geen antwoord van /api/health binnen 120 s');
+  assert.equal(failure(['running', 'false', '0', '0'], 'Onverwerkte fout: Error: kapot\n'),
+    'geen antwoord van /api/health binnen 120 s; Onverwerkte fout');
+  assert.equal(failure(['running', 'false', '0', '1'], ''), '/api/health werkt, maar de homepage geeft geen HTML');
+  assert.ok(script.includes('\\"appOk\\":$app_ok,\\"message\\":\\"$app_message\\"'), 'de reden gaat mee naar Beheer');
+});
+
 test('hersteltest: wegwerpdatabase op een eigen volume, niet in tmpfs, en resten worden opgeruimd', () => {
   const script = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'apps01', 'restore-test.sh'), 'utf8');
   // tmpfs telt mee in --memory; met de foto's in de database stopte PostgreSQL midden in het terugzetten.

@@ -626,7 +626,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     wegwerp-PostgreSQL (eigen container, intern netwerk zonder uitgang, opslag in een eigen volume dat daarna verdwijnt; resten van een afgebroken run ruimt de volgende run op), start daarop het huidige app-image en
     vergelijkt de rijen per tabel met de echte database (`deploy/apps01/restore-test.sh`, systemd-timer
     `avanta-restore-test.timer`, door `install.sh` geïnstalleerd). De app bepaalt en toont de uitslag (geslaagd,
-    waarschuwing bij meer dan 25% verschil, mislukt) via `cli.js restore-test-result`. *Nu testen op de server* zet een
+    waarschuwing bij meer dan 25% verschil, mislukt) via `cli.js restore-test-result`; start de app niet, dan noemt de
+    melding de reden (geheugenlimiet, de eigen foutmelding van de app zonder gegevens, of geen antwoord). *Nu testen op de server* zet een
     verzoek neer dat een path-unit oppikt. Daarnaast test de app wekelijks (en op verzoek) de nieuwste kopie op Google
     Drive: downloaden, volledig ontsleutelen, controleren en vergelijken met de back-up op de server
     (`app/src/backup/restore-test.js`). Aanvragen (3 per uur) staan in het auditlog.

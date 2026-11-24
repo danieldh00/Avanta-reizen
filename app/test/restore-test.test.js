@@ -70,6 +70,8 @@ test('hersteltest: uitslag uit de metingen van het hostscript', () => {
   const noApp = evaluateRun({ ...base, restored: 'pages=1', live: 'pages=1', appOk: false }, now);
   assert.equal(noApp.state, 'mislukt');
   assert.match(noApp.message, /app start niet/);
+  const noAppReason = evaluateRun({ ...base, restored: 'pages=1', live: 'pages=1', appOk: false, message: 'de app stopte (code 1)' }, now);
+  assert.equal(noAppReason.message, 'De app start niet op de teruggezette database: de app stopte (code 1)');
   const odd = evaluateRun({ trigger: 'iets', backup: '../master-key', startedAt: 'gisteren', state: 'mislukt', message: 'a\nb' }, now);
   assert.equal(odd.trigger, 'schema');
   assert.equal(odd.backup, '');

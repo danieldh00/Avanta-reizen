@@ -127,7 +127,11 @@ function evaluateRun(raw, now = Date.now()) {
   run.tables = Object.keys(restored).length;
   run.rows = Object.values(restored).reduce((sum, count) => sum + count, 0);
   if (!run.tables) return { ...run, message: 'Er staan geen tabellen in de teruggezette database.' };
-  if (!run.appOk) return { ...run, message: 'De app start niet op de teruggezette database.' };
+  if (!run.appOk) {
+    // De reden komt van het hostscript (geheugenlimiet, eigen foutmelding van de app, geen antwoord), zonder gegevens.
+    const reason = run.message ? `: ${run.message}` : '.';
+    return { ...run, message: `De app start niet op de teruggezette database${reason}` };
+  }
   run.differences = rowDifferences(restored, live);
   run.state = run.differences.length ? 'waarschuwing' : 'geslaagd';
   run.message = run.differences.length
