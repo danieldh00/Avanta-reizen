@@ -6,5 +6,5 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 
 ## Bestanden
 - testdata voor de testomgeving (W00): `data.js` (verzonnen inhoud, `test-`-slugs, `@example.com`)
-- `seed.js` (`seedBlockReason`: weigert op avantareizen.nl, bij indexeren en zonder `--testomgeving`; vullen via `persons/persons.js` en `payments/payments.js`, verwijderen alleen testdata)
+- `seed.js` (ook berichten via het contactformulier; `seedBlockReason`: weigert op avantareizen.nl, bij indexeren en zonder `--testomgeving`; vullen via `persons/persons.js` en `payments/payments.js`, verwijderen alleen testdata)
 - `cli.js`; via `servertaken.sh testdata`

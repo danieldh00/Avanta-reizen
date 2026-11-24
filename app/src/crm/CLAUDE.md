@@ -5,7 +5,7 @@ Indeling in modules en parallel werken: `docs/ARCHITECTUUR.md`. Wie in deze map 
 een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de root).
 
 ## Bestanden
-- CRM onder `/app/`: `routes.js` (schil: limiet, formuliergrootte, sessie, en de modules via hun ingang `<module>/index.js` in `persons/`, `booking/`, `payments/`, `trips/`, `cms/`, `media/`; een nieuw scherm komt in de ingang van zijn module)
+- CRM onder `/app/`: `routes.js` (schil: limiet, formuliergrootte, sessie, en de modules via hun ingang `<module>/index.js` in `persons/`, `booking/`, `payments/`, `trips/`, `cms/`, `media/`, `contact/`; een nieuw scherm komt in de ingang van zijn module)
 - `login-routes.js` (inloggen, uitloggen, installatie, wachtwoord wijzigen)
 - `dashboard-routes.js` (route van het overzicht; de reisleider krijgt `guide-dashboard.js`)
 - `input.js` (`normalizeEmail`, `textField`)
@@ -17,6 +17,7 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `rights.js`
 - `passwords.js`
 - `layout.js`
+- `menu-counters.js` (tellers naast menu-items, bijv. nieuwe berichten; `counter` in `CRM_MENU`)
 - `ui.js` (bouwstenen voor lijsten)
 - `dashboard.js` (overzicht `/app/`: per recht ophalen en tekenen)
 - `guide-dashboard.js` (overzicht `/app/` voor de reisleider: eigen vertrekken, aantallen, stand van het venster, link naar de deelnemerslijst)

@@ -18,7 +18,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
 - `SITE_URL` is het openbare basisadres (standaard `https://www.avantareizen.nl`, zonder slash aan het eind) voor de
   canonical-URL's, Open Graph-tags, de sitemap en de `Sitemap:`-regel in `robots.txt`.
 - Berichten via het **contactformulier** op `/contact/` komen in de tabel `contact_messages` (status `nieuw`, met de
-  reis als de bezoeker via `/contact/?reis=<slug>` komt). Er wordt nog geen mail verstuurd. Het formulier heeft dezelfde
+  reis als de bezoeker via `/contact/?reis=<slug>` komt); kantoor leest en handelt ze af in het CRM onder *Berichten*. Het formulier heeft dezelfde
   bescherming als aanmelden (`app/src/security/form-guard.js`): herkomstcontrole, 5 per 10 minuten per bezoeker,
   honeypot en ondertekend tijdstempel. Een ingevulde honeypot wordt stil genegeerd; een ongeldig, verlopen (na 3 uur)
   of te snel (binnen 3 seconden) verstuurd formulier komt terug (422) met de ingevulde waarden en een nieuw token.
@@ -315,6 +315,13 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     (`nieuw → bevestigd → aanbetaald → betaald`, en `geannuleerd` met verplichte reden; daarna niet meer te wijzigen),
     notities en de historie (`booking_events`). Een formulier met een verouderde status geeft 409. Geen wachtlijst
     (komt later, met automatisch doorschuiven).
+  - **Berichten** op `/app/berichten/` (recht `berichten`: beheerder en kantoor; `app/src/contact/messages.js` en
+    `message-routes.js`, migratie 30): de berichten van het contactformulier met filter (nieuw, afgehandeld, alle) en
+    zoeken op naam, e-mailadres, telefoon of tekst; per bericht de tekst met regeleinden, de afzender met mail- en
+    belknop en de reis waar het over gaat. *Afhandelen* (met een optionele notitie) legt vast wie en wanneer; een
+    afgehandeld bericht kan weer op nieuw, spam kan weg (met bevestiging). Twee keer afhandelen geeft 409. Alles in het
+    auditlog, zonder de inhoud. Het menu toont naast *Berichten* het aantal nieuwe berichten (`app/src/crm/menu-counters.js`:
+    alleen bij een pagina en met het recht; een nieuwe teller is één regel daar en `counter` bij het menu-item).
   - **Betalingen** op `/app/betalingen/<aanmelding>/` (recht `betalingen`: beheerder, kantoor, boekhouding;
     `app/src/payments/payments.js` en `payment-routes.js`, migratie 26): per aanmelding de verwachte bedragen
     (`booking_charges`: reissom, SGR-garantie € 5 en boekingskosten € 15 bij aanmelden, plus korting,

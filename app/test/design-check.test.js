@@ -101,6 +101,7 @@ test('gewijzigde schermen (CI): module en gedeelde opmaak naar hun schermen', ()
   assert.deepEqual(screensFor(['app/src/booking/crm-routes.js']), ['/app/aanmeldingen/*']);
   assert.deepEqual(screensFor(['app/src/booking/fields.js']), ['/aanmelden/']);
   assert.deepEqual(screensFor(['app/src/contact/routes.js']), ['/contact/']);
+  assert.deepEqual(screensFor(['app/src/contact/message-routes.js']), ['/app/berichten/*']);
   // Gedeelde opmaak: de kernschermen van dat deel, niets van het andere deel.
   assert.deepEqual(new Set(screensFor(['app/public/css/crm.css'])), new Set(CRM_CORE));
   assert.ok(screensFor(['app/public/css/site.css']).every((screen) => !screen.startsWith('/app/')));

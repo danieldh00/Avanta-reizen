@@ -284,6 +284,12 @@
 .crm-nav-collapse .icon { transition: transform .15s; }
 .crm-nav-collapse, .crm-nav-backdrop { display: none; }
 .js .crm-nav-collapse { display: flex; }
+/* Teller naast een menu-item (crm/menu-counters.js), bijvoorbeeld nieuwe berichten; ingeklapt als stip op het icoon. */
+.crm-nav-item { position: relative; }
+.crm-nav-count { flex: none; margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--av-accent); color: var(--av-white); font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; }
+/* Een bericht zoals de afzender het schreef: regeleinden behouden, lange woorden afbreken. */
+.crm-message { margin: 0 0 1rem; padding: .75rem 1rem; background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.crm-message-note { white-space: pre-wrap; }
 
 @media (min-width: 801px) {
   .crm--nav .crm-page { padding-left: var(--crm-nav-w); }
@@ -298,6 +304,7 @@
   .nav-compact .crm-nav-group-title { padding: 0; }
   .nav-compact .crm-nav .crm-nav-item, .nav-compact .crm-nav-collapse { justify-content: center; padding-left: 0; padding-right: 0; }
   .nav-compact .crm-nav-collapse .icon { transform: rotate(180deg); }
+  .nav-compact .crm-nav-count { position: absolute; top: 3px; right: 6px; min-width: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; }
 }
 
 @media (max-width: 800px) {
