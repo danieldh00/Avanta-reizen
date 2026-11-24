@@ -236,6 +236,38 @@ test('hersteltest: de melding noemt de stap die echt mislukte (EPIPE na een fout
   assert.equal(failure(0, 0, '', ''), '');
 });
 
+test('hersteltest: de melding zegt waarom de wegwerp-app niet bruikbaar was, zonder gegevens', (testContext) => {
+  const script = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'apps01', 'restore-test.sh'), 'utf8');
+  const functions = ['app_error', 'app_failure'].map((name) => {
+    const match = new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?^\\}`, 'm').exec(script);
+    assert.ok(match, `${name} staat in restore-test.sh`);
+    return match[0];
+  }).join('\n');
+  const output = path.join(tempDir(testContext), 'app.log');
+  /**
+   * Draait app_failure met de gegeven toestand van de container en uitvoer van de app.
+   * @param {string[]} state Status, OOMKilled, afsluitcode en of /api/health antwoordde (0/1).
+   * @param {string} appOutput Uitvoer van de app.
+   * @returns {string} De reden.
+   */
+  const failure = (state, appOutput) => {
+    fs.writeFileSync(output, appOutput);
+    return execFileSync('bash', ['-c', `APP_MEMORY=384m APP_WAIT_SEC=120\n${functions}\napp_failure "$@"`, 'test', ...state, output])
+      .toString().trim();
+  };
+  assert.equal(failure(['exited', 'true', '137', '0'], ''), 'geheugenlimiet van de wegwerp-app (384m) bereikt');
+  const crashed = failure(['exited', 'false', '1', '0'],
+    'Avanta Reizen\nStarten mislukt: invalid input syntax for type integer: "jan@example.com" in "users"\u001b\n');
+  assert.equal(crashed, "de app stopte (code 1): Starten mislukt: invalid input syntax for type integer: … in 'users'");
+  assert.doesNotMatch(crashed, /example\.com/, 'geen waarden uit de database in de melding');
+  assert.doesNotThrow(() => JSON.parse(`{"message":"${crashed}"}`), 'geldige JSON voor record()');
+  assert.equal(failure(['running', 'false', '0', '0'], ''), 'geen antwoord van /api/health binnen 120 s');
+  assert.equal(failure(['running', 'false', '0', '0'], 'Onverwerkte fout: Error: kapot\n'),
+    'geen antwoord van /api/health binnen 120 s; Onverwerkte fout: Error: kapot');
+  assert.equal(failure(['running', 'false', '0', '1'], ''), '/api/health werkt, maar de homepage geeft geen HTML');
+  assert.ok(script.includes('\\"appOk\\":$app_ok,\\"message\\":\\"$app_message\\"'), 'de reden gaat mee naar Beheer');
+});
+
 test('hersteltest: wegwerpdatabase op een eigen volume, niet in tmpfs, en resten worden opgeruimd', () => {
   const script = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'apps01', 'restore-test.sh'), 'utf8');
   // tmpfs telt mee in --memory; met de foto's in de database stopte PostgreSQL midden in het terugzetten.

@@ -21,7 +21,9 @@ TRIGGER="${1:-schema}"
 [[ "$TRIGGER" == "handmatig" ]] || TRIGGER="schema"
 PG_IMAGE="${PG_IMAGE:-postgres:17@sha256:223efeb196329b55b3b9a13db144956411dbc18e727e59f681c3e0aede6475cf}"
 DB_MEMORY="${DB_MEMORY:-768m}"
-APP_MEMORY="${APP_MEMORY:-384m}"
+# De wegwerp-app zet bij het starten alle foto's uit de database terug op schijf (kleinere varianten opnieuw gemaakt)
+# en maakt na een minuut een back-up; met de foto's in de database is 384 MB daarvoor te krap.
+APP_MEMORY="${APP_MEMORY:-768m}"
 APP_WAIT_SEC="${APP_WAIT_SEC:-120}"
 SUFFIX="$$"
 DB_CONTAINER="avanta-hersteltest-db-$SUFFIX"
@@ -35,6 +37,7 @@ STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 BACKUP=""
 RESTORE_ERRORS="$(mktemp)"
 DECRYPT_ERRORS="$(mktemp)"
+APP_OUTPUT="$(mktemp)"
 
 log() { echo "[$(date '+%F %T')] $*"; }
 
@@ -49,7 +52,7 @@ cleanup() {
   docker rm -f -v "$DB_CONTAINER" >/dev/null 2>&1 || true
   docker volume rm -f "$DB_VOLUME" >/dev/null 2>&1 || true
   docker network rm "$NETWORK" >/dev/null 2>&1 || true
-  rm -f "$RESTORE_ERRORS" "$DECRYPT_ERRORS"
+  rm -f "$RESTORE_ERRORS" "$DECRYPT_ERRORS" "$APP_OUTPUT"
 }
 trap cleanup EXIT
 
@@ -114,6 +117,31 @@ restore_failure() {
   fi
 }
 
+# app_error <bestand met de uitvoer van de app>: de eigen foutmelding van de app bij het starten ("Starten mislukt: …" of
+# "Onverwerkte fout: …"), met dezelfde maskering als restore_lines: namen blijven staan, andere waarden tussen
+# aanhalingstekens worden "…". Geen tekens die de JSON van record() kunnen breken.
+app_error() {
+  grep -m 1 -E '^(Starten mislukt|Onverwerkte fout): ' "$1" \
+    | sed -E 's/"([a-z_][a-z0-9_]{0,62})"/\x27\1\x27/g; s/"[^"]*"/…/g' \
+    | tr -d '"\\' | sed -E 's/[[:cntrl:]]+/ /g; s/  +/ /g; s/ *$//' | cut -c 1-240
+}
+
+# app_failure <status> <oom> <exitcode> <health gezien: 0/1> <uitvoer van de app>: waarom de wegwerp-app niet bruikbaar
+# was, als korte tekst voor de melding in Beheer.
+app_failure() {
+  local detail
+  detail="$(app_error "$5")"
+  if [[ "$2" == true ]]; then
+    echo "geheugenlimiet van de wegwerp-app ($APP_MEMORY) bereikt${detail:+; $detail}"
+  elif [[ "$1" != running ]]; then
+    echo "de app stopte (code $3)${detail:+: $detail}"
+  elif [[ "$4" == 1 ]]; then
+    echo "/api/health werkt, maar de homepage geeft geen HTML"
+  else
+    echo "geen antwoord van /api/health binnen $APP_WAIT_SEC s${detail:+; $detail}"
+  fi
+}
+
 # Eerst "bezig" vastleggen: zo ziet Beheer meteen een lopende test en vraagt een tweede klik geen extra run aan.
 record '"state":"bezig"'
 # Het verzoek van de knop weghalen (de service doet dat al vóór de start; dit is voor een handmatige run).
@@ -170,14 +198,25 @@ docker run -d --name "$APP_CONTAINER" --label "$TEST_LABEL" --network "$NETWORK"
   -e DATABASE_URL="postgres://postgres:hersteltest@db:5432/postgres" -e SITE_URL="https://hersteltest.invalid" \
   -e TRUST_PROXY= "$image" >/dev/null || fail "Wegwerp-app starten mislukt."
 app_ok=false
+health_seen=0
 for _ in $(seq 1 "$APP_WAIT_SEC"); do
   if docker exec "$APP_CONTAINER" wget -qO- http://127.0.0.1:3400/api/health 2>/dev/null | grep -q '"ok":true'; then
+    health_seen=1
     docker exec "$APP_CONTAINER" wget -qO- http://127.0.0.1:3400/ 2>/dev/null | grep -qi '<html' && app_ok=true
     break
   fi
+  # Gestopt (fout bij het starten, geheugenlimiet): niet de hele wachttijd blijven proberen.
+  [[ "$(docker inspect -f '{{.State.Running}}' "$APP_CONTAINER" 2>/dev/null)" == true ]] || break
   sleep 1
 done
+app_message=""
+if [[ "$app_ok" != true ]]; then
+  docker logs "$APP_CONTAINER" >"$APP_OUTPUT" 2>&1 || true
+  read -r app_status app_oom app_exit < <(docker inspect -f '{{.State.Status}} {{.State.OOMKilled}} {{.State.ExitCode}}' "$APP_CONTAINER" 2>/dev/null || echo "onbekend false 0")
+  app_message="$(app_failure "$app_status" "$app_oom" "$app_exit" "$health_seen" "$APP_OUTPUT")"
+  log "Wegwerp-app niet bruikbaar: $app_message"
+fi
 
 live="$(docker compose exec -T db psql -U avanta -d avanta -Atc "$COUNT_SQL" | tr -cd 'a-z0-9_=,')"
-record "\"restored\":\"$restored\",\"live\":\"$live\",\"schemaVersion\":${schema:-0},\"appOk\":$app_ok"
+record "\"restored\":\"$restored\",\"live\":\"$live\",\"schemaVersion\":${schema:-0},\"appOk\":$app_ok,\"message\":\"$app_message\""
 log "Klaar: app gestart=$app_ok; teruggezet: $restored"
