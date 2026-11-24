@@ -224,3 +224,26 @@ test('metingen in de browser: overlap, knophoogte, scheve rand en overloop', { s
   </main></body>`);
   assert.deepEqual(await page.evaluate(runPageChecks, { mobile: true }), [], 'een nette pagina geeft geen bevindingen');
 });
+
+test('metingen in de browser: afgekapt telt geen schuifbalk of verborgen dia, wel tekst die eruit loopt', { skip: !playwright && 'Playwright niet beschikbaar' }, async (t) => {
+  const browser = await playwright.chromium.launch();
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 375, height: 800 } });
+  // Schuifbalk met kaarten binnen het afknipvak, plus een verborgen dia die buiten het vak staat: geen melding.
+  await page.setContent(`<!doctype html><body style="margin:0;font:16px sans-serif">
+    <div id="vak" style="overflow:hidden;width:375px">
+      <ul style="display:flex;overflow-x:auto;margin:0;padding:0;list-style:none">
+        <li style="flex:0 0 300px">Kaart een</li><li style="flex:0 0 300px">Kaart twee</li>
+      </ul>
+      <p style="visibility:hidden;margin:0;position:relative;left:400px;white-space:nowrap">Verborgen dia</p>
+    </div>
+  </body>`);
+  const clean = await page.evaluate(runPageChecks, { mobile: true });
+  assert.ok(!clean.some((finding) => finding.check === 'afgekapt'), 'schuifbalk en verborgen dia geven geen afgekapt');
+  // Tekst die zelf buiten het vak loopt: wel een melding.
+  await page.setContent(`<!doctype html><body style="margin:0;font:16px sans-serif">
+    <div style="overflow:hidden;width:200px"><p style="white-space:nowrap;width:max-content;margin:0">Deze tekst is veel te lang voor het vak en valt weg</p></div>
+  </body>`);
+  const clipped = await page.evaluate(runPageChecks, { mobile: true });
+  assert.ok(clipped.some((finding) => finding.check === 'afgekapt'), 'echte afkapping blijft een melding');
+});

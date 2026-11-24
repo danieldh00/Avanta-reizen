@@ -159,14 +159,17 @@ function runPageChecks(context) {
     }
     if ((clipsX || clipsY) && element.clientWidth > 0) {
       // Een afknipcontainer rond afbeeldingen (foto's met afgeronde hoeken) is geen afgekapte tekst. Tekst in een
-      // eigen scroll- of afknipvak daarbinnen (schuifbalk met reizen) telt bij dat vak, en verborgen tekst (inactieve
-      // dia's van een carrousel) is niet zichtbaar afgekapt.
+      // eigen scroll- of afknipvak daarbinnen (schuifbalk met reizen) telt bij dat vak, zolang dat vak zelf binnen dit
+      // element valt (anders duwt het vak de tekst naar buiten en blijft het een melding). Onzichtbare tekst
+      // (`visibility: hidden`, zoals inactieve dia's van een carrousel) is niet zichtbaar afgekapt.
+      const outerBox = element.getBoundingClientRect();
       const nestedOrHidden = (child) => {
         if (getComputedStyle(child).visibility === 'hidden') return true;
         for (let ancestor = child.parentElement; ancestor && ancestor !== element; ancestor = ancestor.parentElement) {
           const ancestorStyle = getComputedStyle(ancestor);
-          if (ancestor.getAttribute('aria-hidden') === 'true') return true;
-          if (/(auto|scroll|hidden|clip)/.test(`${ancestorStyle.overflowX} ${ancestorStyle.overflowY}`)) return true;
+          if (!/(auto|scroll|hidden|clip)/.test(`${ancestorStyle.overflowX} ${ancestorStyle.overflowY}`)) continue;
+          const box = ancestor.getBoundingClientRect();
+          if (box.left >= outerBox.left - 1 && box.right <= outerBox.right + 1 && box.bottom <= outerBox.bottom + 2) return true;
         }
         return false;
       };
