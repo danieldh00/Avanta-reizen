@@ -205,7 +205,9 @@ function createSiteRouter(options) {
     const site = res.locals.site;
     if (!site.indexable || !site.llms.enabled) return next();
     const [destinations, types] = await Promise.all([content.categories('bestemming'), content.categories('type')]);
-    return res.set('Cache-Control', 'public, max-age=600').type('text/plain').send(seo.llmsTxt(site, { categories: [...types, ...destinations] }));
+    // Alleen landen met komende reizen (of op de homepage): de lijst met alle landen van de wereld hoort er niet in.
+    const shownDestinations = destinations.filter((destination) => destination.trip_count > 0 || destination.show_on_home);
+    return res.set('Cache-Control', 'public, max-age=600').type('text/plain').send(seo.llmsTxt(site, { categories: [...types, ...shownDestinations] }));
   }));
 
   router.get('/reis/', asyncRoute(async (req, res) => {

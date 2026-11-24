@@ -111,6 +111,8 @@ test('fotobibliotheek in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL o
   await admin.close();
   const db = createDatabase(withSchema(DATABASE_URL));
   await db.migrate();
+  // Begin zonder de lijst met alle landen uit migratie 33: deze test maakt zijn eigen landen.
+  await db.query('DELETE FROM trip_categories WHERE iso_code IS NOT NULL');
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'avanta-media-'));
   const mediaDir = path.join(dataDir, 'media');
   await fs.mkdir(mediaDir);

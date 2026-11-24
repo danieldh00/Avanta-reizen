@@ -1,7 +1,8 @@
 /**
  * Reistypes en landen (CMS-pakket G1, migratie 14): de tabel `trip_categories` met soort (`type`, `bestemming`,
  * `overig`), naam, slug, icoon (uit de vaste set eigen iconen), inleiding, tekst, foto uit de fotobibliotheek, volgorde
- * en "tonen op de homepage". Dubbelingen uit de import (bijv. `saudi-arabie-2`) kunnen worden samengevoegd: de reizen en
+ * en "tonen op de homepage". Alle landen van de wereld staan erin met hun ISO 3166-1-code (`iso_code`, migratie 33).
+ * Dubbelingen uit de import (bijv. `saudi-arabie-2`) kunnen worden samengevoegd: de reizen en
  * foto's gaan naar de andere categorie en het oude adres krijgt een 301. Een gewijzigde slug maakt ook een 301.
  * Alle vragen met gebonden parameters; elke wijziging met audit in dezelfde transactie.
  */
@@ -25,7 +26,7 @@ const IMAGE_WIDTH = 1600;
 
 /** Kolommen van een categorie (nooit `SELECT *`). */
 const CATEGORY_COLUMNS = `c.id, c.slug, c.name, c.kind, c.icon, c.intro, c.body_html, c.image_url, c.sort_order, c.show_on_home,
-  c.legacy_id, c.updated_at`;
+  c.legacy_id, c.iso_code, c.updated_at`;
 
 /**
  * Leest en controleert de velden van een categorie uit een formulier.
@@ -88,7 +89,7 @@ function createCategories(options) {
    * @returns {Promise<object[]>} Categorieën op volgorde en naam.
    */
   const list = (filter = {}) => db.query(
-    `SELECT c.id, c.slug, c.name, c.kind, c.icon, c.image_url, c.sort_order, c.show_on_home,
+    `SELECT c.id, c.slug, c.name, c.kind, c.icon, c.image_url, c.sort_order, c.show_on_home, c.iso_code,
             (SELECT count(*)::int FROM trip_category_links l WHERE l.category_id = c.id) AS trip_count,
             (SELECT count(*)::int FROM trip_category_links l JOIN trips t ON t.id = l.trip_id
               WHERE l.category_id = c.id AND t.departure_date >= (now() AT TIME ZONE 'Europe/Amsterdam')::date) AS upcoming_count,

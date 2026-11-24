@@ -116,11 +116,12 @@ function createCategoryRoutes(options) {
         <nav class="media-folders" aria-label="Soorten"><ul>${groups.map((group) => html`<li><a href="#soort-${group.kind}">${KIND_TITLES[group.kind]} <span class="media-folders__count">${group.rows.length}</span></a></li>`)}</ul></nav>
         ${groups.map((group) => html`<h2 id="soort-${group.kind}">${KIND_TITLES[group.kind]}</h2>
           ${group.rows.length ? html`<div class="crm-table-wrap"><table class="crm-table">
-            <thead><tr><th>Naam</th><th>Slug</th>${group.kind === 'type' ? html`<th>Icoon</th>` : ''}<th>Volgorde</th><th>Homepage</th><th>Reizen (komend)</th><th>Foto's</th></tr></thead>
+            <thead><tr><th>Naam</th><th>Slug</th>${group.kind === 'type' ? html`<th>Icoon</th>` : ''}${group.kind === 'bestemming' ? html`<th>Code</th>` : ''}<th>Volgorde</th><th>Homepage</th><th>Reizen (komend)</th><th>Foto's</th></tr></thead>
             <tbody>${group.rows.map((row) => html`<tr>
               <td><a href="${BASE}${row.id}/">${row.name}</a></td>
               <td>${row.slug}</td>
               ${group.kind === 'type' ? html`<td><span class="crm-icon" title="${categoryIconName(row)}">${icon(categoryIconName(row))}</span></td>` : ''}
+              ${group.kind === 'bestemming' ? html`<td>${row.iso_code || '–'}</td>` : ''}
               <td>${String(row.sort_order)}</td>
               <td>${row.show_on_home ? 'ja' : '–'}</td>
               <td>${String(row.trip_count)} (${String(row.upcoming_count)})</td>
@@ -188,6 +189,7 @@ function createCategoryRoutes(options) {
             <h2>Gebruik</h2>
             <dl class="crm-facts">
               <dt>Soort</dt><dd>${KINDS[category.kind] || category.kind}</dd>
+              ${category.iso_code ? html`<dt>Landcode (ISO)</dt><dd>${category.iso_code}</dd>` : ''}
               <dt>Reizen</dt><dd>${String(category.trip_count)}</dd>
               <dt>Foto's in de bibliotheek</dt><dd>${category.kind === 'bestemming' && category.photo_count ? html`<a href="/app/fotobibliotheek/?land=${category.id}">${String(category.photo_count)}</a>` : String(category.photo_count)}</dd>
               <dt>Adres</dt><dd><code>${categoryPath(category.slug)}</code></dd>

@@ -75,6 +75,8 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
   await admin.close();
   const db = createDatabase(withSchema(DATABASE_URL));
   await db.migrate();
+  // Begin zonder de lijst met alle landen uit migratie 33: deze test maakt zijn eigen landen.
+  await db.query('DELETE FROM trip_categories WHERE iso_code IS NOT NULL');
   const app = createApp({ db, masterKey: MASTER_KEY });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -153,6 +155,10 @@ test('reizen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt'
     assert.equal(created.status, 303);
     const [row] = await db.query("SELECT id, slug, price_cents, deposit_cents, capacity, published, managed_in_crm, body_html FROM trips WHERE trip_code = '27-NAM-1'");
     tripId = row.id;
+    // Landen: een zoekveld boven de lange lijst (verborgen tot JavaScript het toont); reistypes zonder.
+    const form = await request(`/app/reizen/${tripId}/`, { cookie: kantoor.cookie });
+    assert.match(form.text, /<fieldset class="crm-checklist" data-checklist-filter><legend>Landen<\/legend><input class="crm-checklist-search" type="search"[^>]*data-checklist-search hidden>/);
+    assert.match(form.text, /<fieldset class="crm-checklist"><legend>Reistypes<\/legend><label>/);
     assert.equal(row.slug, '20-dagen-namibie');
     assert.equal(row.price_cents, 184900);
     assert.equal(row.deposit_cents, 30000);

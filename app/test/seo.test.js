@@ -112,6 +112,8 @@ test('SEO-tags, sitemap en robots.txt via de app', { skip: !DATABASE_URL && 'TES
   await admin.close();
   const db = createDatabase(withSchema(DATABASE_URL));
   await db.migrate();
+  // Begin zonder de lijst met alle landen uit migratie 33: deze test maakt zijn eigen landen.
+  await db.query('DELETE FROM trip_categories WHERE iso_code IS NOT NULL');
 
   const [guide] = await db.query("INSERT INTO guides (slug, name, intro) VALUES ('harmen', 'Harmen', 'Ervaren') RETURNING id");
   const [category] = await db.query("INSERT INTO trip_categories (slug, name, kind, image_url) VALUES ('albanie', 'Albanië', 'bestemming', '/media/albanie.jpg') RETURNING id");

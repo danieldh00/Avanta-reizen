@@ -222,3 +222,29 @@ document.addEventListener('DOMContentLoaded', function setupTabs() {
     });
   });
 });
+
+/**
+ * Zoekveld boven een lange lijst vinkjes (`.crm-checklist[data-checklist-filter]`, bijvoorbeeld alle landen bij een
+ * reis): typen verbergt de vinkjes waarvan de naam het niet bevat; aangevinkte blijven altijd zichtbaar. Zonder
+ * JavaScript blijft het veld verborgen en staat de hele lijst er.
+ */
+document.addEventListener('DOMContentLoaded', function setupChecklistFilter() {
+  Array.prototype.forEach.call(document.querySelectorAll('[data-checklist-filter]'), (list) => {
+    const input = list.querySelector('[data-checklist-search]');
+    if (!input) return;
+    input.hidden = false;
+    /**
+     * Tekst zonder accenten en hoofdletters, om te vergelijken.
+     * @param {string} text Tekst.
+     * @returns {string} Vergelijkbare tekst.
+     */
+    const plain = (text) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    input.addEventListener('input', () => {
+      const term = plain(input.value);
+      Array.prototype.forEach.call(list.querySelectorAll('label'), (label) => {
+        const box = label.querySelector('input[type="checkbox"]');
+        label.hidden = Boolean(term) && !(box && box.checked) && !plain(label.textContent).includes(term);
+      });
+    });
+  });
+});
