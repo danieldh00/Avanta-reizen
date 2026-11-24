@@ -3,9 +3,10 @@
 # avanta-restore-test.timer (zondag 04:30) of avanta-restore-test-now.path (knop *Nu testen* in de app).
 #
 # Wat het doet:
-#   1. neemt de nieuwste back-up uit de app (`cli.js list`) en ontsleutelt die als stroom (niets onversleuteld op schijf);
+#   1. neemt de nieuwste back-up uit de app (`cli.js list`) en ontsleutelt die als stroom (geen ontsleuteld dumpbestand);
 #   2. zet die terug in een wegwerp-PostgreSQL 17 (eigen container, intern netwerk zonder uitgang, geheugenlimiet,
-#      opslag in tmpfs);
+#      opslag in een eigen volume dat bij het opruimen verdwijnt; resten van een afgebroken run ruimt de
+#      volgende run op);
 #   3. start het huidige app-image tegen die database (zelfde intern netwerk: geen mail of andere verbindingen naar
 #      buiten) en controleert /api/health en de homepage; migraties van een nieuwere versie lopen daarbij mee;
 #   4. telt de rijen per tabel in de teruggezette en de echte database;
@@ -26,6 +27,10 @@ SUFFIX="$$"
 DB_CONTAINER="avanta-hersteltest-db-$SUFFIX"
 APP_CONTAINER="avanta-hersteltest-app-$SUFFIX"
 NETWORK="avanta-hersteltest-$SUFFIX"
+DB_VOLUME="avanta-hersteltest-data-$SUFFIX"
+# Label op alles wat de test aanmaakt (containers, netwerk, volume): zo ruimt een volgende run ook resten van een
+# afgebroken run op (SIGKILL, stroomuitval), waarin de teruggezette database anders op schijf zou blijven staan.
+TEST_LABEL="nl.avantareizen.hersteltest=1"
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 BACKUP=""
 RESTORE_ERRORS="$(mktemp)"
@@ -42,10 +47,25 @@ app_exec() { docker compose exec -T app "$@"; }
 cleanup() {
   docker rm -f -v "$APP_CONTAINER" >/dev/null 2>&1 || true
   docker rm -f -v "$DB_CONTAINER" >/dev/null 2>&1 || true
+  docker volume rm -f "$DB_VOLUME" >/dev/null 2>&1 || true
   docker network rm "$NETWORK" >/dev/null 2>&1 || true
   rm -f "$RESTORE_ERRORS" "$DECRYPT_ERRORS"
 }
 trap cleanup EXIT
+
+# cleanup_leftovers: containers, volumes en netwerken met het testlabel van een eerdere, afgebroken run weghalen. Veilig
+# omdat de flock hierboven garandeert dat er geen andere hersteltest loopt.
+cleanup_leftovers() {
+  local ids
+  ids="$(docker ps -aq --filter "label=$TEST_LABEL")"
+  [[ -n "$ids" ]] && docker rm -f -v $ids >/dev/null 2>&1
+  ids="$(docker volume ls -q --filter "label=$TEST_LABEL")"
+  [[ -n "$ids" ]] && docker volume rm -f $ids >/dev/null 2>&1
+  ids="$(docker network ls -q --filter "label=$TEST_LABEL")"
+  [[ -n "$ids" ]] && docker network rm $ids >/dev/null 2>&1
+  return 0
+}
+cleanup_leftovers
 
 # record <json-velden>: geeft de uitslag aan de app. Alleen vaste teksten, getallen en door de app gecontroleerde namen.
 record() {
@@ -103,9 +123,13 @@ BACKUP="$(app_exec node src/backup/cli.js list | head -n 1 | cut -f 1)"
 [[ "$BACKUP" =~ ^avanta-[0-9]{8}-[0-9]{6}\.dump\.enc$ ]] || { BACKUP=""; fail "Geen back-up gevonden op de server."; }
 log "Hersteltest met $BACKUP ($TRIGGER)."
 
-docker network create --internal "$NETWORK" >/dev/null || fail "Testnetwerk maken mislukt."
-docker run -d --name "$DB_CONTAINER" --network "$NETWORK" --network-alias db --memory "$DB_MEMORY" \
-  --tmpfs /var/lib/postgresql/data:rw,size=2g -e POSTGRES_PASSWORD=hersteltest "$PG_IMAGE" >/dev/null \
+docker network create --internal --label "$TEST_LABEL" "$NETWORK" >/dev/null || fail "Testnetwerk maken mislukt."
+# Opslag op schijf in een eigen volume met het testlabel (cleanup en cleanup_leftovers ruimen het op), niet in tmpfs: tmpfs telt mee in de
+# geheugenlimiet van de container, en met de foto's in de database (enkele honderden MB) stopte de kernel PostgreSQL
+# midden in het terugzetten ("server closed the connection unexpectedly"). De echte database staat ook op schijf.
+docker volume create --label "$TEST_LABEL" "$DB_VOLUME" >/dev/null || fail "Testvolume maken mislukt."
+docker run -d --name "$DB_CONTAINER" --label "$TEST_LABEL" --network "$NETWORK" --network-alias db --memory "$DB_MEMORY" \
+  --mount "type=volume,src=$DB_VOLUME,dst=/var/lib/postgresql/data" -e POSTGRES_PASSWORD=hersteltest "$PG_IMAGE" >/dev/null \
   || fail "Wegwerpdatabase starten mislukt."
 ready=0
 for _ in $(seq 1 60); do
@@ -142,7 +166,7 @@ schema="$(docker exec "$DB_CONTAINER" psql -U postgres -d postgres -Atc 'SELECT 
 # De wegwerp-app: hetzelfde image als de draaiende app, alleen in het interne netwerk.
 image="$(docker inspect -f '{{.Config.Image}}' "$(docker compose ps -q app)" 2>/dev/null)"
 [[ -n "$image" ]] || fail "Image van de app niet gevonden."
-docker run -d --name "$APP_CONTAINER" --network "$NETWORK" --memory "$APP_MEMORY" \
+docker run -d --name "$APP_CONTAINER" --label "$TEST_LABEL" --network "$NETWORK" --memory "$APP_MEMORY" \
   -e DATABASE_URL="postgres://postgres:hersteltest@db:5432/postgres" -e SITE_URL="https://hersteltest.invalid" \
   -e TRUST_PROXY= "$image" >/dev/null || fail "Wegwerp-app starten mislukt."
 app_ok=false
