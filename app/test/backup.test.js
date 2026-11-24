@@ -198,6 +198,39 @@ test('hersteltest: foutregels van pg_restore zonder rijgegevens en veilig voor d
   }
 });
 
+test('hersteltest: de melding noemt de stap die echt mislukte (EPIPE na een fout van pg_restore)', (t) => {
+  const script = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'apps01', 'restore-test.sh'), 'utf8');
+  const functions = ['restore_lines', 'restore_error', 'decrypt_error', 'restore_failure'].map((name) => {
+    const match = new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?^\\}`, 'm').exec(script);
+    assert.ok(match, `${name} staat in restore-test.sh`);
+    return match[0];
+  }).join('\n');
+  const dir = tempDir(t);
+  /**
+   * Draait restore_failure met de gegeven afsluitcodes en foutuitvoer.
+   * @param {number} decryptCode Afsluitcode van het ontsleutelen.
+   * @param {number} restoreCode Afsluitcode van pg_restore.
+   * @param {string} decryptErrors Foutuitvoer van het ontsleutelen.
+   * @param {string} restoreErrors Foutuitvoer van pg_restore.
+   * @returns {string} De melding (leeg als beide slaagden).
+   */
+  const failure = (decryptCode, restoreCode, decryptErrors, restoreErrors) => {
+    fs.writeFileSync(path.join(dir, 'decrypt.err'), decryptErrors);
+    fs.writeFileSync(path.join(dir, 'restore.err'), restoreErrors);
+    return execFileSync('bash', ['-c', `${functions}\nrestore_failure "$@"`, 'test', String(decryptCode), String(restoreCode),
+      path.join(dir, 'decrypt.err'), path.join(dir, 'restore.err')]).toString().trim();
+  };
+  const restoreError = 'pg_restore: error: could not execute query: ERROR:  relation "pages" already exists\n';
+  assert.equal(failure(1, 1, 'Mislukt: write EPIPE\n', restoreError),
+    "Terugzetten met pg_restore mislukt: could not execute query: ERROR: relation 'pages' already exists");
+  assert.equal(failure(1, 1, 'Mislukt: Deze back-up is gemaakt met een andere hoofdsleutel.\n',
+    'pg_restore: error: input file is too short (read 0, expected 5)\n'),
+  'Ontsleutelen mislukt: Deze back-up is gemaakt met een andere hoofdsleutel.');
+  assert.equal(failure(0, 1, '', restoreError).startsWith('Terugzetten met pg_restore mislukt: '), true);
+  assert.equal(failure(1, 0, 'Mislukt: "Onjuiste tag"\u001b\n', ''), 'Ontsleutelen mislukt: Onjuiste tag');
+  assert.equal(failure(0, 0, '', ''), '');
+});
+
 test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
