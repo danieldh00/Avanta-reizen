@@ -120,11 +120,11 @@ test('CRM: de scripts van de editor worden geladen, na crm.js en uitgesteld', ()
 test('editor: script en opmaak passen bij elkaar en zetten nooit ongeschoonde HTML in de pagina', () => {
   const publicDir = path.join(__dirname, '..', 'public');
   const script = fs.readFileSync(path.join(publicDir, 'js', 'rich-editor.js'), 'utf8');
-  for (const hook of ['textarea.cms-richtext', 'AvantaRichText', 'DOMParser', 'defaultParagraphSeparator', "'paste'", "'submit'", 'aria-pressed', 'contentEditable']) assert.ok(script.includes(hook), hook);
+  for (const hook of ['textarea.cms-richtext', 'AvantaRichText', 'DOMParser', 'defaultParagraphSeparator', "'paste'", "'submit'", 'aria-pressed', 'contentEditable', 'maxLength', 'rich-editor__count']) assert.ok(script.includes(hook), hook);
   assert.doesNotMatch(script, /innerHTML|outerHTML|insertAdjacentHTML/, 'geen HTML rechtstreeks in de pagina');
   assert.doesNotMatch(fs.readFileSync(path.join(publicDir, 'js', 'crm.js'), 'utf8'), /setupRichText/, 'de oude knoppen zijn weg');
   const css = fs.readFileSync(path.join(publicDir, 'css', 'crm.css'), 'utf8');
-  for (const selector of ['.rich-editor {', '.rich-editor__toolbar {', '.rich-editor__content {', '.rich-editor__content:focus-visible', '[aria-pressed="true"]']) assert.ok(css.includes(selector), selector);
+  for (const selector of ['.rich-editor {', '.rich-editor__toolbar {', '.rich-editor__content {', '.rich-editor__content:focus-visible', '[aria-pressed="true"]', '.rich-editor__count.is-over']) assert.ok(css.includes(selector), selector);
 });
 
 test('blokveld met opgemaakte tekst: tekstvak voor de editor met uitleg', () => {

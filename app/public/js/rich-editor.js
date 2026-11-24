@@ -75,9 +75,25 @@ document.addEventListener('DOMContentLoaded', function setupRichEditors() {
     editor.replaceChildren(...nodesFromHtml(area.value));
     let sourceMode = false;
 
+    // Heeft het tekstvak een maximum (`maxlength`), dan toont een teller de lengte van de HTML; de browser controleert
+    // `maxlength` niet bij een waarde die het script zet. De server weigert een te lange tekst altijd zelf.
+    const maxLength = area.maxLength > 0 ? area.maxLength : 0;
+    const counter = document.createElement('span');
+    counter.className = 'field__help rich-editor__count';
+    counter.setAttribute('aria-live', 'polite');
+
+    /** Werkt de teller bij en markeert een te lange tekst. */
+    const updateCounter = () => {
+      if (!maxLength) return;
+      const over = area.value.length > maxLength;
+      counter.textContent = `${area.value.length} van ${maxLength} tekens (met opmaak)${over ? ': te lang, maak de tekst korter' : ''}`;
+      counter.classList.toggle('is-over', over);
+    };
+
     /** Zet de opgeschoonde HTML uit de editor in het tekstvak (het formulierveld). */
     const sync = () => {
       if (!sourceMode) area.value = clean.cleanNodes(editor.childNodes);
+      updateCounter();
     };
 
     /** Een lege editor krijgt een lege alinea, zodat de eerste tekst meteen in een `<p>` komt. */
@@ -209,5 +225,10 @@ document.addEventListener('DOMContentLoaded', function setupRichEditors() {
     wrapper.appendChild(bar);
     wrapper.appendChild(editor);
     wrapper.appendChild(area);
+    if (maxLength) {
+      area.addEventListener('input', updateCounter);
+      wrapper.appendChild(counter);
+      updateCounter();
+    }
   });
 });
