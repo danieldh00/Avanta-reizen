@@ -29,6 +29,7 @@ NETWORK="avanta-hersteltest-$SUFFIX"
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 BACKUP=""
 RESTORE_ERRORS="$(mktemp)"
+DECRYPT_ERRORS="$(mktemp)"
 
 log() { echo "[$(date '+%F %T')] $*"; }
 
@@ -42,7 +43,7 @@ cleanup() {
   docker rm -f -v "$APP_CONTAINER" >/dev/null 2>&1 || true
   docker rm -f -v "$DB_CONTAINER" >/dev/null 2>&1 || true
   docker network rm "$NETWORK" >/dev/null 2>&1 || true
-  rm -f "$RESTORE_ERRORS"
+  rm -f "$RESTORE_ERRORS" "$DECRYPT_ERRORS"
 }
 trap cleanup EXIT
 
@@ -66,6 +67,31 @@ restore_lines() {
 # restore_error <bestand>: de eerste foutregel uit restore_lines, zonder "error: ", voor de melding in Beheer.
 restore_error() {
   restore_lines "$1" | grep -m 1 '^error: ' | sed 's/^error: //; s/ *$//'
+}
+
+# decrypt_error <bestand>: de melding van `cli.js decrypt` ("Mislukt: …", eigen tekst van de app zonder gegevens uit de
+# back-up) als korte tekst zonder tekens die de JSON van record() kunnen breken.
+decrypt_error() {
+  grep -m 1 '^Mislukt: ' "$1" | sed -E 's/^Mislukt: //' | tr -d '"\\' | sed -E 's/[[:cntrl:]]+/ /g; s/  +/ /g; s/ *$//' \
+    | cut -c 1-240
+}
+
+# restore_failure <code ontsleutelen> <code pg_restore> <stderr ontsleutelen> <stderr pg_restore>: de melding voor
+# de stap die echt mislukte, of niets als beide slaagden. Stopt pg_restore bij een fout, dan krijgt het ontsleutelen een
+# gesloten pijp (EPIPE) en eindigt het ook met een fout; een fout bij het ontsleutelen is dus alleen de oorzaak als het
+# geen EPIPE is. Stopt het ontsleutelen zelf (andere sleutel, beschadigd), dan meldt pg_restore daarna alleen een te
+# kort bestand, en is het ontsleutelen de oorzaak.
+restore_failure() {
+  local decrypt_detail restore_detail
+  decrypt_detail="$(decrypt_error "$3")"
+  restore_detail="$(restore_error "$4")"
+  if [[ "$1" != 0 && "$decrypt_detail" != *EPIPE* ]]; then
+    echo "Ontsleutelen mislukt${decrypt_detail:+: $decrypt_detail}"
+  elif [[ "$2" != 0 ]]; then
+    echo "Terugzetten met pg_restore mislukt${restore_detail:+: $restore_detail}"
+  elif [[ "$1" != 0 ]]; then
+    echo "Ontsleutelen mislukt${decrypt_detail:+: $decrypt_detail}"
+  fi
 }
 
 # Eerst "bezig" vastleggen: zo ziet Beheer meteen een lopende test en vraagt een tweede klik geen extra run aan.
@@ -93,16 +119,15 @@ sleep 2
 # Dezelfde opties als bij een echt herstel (restore-backup.sh): de dump is van één schema (`pg_dump --schema=public`)
 # en bevat daardoor `CREATE SCHEMA public`; zonder --clean --if-exists botst dat met het lege schema public van een
 # nieuwe database ("schema public already exists") en breekt de hele transactie af.
-app_exec node src/backup/cli.js decrypt "$BACKUP" - \
+app_exec node src/backup/cli.js decrypt "$BACKUP" - 2>"$DECRYPT_ERRORS" \
   | docker exec -i "$DB_CONTAINER" pg_restore -U postgres -d postgres --clean --if-exists --no-owner --no-acl \
     --single-transaction 2>"$RESTORE_ERRORS"
 statuses=("${PIPESTATUS[@]}")
-[[ "${statuses[0]}" == 0 ]] || fail "Ontsleutelen mislukt (beschadigde back-up of andere hoofdsleutel)."
-if [[ "${statuses[1]}" != 0 ]]; then
-  # Alle fout- en waarschuwingsregels in het hostlog (journalctl), net als de melding zonder rijgegevens.
+failure="$(restore_failure "${statuses[0]}" "${statuses[1]}" "$DECRYPT_ERRORS" "$RESTORE_ERRORS")"
+if [[ -n "$failure" ]]; then
+  # Alle fout- en waarschuwingsregels van pg_restore in het hostlog (journalctl), net als de melding zonder rijgegevens.
   restore_lines "$RESTORE_ERRORS" >&2
-  detail="$(restore_error "$RESTORE_ERRORS")"
-  fail "Terugzetten met pg_restore mislukt${detail:+: $detail}"
+  fail "$failure"
 fi
 
 COUNT_SQL="SELECT coalesce(string_agg(format('%s=%s', c.relname, (xpath('/row/n/text()', query_to_xml(format('SELECT count(*) AS n FROM public.%I', c.relname), false, true, '')))[1]::text), ',' ORDER BY c.relname), '') FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r'"
