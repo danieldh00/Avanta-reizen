@@ -14,6 +14,7 @@ const { createPasswordCheck } = require('../security/password-check');
 const { renderCrmPage } = require('./layout');
 const { createLoginRoutes, generateSetupCode, normalizeSetupCode, MAX_FAILED_LOGINS, LOCK_MINUTES, MAX_FAILED_LOGINS_PER_ACCOUNT } = require('./login-routes');
 const { createDashboardRoutes } = require('./dashboard-routes');
+const { createSearchRoutes } = require('./search-routes');
 const { normalizeEmail, textField } = require('./input');
 const { createUserRoutes } = require('./users');
 const { createPersonsModuleRoutes } = require('../persons');
@@ -81,6 +82,7 @@ function createCrmRouter(options) {
   // Toegang en overzicht.
   router.use(createLoginRoutes({ db, auth, twoFactor, passwordCheck, setupCode: options.setupCode, now: options.now }));
   router.use(createDashboardRoutes({ db, auth, twoFactor, settings: options.settings, monitor: options.monitor, backups: options.backups, systemUpdate: options.systemUpdate, appLog: options.appLog, now: options.now }));
+  router.use(createSearchRoutes({ db, auth }));
   router.use(createTwoFactorRoutes({ db, auth, twoFactor, now: options.now }));
   router.use(createUserRoutes({ db, auth, twoFactor, passwordCheck, normalizeEmail, textField }));
   // De modules met een eigen ingang: elk koppelt zijn eigen routes (`<module>/index.js`). Elke module heeft eigen

@@ -309,6 +309,12 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     wijzigen kan niet): reizen en foto's gaan naar de gekozen categorie, de dubbeling
     verdwijnt en zijn adres verwijst door. Verwijderen kan alleen als er geen reizen en foto's aan hangen. Alles in de
     auditlog.
+  - **Zoeken over het hele CRM**: het zoekveld in de kopbalk (op een telefoon een zoekknop) gaat naar `/app/zoeken/`
+    (`app/src/crm/search.js` en `search-routes.js`). Eén zoekterm (minstens 2 tekens, alle woorden moeten voorkomen,
+    `%` en `_` gewone tekst) in aanmeldingen, deelnemers (niet geanonimiseerd), berichten, reizen, reisleiders,
+    pagina's, blog, veelgestelde vragen en gebruikers. Een bron doet alleen mee met het recht van het scherm zelf
+    (reisleider: geen zoekveld, want zijn rechten gelden alleen voor eigen vertrekken). Per bron hoogstens 5 treffers met
+    een link naar de lijst met dezelfde zoekterm. Een nieuwe bron is één regel in `SEARCH_SOURCES`.
   - **Aanmeldingen** op `/app/aanmeldingen/` (recht `aanmeldingen`; `app/src/booking/crm-routes.js`, migratie 11):
     lijst met filter op status en reis en zoeken op referentie, naam, e-mailadres of reiscode; per aanmelding de
     gegevens zoals ingevuld (zonder bijzondere gegevens, die staan bij de deelnemer), de status met vaste overgangen
