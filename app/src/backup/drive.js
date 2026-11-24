@@ -64,6 +64,7 @@ class DriveError extends Error {
  * @returns {string} Schone tekst.
  */
 function cleanText(value, max = 200) {
+  // eslint-disable-next-line no-control-regex
   return String(value == null ? '' : value).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max);
 }
 
@@ -92,7 +93,7 @@ function cleanId(value) {
  * @returns {{folderId: string, folderName: string, account: string, uploaded: object[], events: object[], lastOkAt: string, lastFailAt: string, needsReconnect: boolean}} De stand.
  */
 function readState(dir) {
-  let raw = {};
+  let raw;
   try {
     raw = JSON.parse(fs.readFileSync(path.join(dir, STATE_FILE), 'utf8'));
   } catch (_) {
@@ -233,7 +234,7 @@ function createDrive(options) {
       throw new DriveError('network', `Google is niet bereikbaar (${cleanText(error.message, 100)}).`);
     }
     if (response.ok) return response;
-    let detail = '';
+    let detail;
     try {
       const body = await response.json();
       detail = typeof body.error === 'string' ? body.error : cleanText(body.error && body.error.message, 150);

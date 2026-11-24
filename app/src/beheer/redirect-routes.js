@@ -232,6 +232,7 @@ function createRedirectRoutes(options) {
       const { values, errors } = validateRedirect(input);
       const note = input.note.trim();
       if (note.length > MAX_NOTE_LENGTH) errors.note = `Hoogstens ${MAX_NOTE_LENGTH} tekens.`;
+      // eslint-disable-next-line no-control-regex
       if (/[\u0000-\u001f\u007f]/.test(note)) errors.note = 'Gebruik geen regeleinden of stuurtekens.';
       if (!errors.from && values.fromPath === '/') errors.from = 'De homepage kan niet worden doorverwezen.';
       if (Object.keys(errors).length) return res.status(422).send(await renderRedirectsPage(req, { values: input, errors }));

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Eenvoudige limiet per bezoeker (in het geheugen): maximaal N verzoeken per tijdvenster.
  * Een IPv6-adres telt per /64, zodat één aansluiting niet eindeloos nieuwe adressen kan gebruiken.
@@ -5,7 +6,7 @@
 
 /**
  * Sleutel voor een bezoeker: IPv4-adres of het /64-voorvoegsel van IPv6.
- * @param {object} req Express-verzoek.
+ * @param {{ip?: string, socket?: {remoteAddress?: string}}} req Express-verzoek.
  * @returns {string} Sleutel.
  */
 function clientKey(req) {

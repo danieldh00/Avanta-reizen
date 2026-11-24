@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Opmaak van bedragen, datums, adressen en samenvattingen voor de website (Nederlands, Europe/Amsterdam).
  */

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * De groepen van Beheer op volgorde van de zijbalk. Elke groep staat in een eigen bestand met haar instellingen
  * (`FIELDS`) en haar secties (`GROUP`). Een nieuwe instelling of sectie komt in het bestand van haar groep; dit

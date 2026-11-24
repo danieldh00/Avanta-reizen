@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Versleuteling van gevoelige gegevens (AVG art. 9 en paspoortgegevens) met AES-256-GCM.
  * De hoofdsleutel komt uit AVANTA_MASTER_KEY (64 hex-tekens), een bestand (AVANTA_MASTER_KEY_FILE) of wordt bij de

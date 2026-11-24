@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Slugs van reizen, reistypes en landen (CMS-pakket G): een slug maken uit een naam, controleren, en bij een gewijzigde
  * of samengevoegde slug automatisch een 301 van het oude naar het nieuwe adres (tabel `redirects` uit beheer A3).

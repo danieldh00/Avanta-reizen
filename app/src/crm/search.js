@@ -172,7 +172,7 @@ function canSearch(role) {
  */
 async function searchCrm(db, role, value) {
   // Pas hier laden: `persons/person-routes.js` laadt `crm/layout.js`, en die laadt dit bestand voor het zoekveld.
-  // eslint-disable-next-line global-require
+   
   const { searchPatterns } = require('../persons/person-routes');
   const { text, patterns } = searchPatterns(value);
   if (text.replace(/\s/g, '').length < MIN_LENGTH || !patterns.length) return { text, tooShort: Boolean(text), groups: [] };

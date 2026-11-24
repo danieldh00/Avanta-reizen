@@ -1,0 +1,14 @@
+{
+  "//": "Typecontrole op de JSDoc (npm run typecheck). Alleen bestanden met `// @ts-check` bovenaan worden gecontroleerd; nieuwe bestanden krijgen die regel altijd. Uitbreiden per map: regel toevoegen, meldingen oplossen.",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "module": "nodenext",
+    "target": "es2023",
+    "strict": false,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.js"]
+}

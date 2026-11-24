@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Beheer > Back-ups en herstel: de instellingen van deze groep (`FIELDS`, zie de veldbeschrijving in `beheer/settings.js`) en
  * de secties in de zijbalk (`GROUP`, zie `beheer/indeling.js`). Een nieuwe instelling in deze groep komt alleen hier.
@@ -16,7 +17,7 @@ const FIELDS = {
   driveClientSecret: { type: 'secret', label: 'Client-secret', help: 'Van dezelfde OAuth-client; staat versleuteld opgeslagen en gaat nooit naar de browser.', default: '', min: 8, max: 200 },
   driveFolderName: {
     type: 'text', label: 'Map op Google Drive', help: 'De app maakt deze map zelf aan en ziet alleen wat ze zelf aanmaakte (scope drive.file).', default: 'Avanta back-ups', max: 100, required: true,
-    pattern: /^[^\/\\]+$/, patternMessage: 'Gebruik geen / of \\ in de mapnaam.',
+    pattern: /^[^/\\]+$/, patternMessage: 'Gebruik geen / of \\ in de mapnaam.',
   },
   driveKeepCount: { type: 'int', label: 'Aantal back-ups op Google Drive', help: 'De nieuwste zoveel blijven op Drive staan; oudere verwijdert de app.', default: 30, min: 1, max: 365 },
   driveRefreshToken: { type: 'secret', label: 'Koppeling met Google Drive', help: 'Alleen via Koppelen en Ontkoppelen; staat in geen enkel formulier.', default: '', max: 4000 },

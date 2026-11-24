@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Hulp voor de Content-Security-Policy: bronnen toevoegen aan een richtlijn (bijvoorbeeld de YouTube-video op de
  * homepage in `frame-src`), zonder de rest van de policy te veranderen.

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Veilig HTML opbouwen: elke ingevoegde waarde wordt ge-escaped, tenzij die bewust als `raw()` is gemarkeerd
  * (alleen voor HTML die we zelf hebben opgeschoond, zoals geïmporteerde content).

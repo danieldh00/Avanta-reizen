@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Lezer voor een JSON-bestand in DATA_DIR met vaste inhoud van de site (zoals `homepage.json`): leest het bestand,
  * controleert de inhoud met een eigen functie en onthoudt de uitkomst tot het bestand verandert (tijd en grootte).
@@ -19,7 +20,7 @@ function createJsonFileStore(file, normalize) {
      * @returns {object} Inhoud.
      */
     load() {
-      let stamp = null;
+      let stamp;
       try {
         const stats = fs.statSync(file);
         stamp = `${stats.mtimeMs}:${stats.size}`;

@@ -48,6 +48,7 @@ function normalizePath(value) {
   } catch (_) {
     return '';
   }
+  // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f]/.test(decoded)) return '';
   // `decodeURI` laat gereserveerde codes als %2F staan; zet die na `encodeURI` terug, zodat normaliseren herhaalbaar is.
   const normalized = encodeURI(decoded).replace(/%25([0-9A-Fa-f]{2})/g, (match, hex) => `%${hex.toUpperCase()}`);

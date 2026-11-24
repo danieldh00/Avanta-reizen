@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Een kort https-verzoek naar een adres dat een beheerder zelf invult (webhook, heartbeat), alleen naar een openbaar
  * adres (`security/netguard.js`): de naam wordt eerst opgezocht en de verbinding gaat naar precies dat adres, zodat een

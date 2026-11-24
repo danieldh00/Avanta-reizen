@@ -141,7 +141,7 @@ async function main() {
   // Alleen hier mag het wachtwoordbestand worden aangemaakt; check.js en overview.js lezen het.
   const { ADMIN, CUSTOMER } = accounts({ create: true });
   // Playwright is geen dependency van de app; het staat in de ontwikkelomgeving.
-  // eslint-disable-next-line global-require
+   
   const { chromium } = require('playwright');
   const db = createDatabase(process.env.DATABASE_URL);
   const browser = await chromium.launch();

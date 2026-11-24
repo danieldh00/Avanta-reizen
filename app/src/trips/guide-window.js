@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Het venster van de reisleider en de beperking tot de eigen vertrekken.
  *

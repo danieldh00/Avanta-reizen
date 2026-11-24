@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Plaatsen van een reis (CMS-pakket G4): het aantal bezette plaatsen is het aantal aanmeldingen voor die reis dat niet
  * geannuleerd is. Een reis is volgeboekt als het vinkje *Volgeboekt* aanstaat, of als er een aantal plaatsen is en de

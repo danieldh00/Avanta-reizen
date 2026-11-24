@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Indeling van Beheer (`/app/beheer/`): groepen met secties in de zijbalk. Een sectie is een pagina
  * onder `/app/beheer/<id>/`. Een sectie met `fields` is een instellingenformulier voor die instellingen uit

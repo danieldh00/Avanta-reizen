@@ -43,6 +43,7 @@ const DAY_MS = 24 * HOUR_MS;
  * @returns {{state: string, message: string}} De uitkomst.
  */
 function outcome(state, message) {
+  // eslint-disable-next-line no-control-regex
   return { state, message: String(message || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').slice(0, 300) };
 }
 

@@ -124,13 +124,6 @@ test('CRM: installatie, inloggen, rechten en gebruikersbeheer', { skip: !DATABAS
     return { status: response.status, text: await response.text(), headers: response.headers, cookie: setCookie.split(';')[0].split('=')[1] || '', setCookie };
   };
 
-  /**
-   * Haalt het CSRF-token uit een pagina.
-   * @param {string} page HTML.
-   * @returns {string} Token.
-   */
-  const csrfFrom = (page) => (page.match(/name="_csrf" value="([^"]+)"/) || [])[1] || '';
-
   /** Geheimen van de tweestapsverificatie per e-mailadres (de eerste keer inloggen stelt 2FA in). */
   const secrets = new Map();
 

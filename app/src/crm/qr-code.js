@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * QR-code maken zonder bibliotheek, voor het aanzetten van tweestapsverificatie: de authenticator-app leest het
  * otpauth://-adres in. Alleen wat daarvoor nodig is: bytemodus, foutcorrectie M, versie 1 t/m 10 (tot 213 bytes),

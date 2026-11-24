@@ -24,7 +24,7 @@ async function login(context, kind, baseUrl) {
   // Leest het wachtwoord pas hier, en maakt het nooit aan: zonder seed.js volgt een duidelijke melding.
   const user = accounts()[account];
   const page = await context.newPage();
-  let formStatus = 0;
+  let formStatus;
   try {
     await page.goto(`${baseUrl}${path}`);
     const form = page.locator(`form[action$="${path}"]`);

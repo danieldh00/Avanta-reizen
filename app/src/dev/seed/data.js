@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * De vaste inhoud van de testdata (`dev/seed/seed.js`): reistypes, landen, reisleiders, reizen, blog, FAQ, pagina's,
  * gebruikers per rol en de bouwstenen voor verzonnen reizigers.

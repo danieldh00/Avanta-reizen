@@ -44,6 +44,7 @@ const TOKEN = /^[A-Za-z0-9_.-]{20,}$/;
 function cleanText(value, maxLength = MAX_MESSAGE) {
   let text = String(value ?? '').slice(0, maxLength * 4);
   for (const [pattern, replacement] of SECRET_PATTERNS) text = text.replace(pattern, replacement);
+  // eslint-disable-next-line no-control-regex
   return text.replace(EMAIL, '***@***').replace(IBAN, 'IBAN-***').replace(/[\u0000-\u001f\u007f]+/g, ' ').slice(0, maxLength);
 }
 

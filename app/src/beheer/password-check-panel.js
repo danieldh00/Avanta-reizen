@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Paneel onder Beheer > Toegang en beveiliging > Wachtwoorden: of de controle bij Have I Been Pwned aan staat en de
  * laatste uitkomsten van de wachtwoordcontrole (`security/password-check.js`), zonder wachtwoord, hash of gebruiker.

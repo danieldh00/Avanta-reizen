@@ -29,6 +29,7 @@ Korte ingang voor AI-agents. Details: `CLAUDE.md` (volledig werkgeheugen), `app/
 ## Commando's
 ```sh
 cd app && TEST_DATABASE_URL=postgres://…/avanta_test npm test   # app-tests (wist de testdatabase)
+npm run lint && npm run typecheck                                # ESLint en JSDoc-typecontrole (in app/)
 DATABASE_URL=postgres://… PORT=3400 node src/server.js           # site op http://localhost:3400/
 node --test "tests/*.test.js"                                    # releasescript (root)
 node tools/release-notes.js --check                              # fragmenten controleren
