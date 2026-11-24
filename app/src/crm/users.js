@@ -261,7 +261,7 @@ function createUserRoutes(options) {
           ${renderGuideSelect(values.guide_id ?? null, guides, errors.guide_id)}
           ${renderInput({ name: 'password', label: 'Startwachtwoord (minimaal 12 tekens)', type: 'password', error: errors.password, max: MAX_LENGTH, autocomplete: 'new-password' })}
           <p class="field__help">Geef het startwachtwoord persoonlijk door; de gebruiker kan het daarna zelf wijzigen.</p>
-          <div><button class="btn" type="submit">Gebruiker aanmaken</button> <a href="/app/gebruikers/">Annuleren</a></div>
+          <div class="crm-actions"><button class="btn" type="submit">Gebruiker aanmaken</button> <a class="btn btn--outline" href="/app/gebruikers/">Annuleren</a></div>
         </form>
       </div>`,
     });

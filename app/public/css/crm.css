@@ -484,3 +484,44 @@
 .media-folders a[aria-current="page"] { background: var(--av-accent); border-color: var(--av-accent); color: var(--av-white); font-weight: 600; }
 .media-folders a[aria-current="page"] .media-folders__count { color: var(--av-white); }
 @media (max-width: 800px) { .media-folders a { min-height: 44px; } }
+
+/* ===== Uitlijning en leesbaarheid (designcontrole 23-11-2026) ===== */
+/* Tekst die niet mag afbreken (reiscode, datum) en tabelcellen met lange tekst die wél mogen afbreken. */
+.crm-nowrap { white-space: nowrap; }
+.crm-table .crm-wrap { white-space: normal; min-width: 12rem; overflow-wrap: break-word; }
+/* Zoekregel: knop even hoog als de velden ernaast (40 px), alles op één lijn. */
+.crm-search .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; }
+/* Vinkje of keuzerondje met tekst: het vakje links, de tekst ernaast en bij een tweede regel terug onder de tekst. */
+.crm label.choice { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: .5rem; font-weight: 400; white-space: normal; }
+.crm label.choice > input { flex: none; width: auto; min-height: 0; margin: .3em 0 0; }
+.crm label.choice > span { min-width: 0; overflow-wrap: break-word; }
+.crm td > form > label.choice { margin: 0 0 .4rem; }
+/* Totaalregel van een tabel: dezelfde achtergrond over de hele rij. */
+.crm-table tfoot th, .crm-table tfoot td { background: #fafafb; font-weight: 600; color: var(--crm-ink); }
+/* Groepstitels in de zijbalk: minimaal 12 px. */
+.crm-nav-group-title { font-size: 12px; }
+/* Beheer-startpagina: vaste afstand tussen secties en tussen kop en inhoud. */
+/* De inhoud is een raster met 1rem tussenruimte; een sectie krijgt daar steeds dezelfde extra ruimte boven. */
+.beheer-content > .crm-panel { margin: .75rem 0 0; }
+.beheer-content > .crm-panel > h2 { margin: 0 0 .75rem; }
+@media (max-width: 800px) {
+  /* De paginatitel staat direct onder de kopbalk als kop; in de kopbalk zou hij worden afgekapt. */
+  .crm-crumbs ol { display: none; }
+  /* Klikdoelen van minimaal 24 px: terug naar het CRM, links in feitenlijsten en bij een foto. */
+  .crm-sub-back { min-height: 32px; }
+  .crm-facts dd a, .media-usage a { display: inline-flex; align-items: center; min-height: 24px; }
+  .crm-search .btn { min-height: 44px; }
+  /* Lijsten (crm/ui.js renderTable): elke rij als kaart met per waarde de kolomnaam ervoor. */
+  .crm-table-wrap--cards { overflow: visible; background: none; border: 0; }
+  .crm-table--cards, .crm-table--cards tbody, .crm-table--cards tr, .crm-table--cards td { display: block; width: 100%; }
+  .crm-table--cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .crm-table--cards tr { margin: 0 0 .6rem; padding: .5rem .75rem; background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 8px; }
+  .crm-table--cards tbody tr:hover { background: var(--av-white); }
+  .crm-table--cards td { position: relative; min-height: 2rem; padding: .3rem 0 .3rem 8.25rem; border: 0; white-space: normal; overflow-wrap: break-word; text-align: left; }
+  .crm-table--cards td.crm-num { text-align: left; }
+  .crm-table--cards td::before { content: attr(data-label); position: absolute; top: .4rem; left: 0; width: 7.5rem; color: var(--crm-text); font-size: 13px; font-weight: 600; line-height: 1.4; }
+  .crm-table--cards .crm-wrap { min-width: 0; }
+  /* Een kolom zonder kop (bijvoorbeeld alleen een knop) krijgt geen lege ruimte voor een label. */
+  .crm-table--cards td[data-label=""] { padding-left: 0; }
+  .crm-table--cards td[data-label=""]::before { display: none; }
+}

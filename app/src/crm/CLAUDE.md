@@ -20,6 +20,6 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `layout.js`
 - `menu-counters.js` (tellers naast menu-items, bijv. nieuwe berichten; `counter` in `CRM_MENU`)
 - `search.js` (zoeken over het hele CRM: bronnen met hun recht en vaste SQL) en `search-routes.js` (`/app/zoeken/`; zoekveld in de kopbalk in `layout.js`)
-- `ui.js` (bouwstenen voor lijsten)
+- `ui.js` (bouwstenen voor lijsten; `renderTable` wordt op mobiel kaarten via `data-label`)
 - `dashboard.js` (overzicht `/app/`: per recht ophalen en tekenen)
 - `guide-dashboard.js` (overzicht `/app/` voor de reisleider: eigen vertrekken, aantallen, stand van het venster, link naar de deelnemerslijst)

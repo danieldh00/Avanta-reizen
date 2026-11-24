@@ -97,7 +97,7 @@ function tripList(trips, empty) {
  */
 function compactTripTypes(types) {
   return html`<div class="trip-types trip-types--compact">${types.map((type) => html`<a class="trip-type" href="${categoryPath(type.slug)}" title="${type.name}">
-    ${icon(categoryIconName(type), { className: 'trip-type__icon' })}<span class="visually-hidden">${type.name}</span>
+    ${icon(categoryIconName(type), { className: 'trip-type__icon' })}<span class="trip-type__label">${type.name}</span>
   </a>`)}</div>`;
 }
 

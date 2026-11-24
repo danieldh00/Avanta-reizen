@@ -42,6 +42,17 @@ function renderStatus(kind, label) {
 }
 
 /**
+ * De tekst bij een statuslabel: de status met een hoofdletter (`nieuw` wordt `Nieuw`). Gelijk aan de labels van de
+ * aanmeldingen, zodat een status overal hetzelfde heet.
+ * @param {string} status Status uit de database.
+ * @returns {string} Label.
+ */
+function statusLabel(status) {
+  const text = String(status || '');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
  * De acties rechts van de paginatitel (knoppen en links).
  * @param {{label: string, href: string, primary?: boolean}[]} actions Acties; lege waarden worden overgeslagen.
  * @returns {(object|string)} HTML, of een lege tekst als er geen acties zijn.
@@ -85,17 +96,25 @@ function renderSearch(search) {
 
 /**
  * Een tabel met kolomkoppen, of de melding dat er niets is.
- * @param {{columns: {label: string, cell: (row: object) => (object|string|number), numeric?: boolean}[], rows: object[],
- *   empty: string, caption?: string}} table Kolommen (met per kolom de inhoud van een cel), rijen, de melding bij een
- *   lege lijst en een onzichtbaar bijschrift.
+ * Op een smal scherm (≤ 800 px) toont `crm.css` elke rij als kaart: de kolomnaam staat dan als label voor de waarde
+ * (uit `data-label`), zodat alle kolommen zichtbaar blijven zonder horizontaal te scrollen.
+ * @param {{columns: {label: string, cell: (row: object) => (object|string|number), numeric?: boolean, wrap?: boolean}[],
+ *   rows: object[], empty: string, caption?: string}} table Kolommen (met per kolom de inhoud van een cel, of het een
+ *   getal is en of lange tekst mag afbreken), rijen, de melding bij een lege lijst en een onzichtbaar bijschrift.
  * @returns {object} HTML.
  */
 function renderTable(table) {
   if (!table.rows.length) return html`<p class="crm-empty">${table.empty}</p>`;
-  return html`<div class="crm-table-wrap"><table class="crm-table">
+  /**
+   * De klassen van een cel in deze kolom.
+   * @param {{numeric?: boolean, wrap?: boolean}} column Kolom.
+   * @returns {string} Klassen, of een lege tekst.
+   */
+  const cellClass = (column) => [column.numeric ? 'crm-num' : '', column.wrap ? 'crm-wrap' : ''].filter(Boolean).join(' ');
+  return html`<div class="crm-table-wrap crm-table-wrap--cards"><table class="crm-table crm-table--cards">
     ${table.caption ? html`<caption class="visually-hidden">${table.caption}</caption>` : ''}
-    <thead><tr>${table.columns.map((column) => html`<th scope="col"${column.numeric ? raw(' class="crm-num"') : ''}>${column.label}</th>`)}</tr></thead>
-    <tbody>${table.rows.map((row) => html`<tr>${table.columns.map((column) => html`<td${column.numeric ? raw(' class="crm-num"') : ''}>${column.cell(row)}</td>`)}</tr>`)}</tbody>
+    <thead><tr>${table.columns.map((column) => html`<th scope="col"${cellClass(column) ? html` class="${cellClass(column)}"` : ''}>${column.label}</th>`)}</tr></thead>
+    <tbody>${table.rows.map((row) => html`<tr>${table.columns.map((column) => html`<td data-label="${column.label}"${cellClass(column) ? html` class="${cellClass(column)}"` : ''}>${column.cell(row)}</td>`)}</tr>`)}</tbody>
   </table></div>`;
 }
 
@@ -162,4 +181,4 @@ function renderSaveBar(bar) {
   </div>`;
 }
 
-module.exports = { queryString, listUrl, renderStatus, renderActions, renderFilterTabs, renderSearch, renderTable, renderPager, renderTabNav, renderTabPanel, renderSaveBar };
+module.exports = { queryString, listUrl, renderStatus, statusLabel, renderActions, renderFilterTabs, renderSearch, renderTable, renderPager, renderTabNav, renderTabPanel, renderSaveBar };

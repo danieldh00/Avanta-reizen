@@ -17,13 +17,7 @@ const ui = require('../crm/ui');
 const payments = require('../payments/payments');
 
 /** De statussen met hun naam op het scherm, in volgorde. */
-const STATUSES = {
-  nieuw: 'Nieuw',
-  bevestigd: 'Bevestigd',
-  aanbetaald: 'Aanbetaald',
-  betaald: 'Betaald',
-  geannuleerd: 'Geannuleerd',
-};
+const STATUSES = Object.fromEntries(['nieuw', 'bevestigd', 'aanbetaald', 'betaald', 'geannuleerd'].map((status) => [status, ui.statusLabel(status)]));
 
 /** Toegestane overgangen per status. */
 const TRANSITIONS = {

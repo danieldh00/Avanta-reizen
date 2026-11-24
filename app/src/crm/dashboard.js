@@ -250,7 +250,7 @@ function renderDepartures(data) {
   const hrefOf = (trip) => (access.trips ? `/app/reizen/${trip.id}/` : `/app/aanmeldingen/?reis=${trip.id}`);
   const columns = [
     { label: 'Vertrek', cell: (trip) => formatDate(trip.departure_date) },
-    { label: 'Reis', cell: (trip) => html`<a href="${hrefOf(trip)}">${trip.title}</a>${trip.trip_code ? ` (${trip.trip_code})` : ''}${trip.published ? '' : html` ${ui.renderStatus('concept', 'Concept')}`}` },
+    { label: 'Reis', wrap: true, cell: (trip) => html`<a href="${hrefOf(trip)}">${trip.title}</a>${trip.trip_code ? html` <span class="crm-nowrap">(${trip.trip_code})</span>` : ''}${trip.published ? '' : html` ${ui.renderStatus('concept', 'Concept')}`}` },
     {
       label: 'Plaatsen',
       cell: (trip) => {
