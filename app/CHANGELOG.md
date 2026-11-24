@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.31.0 — 2026-11-24 — Hersteltest zet de back-up weer terug
+
+- De wekelijkse hersteltest van de back-ups slaagt weer en toont bij een mislukking de echte foutmelding van het terugzetten.
+
+- `deploy/apps01/restore-test.sh`: `pg_restore` met `--clean --if-exists`, net als bij een echt herstel
+  (`restore-backup.sh`). De dump van één schema bevat `CREATE SCHEMA public`, wat botste met het lege schema `public`
+  van de wegwerpdatabase ("schema public already exists") en de hele transactie afbrak.
+- Een mislukt terugzetten zet de eerste foutregel van `pg_restore` in de uitslag en de melding van de bewaking; waarden
+  tussen aanhalingstekens die geen tabel-, kolom- of schemanaam zijn worden weggelaten en DETAIL/CONTEXT-regels niet
+  overgenomen (geen persoonsgegevens in meldingen). Het hostlog krijgt alle fout- en waarschuwingsregels, op dezelfde
+  manier geschoond.
+- Test: de back-up wordt teruggezet met de opties uit het hostscript in een nieuwe database waarin het schema al bestaat.
+
 ## 0.30.9 — 2026-11-24 — Actions en images vastgepind, image-scan en SBOM
 
 - Alle GitHub Actions op een volledige commit-SHA en alle container-images (workflows, `app/Dockerfile`,
