@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Ingang van de module Betalingen voor het CRM: koppelt de routes van de betalingen per aanmelding en het
  * betalingsoverzicht. De openbare betaallink en de webhook (`online-payment-routes.js`) koppelt `server.js` buiten
@@ -9,7 +10,7 @@ const { createPaymentOverviewRoutes } = require('./payment-overview-routes');
 
 /**
  * Bouwt de routes van de module Betalingen.
- * @param {object} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` (sessies en rechten),
+ * @param {any} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` (sessies en rechten),
  *   `persons` (versleutelde persoonsblokken) en de gedeelde diensten uit `server.js`.
  * @returns {express.Router} Router, te koppelen binnen `/app`.
  */

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Zoekmachine-optimalisatie: canonical-URL, Open Graph- en Twitter-tags, gestructureerde gegevens (JSON-LD) en de
  * XML-sitemap. Alle URL's zijn absoluut op basis van `SITE_URL` (standaard het adres van de huidige site).
@@ -62,7 +63,7 @@ function encodePagePath(path) {
 /**
  * Zet gegevens om naar JSON voor een `<script type="application/ld+json">`-blok. Tekens die het blok kunnen
  * afsluiten of als HTML gelezen worden (`<`, `>`, `&`, regelscheiders) worden als unicode-escape geschreven.
- * @param {object} data Gestructureerde gegevens.
+ * @param {any} data Gestructureerde gegevens.
  * @returns {string} Veilige JSON-tekst.
  */
 function serializeJsonLd(data) {
@@ -100,7 +101,7 @@ function priceFromCents(cents) {
  * @param {{phone: string, email: string}} contact Telefoon en e-mail (uit Beheer).
  * @param {{name?: string, imageUrl?: string, street?: string, postalCode?: string, city?: string, sameAs?: string[]}} [organisation]
  *   Naam, afbeelding, adres en social-media-adressen uit Beheer; een adres alleen met straat én plaats.
- * @returns {object} `TravelAgency`.
+ * @returns {any} `TravelAgency`.
  */
 function travelAgencyData(siteUrl, contact, organisation = {}) {
   const data = {
@@ -130,10 +131,10 @@ function travelAgencyData(siteUrl, contact, organisation = {}) {
 /**
  * Gestructureerde gegevens van een reis, met aanbod en vertrekdatum.
  * @param {string} siteUrl Basisadres.
- * @param {object} trip Reis uit `tripBySlug`.
+ * @param {any} trip Reis uit `tripBySlug`.
  * @param {{today: string, siteName?: string}} context Datum van vandaag (jjjj-mm-dd) voor beschikbaarheid en geldigheid,
  *   en de naam van de site (standaard `SITE_NAME`).
- * @returns {object} `Trip`.
+ * @returns {any} `Trip`.
  */
 function tripData(siteUrl, trip, context) {
   const url = absoluteUrl(siteUrl, tripPath(trip.slug));
@@ -168,9 +169,9 @@ function tripData(siteUrl, trip, context) {
 /**
  * Gestructureerde gegevens van een blogbericht.
  * @param {string} siteUrl Basisadres.
- * @param {object} post Bericht uit `postBySlug`.
+ * @param {any} post Bericht uit `postBySlug`.
  * @param {string} [siteName] Naam van de site (standaard `SITE_NAME`).
- * @returns {object} `BlogPosting`.
+ * @returns {any} `BlogPosting`.
  */
 function blogPostingData(siteUrl, post, siteName = SITE_NAME) {
   const url = absoluteUrl(siteUrl, postPath(post.slug));
@@ -193,7 +194,7 @@ function blogPostingData(siteUrl, post, siteName = SITE_NAME) {
  * Kruimelpad als gestructureerde gegevens.
  * @param {string} siteUrl Basisadres.
  * @param {Array<{name: string, path: string}>} items Stappen vanaf de homepage, met pad.
- * @returns {object} `BreadcrumbList`.
+ * @returns {any} `BreadcrumbList`.
  */
 function breadcrumbData(siteUrl, items) {
   return {
@@ -210,9 +211,9 @@ function breadcrumbData(siteUrl, items) {
 
 /**
  * Maakt de SEO-tags voor de `<head>`: canonical, Open Graph, Twitter en JSON-LD.
- * @param {{title: string, description?: string, canonicalUrl: string, imageUrl?: string, type?: string, structuredData?: object[], siteName?: string, defaultDescription?: string}} seo
+ * @param {{title: string, description?: string, canonicalUrl: string, imageUrl?: string, type?: string, structuredData?: any[], siteName?: string, defaultDescription?: string}} seo
  *   Gegevens (URL's al absoluut), met de naam van de site en de standaardomschrijving uit Beheer.
- * @returns {object} HTML van de tags.
+ * @returns {any} HTML van de tags.
  */
 function renderSeoHead(seo) {
   const description = seo.description || seo.defaultDescription || DEFAULT_DESCRIPTION;
@@ -248,7 +249,7 @@ function escapeXml(value) {
 
 /**
  * Zet de inhoud van de site om naar sitemap-regels (pad en eventueel wijzigingsdatum).
- * @param {{trips: object[], categories: object[], guides: object[], posts: object[], pages: object[], postTerms?: object[]}} entries Rijen uit `sitemapEntries`.
+ * @param {{trips: any[], categories: any[], guides: any[], posts: any[], pages: any[], postTerms?: any[]}} entries Rijen uit `sitemapEntries`.
  * @returns {Array<{path: string, lastmod?: string}>} Regels, zonder dubbele paden.
  */
 function sitemapUrls(entries) {

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Wachtwoorden voor het CRM: hashen met scrypt (Node `crypto`, geen extra pakket), controleren in constante tijd en
  * herkennen of een hash met verouderde instellingen opnieuw moet. Formaat: `scrypt$<N>$<r>$<p>$<zout>$<hash>` (base64url).
@@ -5,7 +6,8 @@
 const crypto = require('node:crypto');
 const { promisify } = require('node:util');
 
-const scrypt = promisify(crypto.scrypt);
+/** scrypt als belofte; de typen van `promisify` kiezen anders de variant zonder instellingen. */
+const scrypt = /** @type {(password: string, salt: Buffer, keyLength: number, options: crypto.ScryptOptions) => Promise<Buffer>} */ (promisify(crypto.scrypt));
 
 /** Huidige instellingen voor scrypt (N = 2^15, ongeveer 32 MB geheugen per hash). */
 const PARAMETERS = { N: 32768, r: 8, p: 1 };

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Router van het CRM onder `/app/`: de gedeelde schil (limiet, formuliergrootte per onderdeel, sessie laden) en de
  * routes van alle modules. De routes zelf staan per onderwerp in een eigen bestand: toegang in `crm/login-routes.js`,
@@ -35,9 +36,12 @@ const { createBeheerRoutes } = require('../beheer/routes');
 
 /**
  * Bouwt de CRM-router.
- * @param {{db: object, masterKey: Buffer, vault?: object, settings: object, passwordCheck?: object, mailer?: object, wanIp?: object, notifications?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, auditExportMax?: number, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
+ * @param {{db: any, masterKey: Buffer, vault?: any, settings: any, passwordCheck?: any, mailer?: any, wanIp?: any, notifications?: any, captcha?: any, backups?: any, drive?: any, restoreTests?: any, systemUpdate?: any, hostTasks?: any, appLog?: any, monitor?: any, auditExportMax?: number, setupCode?: string, secureCookies?: boolean, now?: () => number,
+ *   redirects?: any, retention?: any, siteContent?: any, paymentReminders?: any, onlinePayments?: any, infobriefSender?: any,
+ *   mediaLibrary?: any, menus?: any, homepage?: any, mediaLimits?: any, paymentOverviewMaxRows?: number}} options
  *   Database, hoofdsleutel, de instellingen (`beheer/settings.js`), de wachtwoordcontrole (`security/password-check.js`,
- *   anders een nieuwe), de mailer en WAN-IP-opzoeker (`mail/`), de captcha, de installatiecode voor de eerste beheerder (zonder code geen installatie), of de cookie
+ *   anders een nieuwe), de mailer en WAN-IP-opzoeker (`mail/`), de captcha, de diensten van de modules (doorverwijzingen, opschoning, vaste inhoud, betalingen, infobrieven,
+ *   fotobibliotheek, menu's, homepage) met hun grenzen, de installatiecode voor de eerste beheerder (zonder code geen installatie), of de cookie
  *   `Secure` krijgt en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router, te koppelen op `/app`.
  */

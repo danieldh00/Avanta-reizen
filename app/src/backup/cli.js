@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Opdrachtregel voor de back-ups (in de app-container, zelfde omgeving als de app):
  *   node src/backup/cli.js create [--update]        back-up maken (update.sh doet dit vóór elke update, met --update)

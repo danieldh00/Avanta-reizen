@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 32: CRM: de infobrief aan de deelnemers van een vertrek.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

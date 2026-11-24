@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Beheer > Systeem > Servertaken (recht `systeem`): de afvinklijst met taken voor de server en het ene vaste commando
  * voor de Proxmox-host dat alle openstaande taken uitvoert (`system/host-tasks.js`, `deploy/apps01/servertaken.sh`).
@@ -11,7 +12,7 @@ const { TASK_ID } = require('../system/host-tasks');
 
 /**
  * Maakt de routes.
- * @param {{auth: object, guard: Function, settings: object, hostTasks: object, renderBeheerPage: Function, notFound: Function, now?: () => number}} options
+ * @param {{auth: any, guard: Function, settings: any, hostTasks: any, renderBeheerPage: Function, notFound: Function, now?: () => number}} options
  *   Sessielaag, rechtencontrole, instellingen, de servertakenlaag, de weergave van een Beheer-pagina, de 404 binnen
  *   Beheer en (voor tests) de klok van de limiet.
  * @returns {express.Router} Router.
@@ -23,7 +24,7 @@ function createHostTaskRoutes(options) {
 
   /**
    * De pagina.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {string} [problem] Melding als een actie is geweigerd.
    * @returns {string} HTML-pagina.
    */

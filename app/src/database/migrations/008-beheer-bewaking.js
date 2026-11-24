@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 8: beheer: bewaking.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

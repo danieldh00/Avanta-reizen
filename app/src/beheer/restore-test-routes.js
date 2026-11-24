@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Beheer > Back-ups en herstel > Hersteltest (recht `systeem`): de uitslagen van de wekelijkse hersteltest op de server
  * (`deploy/apps01/restore-test.sh`) en van de hersteltest van de Google Drive-kopie, met *Nu testen* voor beide.
@@ -15,7 +16,7 @@ const TRIGGER_LABELS = { schema: 'wekelijks', handmatig: 'handmatig' };
 
 /**
  * Maakt de routes van de hersteltest.
- * @param {{auth: object, guard: Function, settings: object, restoreTests: object, renderBeheerPage: Function, now?: () => number}} options
+ * @param {{auth: any, guard: Function, settings: any, restoreTests: any, renderBeheerPage: Function, now?: () => number}} options
  *   Sessielaag, rechtencontrole, instellingen, de hersteltests (`backup/restore-test.js`), de weergave van een
  *   Beheer-pagina en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router.
@@ -29,9 +30,9 @@ function createRestoreTestRoutes(options) {
 
   /**
    * Een tabel met runs.
-   * @param {object[]} runs Runs, nieuwste eerst.
+   * @param {any[]} runs Runs, nieuwste eerst.
    * @param {boolean} withDetails Of de kolommen van de servertest (tabellen, rijen, app) erbij horen.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderRuns = (runs, withDetails) => (runs.length ? html`<div class="crm-table-wrap"><table class="crm-table beheer-restore-runs">
       <thead><tr><th scope="col">Gestart</th><th scope="col" class="beheer-restore-runs__fixed">Uitkomst</th><th scope="col">Back-up</th>${withDetails ? html`<th scope="col" class="beheer-restore-runs__fixed">Tabellen / rijen</th>` : ''}<th scope="col">Toelichting</th></tr></thead>
@@ -46,7 +47,7 @@ function createRestoreTestRoutes(options) {
 
   /**
    * De pagina.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{result?: {ok: boolean, message: string}}} [state] Uitkomst van een aanvraag.
    * @returns {string} HTML-pagina.
    */
@@ -79,7 +80,7 @@ function createRestoreTestRoutes(options) {
 
   /**
    * Of er op de server al een hersteltest is aangevraagd of loopt.
-   * @param {object[]} [hostRuns] De runs (anders opnieuw gelezen).
+   * @param {any[]} [hostRuns] De runs (anders opnieuw gelezen).
    * @returns {boolean} Waar als aangevraagd of bezig.
    */
   function hostTestBusy(hostRuns = restoreTests.hostRuns()) {

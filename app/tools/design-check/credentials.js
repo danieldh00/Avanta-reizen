@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Inloggegevens voor de design-controle: fictieve accounts voor een lokale test- of ontwerpdatabase. Er staat geen
  * wachtwoord in de repository: het komt uit `DESIGN_WACHTWOORD`, of anders uit het bestand `wachtwoord` in een eigen map
@@ -73,7 +74,7 @@ function designPassword({ create = false } = {}) {
 /**
  * De testaccounts met hun wachtwoord.
  * @param {{create?: boolean}} [options] Opties voor `designPassword`.
- * @returns {{ADMIN: object, CUSTOMER: object}} Eerste beheerder (installatiescherm) en reizigersaccount.
+ * @returns {{ADMIN: any, CUSTOMER: any}} Eerste beheerder (installatiescherm) en reizigersaccount.
  */
 function accounts(options) {
   const password = designPassword(options);

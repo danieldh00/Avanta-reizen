@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * AVG-verzoeken bij een deelnemer (`/app/deelnemers/:id/`, recht `avg`): *Gegevens exporteren* (inzage, art. 15) als
  * .xlsx met alle velden, aanmeldingen, historie en toestemmingen, en *Persoon wissen* (art. 17) = anonimiseren met
@@ -65,13 +66,14 @@ function cellValue(column, value) {
 
 /**
  * Maakt de werkmap voor een inzageverzoek.
- * @param {{person: object, blocks: Record<string, (object|null)>, bookings: object[], events: object[], payments?: object[], consents: object[],
- *   account: (object|null), userName: string, now: Date}} input De persoon, per blok de geopende velden (null = weggelaten,
+ * @param {{person: any, blocks: Record<string, (any|null)>, bookings: any[], events: any[], payments?: any[], consents: any[],
+ *   account: (any|null), userName: string, now: Date}} input De persoon, per blok de geopende velden (null = weggelaten,
  *   `{_unreadable: true}` = niet te ontsleutelen), aanmeldingen, historie, bedragen en betalingen, toestemmingen, reizigersaccount, wie exporteert en wanneer.
  * @returns {Buffer} Het .xlsx-bestand.
  */
 function buildInspectionWorkbook(input) {
   const { person } = input;
+  /** @type {Array<Array<(string|number)>>} */
   const personRows = [['Gegeven', 'Waarde']];
   for (const name of PLAIN_FIELDS) personRows.push([FIELD_BY_NAME[name].label, person[name] || '']);
   for (const block of Object.keys(BLOCKS)) {
@@ -132,10 +134,10 @@ function inspectionFileName(personId, now) {
 
 /**
  * Het paneel *AVG-verzoeken* op de pagina van een deelnemer (alleen met recht `avg`).
- * @param {object} req Express-verzoek.
- * @param {object} person De persoon.
+ * @param {any} req Express-verzoek.
+ * @param {any} person De persoon.
  * @param {string} [error] Foutmelding bij wissen.
- * @returns {object} HTML (leeg zonder recht).
+ * @returns {any} HTML (leeg zonder recht).
  */
 function renderPrivacyPanel(req, person, error) {
   if (!roleHasRight(req.user.role, 'avg')) return '';
@@ -161,7 +163,7 @@ function renderPrivacyPanel(req, person, error) {
 
 /**
  * Maakt de routes voor inzage en wissen.
- * @param {{db: object, auth: object, persons: object, renderPerson: Function, now?: () => number}} options Database,
+ * @param {{db: any, auth: any, persons: any, renderPerson: Function, now?: () => number}} options Database,
  *   sessie- en rechtenlaag, de personen (`persons/persons.js`), de weergave van de deelnemerspagina (voor een fout bij
  *   wissen) en (voor tests) de klok.
  * @returns {express.Router} Router.
@@ -175,8 +177,8 @@ function createPersonPrivacyRoutes(options) {
 
   /**
    * 404-pagina binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => res.status(404).send(renderCrmPage({

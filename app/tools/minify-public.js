@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Verkleint de publieke CSS en JavaScript voor het image (plan PR 6.6). Alleen voor het bouwen: de Dockerfile draait
  * dit script in een aparte bouwstap en zet de verkleinde bestanden over de bron heen in het image. De bron in

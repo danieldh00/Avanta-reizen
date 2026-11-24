@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 16: website: foto's bij reizen.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

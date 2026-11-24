@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 11: CRM: aanmeldingen met status en historie.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

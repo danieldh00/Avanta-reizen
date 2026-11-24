@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Controle op gelekte en veelgebruikte wachtwoorden (audit A09, ASVS 2.1.7) voor het CRM en het reizigersaccount.
  *
@@ -128,7 +129,7 @@ function commonPasswordProblem(password) {
 /**
  * Leest een antwoord als tekst, met een harde grens aan het aantal bytes: ook zonder `Content-Length` (chunked) stopt
  * het lezen zodra de grens over is, en wordt de rest van het antwoord afgebroken.
- * @param {object} response Antwoord van fetch.
+ * @param {any} response Antwoord van fetch.
  * @returns {Promise<(string|null)>} De tekst, of null als het antwoord te groot is.
  */
 async function readLimitedText(response) {

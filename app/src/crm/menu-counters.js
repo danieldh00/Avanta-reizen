@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Tellers in het menu van het CRM: het aantal openstaande dingen naast een menu-item (bijvoorbeeld nieuwe berichten).
  * Een middleware na het laden van de sessie zet de aantallen op `req.user.counters`; `crm/layout.js` toont ze bij het
@@ -15,7 +16,7 @@ const MENU_COUNTERS = [
 
 /**
  * Maakt de middleware die de tellers voor de ingelogde gebruiker ophaalt.
- * @param {{db: object, counters?: object[]}} options Database en (voor tests) andere tellers.
+ * @param {{db: any, counters?: any[]}} options Database en (voor tests) andere tellers.
  * @returns {Function} Express-middleware.
  */
 function createMenuCounters(options) {

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Testdata voor de testomgeving (wachtlijstpunt W00): vult de database met verzonnen, maar realistische gegevens om het
  * CRM en de site mee te testen. Opdrachtregel: `dev/seed/cli.js`; de vaste inhoud staat in `dev/seed/data.js`.
@@ -185,7 +186,7 @@ async function removeSeed(client) {
 
 /**
  * Maakt het hulpmiddel dat de testdata schrijft.
- * @param {{vault: object, today: string, terms: {depositDays: number, balanceDaysBefore: number}}} options De kluis (voor
+ * @param {{vault: any, today: string, terms: {depositDays: number, balanceDaysBefore: number}}} options De kluis (voor
  *   de versleutelde blokken van personen), de datum van vandaag (jjjj-mm-dd, Nederland) en de betaaltermijnen uit Beheer.
  * @returns {{fill: Function}} Het hulpmiddel.
  */
@@ -241,7 +242,7 @@ function createSeeder({ vault, today, terms }) {
    * @param {{query: Function}} client Transactie-client.
    * @param {Map<string, number>} categoryIds Ids van reistypes en landen.
    * @param {Map<string, number>} guideIds Ids van reisleiders.
-   * @returns {Promise<object[]>} De reizen met id en vertrekdatum.
+   * @returns {Promise<any[]>} De reizen met id en vertrekdatum.
    */
   const insertTrips = async (client, categoryIds, guideIds) => {
     const trips = [];
@@ -355,7 +356,7 @@ function createSeeder({ vault, today, terms }) {
 
   /**
    * Kiest het verloop van een aanmelding: wanneer ze binnenkwam en welke status ze nu heeft.
-   * @param {object} trip De reis (met `departure`).
+   * @param {any} trip De reis (met `departure`).
    * @param {boolean} cancelled Of het een geannuleerde aanmelding is.
    * @returns {{createdOn: string, status: string}} Datum van aanmelden en status.
    */
@@ -382,8 +383,8 @@ function createSeeder({ vault, today, terms }) {
    * Schrijft de betalingen en de statusgeschiedenis van een aanmelding, passend bij de status: aanbetaald = de
    * vereiste aanbetaling binnen, betaald = alles binnen, bevestigd of nieuw = nog niets.
    * @param {{query: Function}} client Transactie-client.
-   * @param {object} booking De aanmelding (`id`, `createdOn`, `status`, `paymentChoice`, `depositCents`).
-   * @param {object} trip De reis.
+   * @param {any} booking De aanmelding (`id`, `createdOn`, `status`, `paymentChoice`, `depositCents`).
+   * @param {any} trip De reis.
    * @param {number} officeUserId Gebruiker van kantoor (bij gebeurtenissen en betalingen).
    * @returns {Promise<void>}
    */
@@ -446,7 +447,7 @@ function createSeeder({ vault, today, terms }) {
    * gebeurtenissen en toestemmingen. Een deel van de reizigers gaat vaker mee (zelfde persoon, nieuwe aanmelding) en
    * één reiziger meldt zich aan met een andere geboortedatum (mogelijk dubbel, om samenvoegen te testen).
    * @param {{query: Function}} client Transactie-client.
-   * @param {object[]} trips De reizen.
+   * @param {any[]} trips De reizen.
    * @param {number} officeUserId Gebruiker van kantoor.
    * @returns {Promise<{bookings: number, payments: number}>} Aantallen.
    */
@@ -584,7 +585,7 @@ function createSeeder({ vault, today, terms }) {
   /**
    * Schrijft de berichten via het contactformulier; een afgehandeld bericht staat op naam van kantoor.
    * @param {{query: Function}} client Transactie-client.
-   * @param {object[]} trips De testreizen (met sleutel).
+   * @param {any[]} trips De testreizen (met sleutel).
    * @param {number} officeUserId Gebruiker met de rol kantoor.
    * @returns {Promise<number>} Aantal berichten.
    */
@@ -635,7 +636,7 @@ function createSeeder({ vault, today, terms }) {
 
 /**
  * Voert een opdracht uit in één transactie, met een regel in het auditlog (alleen aantallen).
- * @param {{db: {transaction: Function}, vault: object, settings: {get: Function}, mode: ('vullen'|'opnieuw'|'verwijderen'),
+ * @param {{db: {transaction: Function}, vault: any, settings: {get: Function}, mode: ('vullen'|'opnieuw'|'verwijderen'),
  *   confirmed: boolean, passwordHash?: string, today?: string}} options De database, kluis, geladen instellingen, de
  *   opdracht, of `--testomgeving` is meegegeven, de hash van het wachtwoord voor de testgebruikers (niet bij
  *   verwijderen) en (voor tests) de datum van vandaag.

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Onzichtbare captcha (Google reCAPTCHA v3) op de openbare formulieren (contact en aanmelden), naast de honeypot, het
  * ondertekende tijdstempel en de limiet uit `security/form-guard.js`. Aanpak:
@@ -75,9 +76,9 @@ function isFormPath(path) {
 
 /**
  * Het verborgen veld voor het token in een formulier, alleen als de captcha actief is.
- * @param {(object|undefined)} captcha De captcha-dienst (of niets).
+ * @param {(any|undefined)} captcha De captcha-dienst (of niets).
  * @param {string} action Actie van het formulier (uit `ACTIONS`).
- * @returns {(object|string)} HTML, of leeg.
+ * @returns {(any|string)} HTML, of leeg.
  */
 function captchaField(captcha, action) {
   const siteKey = captcha ? captcha.siteKey() : '';
@@ -86,8 +87,8 @@ function captchaField(captcha, action) {
 
 /**
  * Leest het antwoord van Google als gegevens, of niets als het geen bruikbaar JSON is.
- * @param {object} response Antwoord van fetch.
- * @returns {Promise<(object|null)>} De gegevens.
+ * @param {any} response Antwoord van fetch.
+ * @returns {Promise<(any|null)>} De gegevens.
  */
 async function readJson(response) {
   try {
@@ -100,7 +101,7 @@ async function readJson(response) {
 
 /**
  * Maakt de captcha-dienst.
- * @param {{settings: object, fetchImpl?: Function, now?: () => number}} options De instellingen en (voor tests) fetch en klok.
+ * @param {{settings: any, fetchImpl?: Function, now?: () => number}} options De instellingen en (voor tests) fetch en klok.
  * @returns {{active: Function, siteKey: Function, check: Function, checkSecret: Function, recent: Function}} De dienst.
  */
 function createCaptcha(options) {
@@ -149,7 +150,7 @@ function createCaptcha(options) {
    * @param {string} secret Het geheim.
    * @param {string} token Het token van de browser.
    * @param {string} [remoteIp] Adres van de bezoeker (helpt Google; mag leeg).
-   * @returns {Promise<(object|null)>} Het antwoord, of null als Google onbereikbaar of onbruikbaar was.
+   * @returns {Promise<(any|null)>} Het antwoord, of null als Google onbereikbaar of onbruikbaar was.
    */
   const askGoogle = async (secret, token, remoteIp) => {
     const form = new URLSearchParams({ secret, response: token });
@@ -171,7 +172,7 @@ function createCaptcha(options) {
 
   /**
    * De uitkomst als Google niet te bereiken is of het geheim niet klopt: volgens de instelling doorlaten of blokkeren.
-   * @param {object} current De actieve instelling.
+   * @param {any} current De actieve instelling.
    * @param {string} action Actie.
    * @param {string} reason `unreachable` of `misconfigured`.
    * @returns {{ok: boolean, reason: string, message?: string, unavailable?: boolean}} De uitkomst.
@@ -185,7 +186,8 @@ function createCaptcha(options) {
   /**
    * Controleert het token van een formulier. Zonder actieve captcha geslaagd zonder iets te vragen.
    * @param {{token: *, action: string, remoteIp?: string}} input Token uit het formulier, verwachte actie en adres.
-   * @returns {Promise<{ok: boolean, skipped?: boolean, reason?: string, message?: string, unavailable?: boolean}>} De uitkomst.
+   * @returns {Promise<{ok: boolean, skipped?: boolean, reason?: string, message?: string, unavailable?: boolean,
+   *   score?: number}>} De uitkomst.
    */
   const check = async (input) => {
     const current = active();

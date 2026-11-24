@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Logboek van de app (tabel `app_logs`, Beheer > Systeem > Logboek): één plek voor
  * fouten (met foutcode), trage verzoeken, waarschuwingen en fouten van achtergrondtaken (via de console) en later de
@@ -53,7 +54,10 @@ const SOURCE_DIR = path.join(__dirname, '..');
 const SENSITIVE_KEY = /pass|wachtwoord|token|secret|authorization|cookie|api[_-]?key|iban|email|e-mail|geboorte|paspoort|medisch/i;
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const IBAN = /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,4})?\b/g;
-/** Bekende vormen van geheimen die in een foutmelding terecht kunnen komen. */
+/**
+ * Bekende vormen van geheimen die in een foutmelding terecht kunnen komen.
+ * @type {Array<[RegExp, string]>}
+ */
 const SECRET_PATTERNS = [
   [/(\b[a-z][a-z0-9+.-]{0,30}:\/\/[^:/?#\s@]*:)[^@/\s]+@/gi, '$1***@'],
   [/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{6,}/gi, '$1 ***'],
@@ -134,7 +138,7 @@ function ownFrames(stack) {
 
 /**
  * Of een fout van PostgreSQL komt (`pg`): een SQLSTATE-code van vijf tekens met de velden die `pg` meegeeft.
- * @param {object} error De fout.
+ * @param {any} error De fout.
  * @returns {boolean} Waar bij een databasefout.
  */
 function isDatabaseError(error) {
@@ -145,7 +149,7 @@ function isDatabaseError(error) {
 /**
  * De melding van een databasefout zonder de tekst: die kan veldwaarden bevatten (`Key (naam)=(Jansen)`, `invalid input
  * syntax for type date: "..."`). Alleen de code, de constraint, de tabel en de kolom blijven over.
- * @param {object} error Een fout van `pg`.
+ * @param {any} error Een fout van `pg`.
  * @returns {string} Bijvoorbeeld `Databasefout 23505 (constraint users_email_key, tabel users)`.
  */
 function databaseMessage(error) {
@@ -192,7 +196,7 @@ function newRequestId() {
 /**
  * Maakt de details van een logregel schoon: duur begrensd tot een geheel aantal ms, gegevens als JSON zonder
  * gevoelige velden (te groot = alleen `afgekapt`), foutcode en verzoek-id alleen in hun vaste vorm.
- * @param {{requestId: string, errorCode: string, durationMs: number, data: (object|null)}} details Ruwe details.
+ * @param {{requestId: string, errorCode: string, durationMs: number, data: (any|null)}} details Ruwe details.
  * @returns {{duration: number, json: string, cleanCode: string, cleanRequest: string}} Schone details.
  */
 function cleanDetails({ requestId, errorCode, durationMs, data }) {
@@ -206,11 +210,11 @@ function cleanDetails({ requestId, errorCode, durationMs, data }) {
 
 /**
  * Maakt het logboek.
- * @param {{db: object, settings?: object, flushMs?: number, batchSize?: number, perMinuteLimit?: number, now?: () => number, write?: Function}} options
+ * @param {{db: any, settings?: any, flushMs?: number, batchSize?: number, perMinuteLimit?: number, now?: () => number, write?: Function}} options
  *   Database, instellingen (`logRetentionDays`), hoe vaak de buffer naar de database gaat (0 = alleen met `flush()`),
  *   bij hoeveel regels er meteen wordt weggeschreven, de grens per bron per minuut, de klok en de terugval als de
  *   database faalt (standaard de oorspronkelijke console.error).
- * @returns {object} `log`, `info`, `warn`, `error`, `flush`, `prune`, `start`, `stop`, `captureConsole`, `pending`.
+ * @returns {any} `log`, `info`, `warn`, `error`, `flush`, `prune`, `start`, `stop`, `captureConsole`, `pending`.
  */
 function createAppLog({ db, settings, flushMs = 2000, batchSize = 50, perMinuteLimit = 300, now = () => Date.now(), write }) {
   const fallback = write || console.error.bind(console);
@@ -244,7 +248,7 @@ function createAppLog({ db, settings, flushMs = 2000, batchSize = 50, perMinuteL
    * @param {('info'|'warn'|'error')} level Niveau.
    * @param {string} source Bron, bijv. `fout`, `traag`, `app`, `proces`, `bewaking`.
    * @param {string} message Korte melding (wordt geschoond en afgekapt).
-   * @param {{requestId?: string, errorCode?: string, durationMs?: number, data?: object}} [details] Details.
+   * @param {{requestId?: string, errorCode?: string, durationMs?: number, data?: any}} [details] Details.
    * @returns {void}
    */
   function log(level, source, message, { requestId = '', errorCode = '', durationMs = 0, data = null } = {}) {

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Beheer > Systeem > Livegang (recht `systeem`): de controle uit `beheer/go-live-check.js` op één pagina. Bovenaan de
  * instellingen voor de overstap (draaiboek `docs/GO-LIVE.md`), daaronder welke vaste inhoud nog uit de
@@ -20,8 +21,8 @@ const STATES = {
 /**
  * Tekent een blok met regels van de controle.
  * @param {string} caption Onzichtbaar bijschrift van de tabel.
- * @param {object[]} rows Regels (`label`, `state`, `detail`, `href`).
- * @returns {object} HTML.
+ * @param {any[]} rows Regels (`label`, `state`, `detail`, `href`).
+ * @returns {any} HTML.
  */
 function renderCheckTable(caption, rows) {
   return ui.renderTable({
@@ -38,7 +39,7 @@ function renderCheckTable(caption, rows) {
 
 /**
  * Maakt de route.
- * @param {{db: object, guard: Function, settings: object, renderBeheerPage: Function, now?: () => number}} options
+ * @param {{db: any, guard: Function, settings: any, renderBeheerPage: Function, now?: () => number}} options
  *   Database, rechtencontrole, instellingen, de weergave van een Beheer-pagina en
  *   (voor tests) de klok van de limiet.
  * @returns {express.Router} Router.

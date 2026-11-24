@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 13: website: geüploade foto's in de database (back-up).
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

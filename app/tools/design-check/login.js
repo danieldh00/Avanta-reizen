@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Design-controle: inloggen als CRM-beheerder of als reiziger in een Playwright-context, gedeeld door `check.js` en
  * `overview.js`. Eerst via het echte formulier in de browser; lukt dat niet, dan via een los verzoek met een correcte
@@ -14,7 +15,7 @@ const LOGINS = {
 
 /**
  * Logt een context in.
- * @param {object} context Playwright-context.
+ * @param {any} context Playwright-context.
  * @param {('crm'|'customer')} kind Soort gebruiker.
  * @param {string} baseUrl Basisadres van de app.
  * @returns {Promise<{viaForm: boolean, formStatus: number}>} Of het formulier in de browser werkte, en zijn HTTP-status.

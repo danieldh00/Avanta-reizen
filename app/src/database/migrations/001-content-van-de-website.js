@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 1: content van de website.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

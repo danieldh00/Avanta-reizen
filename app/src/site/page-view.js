@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * HTML van het weblog, de pagina's, de FAQ en de contactpagina in de opmaak van de huidige site (CMS-pakket E4):
  * het blogoverzicht (tags, drie berichten links, één groot rechts, daaronder de rest in twee kolommen), de tagpagina
@@ -31,7 +32,7 @@ const MAX_BLOCK_SOURCE = 500000;
  * Een iframe met een YouTube-video via youtube-nocookie.com, in de verhouding 16:9 zoals de huidige site.
  * @param {string} videoId YouTube-id (11 tekens, gecontroleerd door `VIDEO_PARAGRAPH`).
  * @param {string} title Titel voor schermlezers.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function videoBlock(videoId, title) {
   return html`<div class="page-content__video-wrapper"><div class="page-content__video">
@@ -42,7 +43,7 @@ function videoBlock(videoId, title) {
 /**
  * Een losse foto uit opgeschoonde tekst opnieuw opgebouwd, met `srcset` als er lichtere versies zijn.
  * @param {{getAttribute: (name: string) => (string|undefined)}} node Het `<img>`-element uit de opgeschoonde HTML.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function bodyImage(node) {
   const width = node.getAttribute('width');
@@ -58,7 +59,7 @@ function bodyImage(node) {
  * worden opnieuw opgebouwd uit gecontroleerde waarden.
  * @param {string} bodyHtml Opgeschoonde HTML uit de import.
  * @param {string} title Titel van het bericht of de pagina (voor de video).
- * @returns {{blocks: object[], hasVideo: boolean}} De blokken en of er een video in staat (voor de CSP).
+ * @returns {{blocks: any[], hasVideo: boolean}} De blokken en of er een video in staat (voor de CSP).
  */
 function contentBlocks(bodyHtml, title) {
   const source = String(bodyHtml || '');
@@ -78,7 +79,9 @@ function contentBlocks(bodyHtml, title) {
     flushText();
     return { blocks, hasVideo };
   }
-  for (const node of parse(source, { comment: false }).childNodes) {
+  // Alleen elementen (nodeType 1) gebruiken `getAttribute` en `querySelectorAll`; tekst-nodes komen daar niet.
+  const nodes = /** @type {import('node-html-parser').HTMLElement[]} */ (parse(source, { comment: false }).childNodes);
+  for (const node of nodes) {
     const [from, to] = node.range;
     const part = source.slice(from, to);
     const tag = node.nodeType === 1 ? node.rawTagName.toLowerCase() : '';
@@ -109,7 +112,7 @@ function contentBlocks(bodyHtml, title) {
 /**
  * Inleiding boven de inhoud (grote Playfair-tekst), als die er is.
  * @param {string} text Inleiding.
- * @returns {(object|string)} HTML of leeg.
+ * @returns {(any|string)} HTML of leeg.
  */
 function introduction(text) {
   return text ? html`<div class="page-introduction">${text}</div>` : '';
@@ -119,7 +122,7 @@ function introduction(text) {
  * Een bericht of pagina: inleiding, de blokken en eventueel de fotogalerij eronder (uit `site-content.json`).
  * @param {{title: string, intro?: string, body_html?: string}} item Bericht of pagina.
  * @param {({title: string, subtitle: string, images: string[]}|null)} [gallery] Galerij onder de inhoud.
- * @returns {{body: object, hasVideo: boolean}} HTML en of er een video in staat.
+ * @returns {{body: any, hasVideo: boolean}} HTML en of er een video in staat.
  */
 function articleBody(item, gallery = null) {
   const { blocks, hasVideo } = contentBlocks(item.body_html, item.title);
@@ -133,7 +136,7 @@ function articleBody(item, gallery = null) {
  * De tags boven het weblog met de link naar het oude blogarchief.
  * @param {{slug: string, name: string}[]} tags Tags.
  * @param {{label: string, href: string}} archiveLink Link naar het oude archief (extern).
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function tagBar(tags, archiveLink) {
   return html`<div class="tags">
@@ -145,9 +148,9 @@ function tagBar(tags, archiveLink) {
 /**
  * Verdeelt de berichten zoals de huidige site: het uitgelichte bericht (in WordPress "sticky") groot rechts, de drie
  * nieuwste andere links en de rest eronder. Zonder (bestaand) uitgelicht bericht is het vierde bericht groot.
- * @param {object[]} posts Berichten, nieuwste eerst.
+ * @param {any[]} posts Berichten, nieuwste eerst.
  * @param {string} [featuredSlug] Slug van het uitgelichte bericht.
- * @returns {{list: object[], featured: (object|null), rest: object[]}} De verdeling.
+ * @returns {{list: any[], featured: (any|null), rest: any[]}} De verdeling.
  */
 function arrangePosts(posts, featuredSlug) {
   const chosen = featuredSlug ? posts.find((post) => post.slug === featuredSlug) : null;
@@ -160,9 +163,9 @@ function arrangePosts(posts, featuredSlug) {
 /**
  * Het blogoverzicht: inleiding, tags, links de drie nieuwste berichten, rechts het vierde groot, daaronder de rest in
  * twee kolommen.
- * @param {{posts: object[], introduction: string, tags: object[], archiveLink: object, featured?: string}} blog Berichten
+ * @param {{posts: any[], introduction: string, tags: any[], archiveLink: any, featured?: string}} blog Berichten
  *   (nieuwste eerst), inleiding, tags, de link naar het oude archief en de slug van het uitgelichte bericht.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function blogArchive(blog) {
   const teaser = (post) => postTeaser(post, SUMMARY_LENGTH, { heading: 'h2' });
@@ -184,8 +187,8 @@ function blogArchive(blog) {
 
 /**
  * Berichten als liggende teasers onder elkaar (tagpagina, zoekresultaten).
- * @param {object[]} posts Berichten.
- * @returns {object} HTML.
+ * @param {any[]} posts Berichten.
+ * @returns {any} HTML.
  */
 function postList(posts) {
   return html`<div class="list archive archive--post">${posts.map((post) => html`<div class="list__item">${postTeaser(post, SUMMARY_LENGTH, { heading: 'h2', landscape: true })}</div>`)}</div>`;
@@ -193,8 +196,8 @@ function postList(posts) {
 
 /**
  * De berichten van één tag als liggende teasers onder elkaar.
- * @param {object[]} posts Berichten.
- * @returns {object} HTML.
+ * @param {any[]} posts Berichten.
+ * @returns {any} HTML.
  */
 function tagArchive(posts) {
   return html`<div class="layout-container">
@@ -214,7 +217,7 @@ function faqAnchor(category) {
 /**
  * De FAQ per categorie: titel en vragen die uitklappen (plusje draait een kwartslag).
  * @param {{question: string, answer_html: string, category: string}[]} faqs Vragen, op categorie gesorteerd.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function faqList(faqs) {
   const groups = new Map();
@@ -247,12 +250,13 @@ function faqList(faqs) {
 
 /**
  * De contactpagina: links het adres en een verwijzing naar de FAQ, rechts het formulier in een box.
- * @param {{siteName: string, contact: {phone: string, email: string}, organisation?: object, kvk?: string}} site Site-instellingen.
- * @param {object} form HTML van het formulier of de bedanktmelding.
- * @returns {object} HTML.
+ * @param {{siteName: string, contact: {phone: string, email: string}, organisation?: any, kvk?: string}} site Site-instellingen.
+ * @param {any} form HTML van het formulier of de bedanktmelding.
+ * @returns {any} HTML.
  */
 function contactLayout(site, form) {
   const organisation = site.organisation || {};
+  /** @type {{phone?: string, email?: string}} */
   const contact = site.contact || {};
   const place = [organisation.postalCode, organisation.city].filter(Boolean).join(' ');
   return html`<div class="layout-container">

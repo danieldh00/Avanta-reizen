@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Paginaopbouw van de website, gelijk aan de huidige site: vaste kop met logo, menu en zoekvenster (papierrand eronder,
  * op mobiel een uitschuifmenu), paginakop met foto, inhoud en de donkere voettekst met achtergrondfoto.
@@ -63,8 +64,8 @@ function isActive(href, currentPath) {
  * Maakt het hoofdmenu zoals op de huidige site: items in Playfair, een submenu dat op de computer bij aanwijzen
  * openklapt en op mobiel met een eigen knop (`foldout-toggle`, zie `public/js/site.js`).
  * @param {string} currentPath Pad van de huidige pagina.
- * @param {object[]} [items] Items uit het CRM (`cms/menus.js`); zonder: het vaste menu.
- * @returns {object} HTML van het menu.
+ * @param {any[]} [items] Items uit het CRM (`cms/menus.js`); zonder: het vaste menu.
+ * @returns {any} HTML van het menu.
  */
 function renderMenu(currentPath, items) {
   const menu = Array.isArray(items) && items.length ? items : MENU;
@@ -82,8 +83,8 @@ function renderMenu(currentPath, items) {
  * doorzichtig boven de foto (`is-transparent`, alleen met JavaScript actief).
  * @param {string} currentPath Pad van de huidige pagina.
  * @param {string} siteName Naam van de site (alt-tekst van het logo).
- * @param {object[]} [menuItems] Hoofdmenu uit het CRM; zonder: het vaste menu.
- * @returns {object} HTML van de kop.
+ * @param {any[]} [menuItems] Hoofdmenu uit het CRM; zonder: het vaste menu.
+ * @returns {any} HTML van de kop.
  */
 function renderHeader(currentPath, siteName, menuItems) {
   return html`<header class="header-main${currentPath === '/' ? ' is-transparent' : ''}">
@@ -109,8 +110,8 @@ function renderHeader(currentPath, siteName, menuItems) {
 /**
  * Maakt de voettekst: wit logo, menu en contact in Playfair op de achtergrondfoto, social-iconen (alleen ingevulde
  * adressen uit Beheer), het SGR-logo en de copyrightregel.
- * @param {{siteName: string, contact: {phone: string, email: string}, social?: object, measurementId?: string, menu?: object[]}} footer Gegevens (`menu`: menu uit het CRM; zonder: het vaste voetmenu).
- * @returns {object} HTML van de voettekst.
+ * @param {{siteName: string, contact: {phone: string, email: string}, social?: any, measurementId?: string, menu?: any[]}} footer Gegevens (`menu`: menu uit het CRM; zonder: het vaste voetmenu).
+ * @returns {any} HTML van de voettekst.
  */
 function renderFooter(footer) {
   const { siteName, contact } = footer;
@@ -141,8 +142,8 @@ function renderFooter(footer) {
 /**
  * De waarden van een pagina met de standaarden ingevuld: menupad, site-instellingen, contact, sitenaam, volledige
  * titel (op de homepage de eigen titel uit Beheer), omschrijving, verificatiecodes en de meet-id van analytics.
- * @param {{title: string, description?: string, path?: string, site?: object}} page Gegevens van de pagina (`renderPage`).
- * @returns {{currentPath: string, site: object, contact: object, siteName: string, fullTitle: string, description: string, verification: object, measurementId: string}}
+ * @param {{title: string, description?: string, path?: string, site?: any}} page Gegevens van de pagina (`renderPage`).
+ * @returns {{currentPath: string, site: any, contact: any, siteName: string, fullTitle: string, description: string, verification: any, measurementId: string}}
  *   De waarden.
  */
 function pageSettings(page) {
@@ -162,7 +163,7 @@ function pageSettings(page) {
 
 /**
  * Maakt een volledige HTML-pagina.
- * @param {{title: string, description?: string, body: object, path?: string, header?: object, bodyClass?: string, indexable?: boolean, seo?: object, site?: object}} page Gegevens van de pagina; `path` is het menupad, `seo` de canonical-URL, afbeelding, type en JSON-LD (zie `seo.renderSeoHead`), `site` de site-instellingen uit Beheer (`site/site-settings.js`: naam, titels, omschrijving, contact, social media, verificatie, tekst van de balk "in ontwikkeling", de menu's uit het CRM in `menus`; zonder: de standaard).
+ * @param {{title: string, description?: string, body: any, path?: string, header?: any, bodyClass?: string, indexable?: boolean, seo?: any, site?: any}} page Gegevens van de pagina; `path` is het menupad, `seo` de canonical-URL, afbeelding, type en JSON-LD (zie `seo.renderSeoHead`), `site` de site-instellingen uit Beheer (`site/site-settings.js`: naam, titels, omschrijving, contact, social media, verificatie, tekst van de balk "in ontwikkeling", de menu's uit het CRM in `menus`; zonder: de standaard).
  * @returns {string} De HTML.
  */
 function renderPage(page) {
@@ -198,7 +199,7 @@ function renderPage(page) {
 /**
  * De balk bovenaan elke pagina (site en CRM) zolang de onderhoudsmodus aan staat; de stand komt uit de context van
  * het verzoek (`system/request-context.js`, gezet in `server.js`).
- * @returns {(object|string)} HTML, of leeg buiten onderhoud.
+ * @returns {(any|string)} HTML, of leeg buiten onderhoud.
  */
 function renderMaintenanceBanner() {
   const maintenance = currentContext().maintenance;
@@ -223,7 +224,7 @@ function cssImageUrl(url) {
  * Playfair 900. Met `destinations` (reis) staat de titel links met de landen erboven en een knop "Naar overzicht".
  * @param {{title?: string, pretitle?: string, date?: (Date|null), subtitle?: string, imageUrl?: string, backLink?: string, destinations?: string[], bare?: boolean, single?: boolean}} header Gegevens van de kop (`bare`: alleen de knop "Naar overzicht", zoals bij een reisleider; `date`: datum
  *   van een blogbericht als pretitel, dd/mm/jjjj; `single`: blogbericht, op mobiel staat "Naar overzicht" als balk boven de kop).
- * @returns {object} HTML van de kop.
+ * @returns {any} HTML van de kop.
  */
 function renderPageHeader(header) {
   // Volle breedte: de versie van 1600 pixels is scherp genoeg en veel lichter dan een groot origineel.

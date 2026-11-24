@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Instellingen van de app, te beheren onder Beheer (`/app/beheer/`, recht `systeem`). Opzet:
  * - Elke instelling staat in `SETTING_FIELDS` (per groep in `beheer/instellingen/<groep>.js`) met type, standaardwaarde, eventueel een omgevingsvariabele en grenzen.
@@ -48,7 +49,7 @@ class SettingsError extends Error {
 /**
  * Zet een opgeslagen of startwaarde om naar het type van de instelling. Een waarde die niet (meer) past, geeft de
  * standaardwaarde; zo breekt een oude of verkeerde omgevingsvariabele de site nooit.
- * @param {object} definition Beschrijving uit `SETTING_FIELDS`.
+ * @param {any} definition Beschrijving uit `SETTING_FIELDS`.
  * @param {*} raw De ruwe waarde.
  * @returns {*} De waarde in het juiste type.
  */
@@ -90,7 +91,7 @@ function normalizeUrl(key, value) {
 /**
  * Controleert een tekstwaarde (tekst, e-mail, URL, tekstvak, geheim) en maakt hem schoon.
  * @param {string} key Naam van de instelling (voor de fout).
- * @param {object} definition Beschrijving uit `SETTING_FIELDS`.
+ * @param {any} definition Beschrijving uit `SETTING_FIELDS`.
  * @param {string} raw Ingevoerde tekst.
  * @returns {string} Schone tekst (zonder witruimte aan de randen; e-mail in kleine letters; URL zonder slash achteraan).
  * @throws {SettingsError} Bij een ongeldige waarde.
@@ -124,7 +125,7 @@ function validateText(key, definition, raw) {
 /**
  * Controleert een ingevoerde waarde voor een instelling.
  * @param {string} key Naam van de instelling.
- * @param {object} definition Beschrijving uit `SETTING_FIELDS`.
+ * @param {any} definition Beschrijving uit `SETTING_FIELDS`.
  * @param {*} raw Ingevoerde waarde (uit het formulier: tekst; bij `bool` ook true/false).
  * @returns {*} De waarde in het juiste type.
  * @throws {SettingsError} Bij een ongeldige waarde.
@@ -153,9 +154,9 @@ function validateValue(key, definition, raw) {
 
 /**
  * Maakt de instellingenlaag.
- * @param {{db: object, vault: {seal: Function, open: Function}, env?: object, fields?: object}} options Database, kluis
+ * @param {{db: any, vault: {seal: Function, open: Function}, env?: any, fields?: any}} options Database, kluis
  *   voor geheimen, omgevingsvariabelen (standaard `process.env`) en (voor tests) een eigen lijst instellingen.
- * @returns {object} Functies: `load`, `ready`, `get`, `source`, `view`, `update`, `fields`.
+ * @returns {any} Functies: `load`, `ready`, `get`, `source`, `view`, `update`, `fields`.
  */
 function createSettings(options) {
   const { db, vault } = options;
@@ -275,7 +276,7 @@ function createSettings(options) {
   /**
    * Bepaalt wat een wijziging in de database doet, zonder iets op te slaan: welke rijen weg moeten (terugzetten) en
    * welke waarden geschreven worden. Controleert elke naam en waarde.
-   * @param {{values?: object, clear?: string[], reset?: string[]}} patch Zie `update`.
+   * @param {{values?: any, clear?: string[], reset?: string[]}} patch Zie `update`.
    * @returns {{writes: Map<string, *>, removals: Set<string>}} Te schrijven waarden en te verwijderen rijen.
    * @throws {SettingsError} Bij een onbekende instelling of ongeldige waarde.
    */
@@ -309,7 +310,7 @@ function createSettings(options) {
    * Slaat wijzigingen op. Een geheim: weglaten of lege tekst = ongewijzigd, `clear` = leegmaken. `reset` zet een
    * instelling terug naar de startwaarde (omgeving of standaard) door de databaseregel te verwijderen. Een waarde die
    * gelijk is aan wat er al geldt, telt niet als wijziging.
-   * @param {{values?: object, clear?: string[], reset?: string[]}} patch Nieuwe waarden, te legen geheimen en terug te zetten instellingen.
+   * @param {{values?: any, clear?: string[], reset?: string[]}} patch Nieuwe waarden, te legen geheimen en terug te zetten instellingen.
    * @param {{userId?: (number|null), inTransaction?: Function}} [context] Wie het doet en een functie
    *   `(client, changed) => Promise` die in dezelfde transactie draait (bijv. het auditlog): mislukt die, dan wordt niets opgeslagen.
    * @returns {Promise<string[]>} Namen van de gewijzigde instellingen.

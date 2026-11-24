@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Reizigersaccount onder `/account/` (CMS-pakket J2/J3): registreren, bevestigen, inloggen, uitloggen, wachtwoord
  * vergeten en herstellen, Mijn reizen (`account/my-trips.js`), Mijn gegevens met Excel-export en wachtwoord wijzigen. Los van het CRM: eigen tabellen (`account/accounts.js`), eigen cookie met pad
@@ -108,7 +109,7 @@ function passwordField(value) {
 
 /**
  * Bouwt de router van het reizigersaccount.
- * @param {{db: object, masterKey: Buffer, formKey: Buffer, mailer: object, settings: object, captcha?: object, accounts?: object, passwordCheck?: object, secureCookies?: boolean, now?: () => number}} options
+ * @param {{db: any, masterKey: Buffer, formKey: Buffer, mailer: any, settings: any, captcha?: any, accounts?: any, passwordCheck?: any, secureCookies?: boolean, now?: () => number}} options
  *   Database, hoofdsleutel (CSRF-sleutel), sleutel voor het formuliertoken, mailer en instellingen (mails), captcha,
  *   de accountopslag (anders een nieuwe), de wachtwoordcontrole (`security/password-check.js`, anders een nieuwe), of de cookie `Secure` krijgt en (voor tests) de klok van de limieten.
  * @returns {express.Router} De router.
@@ -152,8 +153,8 @@ function createAccountRouter(options) {
 
   /**
    * Middleware: zoekt de sessie bij de cookie en zet `req.customer` (`{accountId, email, tokenHash, stepUp, csrf}`) of null.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende stap.
    * @returns {Promise<void>}
    */
@@ -171,7 +172,7 @@ function createAccountRouter(options) {
 
   /**
    * Zet of wist de sessiecookie.
-   * @param {object} res Express-antwoord.
+   * @param {any} res Express-antwoord.
    * @param {string} token Token, of leeg om te wissen.
    * @param {number} maxAgeSeconds Levensduur.
    * @returns {void}
@@ -183,7 +184,7 @@ function createAccountRouter(options) {
 
   /**
    * Start een sessie in een transactie en zet de cookie.
-   * @param {object} res Express-antwoord.
+   * @param {any} res Express-antwoord.
    * @param {number} accountId Account.
    * @param {{query: Function}} client Transactie-client.
    * @returns {Promise<void>}
@@ -195,7 +196,7 @@ function createAccountRouter(options) {
 
   /**
    * Schrijft een regel in het auditlog van het CRM (zonder medewerker, zonder e-mailadres).
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {string} action Actie (sleutel uit `ACCOUNT_ACTION_LABELS`).
    * @param {(number|null)} accountId Account, of null als het onbekend is.
    * @param {{query: Function}} [client] Database of transactie-client.
@@ -210,8 +211,8 @@ function createAccountRouter(options) {
 
   /**
    * Stuurt een accountpagina (altijd noindex en zonder cache).
-   * @param {object} res Express-antwoord.
-   * @param {{title: string, body: object}} page Titel en inhoud.
+   * @param {any} res Express-antwoord.
+   * @param {{title: string, body: any}} page Titel en inhoud.
    * @param {number} [status] HTTP-status.
    * @returns {void}
    */
@@ -233,8 +234,8 @@ function createAccountRouter(options) {
 
   /**
    * Weigert een POST van een andere site.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende stap.
    * @returns {void}
    */
@@ -242,8 +243,8 @@ function createAccountRouter(options) {
 
   /**
    * Controleert bij een POST van een ingelogde reiziger de herkomst en het CSRF-token (veld `_csrf`).
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende stap.
    * @returns {void}
    */
@@ -259,7 +260,7 @@ function createAccountRouter(options) {
 
   /**
    * Telt een mislukte poging op een account (per IP-reeks en over alle reeksen), vóór de trage wachtwoordcontrole.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {(number|null)} accountId Account, of null bij een onbekend adres.
    * @returns {{blocked: boolean, clear: Function}} Of het account (vanaf deze reeks) dicht is, en een functie die de
    *   tellers wist na een geslaagde poging.
@@ -295,8 +296,8 @@ function createAccountRouter(options) {
 
   /**
    * Middleware voor pagina's van een ingelogde reiziger (GET): zonder sessie naar inloggen.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende stap.
    * @returns {void}
    */
@@ -441,8 +442,8 @@ function createAccountRouter(options) {
 
   /**
    * Het registratieformulier met nieuwe verborgen velden.
-   * @param {object} res Express-antwoord.
-   * @param {{values?: object, errors?: object}} state Waarden en fouten.
+   * @param {any} res Express-antwoord.
+   * @param {{values?: any, errors?: any}} state Waarden en fouten.
    * @param {number} [status] HTTP-status.
    * @returns {void}
    */
@@ -541,8 +542,8 @@ function createAccountRouter(options) {
 
   /**
    * Het formulier *wachtwoord vergeten* met nieuwe verborgen velden.
-   * @param {object} res Express-antwoord.
-   * @param {{values?: object, errors?: object}} state Waarden en fouten.
+   * @param {any} res Express-antwoord.
+   * @param {{values?: any, errors?: any}} state Waarden en fouten.
    * @param {number} [status] HTTP-status.
    * @returns {void}
    */
@@ -634,7 +635,7 @@ function createAccountRouter(options) {
 
   /**
    * De ingelogde reiziger bij een verzoek buiten `/account/` (het aanmeldformulier, J4).
-   * @param {object} req Express-verzoek (cookie).
+   * @param {any} req Express-verzoek (cookie).
    * @returns {Promise<({accountId: number, email: string}|null)>} Account-id en e-mailadres, of null zonder sessie.
    */
   router.customerFor = async (req) => {
@@ -646,7 +647,7 @@ function createAccountRouter(options) {
    * De gewone gegevens van de vorige aanmelding die de ingelogde reiziger zelf deed (ingelogd, met het adres van het
    * account), om het aanmeldformulier alvast in te vullen (J4). Nooit op e-mailadres alleen, nooit bijzondere of
    * paspoortgegevens: die vraagt het formulier opnieuw. E-mailadres = dat van het account.
-   * @param {object} req Express-verzoek (cookie).
+   * @param {any} req Express-verzoek (cookie).
    * @returns {Promise<Record<string, string>>} Waarden voor het formulier; leeg zonder sessie.
    */
   router.prefillFor = async (req) => {

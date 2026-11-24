@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Leest de HTML van de huidige WordPress-site uit per paginasoort (reis, reisleider, categorie, blog, pagina, FAQ)
  * en geeft platte objecten terug. De HTML van de inhoud blijft ruw; die wordt bij het importeren opgeschoond.
@@ -77,7 +78,7 @@ function pathFromUrl(url) {
 
 /**
  * De fotogalerij onder de inhoud (sectie `page-gallery`): titel, ondertitel en de foto's in volgorde.
- * @param {object} root Geparste pagina.
+ * @param {any} root Geparste pagina.
  * @returns {{title: string, subtitle: string, images: string[]}} De galerij (zonder foto's: lege lijst).
  */
 function parsePageGallery(root) {
@@ -92,7 +93,7 @@ function parsePageGallery(root) {
 /**
  * Leest de delen die elke pagina heeft: kop (afbeelding, pretitel, titel), intro, inhoud en metagegevens.
  * @param {string} markup De volledige HTML van de pagina.
- * @returns {object} De gemeenschappelijke gegevens, plus `root` voor verdere uitlezing.
+ * @returns {any} De gemeenschappelijke gegevens, plus `root` voor verdere uitlezing.
  */
 function parseCommon(markup) {
   const root = parse(markup, { comment: false });
@@ -118,8 +119,8 @@ function parseCommon(markup) {
 
 /**
  * Leest de feitenlijst van een reis (`dt`/`dd` in `.trip__meta`) als knopen per label in kleine letters.
- * @param {object} root De geparste pagina.
- * @returns {Record<string, object>} De `dd`-knoop per label (bijv. `reiscode`, `vertrek`, `reisleider`).
+ * @param {any} root De geparste pagina.
+ * @returns {Record<string, any>} De `dd`-knoop per label (bijv. `reiscode`, `vertrek`, `reisleider`).
  */
 function readTripFacts(root) {
   const facts = {};
@@ -136,7 +137,7 @@ function readTripFacts(root) {
 
 /**
  * Leest de prijzen van een reis: reissom, oude prijs bij een aanbieding, einddatum van de aanbieding en bijkomende kosten.
- * @param {object} root De geparste pagina.
+ * @param {any} root De geparste pagina.
  * @returns {{priceCents: number|null, oldPriceCents: number|null, offerUntil: string|null, extraCostsCents: number|null}} De prijzen.
  */
 function readTripPrices(root) {
@@ -155,7 +156,7 @@ function readTripPrices(root) {
 
 /**
  * Leest de fotogalerij van een reis met kop en ondertitel.
- * @param {object} root De geparste pagina.
+ * @param {any} root De geparste pagina.
  * @returns {{galleryTitle: string, gallerySubtitle: string, gallery: Array<{url: string, alt: string}>}} De galerij.
  */
 function readTripGallery(root) {
@@ -172,7 +173,7 @@ function readTripGallery(root) {
  * Leest een reis (posttype journey).
  * @param {string} markup HTML van de reispagina.
  * @param {string} url Adres van de pagina.
- * @returns {object} De reis.
+ * @returns {any} De reis.
  */
 function parseTrip(markup, url) {
   const common = parseCommon(markup);
@@ -216,7 +217,7 @@ function parseTrip(markup, url) {
  * Leest een reisleider.
  * @param {string} markup HTML van de pagina.
  * @param {string} url Adres van de pagina.
- * @returns {object} De reisleider.
+ * @returns {any} De reisleider.
  */
 function parseGuide(markup, url) {
   const common = parseCommon(markup);
@@ -234,7 +235,7 @@ function parseGuide(markup, url) {
 
 /**
  * De extra gegevens van een reisleider die de huidige site naast de tekst toont (voor `site-content.json`).
- * @param {object} root Geparste pagina.
+ * @param {any} root Geparste pagina.
  * @returns {{surname: string, city: string, since: string, quote: string, portrait: (string|null), image: (string|null), galleryTitle: string, gallerySubtitle: string, gallery: string[]}} Gegevens.
  */
 function parseGuideExtra(root) {
@@ -319,7 +320,7 @@ function parseTagPage(markup) {
  * Leest een reiscategorie (bestemming of reistype) inclusief de reizen in de lijst.
  * @param {string} markup HTML van de pagina.
  * @param {string} url Adres van de pagina.
- * @returns {object} De categorie.
+ * @returns {any} De categorie.
  */
 function parseCategory(markup, url) {
   const common = parseCommon(markup);
@@ -363,7 +364,7 @@ function parseFaqCategory(markup, url) {
  * Leest een blogbericht.
  * @param {string} markup HTML van de pagina.
  * @param {string} url Adres van de pagina.
- * @returns {object} Het bericht.
+ * @returns {any} Het bericht.
  */
 function parsePost(markup, url) {
   const common = parseCommon(markup);
@@ -386,7 +387,7 @@ function parsePost(markup, url) {
  * Leest een gewone pagina.
  * @param {string} markup HTML van de pagina.
  * @param {string} url Adres van de pagina.
- * @returns {object} De pagina.
+ * @returns {any} De pagina.
  */
 function parsePage(markup, url) {
   const common = parseCommon(markup);
@@ -407,7 +408,7 @@ function parsePage(markup, url) {
  * inspiratie-dia's en het blok "Voor Avanta Reizen is geen bestemming te ver". Links en foto's blijven de adressen van
  * de huidige site; de import zet ze om naar eigen paden.
  * @param {string} markup HTML van de homepage.
- * @returns {object} De inhoud (zie `src/site/homepage.js`).
+ * @returns {any} De inhoud (zie `src/site/homepage.js`).
  */
 function parseHome(markup) {
   const root = parse(markup, { comment: false });

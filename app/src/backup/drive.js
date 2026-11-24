@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Kopie van de back-ups naar Google Drive (Beheer > Back-ups en herstel > Google Drive, pakket C2). Opzet:
  * - OAuth 2.0 met een eigen Google-app (client-ID en -secret uit de Google Cloud Console), scope `drive.file`: de app
@@ -90,7 +91,7 @@ function cleanId(value) {
 /**
  * Leest en schoont de stand van de koppeling op.
  * @param {string} dir Back-upmap.
- * @returns {{folderId: string, folderName: string, account: string, uploaded: object[], events: object[], lastOkAt: string, lastFailAt: string, needsReconnect: boolean}} De stand.
+ * @returns {{folderId: string, folderName: string, account: string, uploaded: any[], events: any[], lastOkAt: string, lastFailAt: string, needsReconnect: boolean}} De stand.
  */
 function readState(dir) {
   let raw;
@@ -121,7 +122,7 @@ function readState(dir) {
 /**
  * Schrijft de stand in één keer weg (tijdelijk bestand + hernoemen).
  * @param {string} dir Back-upmap.
- * @param {object} state De stand.
+ * @param {any} state De stand.
  * @returns {void}
  */
 function writeState(dir, state) {
@@ -136,10 +137,10 @@ const REVOKE_BY_HAND = 'trek de toegang van de app zelf in via https://myaccount
 
 /**
  * Maakt de koppeling met Google Drive.
- * @param {{settings: object, dir: string, fetchImpl?: Function, now?: () => number, audit?: Function, isAllowed?: Function}} options
+ * @param {{settings: any, dir: string, fetchImpl?: Function, now?: () => number, audit?: Function, isAllowed?: Function}} options
  *   Instellingen, back-upmap, fetch (tests vervangen Google hiermee), klok, een functie die een auditregel schrijft
  *   (`{userId, action}`) en een functie die bij de terugkeer controleert of de gebruiker nog mag koppelen.
- * @returns {object} `configured`, `connected`, `redirectUri`, `startAuthorization`, `finishAuthorization`,
+ * @returns {any} `configured`, `connected`, `redirectUri`, `startAuthorization`, `finishAuthorization`,
  *   `disconnect`, `sync`, `syncIfDue`, `startTimer`, `state`, `download`, `listRemote`.
  */
 function createDrive(options) {
@@ -156,6 +157,7 @@ function createDrive(options) {
   /** Telt koppelen en ontkoppelen: een synchronisatie die daarvóór begon, schrijft haar uitkomst niet meer weg. */
   let generation = 0;
   /** Keten van mapzoekacties (één tegelijk). */
+  /** @type {Promise<unknown>} */
   let folderQueue = Promise.resolve();
 
   /**
@@ -178,7 +180,7 @@ function createDrive(options) {
 
   /**
    * Voegt een gebeurtenis toe aan de stand.
-   * @param {object} state De stand.
+   * @param {any} state De stand.
    * @param {boolean} ok Gelukt of niet.
    * @param {string} message Melding (zonder tokens).
    * @returns {void}
@@ -193,8 +195,8 @@ function createDrive(options) {
   /**
    * Wijzigt de stand op schijf: vlak ervoor opnieuw lezen, alleen de eigen velden aanpassen en meteen wegschrijven
    * (synchroon, dus zonder andere schrijvers ertussen).
-   * @param {(state: object) => void} change Past de stand aan.
-   * @returns {object} De nieuwe stand.
+   * @param {(state: any) => void} change Past de stand aan.
+   * @returns {any} De nieuwe stand.
    */
   const mutateState = (change) => {
     const state = readState(dir);
@@ -221,7 +223,7 @@ function createDrive(options) {
   /**
    * Een verzoek aan Google met een tijdslimiet; een fout wordt een DriveError zonder geheimen.
    * @param {string} url Adres.
-   * @param {object} init Fetch-opties.
+   * @param {any} init Fetch-opties.
    * @param {number} [timeoutMs] Tijdslimiet.
    * @returns {Promise<Response>} Antwoord (alleen 2xx).
    * @throws {DriveError} Bij een netwerkfout of een foutstatus.
@@ -270,7 +272,7 @@ function createDrive(options) {
   /**
    * Een verzoek aan de Drive-API met het toegangstoken.
    * @param {string} url Adres.
-   * @param {object} [init] Fetch-opties.
+   * @param {any} [init] Fetch-opties.
    * @param {number} [timeoutMs] Tijdslimiet.
    * @returns {Promise<Response>} Antwoord.
    */
@@ -378,7 +380,7 @@ function createDrive(options) {
   /**
    * Zoekt of maakt de back-upmap op Drive, één zoekactie tegelijk (anders kunnen twee gelijktijdige aanroepen elk een
    * map met dezelfde naam aanmaken).
-   * @param {object} state De werkkopie van de stand (wordt bijgewerkt).
+   * @param {any} state De werkkopie van de stand (wordt bijgewerkt).
    * @returns {Promise<string>} Id van de map.
    */
   const ensureFolder = (state) => {
@@ -389,7 +391,7 @@ function createDrive(options) {
 
   /**
    * Zoekt of maakt de back-upmap op Drive (zie `ensureFolder`).
-   * @param {object} state De werkkopie van de stand (wordt bijgewerkt).
+   * @param {any} state De werkkopie van de stand (wordt bijgewerkt).
    * @returns {Promise<string>} Id van de map.
    */
   const findFolder = async (state) => {
@@ -487,7 +489,7 @@ function createDrive(options) {
     };
     /**
      * Verwerkt de uploads en verwijderingen van deze ronde in de actuele stand.
-     * @param {object} state De stand.
+     * @param {any} state De stand.
      * @returns {void}
      */
     const mergeUploads = (state) => {
@@ -559,7 +561,7 @@ function createDrive(options) {
   /**
    * Synchroniseert vanuit de planner: niet als het uit staat, niet gekoppeld is, opnieuw koppelen nodig is of de
    * laatste fout korter dan een kwartier geleden was.
-   * @returns {Promise<(object|null)>} Uitkomst, of null als het niet nodig was.
+   * @returns {Promise<(any|null)>} Uitkomst, of null als het niet nodig was.
    */
   const syncIfDue = async () => {
     await settings.ready();
@@ -592,7 +594,8 @@ function createDrive(options) {
     const file = (await listFolder(folderId)).find((entry) => entry.name === name);
     if (!file) throw new DriveError('missing', `${name} staat niet op Google Drive.`);
     const response = await api(`${GOOGLE.api}/files/${file.id}?alt=media`, {}, UPLOAD_TIMEOUT_MS);
-    await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(target, { mode: 0o600 }));
+    // `fetch` geeft een web-ReadableStream uit de globale typen; `fromWeb` verwacht die uit `node:stream/web` (zelfde ding).
+    await pipeline(Readable.fromWeb(/** @type {any} */ (response.body)), fs.createWriteStream(target, { mode: 0o600 }));
     return { name, size: fs.statSync(target).size };
   };
 

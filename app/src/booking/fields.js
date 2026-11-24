@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Velden van het aanmeldformulier (gelijk aan het huidige formulier) en de controle van de invoer.
  * Velden met `sensitive: true` worden versleuteld opgeslagen (bijzondere persoonsgegevens en paspoortgegevens).
@@ -22,7 +23,17 @@ const GUARDIAN_REQUIRED = ['guardian_name', 'guardian_relation', 'guardian_email
 
 const YES_NO = [{ value: 'ja', label: 'ja' }, { value: 'nee', label: 'nee' }];
 
-/** Alle velden, per groep, in de volgorde van het formulier. */
+/**
+ * Eén veld van het formulier (zie de kop van dit bestand voor `sensitive`, `consentFor` en `guardian`).
+ * @typedef {{name: string, label: string, type?: string, required?: boolean, max?: number, help?: string,
+ *   options?: {value: string, label: string}[], sensitive?: boolean, guardian?: boolean, consentFor?: string,
+ *   store?: boolean, full?: boolean}} BookingField
+ */
+
+/**
+ * Alle velden, per groep, in de volgorde van het formulier.
+ * @type {{title: string, intro?: string, guardian?: boolean, fields: BookingField[]}[]}
+ */
 const FIELD_GROUPS = [
   {
     title: 'Persoonlijke gegevens',
@@ -111,7 +122,7 @@ function isValidDate(value) {
  * Maakt de invoer van één veld schoon: zonder stuurtekens, regeleinden als `\n`, witruimte samengevoegd (behalve in
  * een tekstvak). Een selectievakje telt alleen als akkoord met precies de waarde die het formulier verstuurt (bewijs
  * voor `consent_at`).
- * @param {object} field Veld uit FIELDS.
+ * @param {any} field Veld uit FIELDS.
  * @param {*} raw Ingezonden waarde.
  * @returns {string} Schone waarde, of een lege tekst.
  */
@@ -124,7 +135,7 @@ function cleanFieldInput(field, raw) {
 
 /**
  * Controleert de vorm van een ingevulde waarde: lengte, keuze uit de opties, e-mailadres, telefoonnummer of datum.
- * @param {object} field Veld uit FIELDS.
+ * @param {any} field Veld uit FIELDS.
  * @param {string} value Schone, niet-lege waarde.
  * @returns {string} Foutmelding, of een lege tekst als de waarde klopt.
  */
@@ -139,8 +150,8 @@ function formatProblem(field, value) {
 
 /**
  * Controleert en normaliseert een deel van de velden (ook gebruikt door het CRM bij het wijzigen van een persoon).
- * @param {object[]} fields Velden uit FIELDS.
- * @param {object} body Ingezonden velden.
+ * @param {any[]} fields Velden uit FIELDS.
+ * @param {any} body Ingezonden velden.
  * @param {{today: string}} context Datum van vandaag (jjjj-mm-dd).
  * @returns {{values: Record<string, string>, errors: Record<string, string>}} Opgeschoonde waarden en fouten per veld.
  */
@@ -220,7 +231,7 @@ function checkGuardian(values, errors, context) {
 
 /**
  * Controleert en normaliseert de invoer van het hele aanmeldformulier.
- * @param {object} body Ingezonden velden.
+ * @param {any} body Ingezonden velden.
  * @param {{today: string}} context Datum van vandaag (jjjj-mm-dd).
  * @returns {{values: Record<string, string>, errors: Record<string, string>}} Opgeschoonde waarden en fouten per veld.
  */

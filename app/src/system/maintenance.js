@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Onderhoudsmodus: zolang die aan staat weigert de server schrijfverzoeken (503 met Retry-After), zodat er tijdens het
  * wisselen van de container of tijdens onderhoud niets half wordt opgeslagen. Lezen blijft werken; de layouts tonen
@@ -22,7 +23,7 @@ const UPDATE_MESSAGE = 'Er wordt een update geïnstalleerd. Versturen en opslaan
 
 /**
  * De huidige onderhoudsstand.
- * @param {{settings: object, systemUpdate: object}} sources Instellingen en de koppeling met het hostscript.
+ * @param {{settings: any, systemUpdate: any}} sources Instellingen en de koppeling met het hostscript.
  * @returns {{active: boolean, source: (''|'update'|'handmatig'), message: string}} De stand.
  */
 function maintenanceState({ settings, systemUpdate }) {
@@ -33,7 +34,7 @@ function maintenanceState({ settings, systemUpdate }) {
 
 /**
  * Middleware die schrijfverzoeken weigert tijdens onderhoud. Elk antwoord krijgt dan de kop `X-Avanta-Maintenance`.
- * @param {(req: object) => object} stateOf Geeft de stand voor dit verzoek (al berekend door de contextmiddleware).
+ * @param {(req: any) => any} stateOf Geeft de stand voor dit verzoek (al berekend door de contextmiddleware).
  * @returns {Function} Express-middleware.
  */
 function maintenanceGuard(stateOf) {

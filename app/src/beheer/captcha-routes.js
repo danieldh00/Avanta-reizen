@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Extra's van Beheer > Toegang en beveiliging > Captcha op formulieren (recht `systeem`): of de captcha actief is,
  * een controle van de geheime sleutel bij Google en de laatste uitkomsten (actie, uitkomst, score; nooit tokens of
@@ -30,7 +31,7 @@ const SECRET_RESULTS = {
 
 /**
  * Maakt de routes en het paneel van de captcha.
- * @param {{auth: object, guard: Function, captcha: object, renderSettingsSection: Function, now?: () => number}} options
+ * @param {{auth: any, guard: Function, captcha: any, renderSettingsSection: Function, now?: () => number}} options
  *   Sessielaag, rechtencontrole, captcha-dienst (`security/captcha.js`), de weergave van een instellingensectie en
  *   (voor tests) de klok van de limiet.
  * @returns {{router: express.Router, renderPanel: Function}} Router en paneel (voor onder het formulier).
@@ -44,9 +45,9 @@ function createCaptchaRoutes(options) {
 
   /**
    * Het paneel onder het formulier: status, sleutelcontrole en de laatste uitkomsten.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{secretResult?: {ok: boolean, message: string}}} [state] Uitkomst van een sleutelcontrole.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderPanel = (req, state = {}) => {
     const events = captcha.recent();

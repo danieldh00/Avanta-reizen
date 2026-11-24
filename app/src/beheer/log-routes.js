@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Beheer > Systeem > Logboek (recht `systeem`): de regels uit `app_logs` (fouten met foutcode, trage verzoeken,
  * waarschuwingen en fouten van achtergrondtaken), nieuwste eerst, te filteren op niveau en bron en te zoeken op
@@ -18,7 +19,7 @@ const PAGE_SIZE = 50;
 
 /**
  * Maakt de routes.
- * @param {{db: object, guard: Function, settings: object, appLog?: object, renderBeheerPage: Function, now?: () => number}} options
+ * @param {{db: any, guard: Function, settings: any, appLog?: any, renderBeheerPage: Function, now?: () => number}} options
  *   Database, rechtencontrole, instellingen, het logboek (om de buffer eerst weg te schrijven), de weergave van een
  *   Beheer-pagina en (voor tests) de klok van de limiet.
  * @returns {express.Router} Router.

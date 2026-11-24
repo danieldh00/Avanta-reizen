@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Mails van het reizigersaccount (CMS-pakket J2/J3): bevestigen van het e-mailadres, wachtwoord herstellen, de melding
  * dat er al een account is en de code voor gevoelige acties. De link bevat een eenmalig token en gaat naar het basisadres uit de site-instellingen
@@ -9,7 +10,7 @@ const { absoluteUrl } = require('../site/seo');
 
 /**
  * Maakt de mails van het reizigersaccount.
- * @param {{mailer: object, settings: object}} options De mailer (`mail/mailer.js`) en de instellingen (opmaak).
+ * @param {{mailer: any, settings: any}} options De mailer (`mail/mailer.js`) en de instellingen (opmaak).
  * @returns {{verify: Function, reset: Function, alreadyRegistered: Function, code: Function}} Functies die een mail versturen.
  */
 function createAccountMails(options) {

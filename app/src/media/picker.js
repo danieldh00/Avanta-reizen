@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Foto's kiezen uit de fotobibliotheek op een bewerkscherm (reistypes en landen, reizen). Een zoekformulier (GET, op
  * zoektekst en land) en daaronder een formulier (POST) met de foto's als keuzerondjes of vinkjes. Werkt zonder
@@ -12,7 +13,7 @@ const PICKER_PAGE_SIZE = 24;
 
 /**
  * Leest het filter van de kiezer uit de querystring (`foto_q`, `foto_land`, `foto_pagina`).
- * @param {object} query `req.query`.
+ * @param {any} query `req.query`.
  * @param {{id: number}[]} countries Alle landen.
  * @param {(number|null)} [defaultCountryId] Land als er nog niets gekozen is (bijv. het land zelf).
  * @returns {{text: string, patterns: string[], countryId: (number|null), page: number, chosen: boolean}} Filter.
@@ -30,9 +31,9 @@ function pickerFilter(query, countries, defaultCountryId = null) {
 
 /**
  * Haalt een pagina foto's voor de kiezer op.
- * @param {object} library Fotobibliotheek (`createMediaLibrary`).
- * @param {object} filter Uit `pickerFilter`.
- * @returns {Promise<{photos: object[], hasMore: boolean}>} Foto's en of er een volgende pagina is.
+ * @param {any} library Fotobibliotheek (`createMediaLibrary`).
+ * @param {any} filter Uit `pickerFilter`.
+ * @returns {Promise<{photos: any[], hasMore: boolean}>} Foto's en of er een volgende pagina is.
  */
 async function pickerPhotos(library, filter) {
   const rows = await library.list({ countryId: filter.countryId, patterns: filter.patterns, limit: PICKER_PAGE_SIZE + 1, offset: (filter.page - 1) * PICKER_PAGE_SIZE });
@@ -41,11 +42,11 @@ async function pickerPhotos(library, filter) {
 
 /**
  * De kiezer: zoekformulier en formulier met foto's.
- * @param {{pageUrl: string, action: string, csrf: string, countries: object[], filter: object, photos: object[],
- *   hasMore: boolean, multiple?: boolean, allowNone?: boolean, button: string, anchor?: string, extraFields?: object}} picker
+ * @param {{pageUrl: string, action: string, csrf: string, countries: any[], filter: any, photos: any[],
+ *   hasMore: boolean, multiple?: boolean, allowNone?: boolean, button: string, anchor?: string, extraFields?: any}} picker
  *   Adres van de pagina (voor het zoeken), adres om op te slaan, CSRF-token, landen, filter, foto's, of er meer zijn,
  *   meerdere kiezen (vinkjes), "geen foto" tonen, tekst van de knop, anker van het blok en extra velden in het formulier.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderPhotoPicker(picker) {
   const anchor = picker.anchor || 'foto';

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Design-controle met Playwright: opent schermen van de publieke site, het reizigersaccount, het CRM en Beheer op
  * 1440 en 375 px, meet uitlijning, overlap, overloop en afkappen (`page-checks.js`) en schrijft de bevindingen naar
@@ -100,9 +101,9 @@ function areaOf(entry) {
 /**
  * Maakt een browsercontext die alleen de app zelf laadt: verzoeken naar andere sites (video's van YouTube, kaarten,
  * analytics) worden afgebroken, zodat een trage of geblokkeerde externe dienst de controle niet ophoudt.
- * @param {object} browser Playwright-browser.
- * @param {object} [options] Extra contextopties (bijv. `deviceScaleFactor`, `storageState`).
- * @returns {Promise<object>} Context.
+ * @param {any} browser Playwright-browser.
+ * @param {any} [options] Extra contextopties (bijv. `deviceScaleFactor`, `storageState`).
+ * @returns {Promise<any>} Context.
  */
 async function newLocalContext(browser, options = {}) {
   const context = await browser.newContext(options);
@@ -123,7 +124,7 @@ async function sitemapPaths() {
 
 /**
  * Een aanmeldformulier voor een bestaande reis (het formulier zonder reis is een ander scherm).
- * @param {object} context Playwright-context.
+ * @param {any} context Playwright-context.
  * @returns {Promise<string[]>} Pad naar het formulier van de eerste reis met een knop Aanmelden.
  */
 async function bookingFormPath(context) {
@@ -142,10 +143,10 @@ async function bookingFormPath(context) {
 
 /**
  * Controleert één URL op alle vensterbreedtes.
- * @param {object} context Playwright-context.
+ * @param {any} context Playwright-context.
  * @param {string} url Pad.
  * @param {{axe?: boolean}} [options] Met `axe`: ook de toegankelijkheidscontrole.
- * @returns {Promise<{url: string, status: number, findings: object[], links: string[], consoleErrors: string[]}>} Uitslag.
+ * @returns {Promise<{url: string, status: number, findings: any[], links: string[], consoleErrors: string[]}>} Uitslag.
  */
 async function checkUrl(context, url, options = {}) {
   const page = await context.newPage();
@@ -184,10 +185,10 @@ async function checkUrl(context, url, options = {}) {
 /**
  * Maakt uitsneden van alle bevindingen op één pagina en venster: de pagina wordt één keer geladen, per bevinding wordt
  * het element rood omlijnd en daaromheen een uitsnede gemaakt.
- * @param {object} context Playwright-context met `deviceScaleFactor: 2` (scherpe uitsneden), ingelogd zoals het onderdeel.
+ * @param {any} context Playwright-context met `deviceScaleFactor: 2` (scherpe uitsneden), ingelogd zoals het onderdeel.
  * @param {string} url Pad van de pagina.
  * @param {string} viewportName Naam van het venster (`desktop` of `mobiel`).
- * @param {Array<{group: object, file: string}>} shots Bevindingen met het doelbestand (.png).
+ * @param {Array<{group: any, file: string}>} shots Bevindingen met het doelbestand (.png).
  * @returns {Promise<void>} Zet bij een gelukte uitsnede `group.screenshot`.
  */
 async function screenshotFindings(context, url, viewportName, shots) {
@@ -247,10 +248,11 @@ async function pool(items, limit, worker) {
 
 /**
  * Controleert één onderdeel: startschermen, sitemap (publieke site, volledige run) en links onder `/app/` (CRM).
- * @param {object} browser Playwright-browser.
- * @param {object} area Onderdeel uit `areas()`.
+ * @param {any} browser Playwright-browser.
+ * @param {any} area Onderdeel uit `areas()`.
  * @param {{full: boolean, paths: string[], axe?: boolean}} options Opties.
- * @returns {Promise<{area: string, context: object, pages: object[]}>} Uitslagen per pagina, met de context voor uitsneden.
+ * @returns {Promise<{area: string, context: any, pages: any[], loginResult: any}>} Uitslagen per pagina, met de context
+ *   voor uitsneden en de uitkomst van het inloggen (null zonder inloggen).
  */
 async function checkArea(browser, area, options) {
   const context = await newLocalContext(browser);
@@ -307,8 +309,8 @@ async function checkArea(browser, area, options) {
 
 /**
  * Voegt dezelfde bevinding op verschillende pagina's samen (zelfde onderdeel, soort, selector en venster).
- * @param {object[]} pages Uitslagen per pagina.
- * @returns {object[]} Samengevoegde bevindingen, ernstigste en meest voorkomende eerst.
+ * @param {any[]} pages Uitslagen per pagina.
+ * @returns {any[]} Samengevoegde bevindingen, ernstigste en meest voorkomende eerst.
  */
 function groupFindings(pages) {
   const groups = new Map();
@@ -343,6 +345,7 @@ async function main() {
   const shotsDir = path.join(options.out, 'screenshots');
   fs.mkdirSync(shotsDir, { recursive: true });
   // Playwright is geen dependency van de app; het staat in de ontwikkelomgeving (cloud-sandbox, CI met browser).
+  // @ts-ignore -- zonder Playwright in node_modules zijn er geen typen; het pakket wordt alleen hier geladen.
   const { chromium } = require('playwright');
   const browser = await chromium.launch();
   const areaResults = [];

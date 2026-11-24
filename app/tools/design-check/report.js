@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Design-controle, rapport: zet `results.json` van `check.js` om in een Excel-bestand (.xlsx, met de eigen schrijver uit
  * `src/export/xlsx.js`): één regel per bevinding (samengevoegd over pagina's) met het pad van de uitsnede, en een blad
@@ -26,7 +27,7 @@ const CHECK_LABEL = {
 
 /**
  * Bouwt de bladen van het rapport.
- * @param {object} results Inhoud van `results.json`.
+ * @param {any} results Inhoud van `results.json`.
  * @returns {Array<{name: string, rows: Array<Array<(string|number)>>}>} Bladen voor `createXlsx`.
  */
 function buildSheets(results) {

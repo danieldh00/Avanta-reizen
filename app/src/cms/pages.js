@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Pagina's van de website in het CMS (pakket H1, migratie 17; H3, migratie 18: nieuwe pagina's, adres wijzigen, offline
  * halen en verwijderen, SEO-velden): lijst, één pagina met concept, het concept wijzigen
@@ -31,8 +32,9 @@ const PAGE_COLUMNS = `p.id, p.path, p.title, p.pretitle, p.intro, p.image_url, p
 
 /**
  * Leest en controleert de gegevens van een pagina (titel, bovenkop, inleiding) uit een formulier.
- * @param {object} body Ingezonden velden.
- * @returns {{values: {title: string, pretitle: string, intro: string}, errors: object}} Waarden en fouten.
+ * @param {any} body Ingezonden velden.
+ * @returns {{values: {title: string, pretitle: string, intro: string, seoTitle: string, seoDescription: string},
+ *   errors: any}} Waarden en fouten.
  */
 function validatePageFields(body) {
   const text = (name) => (typeof body[name] === 'string' ? body[name] : '');
@@ -79,8 +81,8 @@ function buildPagePath(slug, parentPath) {
 
 /**
  * De stand die je bewerkt: het concept als dat er is, anders de gepubliceerde pagina.
- * @param {object} page Rij uit de database.
- * @returns {{title: string, pretitle: string, intro: string, imageUrl: (string|null), imageMediaId: (number|null), blocks: object[], seoTitle: string, seoDescription: string}} Stand.
+ * @param {any} page Rij uit de database.
+ * @returns {{title: string, pretitle: string, intro: string, imageUrl: (string|null), imageMediaId: (number|null), blocks: any[], seoTitle: string, seoDescription: string}} Stand.
  */
 function editableState(page) {
   const draft = page.draft && typeof page.draft === 'object' ? page.draft : null;
@@ -102,7 +104,7 @@ function editableState(page) {
 
 /**
  * Een foto uit de bibliotheek als waarde van een blok of kopfoto.
- * @param {object} media Rij uit `lockMediaForUse`.
+ * @param {any} media Rij uit `lockMediaForUse`.
  * @returns {{mediaId: number, url: string, alt: string, width: null, height: null}} Foto.
  */
 function imageFromMedia(media) {
@@ -111,7 +113,7 @@ function imageFromMedia(media) {
 
 /**
  * Zoekt de foto in de bibliotheek bij een adres onder `/media/` (het bestand zelf of een van zijn formaten).
- * @param {object} client Database of transactie-client.
+ * @param {any} client Database of transactie-client.
  * @param {string} url Adres.
  * @returns {Promise<({id: number, alt_text: string}|null)>} Foto, of null (bijv. een los bestand uit de import).
  */
@@ -130,9 +132,9 @@ async function mediaByUrl(client, url) {
  * Zet de vaste homepage (`site/homepage.js`, uit `homepage.json`) om in blokken (H4), met dezelfde teksten, links en
  * foto's. Foto's uit de bibliotheek krijgen hun id (zodat publiceren ze controleert); een dia zonder foto en alles
  * erna gebruikt de reservefoto's van reizen, zodat dia en foto bij elkaar blijven.
- * @param {object} home Inhoud uit `normalizeHomepage`.
- * @param {object} client Database of transactie-client.
- * @returns {Promise<object[]>} Blokken.
+ * @param {any} home Inhoud uit `normalizeHomepage`.
+ * @param {any} client Database of transactie-client.
+ * @returns {Promise<any[]>} Blokken.
  */
 async function homepageBlocks(home, client) {
   const images = async (list) => {
@@ -169,8 +171,8 @@ async function homepageBlocks(home, client) {
 
 /**
  * Maakt de functies voor pagina's.
- * @param {{db: object}} options Database.
- * @returns {object} Functies.
+ * @param {{db: any}} options Database.
+ * @returns {any} Functies.
  */
 function createPages(options) {
   const { db } = options;
@@ -178,7 +180,7 @@ function createPages(options) {
   /**
    * Alle pagina's, met of er een concept openstaat en het aantal versies. Optioneel gefilterd op titel of pad.
    * @param {{patterns?: string[]}} [filter] Zoekpatronen (ILIKE, ge-escaped).
-   * @returns {Promise<object[]>} Pagina's op pad.
+   * @returns {Promise<any[]>} Pagina's op pad.
    */
   const list = (filter = {}) => db.query(
     `SELECT p.id, p.path, p.title, p.published, (p.draft IS NOT NULL) AS has_draft, p.managed_in_crm, p.updated_at,
@@ -192,7 +194,7 @@ function createPages(options) {
   /**
    * Eén pagina met de naam van wie hem het laatst wijzigde.
    * @param {(number|string)} id Id.
-   * @returns {Promise<(object|null)>} Pagina of null.
+   * @returns {Promise<(any|null)>} Pagina of null.
    */
   const get = async (id) => {
     if (!/^\d{1,9}$/.test(String(id))) return null;
@@ -206,7 +208,7 @@ function createPages(options) {
   /**
    * De versies van een pagina, nieuwste eerst.
    * @param {number} id Id van de pagina.
-   * @returns {Promise<object[]>} Versies (versie, notitie, moment, door wie).
+   * @returns {Promise<any[]>} Versies (versie, notitie, moment, door wie).
    */
   const revisions = (id) => db.query(
     `SELECT r.version, r.note, r.published_at, u.name AS published_by_name
@@ -220,10 +222,10 @@ function createPages(options) {
    * de stand aanpassen en slaat die op (met audit).
    * @param {(number|string)} id Id van de pagina.
    * @param {(number|string)} version De versie van het concept waar het formulier van uitging.
-   * @param {(state: object, client: object) => Promise<(object|undefined)>} change Past de stand aan; geeft eventueel
+   * @param {(state: any, client: any) => Promise<(any|undefined)>} change Past de stand aan; geeft eventueel
    *   `{errors}` of `{status}` terug om niet op te slaan.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client) => Promise`).
-   * @returns {Promise<{status: string, version?: number, errors?: object}>} `ok`, `weg`, `verouderd` of wat `change` teruggaf.
+   * @returns {Promise<{status: string, version?: number, errors?: any}>} `ok`, `weg`, `verouderd` of wat `change` teruggaf.
    */
   const changeDraft = (id, version, change, context) => db.transaction(async (client) => {
     if (!/^\d{1,9}$/.test(String(id))) return { status: 'weg' };
@@ -353,7 +355,7 @@ function createPages(options) {
   /**
    * Of een pad vrij is voor een pagina: geen andere pagina en (op het hoofdniveau) geen blogbericht met die slug, want
    * een pagina gaat op de site voor een bericht.
-   * @param {object} client Transactie-client.
+   * @param {any} client Transactie-client.
    * @param {string} path Pad.
    * @param {(number|null)} selfId Id van de pagina zelf (bij verplaatsen).
    * @returns {Promise<(string|null)>} Foutmelding, of null als het vrij is.
@@ -385,7 +387,7 @@ function createPages(options) {
    * Maakt een nieuwe pagina: offline (`published = false`) met een concept met alleen de titel, tot de eerste publicatie.
    * @param {{title: string, slug: string, parentPath: string}} values Titel, slug en pad van de bovenliggende pagina.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, id) => Promise`).
-   * @returns {Promise<{id?: number, errors?: object}>} Nieuw id of fouten.
+   * @returns {Promise<{id?: number, errors?: any}>} Nieuw id of fouten.
    */
   const create = (values, context) => db.transaction(async (client) => {
     const title = cleanText(values.title || '', PAGE_LIMITS.title + 1);
@@ -421,7 +423,7 @@ function createPages(options) {
    * @param {(number|string)} id Id.
    * @param {{slug: string, parentPath: string}} values Nieuwe slug en bovenliggende pagina.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit.
-   * @returns {Promise<{status: ('ok'|'weg'|'fout'|'gelijk'), errors?: object, path?: string}>} Uitkomst.
+   * @returns {Promise<{status: ('ok'|'weg'|'fout'|'gelijk'), errors?: any, path?: string}>} Uitkomst.
    */
   const move = (id, values, context) => db.transaction(async (client) => {
     if (!/^\d{1,9}$/.test(String(id))) return { status: 'weg' };
@@ -524,7 +526,7 @@ function createPages(options) {
   /**
    * Zet de homepage op als blokpagina (pad `/`): offline, met een concept met de huidige inhoud van de vaste homepage.
    * Tot de eerste publicatie toont de site de vaste homepage. Bestaat de pagina al, dan verandert er niets.
-   * @param {object} home Inhoud uit `normalizeHomepage` (`homepage.json`).
+   * @param {any} home Inhoud uit `normalizeHomepage` (`homepage.json`).
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, id) => Promise`).
    * @returns {Promise<{id: number, created: boolean}>} Id van de homepage.
    */

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Deelnemers in het CRM (`/app/deelnemers/`): lijst met zoeken, de pagina van één persoon met aanmeldingen en
  * toestemmingen, NAW wijzigen, bijzondere gegevens per blok tonen en wijzigen, en een art. 9-toestemming intrekken
@@ -82,10 +83,10 @@ function searchPatterns(value) {
 
 /**
  * Eén bewerkbaar veld (tekst, datum, keuzelijst of tekstvak) met label en foutmelding.
- * @param {object} field Veld uit FIELDS.
+ * @param {any} field Veld uit FIELDS.
  * @param {string} value Huidige waarde.
  * @param {string} [error] Foutmelding.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderEditField(field, value, error) {
   const id = `veld-${field.name}`;
@@ -110,7 +111,7 @@ function renderEditField(field, value, error) {
  * @param {{query: Function}} db Database.
  * @param {{patterns: string[], onlyDuplicates: boolean, page: number}} filter Zoekpatronen (`searchPatterns`), alleen
  *   mogelijk dubbele personen, en het paginanummer.
- * @returns {Promise<{rows: object[], totals: {total: number, duplicates: number}}>} Hoogstens `PAGE_SIZE + 1` rijen (de
+ * @returns {Promise<{rows: any[], totals: {total: number, duplicates: number}}>} Hoogstens `PAGE_SIZE + 1` rijen (de
  *   extra rij betekent: er is een volgende pagina) en de aantallen.
  */
 async function loadPersonList(db, { patterns, onlyDuplicates, page }) {
@@ -144,9 +145,9 @@ async function loadPersonList(db, { patterns, onlyDuplicates, page }) {
 
 /**
  * De deelnemerslijst: filterknoppen, zoekveld, tabel en pagina's.
- * @param {{rows: object[], totals: {total: number, duplicates: number}, text: string, onlyDuplicates: boolean, page: number}} list
+ * @param {{rows: any[], totals: {total: number, duplicates: number}, text: string, onlyDuplicates: boolean, page: number}} list
  *   Rijen uit `loadPersonList`, aantallen, zoektekst, filter en paginanummer.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderPersonList({ rows, totals, text, onlyDuplicates, page }) {
   const list = rows.slice(0, PAGE_SIZE);
@@ -176,7 +177,7 @@ function renderPersonList({ rows, totals, text, onlyDuplicates, page }) {
 
 /**
  * Maakt de routes voor deelnemers.
- * @param {{db: object, auth: object, persons: object, now?: () => number}} options Database, sessie- en rechtenlaag, de personen (`persons/persons.js`) en (voor tests) de klok van de limieten.
+ * @param {{db: any, auth: any, persons: any, now?: () => number}} options Database, sessie- en rechtenlaag, de personen (`persons/persons.js`) en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router.
  */
 function createPersonRoutes(options) {
@@ -190,14 +191,14 @@ function createPersonRoutes(options) {
   /**
    * Zoekt een persoon op id (zie `persons.findPerson`).
    * @param {string} id Id uit de URL.
-   * @returns {Promise<(object|null)>} Persoon, of null.
+   * @returns {Promise<(any|null)>} Persoon, of null.
    */
   const findPerson = (id) => persons.findPerson(db, id);
 
   /**
    * 404-pagina binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => res.status(404).send(renderCrmPage({
@@ -206,8 +207,8 @@ function createPersonRoutes(options) {
 
   /**
    * Weigert met 403 als de gebruiker het recht van een blok niet heeft.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {string} block Naam van het blok.
    * @returns {boolean} Waar als het verzoek is afgehandeld (geweigerd).
    */
@@ -254,9 +255,9 @@ function createPersonRoutes(options) {
 
   /**
    * De pagina van één deelnemer.
-   * @param {object} req Express-verzoek.
-   * @param {object} person De persoon.
-   * @param {{values?: object, errors?: object, shown?: string, blockValues?: object, blockErrors?: object, notice?: string, eraseError?: string}} [state]
+   * @param {any} req Express-verzoek.
+   * @param {any} person De persoon.
+   * @param {{values?: any, errors?: any, shown?: string, blockValues?: any, blockErrors?: any, notice?: string, eraseError?: string}} [state]
    *   Ingevulde NAW-waarden en fouten, het geopende blok met zijn waarden en fouten, en een melding.
    * @returns {Promise<string>} HTML-pagina.
    */

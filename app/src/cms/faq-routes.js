@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Veelgestelde vragen beheren in het CRM (`/app/faq/`, recht `content`, CMS-pakket I3): overzicht per categorie, vraag
  * toevoegen, wijzigen (vraag, categorie, opgemaakt antwoord, volgorde) en verwijderen, en categorieën toevoegen,
@@ -34,9 +35,9 @@ const NOTICES = {
 /**
  * De velden van een categorie.
  * @param {{name: string, sortOrder: number}} values Waarden.
- * @param {object} errors Fouten.
+ * @param {any} errors Fouten.
  * @param {string} prefix Voorvoegsel voor de id's.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function categoryFields(values, errors, prefix) {
   return html`${fieldRow({ id: `${prefix}-name`, label: 'Naam', error: errors.name, control: html`<input id="${prefix}-name" name="name" type="text" value="${values.name}" maxlength="${FAQ_LIMITS.category}" required${invalidAttributes(`${prefix}-name`, errors.name)}>` })}
@@ -45,8 +46,8 @@ function categoryFields(values, errors, prefix) {
 
 /**
  * Het formulier van een vraag.
- * @param {{action: string, csrf: string, values: object, errors: object, categories: object[], submit: string}} form Gegevens.
- * @returns {object} HTML.
+ * @param {{action: string, csrf: string, values: any, errors: any, categories: any[], submit: string}} form Gegevens.
+ * @returns {any} HTML.
  */
 function questionForm(form) {
   const { values, errors } = form;
@@ -65,7 +66,7 @@ function questionForm(form) {
 
 /**
  * Maakt de routes voor de FAQ.
- * @param {{db: object, auth: object}} options Database en sessie- en rechtenlaag.
+ * @param {{db: any, auth: any}} options Database en sessie- en rechtenlaag.
  * @returns {express.Router} Router.
  */
 function createFaqRoutes(options) {
@@ -76,7 +77,7 @@ function createFaqRoutes(options) {
 
   /**
    * Audit voor een actie.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {string} action Actie.
    * @param {string} entity Tabel.
    * @param {(number|string|null)} [entityId] Id.
@@ -86,17 +87,17 @@ function createFaqRoutes(options) {
 
   /**
    * Een CRM-pagina binnen de FAQ.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {string} title Titel.
-   * @param {object} body HTML.
+   * @param {any} body HTML.
    * @returns {string} HTML.
    */
   const page = (req, title, body) => renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, body });
 
   /**
    * Het overzicht: per categorie de vragen, en een formulier voor een nieuwe categorie.
-   * @param {object} req Express-verzoek.
-   * @param {{notice?: string, error?: string, values?: object, errors?: object}} [state] Meldingen en een nieuw
+   * @param {any} req Express-verzoek.
+   * @param {{notice?: string, error?: string, values?: any, errors?: any}} [state] Meldingen en een nieuw
    *   categorieformulier met fouten.
    * @returns {Promise<string>} HTML.
    */
@@ -105,8 +106,8 @@ function createFaqRoutes(options) {
     const values = state.values || { name: '', sortOrder: 0 };
     /**
      * Tabel met vragen.
-     * @param {object[]} questions Vragen.
-     * @returns {object} HTML.
+     * @param {any[]} questions Vragen.
+     * @returns {any} HTML.
      */
     const table = (questions) => (questions.length ? html`<div class="crm-table-wrap"><table class="crm-table">
       <thead><tr><th>Vraag</th><th>Volgorde</th></tr></thead>
@@ -135,9 +136,9 @@ function createFaqRoutes(options) {
 
   /**
    * Het scherm voor een nieuwe of bestaande vraag.
-   * @param {object} req Express-verzoek.
-   * @param {(object|null)} question Bestaande vraag, of null voor nieuw.
-   * @param {{error?: string, values?: object, errors?: object}} [state] Fouten.
+   * @param {any} req Express-verzoek.
+   * @param {(any|null)} question Bestaande vraag, of null voor nieuw.
+   * @param {{error?: string, values?: any, errors?: any}} [state] Fouten.
    * @returns {Promise<string>} HTML.
    */
   const renderQuestion = async (req, question, state = {}) => {
@@ -166,9 +167,9 @@ function createFaqRoutes(options) {
 
   /**
    * Het bewerkscherm van een categorie.
-   * @param {object} req Express-verzoek.
-   * @param {object} category Rij (met `question_count`).
-   * @param {{error?: string, values?: object, errors?: object}} [state] Fouten.
+   * @param {any} req Express-verzoek.
+   * @param {any} category Rij (met `question_count`).
+   * @param {{error?: string, values?: any, errors?: any}} [state] Fouten.
    * @returns {string} HTML.
    */
   const renderCategory = (req, category, state = {}) => {
@@ -191,8 +192,8 @@ function createFaqRoutes(options) {
 
   /**
    * 404 binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => {

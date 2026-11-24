@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Betalingen van één aanmelding in het CRM (`/app/betalingen/<aanmelding>/`, recht `betalingen`): de verwachte
  * bedragen, de ontvangen betalingen, het saldo en de vervaldatums (berekend in `payments/payments.js`). Kantoor registreert
@@ -56,7 +57,7 @@ function textField(value, max) {
 
 /**
  * Kenmerk van de stand van de regels, om een dubbel of verouderd formulier te herkennen (dubbelklik, twee tabbladen).
- * @param {{charges: object[], payments: object[]}} lines Regels.
+ * @param {{charges: any[], payments: any[]}} lines Regels.
  * @returns {string} Kenmerk.
  */
 function linesVersion(lines) {
@@ -66,9 +67,9 @@ function linesVersion(lines) {
 
 /**
  * Controleert het formulier van een betaling.
- * @param {object} body Formulier.
+ * @param {any} body Formulier.
  * @param {string} today Vandaag (jjjj-mm-dd).
- * @returns {{values: object, error: string}} Waarden en een foutmelding (leeg als alles klopt).
+ * @returns {{values: any, error: string}} Waarden en een foutmelding (leeg als alles klopt).
  */
 function validatePayment(body, today) {
   const method = Object.hasOwn(payments.PAYMENT_METHODS, body.wijze) ? body.wijze : '';
@@ -86,8 +87,8 @@ function validatePayment(body, today) {
 
 /**
  * Controleert het formulier van een bedrag dat kantoor toevoegt.
- * @param {object} body Formulier.
- * @returns {{values: object, error: string}} Waarden (korting als negatief bedrag) en een foutmelding.
+ * @param {any} body Formulier.
+ * @returns {{values: any, error: string}} Waarden (korting als negatief bedrag) en een foutmelding.
  */
 function validateCharge(body) {
   const kind = payments.MANUAL_CHARGE_KINDS.includes(body.soort) ? body.soort : '';
@@ -105,9 +106,9 @@ function validateCharge(body) {
 /**
  * Het blok *Stand*: betaalstatus, totaal, betaald, openstaand, aanbetaling en restant, met een waarschuwing als de
  * status van de aanmelding niet bij de betalingen past.
- * @param {object} booking Aanmelding.
- * @param {object} summary Uitkomst van `payments.summarize`.
- * @returns {object} HTML.
+ * @param {any} booking Aanmelding.
+ * @param {any} summary Uitkomst van `payments.summarize`.
+ * @returns {any} HTML.
  */
 function renderPaymentStatus(booking, summary) {
   const due = [
@@ -126,8 +127,8 @@ function renderPaymentStatus(booking, summary) {
 
 /**
  * Het blok *Aanmelding*: deelnemer, reis, vertrek, status en gekozen betaling.
- * @param {object} booking Aanmelding.
- * @returns {object} HTML.
+ * @param {any} booking Aanmelding.
+ * @returns {any} HTML.
  */
 function renderBookingFacts(booking) {
   const facts = [
@@ -143,11 +144,11 @@ function renderBookingFacts(booking) {
 
 /**
  * De tabel *Bedragen* met een knop Weghalen per regel, en de weggehaalde bedragen eronder.
- * @param {object} booking Aanmelding.
- * @param {{charges: object[], removedCharges: object[]}} lines Regels uit `payments.loadLines`.
- * @param {object} summary Uitkomst van `payments.summarize`.
- * @param {object} hidden Verborgen velden (CSRF-token en stand) voor elk formulier.
- * @returns {object} HTML.
+ * @param {any} booking Aanmelding.
+ * @param {{charges: any[], removedCharges: any[]}} lines Regels uit `payments.loadLines`.
+ * @param {any} summary Uitkomst van `payments.summarize`.
+ * @param {any} hidden Verborgen velden (CSRF-token en stand) voor elk formulier.
+ * @returns {any} HTML.
  */
 function renderCharges(booking, lines, summary, hidden) {
   return html`<h2>Bedragen</h2>
@@ -169,8 +170,8 @@ function renderCharges(booking, lines, summary, hidden) {
 
 /**
  * De tabel *Ontvangen betalingen*.
- * @param {{payments: object[]}} lines Regels uit `payments.loadLines`.
- * @returns {object} HTML.
+ * @param {{payments: any[]}} lines Regels uit `payments.loadLines`.
+ * @returns {any} HTML.
  */
 function renderReceivedPayments(lines) {
   return html`<h2>Ontvangen betalingen</h2>
@@ -188,11 +189,11 @@ function renderReceivedPayments(lines) {
 
 /**
  * Het blok *Herinneringen*: de knop om er een te sturen (als er iets openstaat) en de verstuurde herinneringen.
- * @param {object} booking Aanmelding.
- * @param {object} summary Uitkomst van `payments.summarize`.
- * @param {object[]} sentReminders Verstuurde herinneringen.
- * @param {object} hidden Verborgen velden voor het formulier.
- * @returns {object} HTML.
+ * @param {any} booking Aanmelding.
+ * @param {any} summary Uitkomst van `payments.summarize`.
+ * @param {any[]} sentReminders Verstuurde herinneringen.
+ * @param {any} hidden Verborgen velden voor het formulier.
+ * @returns {any} HTML.
  */
 function renderReminders(booking, summary, sentReminders, hidden) {
   return html`<h2>Herinneringen</h2>
@@ -208,8 +209,8 @@ function renderReminders(booking, summary, sentReminders, hidden) {
 /**
  * Het blok *Online betalen*: de persoonlijke betaallink en de gestarte online betalingen.
  * @param {string} payLink Betaallink, of leeg.
- * @param {object[]} onlineLines Online betalingen.
- * @returns {object} HTML.
+ * @param {any[]} onlineLines Online betalingen.
+ * @returns {any} HTML.
  */
 function renderOnlinePayments(payLink, onlineLines) {
   return html`<h2>Online betalen</h2>
@@ -220,10 +221,10 @@ function renderOnlinePayments(payLink, onlineLines) {
 
 /**
  * De formulieren *Betaling registreren* en *Bedrag toevoegen*.
- * @param {object} booking Aanmelding.
- * @param {{payment: object, charge: object, day: string, hidden: object}} form Ingevulde waarden, de datum van
+ * @param {any} booking Aanmelding.
+ * @param {{payment: any, charge: any, day: string, hidden: any}} form Ingevulde waarden, de datum van
  *   vandaag (hoogste ontvangstdatum) en de verborgen velden.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderPaymentForms(booking, { payment, charge, day, hidden }) {
   return html`<div class="crm-columns">
@@ -260,8 +261,8 @@ function renderPaymentForms(booking, { payment, charge, day, hidden }) {
 
 /**
  * Maakt de routes voor de betalingen van een aanmelding.
- * @param {{db: object, auth: object, settings: object, now?: () => number}} options Database, sessie- en rechtenlaag,
- *   instellingen (termijnen) en de klok (tests).
+ * @param {{db: any, auth: any, settings: any, reminders?: any, onlinePayments?: any, now?: () => number}} options
+ *   Database, sessie- en rechtenlaag, instellingen (termijnen), de betaalherinneringen, online betalen en de klok (tests).
  * @returns {express.Router} Router.
  */
 function createPaymentRoutes(options) {
@@ -278,7 +279,7 @@ function createPaymentRoutes(options) {
    * @param {{query: Function}} client Database of transactie-client.
    * @param {(string|number)} id Id uit de URL (alleen cijfers).
    * @param {{lock?: boolean}} [mode] De rij vergrendelen (alle wijzigingen van één aanmelding gaan na elkaar).
-   * @returns {Promise<(object|null)>} Aanmelding, of null.
+   * @returns {Promise<(any|null)>} Aanmelding, of null.
    */
   const findBooking = async (client, id, mode = {}) => {
     const [booking] = await client.query(`SELECT ${BOOKING_COLUMNS} FROM bookings WHERE id = $1${mode.lock ? ' FOR UPDATE' : ''}`, [Number(id)]);
@@ -287,8 +288,8 @@ function createPaymentRoutes(options) {
 
   /**
    * 404-pagina binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => res.status(404).send(renderCrmPage({
@@ -297,9 +298,9 @@ function createPaymentRoutes(options) {
 
   /**
    * De betaalpagina van een aanmelding.
-   * @param {object} req Express-verzoek.
-   * @param {object} booking Aanmelding.
-   * @param {{error?: string, notice?: string, payment?: object, charge?: object}} [state] Melding, fout en ingevulde formulieren.
+   * @param {any} req Express-verzoek.
+   * @param {any} booking Aanmelding.
+   * @param {{error?: string, notice?: string, payment?: any, charge?: any}} [state] Melding, fout en ingevulde formulieren.
    * @returns {Promise<string>} HTML-pagina.
    */
   const renderPage = async (req, booking, state = {}) => {
@@ -338,9 +339,9 @@ function createPaymentRoutes(options) {
   /**
    * Schuift de aanmelding mee met de betaalstand na een wijziging (alleen vooruit, vanaf bevestigd), met een regel in
    * de historie en het auditlog. Leest de regels opnieuw binnen de transactie.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{query: Function}} client Transactie-client (aanmelding vergrendeld).
-   * @param {object} booking Aanmelding zoals vergrendeld gelezen.
+   * @param {any} booking Aanmelding zoals vergrendeld gelezen.
    * @param {string} note Toelichting in de historie.
    * @returns {Promise<(string|null)>} De nieuwe status, of null als hij blijft.
    */
@@ -356,10 +357,11 @@ function createPaymentRoutes(options) {
 
   /**
    * Voert een wijziging uit onder slot van de aanmelding, met de controle op een verouderd formulier.
-   * @param {object} req Express-verzoek.
-   * @param {(client: object, booking: object, lines: object) => Promise<(object|undefined)>} change De wijziging;
+   * @param {any} req Express-verzoek.
+   * @param {(client: any, booking: any, lines: any) => Promise<(any|undefined)>} change De wijziging;
    *   geeft eventueel `{status}` terug voor een uitkomst anders dan ok.
-   * @returns {Promise<{status: string, booking?: object}>} Uitkomst.
+   * @returns {Promise<{status: string, booking?: any, newStatus?: string}>} Uitkomst (met de velden die `change`
+   *   teruggeeft, zoals `newStatus`).
    */
   const withBooking = (req, change) => db.transaction(async (client) => {
     const booking = await findBooking(client, req.params.id, { lock: true });
@@ -372,11 +374,11 @@ function createPaymentRoutes(options) {
 
   /**
    * Antwoord bij een uitkomst die geen succes is.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
-   * @param {{status: string, booking?: object}} outcome Uitkomst.
-   * @param {object} [state] Ingevulde formulieren.
-   * @returns {Promise<(object|null)>} Het verstuurde antwoord, of null bij succes.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
+   * @param {{status: string, booking?: any}} outcome Uitkomst.
+   * @param {any} [state] Ingevulde formulieren.
+   * @returns {Promise<(any|null)>} Het verstuurde antwoord, of null bij succes.
    */
   const failure = async (req, res, outcome, state = {}) => {
     if (outcome.status === 'weg') return notFound(req, res);
