@@ -58,6 +58,8 @@ function parseFragment(text) {
   for (const line of sections.nieuws.split('\n')) {
     const point = /^\s*[-*]\s+(.+?)\s*$/.exec(line);
     if (point) items.push(point[1]);
+    // Een ingesprongen vervolgregel hoort bij het vorige punt (anders viel de rest van een lang punt weg).
+    else if (items.length && /^\s+\S/.test(line)) items[items.length - 1] += ` ${line.trim()}`;
   }
   const changelog = sections.changelog.trim();
   if (!changelog) throw new Error('het kopje "## Changelog" is leeg of ontbreekt');

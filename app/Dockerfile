@@ -23,6 +23,8 @@ COPY src ./src
 COPY public ./public
 COPY --from=minify /build/public-min ./public
 COPY tools ./tools
+# De changelog voor het scherm *Wat is er nieuw* in het CRM (`crm/whats-new.js`).
+COPY CHANGELOG.md ./
 RUN mkdir -p /data && chown node:node /data
 USER node
 EXPOSE 3400
