@@ -80,14 +80,19 @@ document.addEventListener('DOMContentLoaded', function setupRichEditors() {
     const maxLength = area.maxLength > 0 ? area.maxLength : 0;
     const counter = document.createElement('span');
     counter.className = 'field__help rich-editor__count';
-    counter.setAttribute('aria-live', 'polite');
+    // Alleen de waarschuwing wordt voorgelezen, niet de lengte bij elke toetsaanslag.
+    const warning = document.createElement('span');
+    warning.className = 'field__error rich-editor__warning';
+    warning.setAttribute('role', 'alert');
 
     /** Werkt de teller bij en markeert een te lange tekst. */
     const updateCounter = () => {
       if (!maxLength) return;
       const over = area.value.length > maxLength;
-      counter.textContent = `${area.value.length} van ${maxLength} tekens (met opmaak)${over ? ': te lang, maak de tekst korter' : ''}`;
+      counter.textContent = `${area.value.length} van ${maxLength} tekens (met opmaak)`;
       counter.classList.toggle('is-over', over);
+      const message = over ? 'De tekst is te lang; maak hem korter.' : '';
+      if (warning.textContent !== message) warning.textContent = message;
     };
 
     /** Zet de opgeschoonde HTML uit de editor in het tekstvak (het formulierveld). */
@@ -228,6 +233,7 @@ document.addEventListener('DOMContentLoaded', function setupRichEditors() {
     if (maxLength) {
       area.addEventListener('input', updateCounter);
       wrapper.appendChild(counter);
+      wrapper.appendChild(warning);
       updateCounter();
     }
   });

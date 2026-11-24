@@ -418,6 +418,7 @@
 .rich-editor__content :where(td, th) { padding: .25rem .5rem; border: 1px solid var(--av-line); }
 .rich-editor textarea { min-height: 14rem; }
 .rich-editor__count.is-over { color: var(--av-accent-dark); font-weight: 600; }
+.rich-editor__warning:empty { display: none; }
 .cms-photo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: .75rem; margin: 0; padding: 0; list-style: none; }
 .cms-photo-list__item { display: grid; gap: .3rem; font-size: .85rem; }
 .cms-photo-list__item img { width: 100%; height: auto; }
