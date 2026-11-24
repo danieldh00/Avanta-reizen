@@ -28,7 +28,7 @@ jobs:
       screens: ${{ steps.scope.outputs.screens }}
     steps:
       # Alleen het script dat bestanden aan schermen koppelt; de rest van de repository is hier niet nodig.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           sparse-checkout: app/tools/design-check/changed-screens.js
           sparse-checkout-cone-mode: false
@@ -65,7 +65,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17@sha256:223efeb196329b55b3b9a13db144956411dbc18e727e59f681c3e0aede6475cf
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -73,8 +73,8 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: npm
@@ -116,20 +116,43 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Trivy 0.76.2; bijwerken via Renovate (digest), nooit op een losse tag.
+      TRIVY_IMAGE: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Image bouwen
         run: docker build -t avanta:smoke app
       - name: Smoketest
         run: |
           docker network create smokenet
-          docker run -d --name smokedb --network smokenet -e POSTGRES_PASSWORD=smoke postgres:17
+          docker run -d --name smokedb --network smokenet -e POSTGRES_PASSWORD=smoke postgres:17@sha256:223efeb196329b55b3b9a13db144956411dbc18e727e59f681c3e0aede6475cf
           for i in $(seq 1 30); do docker exec smokedb pg_isready -U postgres && break; sleep 2; done
           docker run -d --name smoke --network smokenet -p 3400:3400 -e DATABASE_URL="postgres://postgres:smoke@smokedb:5432/postgres" avanta:smoke
           docker run --rm --entrypoint pg_dump avanta:smoke --version | grep -q ' 17\.'
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3400/api/health && exit 0; sleep 2; done
           docker logs smoke
           exit 1
+      # Image-scan (Trivy, vastgepind op digest): faalt bij een kwetsbaarheid met ernst HIGH of CRITICAL waarvoor een
+      # oplossing bestaat. Een melding zonder oplossing blokkeert niet (die kunnen we niet verhelpen) maar staat wel in
+      # het log. Uitzonderingen alleen met reden in app/.trivyignore.
+      - name: Image-scan (Trivy)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/app:/src:ro" "$TRIVY_IMAGE" \
+            image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --ignorefile /src/.trivyignore \
+            --exit-code 1 --no-progress avanta:smoke
+      # SBOM (CycloneDX) van het gebouwde image: welke pakketten en versies erin zitten, bewaard als artefact.
+      - name: SBOM maken
+        run: |
+          mkdir -p sbom
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/sbom:/out" "$TRIVY_IMAGE" \
+            image --format cyclonedx --output /out/sbom-avanta.cdx.json --no-progress avanta:smoke
+      - name: SBOM bewaren
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom
+          path: sbom/sbom-avanta.cdx.json
+          retention-days: 30
 
   # Design-controle met Playwright, alleen op de schermen die deze PR raakt (`changed-screens.js`), op 1440 en 375 px.
   # Faalt bij bevindingen met ernst "hoog" (overloop, overlap, afgekapt, kapotte afbeelding); het rapport (.xlsx met
@@ -141,7 +164,7 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17@sha256:223efeb196329b55b3b9a13db144956411dbc18e727e59f681c3e0aede6475cf
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: avanta_design
@@ -163,8 +186,8 @@ jobs:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: npm
@@ -205,7 +228,7 @@ jobs:
           fi
       - name: Rapport bewaren
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: design-controle
           path: |

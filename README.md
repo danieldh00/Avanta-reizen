@@ -654,6 +654,16 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 
 Alleen docs/CI zonder effect op de app: label `geen-releasenotes`.
 
+### Toeleveringsketen (P7.2)
+- Elke GitHub Action staat op een volledige commit-SHA (`uses: owner/actie@<sha> # vX.Y.Z`) en elk container-image op
+  een digest (`postgres:17@sha256:…`), in workflows, `app/Dockerfile`, beide `docker-compose.yml` en de deploy-scripts.
+  `tests/vastgepind.test.js` bewaakt dat; Renovate (`renovate.json`) werkt SHA's en digests bij.
+- De job `image` in CI scant het gebouwde image met Trivy (faalt bij HIGH/CRITICAL waarvoor een oplossing bestaat;
+  uitzonderingen met reden in `app/.trivyignore`) en bewaart een SBOM (CycloneDX) als artefact `sbom`. `release.yml`
+  scant opnieuw vóór het pushen en hangt SBOM en herkomst als attestatie aan het image in GHCR.
+- `claude-review.yml` wijzig je alleen in een PR die verder geen code raakt: de action controleert dat het
+  workflowbestand gelijk is aan dat op `main`, anders faalt de review.
+
 ## Eenmalige instellingen in GitHub
 | Waar | Wat |
 |---|---|
@@ -661,7 +671,7 @@ Alleen docs/CI zonder effect op de app: label `geen-releasenotes`.
 | idem | `RELEASE_PUSH_TOKEN` (fine-grained PAT van de beheerder, *Contents: read and write* op deze repo) |
 | Settings > Secrets and variables > Actions > *Variables* | `CLAUDE_REVIEW_MODEL` (eerste review) en `CLAUDE_REVIEW_MODEL_PUSH` (lichtere review per push); leeg = standaard |
 | Settings > Rules > Rulesets (branch `main`) | PR verplicht, geen force-push, bypass: *Repository admin* |
-| idem, *Require status checks* | `Claude code review`, `Claude security review`, `version-must-increase`, `test`, `image` |
+| idem, *Require status checks* | `Claude code review`, `Claude security review`, `version-must-increase`, `test`, `image`, `secrets` (geheimenscan, sinds P7.2) |
 | Settings > General | *Allow auto-merge* aan, *Automatically delete head branches* aan |
 | Settings > Code security | Secret scanning + push protection aan |
 | Issues > Labels | labels `geen-releasenotes` en `changelog-correctie` aanmaken |
