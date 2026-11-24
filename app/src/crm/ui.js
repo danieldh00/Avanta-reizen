@@ -111,10 +111,12 @@ function renderTable(table) {
    * @returns {string} Klassen, of een lege tekst.
    */
   const cellClass = (column) => [column.numeric ? 'crm-num' : '', column.wrap ? 'crm-wrap' : ''].filter(Boolean).join(' ');
-  return html`<div class="crm-table-wrap crm-table-wrap--cards"><table class="crm-table crm-table--cards">
+  // Expliciete rollen: met `display: block` (kaartweergave op mobiel) halen sommige browsers (Safari) anders de
+  // tabelsemantiek weg, waardoor een schermlezer de kolomnamen niet meer voorleest.
+  return html`<div class="crm-table-wrap crm-table-wrap--cards"><table class="crm-table crm-table--cards" role="table">
     ${table.caption ? html`<caption class="visually-hidden">${table.caption}</caption>` : ''}
-    <thead><tr>${table.columns.map((column) => html`<th scope="col"${cellClass(column) ? html` class="${cellClass(column)}"` : ''}>${column.label}</th>`)}</tr></thead>
-    <tbody>${table.rows.map((row) => html`<tr>${table.columns.map((column) => html`<td data-label="${column.label}"${cellClass(column) ? html` class="${cellClass(column)}"` : ''}>${column.cell(row)}</td>`)}</tr>`)}</tbody>
+    <thead role="rowgroup"><tr role="row">${table.columns.map((column) => html`<th scope="col" role="columnheader"${cellClass(column) ? html` class="${cellClass(column)}"` : ''}>${column.label}</th>`)}</tr></thead>
+    <tbody role="rowgroup">${table.rows.map((row) => html`<tr role="row">${table.columns.map((column) => html`<td role="cell" data-label="${column.label}"${cellClass(column) ? html` class="${cellClass(column)}"` : ''}>${column.cell(row)}</td>`)}</tr>`)}</tbody>
   </table></div>`;
 }
 
