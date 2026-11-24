@@ -113,7 +113,7 @@ test('auditlog in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt
   const login = async (role) => (await request('/app/inloggen/', { form: { email: `${role}@example.nl`, password: PASSWORD } })).cookie;
   const beheerder = await login('beheerder');
   const others = { kantoor: await login('kantoor'), reisleider: await login('reisleider'), boekhouding: await login('boekhouding'), redacteur: await login('redacteur') };
-  const rowsOf = (page) => (page.match(/<tbody>[\s\S]*?<\/tbody>/) || [''])[0];
+  const rowsOf = (page) => (page.match(/<tbody[^>]*>[\s\S]*?<\/tbody>/) || [''])[0];
 
   await t.test('rechten: zonder sessie naar inloggen, zonder recht 403 (ook de export)', async () => {
     assert.equal((await request('/app/auditlog/')).status, 303);
@@ -183,7 +183,7 @@ test('auditlog in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt
     const url = next[1].replace(/&amp;/g, '&');
     assert.match(url, /actie=aanmelding\.status/);
     const second = (await request(url, { cookie: beheerder })).text;
-    assert.equal((rowsOf(second).match(/<tr>/g) || []).length, 5);
+    assert.equal((rowsOf(second).match(/<tr role="row">/g) || []).length, 5);
     assert.match(second, /Naar de nieuwste regels/);
     assert.doesNotMatch(second, /rel="next"/);
   });

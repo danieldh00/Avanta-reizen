@@ -65,13 +65,15 @@ test('ui: tabel met kolomkoppen, getallen rechts en een melding als er niets is'
   assert.equal(toString(ui.renderTable({ columns, rows: [], empty: 'Niets <gevonden>.' })), '<p class="crm-empty">Niets &lt;gevonden&gt;.</p>');
   const table = toString(ui.renderTable({ columns, rows: [{ name: '<i>Jan</i>', count: 3 }], empty: 'x', caption: 'Mensen' }));
   assert.match(table, /<caption class="visually-hidden">Mensen<\/caption>/);
-  assert.match(table, /<th scope="col">Naam<\/th><th scope="col" class="crm-num">Aantal<\/th>/);
-  assert.match(table, /<td data-label="Naam">&lt;i&gt;Jan&lt;\/i&gt;<\/td><td data-label="Aantal" class="crm-num">3<\/td>/);
+  assert.match(table, /<th scope="col" role="columnheader">Naam<\/th><th scope="col" role="columnheader" class="crm-num">Aantal<\/th>/);
+  assert.match(table, /<table class="crm-table crm-table--cards" role="table">/);
+  assert.match(table, /<tbody role="rowgroup"><tr role="row">/);
+  assert.match(table, /<td role="cell" data-label="Naam">&lt;i&gt;Jan&lt;\/i&gt;<\/td><td role="cell" data-label="Aantal" class="crm-num">3<\/td>/);
   // Op een smal scherm wordt elke rij een kaart; de kolomnaam staat dan als label voor de waarde.
   assert.match(table, /class="crm-table crm-table--cards"/);
   const wrapped = toString(ui.renderTable({ rows: [{ name: 'Lang' }], empty: 'x', columns: [{ label: 'Reis', wrap: true, cell: (row) => row.name }] }));
-  assert.match(wrapped, /<th scope="col" class="crm-wrap">Reis<\/th>/);
-  assert.match(wrapped, /<td data-label="Reis" class="crm-wrap">Lang<\/td>/);
+  assert.match(wrapped, /<th scope="col" role="columnheader" class="crm-wrap">Reis<\/th>/);
+  assert.match(wrapped, /<td role="cell" data-label="Reis" class="crm-wrap">Lang<\/td>/);
 });
 
 test('ui: bladeren alleen bij meer dan één pagina, met behoud van filters', () => {
