@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const seo = require('../src/site/seo');
+const { createContent } = require('../src/site/content');
 const { siteSettingsOf, isExcluded, linesOf } = require('../src/site/site-settings');
 const { SETTING_FIELDS, validateValue, SettingsError } = require('../src/beheer/settings');
 const { COOKIE_NAME } = require('../src/crm/auth');
@@ -194,6 +195,15 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
     assert.match(sitemap.text, /<loc>https:\/\/www\.nieuw\.example\.nl\/faq\/<\/loc>/);
     assert.match(sitemap.text, /<loc>https:\/\/www\.nieuw\.example\.nl\/faq-extra\/<\/loc>/);
     assert.doesNotMatch(sitemap.text, /reis-categorie\/albanie\//, 'een land zonder reizen en zonder eigen inhoud niet');
+    // Alleen een ongepubliceerde reis: nog steeds een lege pagina, dus niet; na publiceren wel.
+    const [draft] = await db.query("INSERT INTO trips (slug, title, published) VALUES ('concept-albanie', 'Concept', false) RETURNING id");
+    await db.query("INSERT INTO trip_category_links (trip_id, category_id) SELECT $1, id FROM trip_categories WHERE slug = 'albanie'", [draft.id]);
+    // De sitemap komt een tijd uit het geheugen, dus deze twee via de query zelf.
+    const sitemapSlugs = async () => (await createContent(db).sitemapEntries()).categories.map((row) => row.slug);
+    assert.ok(!(await sitemapSlugs()).includes('albanie'), 'een land met alleen een concept-reis niet');
+    await db.query('UPDATE trips SET published = true WHERE id = $1', [draft.id]);
+    assert.ok((await sitemapSlugs()).includes('albanie'), 'een land met een gepubliceerde reis wel');
+    await db.query('DELETE FROM trips WHERE id = $1', [draft.id]);
     const llms = await request('/llms.txt');
     assert.equal(llms.status, 200);
     assert.match(llms.headers.get('content-type'), /text\/plain/);
