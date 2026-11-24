@@ -308,7 +308,12 @@ function createContent(db) {
     async sitemapEntries() {
       const [trips, categories, guides, posts, pages, postTerms] = await Promise.all([
         db.query('SELECT slug FROM trips WHERE published = $1 ORDER BY slug', [true]),
-        db.query('SELECT slug FROM trip_categories ORDER BY slug'),
+        // Reistypes en landen met reizen of eigen inhoud; een land zonder beide (de meeste van alle landen van de
+        // wereld) is een lege pagina en hoort niet in de sitemap.
+        db.query(`SELECT c.slug FROM trip_categories c
+                   WHERE EXISTS (SELECT 1 FROM trip_category_links l WHERE l.category_id = c.id)
+                      OR c.intro <> '' OR c.body_html <> '' OR c.image_url IS NOT NULL
+                   ORDER BY c.slug`),
         db.query('SELECT slug FROM guides WHERE published = $1 ORDER BY slug', [true]),
         db.query(`SELECT slug, published_at FROM posts WHERE ${VISIBLE_POST_SQL} ORDER BY published_at DESC NULLS LAST, slug`),
         db.query("SELECT path FROM pages WHERE published = $1 AND path <> '/' ORDER BY path", [true]),

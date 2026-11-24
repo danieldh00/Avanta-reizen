@@ -109,6 +109,8 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
   await admin.close();
   const db = createDatabase(withSchema(DATABASE_URL));
   await db.migrate();
+  // Begin zonder de lijst met alle landen uit migratie 33: deze test maakt zijn eigen landen.
+  await db.query('DELETE FROM trip_categories WHERE iso_code IS NOT NULL');
   await db.query("INSERT INTO pages (path, title) VALUES ('/faq-extra/', 'Extra')");
   await db.query("INSERT INTO trip_categories (slug, name, kind) VALUES ('albanie', 'Albanië', 'bestemming')");
 
@@ -191,11 +193,14 @@ test('vindbaarheid: Beheer-routes en effect op de site', { skip: !DATABASE_URL &
     const sitemap = await request('/sitemap.xml');
     assert.match(sitemap.text, /<loc>https:\/\/www\.nieuw\.example\.nl\/faq\/<\/loc>/);
     assert.match(sitemap.text, /<loc>https:\/\/www\.nieuw\.example\.nl\/faq-extra\/<\/loc>/);
+    assert.doesNotMatch(sitemap.text, /reis-categorie\/albanie\//, 'een land zonder reizen en zonder eigen inhoud niet');
     const llms = await request('/llms.txt');
     assert.equal(llms.status, 200);
     assert.match(llms.headers.get('content-type'), /text\/plain/);
     assert.match(llms.text, /^# Avanta reizen\n/);
-    assert.match(llms.text, /reis-categorie\/albanie\//);
+    assert.doesNotMatch(llms.text, /reis-categorie\/albanie\//, 'een land zonder komende reizen niet');
+    await db.query("UPDATE trip_categories SET show_on_home = true WHERE slug = 'albanie'");
+    assert.match((await request('/llms.txt')).text, /reis-categorie\/albanie\//, 'wel als het op de homepage staat');
   });
 
   await t.test('robots, sitemap en llms.txt instellen', async () => {

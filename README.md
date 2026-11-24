@@ -326,7 +326,10 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     homepage. Reistypes en bestemmingen volgen *tonen op de homepage* (Reistypes en landen); staat er geen aan, dan alle
     met reizen. Het blogblok gebruikt het uitgelichte bericht uit `site-content.json`.
   - **Reistypes en landen** op `/app/reistypes-en-landen/` (recht `reizen`: beheerder en kantoor; `app/src/trips/`,
-    migratie 14): lijst per soort (reistypes, landen, overig) met het aantal reizen (komend) en foto's; nieuw aanmaken
+    migratie 14): lijst per soort (reistypes, landen, overig) met het aantal reizen (komend) en foto's. Alle landen van
+    de wereld staan erin (migratie 33: de 249 ISO 3166-1-landen en -gebieden plus Kosovo, Nederlandse naam, kolom
+    *Code*); bestaande landen hielden hun naam, slug, reizen en foto's. Bij een reis staat boven de landen een zoekveld.
+    Een land zonder reizen en zonder eigen inhoud staat niet in de sitemap en niet in `llms.txt`. Nieuw aanmaken
     en wijzigen: naam, slug (leeg = uit de naam), soort, icoon uit de eigen SVG-set (leeg = op de slug), inleiding,
     tekst (HTML, opgeschoond met dezelfde `sanitizeHtml` als de import), volgorde en *tonen op de homepage*. Staat bij
     minstens één reistype *tonen op de homepage* aan, dan toont de homepage alleen die (op volgorde); anders de types

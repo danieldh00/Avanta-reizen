@@ -73,6 +73,8 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
   await admin.close();
   const db = createDatabase(withSchema(DATABASE_URL));
   await db.migrate();
+  // Begin zonder de lijst met alle landen uit migratie 33: deze test maakt zijn eigen landen.
+  await db.query('DELETE FROM trip_categories WHERE iso_code IS NOT NULL');
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'avanta-categorie-'));
   const mediaDir = path.join(dataDir, 'media');
   await fs.mkdir(mediaDir);
@@ -149,6 +151,12 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
     assert.match(list.text, /href="\/app\/reistypes-en-landen\/"/);
     assert.match(list.text, />Namibië</);
     assert.match(list.text, />Hostel</);
+    // Landen hebben een kolom met de ISO-code; ook de pagina van een land toont hem.
+    await db.query("UPDATE trip_categories SET iso_code = 'NA' WHERE id = $1", [namibia.id]);
+    const withCode = await request('/app/reistypes-en-landen/', { cookie: kantoor.cookie });
+    assert.match(withCode.text, /<th>Code<\/th>/);
+    assert.match(withCode.text, /<td>NA<\/td>/);
+    assert.match((await request(`/app/reistypes-en-landen/${namibia.id}/`, { cookie: kantoor.cookie })).text, /<dt>Landcode \(ISO\)<\/dt><dd>NA<\/dd>/);
     assert.doesNotMatch((await request('/app/', { cookie: redactie.cookie })).text, /reistypes-en-landen/, 'redacteur ziet het menu-item niet');
   });
 

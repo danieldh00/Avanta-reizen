@@ -171,7 +171,9 @@ function createTripRoutes(options) {
     const checkbox = (name, label) => html`<div class="field field--checkbox"><label><input type="checkbox" name="${name}" value="1"${values[name] === true || values[name] === '1' ? raw(' checked') : ''}> ${label}</label></div>`;
     const categoryGroup = (kind, title) => {
       const items = categories.filter((category) => category.kind === kind);
-      return items.length ? html`<fieldset class="crm-checklist"><legend>${title}</legend>${items.map((category) => html`<label><input type="checkbox" name="categorie" value="${category.id}"${chosen.has(String(category.id)) ? raw(' checked') : ''}> ${category.name}</label>`)}</fieldset>` : '';
+      // Landen: alle landen van de wereld staan erin, dus een zoekveld erboven (verborgen zonder JavaScript).
+      const search = kind === 'bestemming' ? html`<input class="crm-checklist-search" type="search" placeholder="Zoek een land" aria-label="Zoek een land" data-checklist-search hidden>` : '';
+      return items.length ? html`<fieldset class="crm-checklist"${kind === 'bestemming' ? raw(' data-checklist-filter') : ''}><legend>${title}</legend>${search}${items.map((category) => html`<label><input type="checkbox" name="categorie" value="${category.id}"${chosen.has(String(category.id)) ? raw(' checked') : ''}> ${category.name}</label>`)}</fieldset>` : '';
     };
     const guideSelect = () => html`<div class="field"><span class="field__label"><label for="veld-reisleider">Reisleider</label></span>
       <select id="veld-reisleider" name="reisleider"><option value="">–</option>${guides.map((guide) => html`<option value="${guide.id}"${String(values.reisleider || '') === String(guide.id) ? raw(' selected') : ''}>${guide.name}${guide.published ? '' : ' (niet gepubliceerd)'}</option>`)}</select></div>`;
