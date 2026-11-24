@@ -338,6 +338,10 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     wijzigen kan niet): reizen en foto's gaan naar de gekozen categorie, de dubbeling
     verdwijnt en zijn adres verwijst door. Verwijderen kan alleen als er geen reizen en foto's aan hangen. Alles in de
     auditlog.
+  - **Wat is er nieuw** (`/app/wat-is-er-nieuw/`, in het gebruikersmenu rechtsboven, voor iedere CRM-gebruiker): de
+    wijzigingen per versie, nieuwste eerst, rechtstreeks uit `app/CHANGELOG.md` (geen tweede bron; het image bevat het
+    bestand). Iedereen ziet de punten uit *Nieuws*; de technische details (inklapbaar) alleen met het recht `systeem`
+    (`app/src/crm/whats-new.js` en `whats-new-routes.js`).
   - **Zoeken over het hele CRM**: het zoekveld in de kopbalk (op een telefoon een zoekknop) gaat naar `/app/zoeken/`
     (`app/src/crm/search.js` en `search-routes.js`). Eén zoekterm (minstens 2 tekens, alle woorden moeten voorkomen,
     `%` en `_` gewone tekst) in aanmeldingen, deelnemers (niet geanonimiseerd), berichten, reizen, reisleiders,

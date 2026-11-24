@@ -554,3 +554,15 @@
   .crm-table--cards td[data-label=""] { padding-left: 0; }
   .crm-table--cards td[data-label=""]::before { display: none; }
 }
+
+/* Wat is er nieuw (crm/whats-new.js): per versie titel, datum, nieuws en inklapbare technische details. */
+.crm-news { display: grid; gap: 1rem; max-width: 52rem; margin: 0; padding: 0; list-style: none; }
+.crm-news__release { padding: 1rem 1.25rem; background: var(--av-white); border: 1px solid var(--av-line); border-radius: var(--av-radius); }
+.crm .crm-news__title { margin: 0; font-size: 1.1rem; line-height: 1.35; }
+.crm-news__meta { margin: .2rem 0 .6rem; color: var(--av-muted); font-size: .9rem; }
+.crm-news__items { margin: 0; padding-left: 1.2rem; line-height: 1.55; overflow-wrap: anywhere; }
+.crm-news__items li + li { margin-top: .3rem; }
+.crm-news__items code { font-size: .85em; }
+.crm-news__details { margin-top: .6rem; font-size: .9rem; }
+.crm-news__details > summary { cursor: pointer; color: var(--av-muted); }
+.crm-news__details > .crm-news__items { margin-top: .5rem; }

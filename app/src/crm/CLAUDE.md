@@ -23,3 +23,4 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `ui.js` (bouwstenen voor lijsten; `renderTable` wordt op mobiel kaarten via `data-label`)
 - `dashboard.js` (overzicht `/app/`: per recht ophalen en tekenen)
 - `guide-dashboard.js` (overzicht `/app/` voor de reisleider: eigen vertrekken, aantallen, stand van het venster, link naar de deelnemerslijst)
+- `whats-new.js` (changelog lezen: nieuws en technische details per versie, weergave) en `whats-new-routes.js` (`/app/wat-is-er-nieuw/` voor iedere ingelogde gebruiker, link in het gebruikersmenu in `layout.js`; details alleen met recht `systeem`)

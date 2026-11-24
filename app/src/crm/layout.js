@@ -354,6 +354,7 @@ function renderHeader(page) {
           <a class="crm-user-item crm-user-item--site" href="/">${icon('home')}<span>Bekijk de site</span></a>
           <a class="crm-user-item" href="/app/wachtwoord/"${current('/app/wachtwoord/')}>${icon('user')}<span>Wachtwoord wijzigen</span></a>
           <a class="crm-user-item" href="/app/tweestaps/"${current('/app/tweestaps/')}>${icon('lock')}<span>Tweestapsverificatie</span></a>
+          <a class="crm-user-item" href="/app/wat-is-er-nieuw/"${current('/app/wat-is-er-nieuw/')}>${icon('information')}<span>Wat is er nieuw</span></a>
           <form class="crm-user-logout" method="post" action="/app/uitloggen/"><input type="hidden" name="_csrf" value="${page.csrf || ''}"><button class="crm-user-item" type="submit">${icon('logout')}<span>Uitloggen</span></button></form>
         </div>
       </details>

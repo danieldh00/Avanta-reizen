@@ -2,7 +2,7 @@
 
 ## 0.32.1 — 2026-11-24 — Hersteltest noemt de stap die echt mislukte
 
-- Mislukt de hersteltest, dan staat in Beheer nu de echte oorzaak: de fout van het terugzetten of de reden waarom het
+- Mislukt de hersteltest, dan staat in Beheer nu de echte oorzaak: de fout van het terugzetten of de reden waarom het ontsleutelen mislukte, in plaats van steeds "Ontsleutelen mislukt".
 
 - `deploy/apps01/restore-test.sh`: stopt `pg_restore` bij een fout, dan eindigt het ontsleutelen met een gesloten pijp
   (EPIPE) en werd dat als oorzaak gemeld. Nieuwe functie `restore_failure` kiest de echte oorzaak: het ontsleutelen
@@ -23,11 +23,11 @@
 
 ## 0.31.4 — 2026-11-24 — Mobiele site gelijk aan de huidige site, opschonen in Beheer netjes en één keer per dag
 
-- De zoekfilters op de homepage en het reisaanbod zien er op de telefoon weer uit als op de huidige site: geen kaders,
-- Reispagina: de kenmerken zijn weer vakjes met alleen het icoon, en de tekst springt op de telefoon in zoals op de
-- Reisleider: het citaat staat tussen aanhalingstekens en de afstanden rond naam, woonplaats en jaar zijn gelijk aan de
-- Beheer > AVG en bewaartermijnen: het bevestigingsvinkje staat boven de knoppen, en Voorbeeld berekenen en Nu
-- De automatische AVG-opschoning draait echt één keer per dag; eerder startte elke herstart van de app (bij elke update)
+- De zoekfilters op de homepage en het reisaanbod zien er op de telefoon weer uit als op de huidige site: geen kaders, alles links uitgelijnd, de schakelaar Nieuwe reizen op één lijn en de menuknop met stevige streepjes.
+- Reispagina: de kenmerken zijn weer vakjes met alleen het icoon, en de tekst springt op de telefoon in zoals op de huidige site. Reiskaarten: Bijkomende kosten staat links onder de prijs.
+- Reisleider: het citaat staat tussen aanhalingstekens en de afstanden rond naam, woonplaats en jaar zijn gelijk aan de huidige site.
+- Beheer > AVG en bewaartermijnen: het bevestigingsvinkje staat boven de knoppen, en Voorbeeld berekenen en Nu opschonen staan op één lijn.
+- De automatische AVG-opschoning draait echt één keer per dag; eerder startte elke herstart van de app (bij elke update) een extra ronde.
 
 - `site.css`: zoekfilter op ≤ 768 px zonder rand en zonder binnenmarge (label, icoon en schakelaar tegen de linkerrand,
   pijltje tegen de rechterrand, geen witruimte onder het derde keuzevak, 22 px boven de zoekknop); `.filter__select-info`
@@ -163,8 +163,8 @@ Designbevindingen W13–W17, W22 (CRM-deel), W23 en W24 uit de designcontrole va
 
 ## 0.30.3 — 2026-11-24 — Auditlog filteren en exporteren naar Excel
 
-- Het auditlog in Beheer heeft nu filters: op gebruiker (ook systeem of onbekend), actie, soort record, recordnummer en
-- Met **Excel (.xlsx)** exporteer je dezelfde selectie, met een tweede blad dat vermeldt welke filters zijn gebruikt,
+- Het auditlog in Beheer heeft nu filters: op gebruiker (ook systeem of onbekend), actie, soort record, recordnummer en periode. Een record met een eigen pagina is aanklikbaar en de filters blijven staan bij het bladeren.
+- Met **Excel (.xlsx)** exporteer je dezelfde selectie, met een tweede blad dat vermeldt welke filters zijn gebruikt, door wie en wanneer. Een export komt zelf ook in het auditlog.
 
 Pakket P4.4 (bevinding F06).
 - `crm/audit-log.js` (filters, `auditWhere` met parameters en hele dagen in Europe/Amsterdam, pagina's op id, export met
@@ -176,7 +176,7 @@ Pakket P4.4 (bevinding F06).
 
 ## 0.30.2 — 2026-11-24 — Zoeken over het hele CRM vanuit de kopbalk
 
-- Bovenin het CRM staat nu een zoekveld (op de telefoon een zoekknop). Je zoekt in één keer in aanmeldingen,
+- Bovenin het CRM staat nu een zoekveld (op de telefoon een zoekknop). Je zoekt in één keer in aanmeldingen, deelnemers, berichten, reizen, reisleiders, pagina's, blog, veelgestelde vragen en gebruikers, en ziet per onderdeel de eerste vijf treffers. Je vindt alleen wat je ook mag openen.
 
 Pakket P4.3 (bevinding B03).
 - `crm/search.js` (`SEARCH_SOURCES`: per bron het recht, vaste SQL, link en toelichting; `searchCrm` met
@@ -186,8 +186,8 @@ Pakket P4.3 (bevinding B03).
 
 ## 0.30.1 — 2026-11-24 — Aanmelding handmatig invoeren in het CRM
 
-- Kantoor kan een aanmelding die per telefoon, mail of op papier binnenkomt zelf invoeren: knop **Aanmelding
-- Je kiest hoe de aanmelding binnenkwam; dat staat daarna in de historie. De bevestiging aan de deelnemer gaat alleen
+- Kantoor kan een aanmelding die per telefoon, mail of op papier binnenkomt zelf invoeren: knop **Aanmelding invoeren** bij Aanmeldingen. Eerst kies je de reis, daarna vul je dezelfde gegevens in als op het aanmeldformulier van de site, met dezelfde controles (ook de toestemming van een ouder of voogd onder de 16).
+- Je kiest hoe de aanmelding binnenkwam; dat staat daarna in de historie. De bevestiging aan de deelnemer gaat alleen als je dat aanvinkt.
 
 Pakket P4.2 (bevinding F02).
 - `booking/manual-routes.js`: `/app/aanmeldingen/nieuw/` (recht `aanmeldingen` plus `deelnemers.wijzigen`,
@@ -201,8 +201,8 @@ Pakket P4.2 (bevinding F02).
 
 ## 0.30.0 — 2026-11-24 — Berichten van het contactformulier afhandelen in het CRM
 
-- Nieuw in het CRM onder Boekingen: **Berichten**. Hier staan de vragen die via het contactformulier binnenkomen, met
-- Per bericht zie je de tekst, de afzender (met knop om te mailen of te bellen) en de reis waar de vraag over gaat.
+- Nieuw in het CRM onder Boekingen: **Berichten**. Hier staan de vragen die via het contactformulier binnenkomen, met een teller in het menu voor het aantal nieuwe berichten.
+- Per bericht zie je de tekst, de afzender (met knop om te mailen of te bellen) en de reis waar de vraag over gaat. Met *Afhandelen* leg je vast dat het beantwoord is, eventueel met een korte notitie; een afgehandeld bericht kan weer op nieuw, en spam kun je verwijderen.
 
 Pakket P4.1 (bevinding F01).
 - Migratie 30: `contact_messages` krijgt `handled_at`, `handled_by` (gebruiker, `ON DELETE SET NULL`), `note` en een
@@ -361,7 +361,7 @@ aangepast.
 
 ## 0.28.2 — 2026-11-23 — Testdata voor de testomgeving
 
-- De testomgeving kan gevuld worden met verzonnen, realistische testdata (reizen, reisleiders, deelnemers,
+- De testomgeving kan gevuld worden met verzonnen, realistische testdata (reizen, reisleiders, deelnemers, aanmeldingen, betalingen, blog, FAQ, pagina's en een testgebruiker per rol), en die ook weer verwijderen.
 
 - Nieuw: `app/src/dev/seed/` (`data.js`, `seed.js`, `cli.js`) met de opdrachten `vullen`, `opnieuw` en `verwijderen`
   (`--testomgeving` verplicht). Weigert op `avantareizen.nl` en als zoekmachines mogen indexeren; één transactie;
@@ -402,7 +402,7 @@ parallel werken.
 
 ## 0.27.8 — 2026-11-23 — Weer toegang als beheerder via de server
 
-- Komt een beheerder er niet meer in en is er geen tweede beheerder, dan herstelt het vaste servercommando de toegang
+- Komt een beheerder er niet meer in en is er geen tweede beheerder, dan herstelt het vaste servercommando de toegang (`beheerder-herstel`); de stappen staan in het draaiboek.
 
 - Nieuw `app/src/crm/cli.js` met `beheerder-herstel <e-mailadres>` (bevinding F07): alleen voor een actieve beheerder;
   in één transactie een tijdelijk wachtwoord (24 tekens, alleen in de terminal), 2FA uit en een nieuwe activatiecode,
@@ -413,7 +413,7 @@ parallel werken.
 
 ## 0.27.7 — 2026-11-23 — Kortere CRM-sessie en waarschuwingen over toegang in Beheer
 
-- Het CRM logt standaard uit na een uur zonder activiteit en uiterlijk na een dag (was 8 uur en 7 dagen); instelbaar in
+- Het CRM logt standaard uit na een uur zonder activiteit en uiterlijk na een dag (was 8 uur en 7 dagen); instelbaar in Beheer > Toegang en beveiliging > Sessies en bewaartermijnen.
 - De startpagina van Beheer meldt het als tweestapsverificatie nog optioneel is of als er maar één actieve beheerder is.
 
 - Standaard sessieduur CRM: `IDLE_HOURS` 1 en `MAX_DAYS` 1 (`crm/auth.js`), standaard van `sessionIdleHours` en
@@ -424,7 +424,7 @@ parallel werken.
 
 ## 0.27.6 — 2026-11-23 — Controle op gelekte en veelgebruikte wachtwoorden
 
-- Een nieuw wachtwoord in het CRM of het reizigersaccount mag geen veelgebruikt woord of reeks meer zijn en wordt
+- Een nieuw wachtwoord in het CRM of het reizigersaccount mag geen veelgebruikt woord of reeks meer zijn en wordt vergeleken met wachtwoorden uit bekende datalekken (Have I Been Pwned). Aan- en uitzetten in Beheer > Toegang en beveiliging > Wachtwoorden.
 
 - Nieuw `app/src/security/password-check.js` (audit A09, ASVS 2.1.7): vaste regels uit `crm/passwords.js`, lokale
   controle (veelgebruikte woorden, samenstellingen en herhalingen daarvan, toetsenbord- en telreeksen, met hoogstens
@@ -454,8 +454,8 @@ parallel werken.
 
 ## 0.27.4 — 2026-11-23 — Startpagina van Beheer en een strengere Content-Security-Policy
 
-- Beheer opent met een startpagina: de stand van de bewaking, de laatste back-up, de versie en open servertaken, en
-- De lange tabel met alle instellingen staat nu op een eigen pagina: *Alle instellingen en hun bron*. Het
+- Beheer opent met een startpagina: de stand van de bewaking, de laatste back-up, de versie en open servertaken, en daaronder elk onderwerp als kaart met zijn onderdelen. Zoeken beperkt ook de kaarten.
+- De lange tabel met alle instellingen staat nu op een eigen pagina: *Alle instellingen en hun bron*. Het systeemoverzicht (versie, database, laatste migratie) blijft onder Systeem.
 
 `/app/beheer/` toont `renderStart` (vervolgplan P1.5, bevinding B04); `/app/beheer/overzicht/` het systeemoverzicht en
 de nieuwe sectie `/app/beheer/instellingen/` de instellingen met hun bron. De Content-Security-Policy heeft
@@ -465,7 +465,7 @@ erbij (bevinding A22, deels: het attribuut blijft tot de achtergrondfoto's zijn 
 
 ## 0.27.3 — 2026-11-23 — Bewerkschermen in het CRM met tabbladen en een vaste opslaanbalk
 
-- Het scherm van een reis is opgedeeld in tabbladen: Algemeen, Prijs, Tekst en programma, Foto's en Aanmeldingen.
+- Het scherm van een reis is opgedeeld in tabbladen: Algemeen, Prijs, Tekst en programma, Foto's en Aanmeldingen. Zichtbaarheid staat in een eigen kolom rechts en de knop *Opslaan* blijft onderaan in beeld.
 - Pagina's, blogberichten en reisleiders hebben dezelfde opzet met tabbladen.
 - Zit er een fout in een veld, dan opent het tabblad waar dat veld staat.
 - *Bekijk op de site* en *Voorbeeld* staan als knop naast de titel.
@@ -477,10 +477,10 @@ ongewijzigd; zonder JavaScript staan alle panelen onder elkaar. Geen migratie.
 
 ## 0.27.2 — 2026-11-23 — Overzicht in het CRM met Te doen en komende vertrekken
 
-- De startpagina van het CRM laat nu zien wat aandacht vraagt: nieuwe aanmeldingen, te late betalingen, mogelijk
-- Daaronder staan de komende vertrekken met het aantal bezette plaatsen en het openstaande bedrag, en de laatste
+- De startpagina van het CRM laat nu zien wat aandacht vraagt: nieuwe aanmeldingen, te late betalingen, mogelijk dubbele deelnemers en reizen in concept. Een klik op een tegel opent de lijst met dat filter.
+- Daaronder staan de komende vertrekken met het aantal bezette plaatsen en het openstaande bedrag, en de laatste wijzigingen aan aanmeldingen. De beheerder ziet ook de stand van de bewaking, de laatste back-up en de versie.
 - Iedereen ziet alleen de onderdelen die bij de eigen rol horen.
-- De lijst *Jouw rechten* en de losse knoppen staan niet meer op de startpagina; wachtwoord en tweestapsverificatie
+- De lijst *Jouw rechten* en de losse knoppen staan niet meer op de startpagina; wachtwoord en tweestapsverificatie staan in het gebruikersmenu rechtsboven.
 
 Nieuw `app/src/crm/dashboard.js` (`loadDashboard`, `renderDashboard`, `dashboardAccess`) voor `/app/` (vervolgplan
 P1.3, bevinding B01); de tijdelijke tekst en de lijst met rechten zijn weg. Per recht één query, parallel; een onderdeel
@@ -491,7 +491,7 @@ toont alleen dat onderdeel een melding en komt de fout (zonder inhoud) in het lo
 
 ## 0.27.1 — 2026-11-23 — Lijsten in het CRM in één opzet
 
-- De lijsten Aanmeldingen, Deelnemers, Betalingen en Reizen zien er nu hetzelfde uit: filterknoppen bovenaan (bij
+- De lijsten Aanmeldingen, Deelnemers, Betalingen en Reizen zien er nu hetzelfde uit: filterknoppen bovenaan (bij aanmeldingen en deelnemers met het aantal erbij), daaronder zoeken, statussen als gekleurd label en onderaan bladeren.
 - Knoppen als *Nieuwe reis* en *Excel (.xlsx)* staan rechts naast de titel van de pagina.
 
 Gedeelde bouwstenen voor lijsten in `app/src/crm/ui.js` (`renderActions`, `renderFilterTabs`, `renderSearch`,

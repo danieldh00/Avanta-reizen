@@ -18,6 +18,11 @@ test('parseFragment leest titel, punten en changelog', () => {
   assert.equal(fragment.changelog, 'Nieuwe zoekroute.');
 });
 
+test('parseFragment: een nieuwspunt over meerdere regels blijft heel', () => {
+  const fragment = notes.parseFragment('---\ntitel: x\n---\n## Nieuws\n- Eerste regel van een lang punt,\n  dat hier verdergaat.\n- Tweede punt.\n\nlos\n## Changelog\na\n');
+  assert.deepEqual(fragment.items, ['Eerste regel van een lang punt, dat hier verdergaat.', 'Tweede punt.']);
+});
+
 test('parseFragment weigert een fragment zonder changelog, titel of met major', () => {
   assert.throws(() => notes.parseFragment('---\ntitel: x\n---\n## Nieuws\n- a\n'), /Changelog/);
   assert.throws(() => notes.parseFragment('---\nbump: patch\n---\n## Changelog\na\n'), /titel/);
