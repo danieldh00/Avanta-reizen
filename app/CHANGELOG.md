@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.34.0 — 2026-11-24 — Standaard 15 plaatsen bij een nieuwe reis
+
+- Bij een nieuwe reis staat het aantal plaatsen vooraf op 15, het normale maximum aantal deelnemers. Kantoor past de standaard aan in Beheer > CRM > Reizen; bestaande reizen veranderen niet.
+
+- Nieuwe instelling `tripDefaultCapacity` (Beheer > CRM, sectie Reizen; standaard 15, 1 tot en met 10000). `/app/reizen/nieuw/` vult *Aantal plaatsen* daarmee in (`defaultCapacity` in `trips/trip-routes.js`, terugval 15); de module Reisaanbod krijgt de instellingen mee.
+- Testdata: alle reizen 15 plaatsen; aanmeldingen per reis passen daarbinnen, Wintersport Tirol blijft vol.
+
 ## 0.33.9 — 2026-11-24 — Leesbare code in cms/, trips/, media/ en tools/ (P6a.5)
 
 - `cms/block-render.js` (nieuw): het tekenen van blokken staat nu los van `cms/blocks.js`, met één renderer per bloktype
