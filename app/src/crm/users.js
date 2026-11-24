@@ -5,6 +5,7 @@
  * geblokkeerd. Elke wijziging komt in het auditlog (scherm in `audit-routes.js`), zonder de waarden zelf.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { ROLES, TRIP_SCOPED_ROLES, roleLabel } = require('./rights');
 const { hashPassword, MAX_LENGTH } = require('./passwords');
@@ -364,7 +365,7 @@ function createUserRoutes(options) {
     });
   };
 
-  router.get('/gebruikers/:id(\\d{1,9})/', guard, async (req, res, next) => {
+  router.get(routePath('/gebruikers/:id(\\d{1,9})/'), guard, async (req, res, next) => {
     try {
       const target = await findUser(req.params.id);
       if (!target) return notFound(req, res);
@@ -377,7 +378,7 @@ function createUserRoutes(options) {
     }
   });
 
-  router.post('/gebruikers/:id(\\d{1,9})/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/gebruikers/:id(\\d{1,9})/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const { values, errors } = await readUserForm(req.body, { withPassword: false });
       const target = await findUser(req.params.id);
@@ -421,7 +422,7 @@ function createUserRoutes(options) {
     }
   });
 
-  router.post('/gebruikers/:id(\\d{1,9})/wachtwoord/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/gebruikers/:id(\\d{1,9})/wachtwoord/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const target = await findUser(req.params.id);
       if (!target) return notFound(req, res);
@@ -439,7 +440,7 @@ function createUserRoutes(options) {
     }
   });
 
-  router.post('/gebruikers/:id(\\d{1,9})/tweestaps/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/gebruikers/:id(\\d{1,9})/tweestaps/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const target = await findUser(req.params.id);
       if (!target) return notFound(req, res);
@@ -455,7 +456,7 @@ function createUserRoutes(options) {
     }
   });
 
-  router.post('/gebruikers/:id(\\d{1,9})/activatiecode/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/gebruikers/:id(\\d{1,9})/activatiecode/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const target = await findUser(req.params.id);
       if (!target) return notFound(req, res);

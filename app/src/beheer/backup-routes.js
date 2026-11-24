@@ -4,6 +4,7 @@
  * uur, bewaartermijn) staan in het gewone instellingenformulier (`beheer/routes.js`).
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { formatDateTime } = require('../crm/layout');
 const { findSection } = require('./indeling');
@@ -134,7 +135,7 @@ function createBackupRoutes(options) {
     }
   });
 
-  router.get('/beheer/back-ups/download/:name([a-z0-9.-]{1,60})', guard, async (req, res, next) => {
+  router.get(routePath('/beheer/back-ups/download/:name([a-z0-9.-]{1,60})'), guard, async (req, res, next) => {
     try {
       if (!downloadLimiter.hit(`gebruiker:${req.user.id}`)) return res.status(429).type('text').send('Te veel downloads. Probeer het over een uur opnieuw.');
       const file = backups.fileOf(req.params.name);

@@ -6,6 +6,7 @@
  * volgeboekt) en *Kopiëren naar nieuw vertrek*. Elke wijziging in de auditlog.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
 const ui = require('../crm/ui');
@@ -367,7 +368,7 @@ function createTripRoutes(options) {
     }
   });
 
-  router.get('/reizen/:id(\\d{1,9})/', guard, async (req, res, next) => {
+  router.get(routePath('/reizen/:id(\\d{1,9})/'), guard, async (req, res, next) => {
     try {
       const trip = await trips.get(req.params.id);
       if (!trip) return notFound(req, res);
@@ -380,7 +381,7 @@ function createTripRoutes(options) {
     }
   });
 
-  router.post('/reizen/:id(\\d{1,9})/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/reizen/:id(\\d{1,9})/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const { values, errors } = validateTrip(req.body);
       const showErrors = async (fieldErrors) => {
@@ -440,7 +441,7 @@ function createTripRoutes(options) {
     return res.redirect(303, `${BASE}${Number(req.params.id)}/?opgeslagen=3#fotos`);
   };
 
-  router.post('/reizen/:id(\\d{1,9})/kopieren/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/reizen/:id(\\d{1,9})/kopieren/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const result = await trips.copy(req.params.id, {
         userId: req.user.id,
@@ -453,7 +454,7 @@ function createTripRoutes(options) {
     }
   });
 
-  router.post('/reizen/:id(\\d{1,9})/fotos/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/reizen/:id(\\d{1,9})/fotos/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const role = Object.hasOwn(ROLES, req.body.rol) ? req.body.rol : null;
       const ids = [...new Set([].concat(req.body.media_id ?? []).filter((id) => typeof id === 'string' && /^\d{1,9}$/.test(id)).map(Number))].slice(0, MAX_GALLERY);
@@ -464,7 +465,7 @@ function createTripRoutes(options) {
     }
   });
 
-  router.post('/reizen/:id(\\d{1,9})/fotos/:link(\\d{1,9})/:action(omhoog|omlaag|verwijderen)/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/reizen/:id(\\d{1,9})/fotos/:link(\\d{1,9})/:action(omhoog|omlaag|verwijderen)/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const context = photoContext(req);
       const outcome = req.params.action === 'verwijderen'
@@ -477,7 +478,7 @@ function createTripRoutes(options) {
     }
   });
 
-  router.post('/reizen/:id(\\d{1,9})/fotos/import-weghalen/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/reizen/:id(\\d{1,9})/fotos/import-weghalen/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       return await afterPhotoChange(req, res, await tripMedia.dropImported(req.params.id, photoContext(req)));
     } catch (error) {
@@ -485,7 +486,7 @@ function createTripRoutes(options) {
     }
   });
 
-  router.post('/reizen/:id(\\d{1,9})/galerij/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/reizen/:id(\\d{1,9})/galerij/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const outcome = await tripMedia.setGalleryText(req.params.id, { title: req.body.gallery_title, subtitle: req.body.gallery_subtitle }, photoContext(req));
       return await afterPhotoChange(req, res, outcome);

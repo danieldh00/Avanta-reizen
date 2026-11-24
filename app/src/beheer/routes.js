@@ -5,6 +5,7 @@
  * (welke instelling, nooit de waarde); geheimen gaan nooit volledig terug naar de browser.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
 const { systemState } = require('../crm/dashboard');
@@ -364,7 +365,7 @@ function createBeheerRoutes(options) {
     }
   });
 
-  router.get('/beheer/:section([a-z0-9-]{1,40})/', guard, async (req, res, next) => {
+  router.get(routePath('/beheer/:section([a-z0-9-]{1,40})/'), guard, async (req, res, next) => {
     try {
       const section = findSection(req.params.section);
       if (!section) return notFound(req, res);
@@ -378,7 +379,7 @@ function createBeheerRoutes(options) {
     }
   });
 
-  router.post('/beheer/:section([a-z0-9-]{1,40})/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/beheer/:section([a-z0-9-]{1,40})/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const section = findSection(req.params.section);
       if (!section || !section.fields) return notFound(req, res);

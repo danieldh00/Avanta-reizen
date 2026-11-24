@@ -8,6 +8,7 @@
  * Elke actie komt in het auditlog, zonder inhoud of adressen.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html } = require('../site/html');
 const { formatDate } = require('../site/format');
 const { createXlsx, XLSX_TYPE } = require('../export/xlsx');
@@ -272,7 +273,7 @@ function createInfobriefRoutes(options) {
       })}`);
   };
 
-  router.get(`${ROUTE}${ID}/`, guard, async (req, res, next) => {
+  router.get(routePath(`${ROUTE}${ID}/`), guard, async (req, res, next) => {
     try {
       const infobrief = await load(req, res);
       if (!infobrief) return undefined;
@@ -283,7 +284,7 @@ function createInfobriefRoutes(options) {
     }
   });
 
-  router.post(`${ROUTE}${ID}/`, guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath(`${ROUTE}${ID}/`), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const infobrief = await load(req, res);
       if (!infobrief) return undefined;
@@ -304,7 +305,7 @@ function createInfobriefRoutes(options) {
     }
   });
 
-  router.get(`${ROUTE}${ID}/voorbeeld/`, guard, async (req, res, next) => {
+  router.get(routePath(`${ROUTE}${ID}/voorbeeld/`), guard, async (req, res, next) => {
     try {
       const infobrief = await load(req, res);
       if (!infobrief) return undefined;
@@ -322,7 +323,7 @@ function createInfobriefRoutes(options) {
     }
   });
 
-  router.post(`${ROUTE}${ID}/testmail/`, guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath(`${ROUTE}${ID}/testmail/`), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const infobrief = await load(req, res);
       if (!infobrief) return undefined;
@@ -346,7 +347,7 @@ function createInfobriefRoutes(options) {
     }
   });
 
-  router.post(`${ROUTE}${ID}/versturen/`, guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath(`${ROUTE}${ID}/versturen/`), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const infobrief = await load(req, res);
       if (!infobrief) return undefined;
@@ -376,7 +377,7 @@ function createInfobriefRoutes(options) {
     }
   });
 
-  router.post(`${ROUTE}${ID}/opnieuw/`, guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath(`${ROUTE}${ID}/opnieuw/`), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const infobrief = await load(req, res);
       if (!infobrief) return undefined;
@@ -395,7 +396,7 @@ function createInfobriefRoutes(options) {
     }
   });
 
-  router.post(`${ROUTE}${ID}/verwijderen/`, guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath(`${ROUTE}${ID}/verwijderen/`), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const infobrief = await load(req, res);
       if (!infobrief) return undefined;
@@ -412,7 +413,7 @@ function createInfobriefRoutes(options) {
     }
   });
 
-  router.get(`${ROUTE}${ID}/verzendoverzicht.xlsx`, guard, async (req, res, next) => {
+  router.get(routePath(`${ROUTE}${ID}/verzendoverzicht.xlsx`), guard, async (req, res, next) => {
     try {
       const infobrief = await load(req, res);
       if (!infobrief) return undefined;

@@ -7,6 +7,7 @@
  * Elke wijziging in de auditlog.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
 const ui = require('../crm/ui');
@@ -352,7 +353,7 @@ function createPostRoutes(options) {
   });
   editor.addRoutes(router);
 
-  router.get('/blog/:id(\\d{1,9})/', guard, async (req, res, next) => {
+  router.get(routePath('/blog/:id(\\d{1,9})/'), guard, async (req, res, next) => {
     try {
       const post = await loadOr404(req, res);
       if (!post) return undefined;
@@ -362,7 +363,7 @@ function createPostRoutes(options) {
     }
   });
 
-  router.post('/blog/:id(\\d{1,9})/gegevens/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/blog/:id(\\d{1,9})/gegevens/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const { values, errors } = validatePostFields(req.body);
       if (Object.keys(errors).length) {
@@ -379,7 +380,7 @@ function createPostRoutes(options) {
     }
   });
 
-  router.post('/blog/:id(\\d{1,9})/indeling/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/blog/:id(\\d{1,9})/indeling/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const outcome = await terms.setPostTerms(req.params.id, { termIds: [].concat(req.body.term || []), featured: req.body.uitgelicht === 'ja' }, contextFor(req, 'blog.indeling'));
       if (outcome.status === 'weg') return notFound(req, res);
@@ -390,7 +391,7 @@ function createPostRoutes(options) {
     }
   });
 
-  router.get('/blog/:id(\\d{1,9})/voorbeeld/', guard, async (req, res, next) => {
+  router.get(routePath('/blog/:id(\\d{1,9})/voorbeeld/'), guard, async (req, res, next) => {
     try {
       const post = await loadOr404(req, res);
       if (!post) return undefined;
@@ -413,7 +414,7 @@ function createPostRoutes(options) {
     }
   });
 
-  router.post('/blog/:id(\\d{1,9})/publiceren/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/blog/:id(\\d{1,9})/publiceren/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const outcome = await posts.publish(req.params.id, req.body.versie, contextFor(req, 'blog.gepubliceerd'));
       return await finish(req, res, outcome, { notice: outcome.scheduled ? 12 : 2 });
@@ -422,7 +423,7 @@ function createPostRoutes(options) {
     }
   });
 
-  router.post('/blog/:id(\\d{1,9})/concept-weggooien/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/blog/:id(\\d{1,9})/concept-weggooien/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const outcome = await posts.discardDraft(req.params.id, req.body.versie, contextFor(req, 'blog.concept-weg'));
       return await finish(req, res, outcome, { notice: 3 });
@@ -431,7 +432,7 @@ function createPostRoutes(options) {
     }
   });
 
-  router.post('/blog/:id(\\d{1,9})/versies/:version(\\d{1,9})/terugzetten/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/blog/:id(\\d{1,9})/versies/:version(\\d{1,9})/terugzetten/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const outcome = await posts.restoreRevision(req.params.id, req.params.version, req.body.versie, contextFor(req, 'blog.versie-terug'));
       return await finish(req, res, outcome, { notice: 4, anchor: 'blokken' });
@@ -486,7 +487,7 @@ function createPostRoutes(options) {
     }
   });
 
-  router.post('/blog/:id(\\d{1,9})/adres/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/blog/:id(\\d{1,9})/adres/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const slug = typeof req.body.slug === 'string' ? req.body.slug.trim() : '';
       const outcome = await posts.changeSlug(req.params.id, slug, contextFor(req, 'blog.adres'));
@@ -505,7 +506,7 @@ function createPostRoutes(options) {
     }
   });
 
-  router.post('/blog/:id(\\d{1,9})/online/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/blog/:id(\\d{1,9})/online/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const online = req.body.stand === 'online';
       if (!online && req.body.stand !== 'offline') return await finish(req, res, { status: 'fout', message: 'Onbekende actie.' }, { notice: 1 });
@@ -519,7 +520,7 @@ function createPostRoutes(options) {
     }
   });
 
-  router.post('/blog/:id(\\d{1,9})/verwijderen/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/blog/:id(\\d{1,9})/verwijderen/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       if (req.body.zeker !== 'ja') return await finish(req, res, { status: 'fout', message: 'Vink aan dat je het bericht wilt verwijderen.' }, { notice: 1 });
       const outcome = await posts.remove(req.params.id, { audit: auditFor(req, 'blog.verwijderd') });

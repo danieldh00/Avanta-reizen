@@ -4,6 +4,7 @@
  * verwijderen en de tags van de huidige site overnemen uit `site-content.json`. Elke wijziging in de auditlog.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
 const { fieldRow, invalidAttributes } = require('./block-editor');
@@ -190,7 +191,7 @@ function createPostTermRoutes(options) {
     }
   });
 
-  router.get('/blog/categorieen-en-tags/:id(\\d{1,9})/', guard, async (req, res, next) => {
+  router.get(routePath('/blog/categorieen-en-tags/:id(\\d{1,9})/'), guard, async (req, res, next) => {
     try {
       const term = await terms.get(req.params.id);
       if (!term) return notFound(req, res);
@@ -200,7 +201,7 @@ function createPostTermRoutes(options) {
     }
   });
 
-  router.post('/blog/categorieen-en-tags/:id(\\d{1,9})/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/blog/categorieen-en-tags/:id(\\d{1,9})/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const term = await terms.get(req.params.id);
       if (!term) return notFound(req, res);
@@ -215,7 +216,7 @@ function createPostTermRoutes(options) {
     }
   });
 
-  router.post('/blog/categorieen-en-tags/:id(\\d{1,9})/verwijderen/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/blog/categorieen-en-tags/:id(\\d{1,9})/verwijderen/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const term = await terms.get(req.params.id);
       if (!term) return notFound(req, res);

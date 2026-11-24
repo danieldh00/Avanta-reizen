@@ -6,6 +6,7 @@
  * scherm: daarvoor is *Toon* op de deelnemerspagina.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { FIELDS } = require('../booking/fields');
 const { roleHasRight } = require('../crm/rights');
@@ -167,7 +168,7 @@ function createPersonMergeRoutes(options) {
     });
   };
 
-  router.get('/deelnemers/:id(\\d{1,9})/samenvoegen/', ...canEdit, async (req, res, next) => {
+  router.get(routePath('/deelnemers/:id(\\d{1,9})/samenvoegen/'), ...canEdit, async (req, res, next) => {
     try {
       const pair = await findPair(db, req.params.id);
       if (!pair) return notFound(req, res);
@@ -177,7 +178,7 @@ function createPersonMergeRoutes(options) {
     }
   });
 
-  router.post('/deelnemers/:id(\\d{1,9})/samenvoegen/', ...canEdit, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/deelnemers/:id(\\d{1,9})/samenvoegen/'), ...canEdit, auth.checkCsrf, async (req, res, next) => {
     try {
       const choices = readChoices(req.body, req.user.role);
       const outcome = await db.transaction(async (client) => {
@@ -202,7 +203,7 @@ function createPersonMergeRoutes(options) {
     }
   });
 
-  router.post('/deelnemers/:id(\\d{1,9})/niet-dubbel/', ...canEdit, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/deelnemers/:id(\\d{1,9})/niet-dubbel/'), ...canEdit, auth.checkCsrf, async (req, res, next) => {
     try {
       const rows = await db.transaction(async (client) => {
         const updated = await client.query('UPDATE persons SET duplicate_of = NULL, updated_at = now() WHERE id = $1 AND duplicate_of IS NOT NULL RETURNING id', [Number(req.params.id)]);

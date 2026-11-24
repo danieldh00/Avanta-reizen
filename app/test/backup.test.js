@@ -397,7 +397,8 @@ test('back-up met pg_dump, planner en Beheer', { skip: !DATABASE_URL && 'TEST_DA
     assert.equal(download.status, 200);
     assert.equal(download.headers.get('content-type'), 'application/octet-stream');
     assert.equal(download.headers.get('cache-control'), 'no-store');
-    assert.match(download.headers.get('content-disposition'), new RegExp(`attachment; filename="${item.name}"`));
+    // Express 5 zet een veilige bestandsnaam zonder aanhalingstekens in de kop; beide vormen zijn geldig (RFC 6266).
+    assert.match(download.headers.get('content-disposition'), new RegExp(`^attachment; filename="?${item.name.replace(/\./g, '\\.')}"?$`));
     assert.deepEqual(download.bytes, fs.readFileSync(path.join(dir, item.name)));
     const downloads = await db.query("SELECT count(*)::int AS count FROM audit_log WHERE action = 'backup.gedownload' AND entity_id = $1", [item.name]);
     assert.equal(downloads[0].count, 1);

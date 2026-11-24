@@ -66,6 +66,11 @@ aan de coördinator vóór hij begint; twee threads werken nooit tegelijk in het
   `context` is wat de schil meegeeft: `db`, `auth` en de gedeelde diensten uit `server.js`.
 - Een nieuw scherm in een bestaande module: een nieuw `<onderwerp>-routes.js` en één regel in de ingang van die
   module. `crm/routes.js` verandert alleen bij een nieuwe module.
+- Routes draaien op Express 5. Een parameter met een patroon (`:id(\\d{1,9})`) kent Express 5 niet meer; schrijf zo'n
+  pad als `routePath('/reizen/:id(\\d{1,9})/')` (`src/route-path.js`). Dat geeft een reguliere expressie met
+  benoemde groepen (`req.params.id`), hoofdletterongevoelig en met een optionele `/` aan het eind, net als vroeger.
+  Een gewone `:naam` zonder patroon mag als tekst blijven. Een async route hoeft geen eigen `try/catch` voor
+  `next(error)` meer: Express 5 stuurt een afgewezen promise zelf naar de foutafhandelaar.
 
 ## 3b. Instellingen
 

@@ -6,6 +6,7 @@
  * later alleen zijn eigen vertrekken); wijzigen vraagt `deelnemers.wijzigen`, elk blok bovendien zijn `gegevens.*`-recht.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { formatDate } = require('../site/format');
 const { today } = require('../site/content');
@@ -319,7 +320,7 @@ function createPersonRoutes(options) {
     });
   };
 
-  router.get('/deelnemers/:id(\\d{1,9})/', canView, async (req, res, next) => {
+  router.get(routePath('/deelnemers/:id(\\d{1,9})/'), canView, async (req, res, next) => {
     try {
       const person = await findPerson(req.params.id);
       if (!person) return notFound(req, res);
@@ -330,7 +331,7 @@ function createPersonRoutes(options) {
     }
   });
 
-  router.post('/deelnemers/:id(\\d{1,9})/toon/', canView, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/deelnemers/:id(\\d{1,9})/toon/'), canView, auth.checkCsrf, async (req, res, next) => {
     try {
       const block = String(req.body.block || '');
       if (!Object.hasOwn(BLOCKS, block)) return res.status(400).type('text').send('Onbekend gegevensblok.');
@@ -344,7 +345,7 @@ function createPersonRoutes(options) {
     }
   });
 
-  router.post('/deelnemers/:id(\\d{1,9})/', ...canEdit, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/deelnemers/:id(\\d{1,9})/'), ...canEdit, auth.checkCsrf, async (req, res, next) => {
     try {
       const person = await findPerson(req.params.id);
       if (!person) return notFound(req, res);
@@ -367,7 +368,7 @@ function createPersonRoutes(options) {
     }
   });
 
-  router.post('/deelnemers/:id(\\d{1,9})/blok/', ...canEdit, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/deelnemers/:id(\\d{1,9})/blok/'), ...canEdit, auth.checkCsrf, async (req, res, next) => {
     try {
       const block = String(req.body.block || '');
       if (!Object.hasOwn(BLOCKS, block)) return res.status(400).type('text').send('Onbekend gegevensblok.');
@@ -398,7 +399,7 @@ function createPersonRoutes(options) {
     }
   });
 
-  router.post('/deelnemers/:id(\\d{1,9})/toestemming/:consentId(\\d{1,9})/intrekken/', ...canEdit, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/deelnemers/:id(\\d{1,9})/toestemming/:consentId(\\d{1,9})/intrekken/'), ...canEdit, auth.checkCsrf, async (req, res, next) => {
     try {
       const personId = Number(req.params.id);
       const outcome = await db.transaction(async (client) => {

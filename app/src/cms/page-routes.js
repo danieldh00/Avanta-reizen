@@ -7,6 +7,7 @@
  * Elke wijziging in de auditlog.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
 const ui = require('../crm/ui');
@@ -345,7 +346,7 @@ function createPageRoutes(options) {
   });
   editor.addRoutes(router);
 
-  router.get('/paginas/:id(\\d{1,9})/', guard, async (req, res, next) => {
+  router.get(routePath('/paginas/:id(\\d{1,9})/'), guard, async (req, res, next) => {
     try {
       const page = await loadOr404(req, res);
       if (!page) return undefined;
@@ -355,7 +356,7 @@ function createPageRoutes(options) {
     }
   });
 
-  router.post('/paginas/:id(\\d{1,9})/gegevens/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/paginas/:id(\\d{1,9})/gegevens/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const { values, errors } = validatePageFields(req.body);
       if (Object.keys(errors).length) {
@@ -372,7 +373,7 @@ function createPageRoutes(options) {
     }
   });
 
-  router.get('/paginas/:id(\\d{1,9})/voorbeeld/', guard, async (req, res, next) => {
+  router.get(routePath('/paginas/:id(\\d{1,9})/voorbeeld/'), guard, async (req, res, next) => {
     try {
       const page = await loadOr404(req, res);
       if (!page) return undefined;
@@ -395,7 +396,7 @@ function createPageRoutes(options) {
     }
   });
 
-  router.post('/paginas/:id(\\d{1,9})/publiceren/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/paginas/:id(\\d{1,9})/publiceren/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const outcome = await pages.publish(req.params.id, req.body.versie, contextFor(req, 'pagina.gepubliceerd'));
       return await finish(req, res, outcome, { notice: 2 });
@@ -404,7 +405,7 @@ function createPageRoutes(options) {
     }
   });
 
-  router.post('/paginas/:id(\\d{1,9})/concept-weggooien/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/paginas/:id(\\d{1,9})/concept-weggooien/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const outcome = await pages.discardDraft(req.params.id, req.body.versie, contextFor(req, 'pagina.concept-weg'));
       return await finish(req, res, outcome, { notice: 3 });
@@ -413,7 +414,7 @@ function createPageRoutes(options) {
     }
   });
 
-  router.post('/paginas/:id(\\d{1,9})/versies/:version(\\d{1,9})/terugzetten/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/paginas/:id(\\d{1,9})/versies/:version(\\d{1,9})/terugzetten/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const outcome = await pages.restoreRevision(req.params.id, req.params.version, req.body.versie, contextFor(req, 'pagina.versie-terug'));
       return await finish(req, res, outcome, { notice: 4, anchor: 'blokken' });
@@ -492,7 +493,7 @@ function createPageRoutes(options) {
     }
   });
 
-  router.post('/paginas/:id(\\d{1,9})/adres/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/paginas/:id(\\d{1,9})/adres/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const text = (name) => (typeof req.body[name] === 'string' ? req.body[name].trim() : '');
       const placement = { slug: text('slug'), parentPath: text('parent') || '/' };
@@ -511,7 +512,7 @@ function createPageRoutes(options) {
     }
   });
 
-  router.post('/paginas/:id(\\d{1,9})/online/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/paginas/:id(\\d{1,9})/online/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const online = req.body.stand === 'online';
       if (!online && req.body.stand !== 'offline') return await finish(req, res, { status: 'fout', message: 'Onbekende actie.' }, { notice: 1 });
@@ -525,7 +526,7 @@ function createPageRoutes(options) {
     }
   });
 
-  router.post('/paginas/:id(\\d{1,9})/verwijderen/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/paginas/:id(\\d{1,9})/verwijderen/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       if (req.body.zeker !== 'ja') return await finish(req, res, { status: 'fout', message: 'Vink aan dat je de pagina wilt verwijderen.' }, { notice: 1 });
       const outcome = await pages.remove(req.params.id, { audit: auditFor(req, 'pagina.verwijderd') });

@@ -295,6 +295,12 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     body: form.toString(),
   });
 
+  await t.test('POST zonder formulierinhoud: nette weigering, geen fout (Express 5 laat req.body anders leeg)', async () => {
+    const response = await get('/aanmelden/', { method: 'POST', headers: { 'sec-fetch-site': 'same-origin' } });
+    assert.ok(response.status >= 300 && response.status < 500, `status ${response.status}`);
+    assert.doesNotMatch(response.text, /foutcode/);
+  });
+
   await t.test('aanmelding wordt opgeslagen met versleutelde bijzondere gegevens', async () => {
     const form = await formFor(1001);
     clock += 5000;

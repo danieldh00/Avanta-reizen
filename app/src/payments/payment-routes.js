@@ -7,6 +7,7 @@
  * Elke wijziging komt in het auditlog, zonder bedragen of namen. De reisleider heeft geen recht `betalingen`.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { formatDate } = require('../site/format');
 const { isValidDate } = require('../booking/fields');
@@ -318,7 +319,7 @@ function createPaymentRoutes(options) {
     return null;
   };
 
-  router.get('/betalingen/:id(\\d{1,9})/', guard, async (req, res, next) => {
+  router.get(routePath('/betalingen/:id(\\d{1,9})/'), guard, async (req, res, next) => {
     try {
       const booking = await findBooking(db, req.params.id);
       if (!booking) return notFound(req, res);
@@ -331,7 +332,7 @@ function createPaymentRoutes(options) {
     }
   });
 
-  router.post('/betalingen/:id(\\d{1,9})/betaling/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/betalingen/:id(\\d{1,9})/betaling/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const { values, error } = validatePayment(req.body, today());
       if (error) {
@@ -355,7 +356,7 @@ function createPaymentRoutes(options) {
     }
   });
 
-  router.post('/betalingen/:id(\\d{1,9})/bedragen/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/betalingen/:id(\\d{1,9})/bedragen/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const { values, error } = validateCharge(req.body);
       if (error) {
@@ -379,7 +380,7 @@ function createPaymentRoutes(options) {
     }
   });
 
-  router.post('/betalingen/:id(\\d{1,9})/bedragen/:chargeId(\\d{1,9})/weg/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/betalingen/:id(\\d{1,9})/bedragen/:chargeId(\\d{1,9})/weg/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const outcome = await withBooking(req, async (client, booking) => {
         // Alleen een regel van deze aanmelding; een id van een andere aanmelding geeft 404.
@@ -400,7 +401,7 @@ function createPaymentRoutes(options) {
     }
   });
 
-  router.post('/betalingen/:id(\\d{1,9})/herinnering/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/betalingen/:id(\\d{1,9})/herinnering/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const booking = await findBooking(db, req.params.id);
       if (!booking || !reminders) return notFound(req, res);

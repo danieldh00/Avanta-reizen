@@ -6,6 +6,7 @@
  * (`media/images.js`). Elke upload en wijziging komt in de auditlog.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const Busboy = require('busboy');
 const { html, raw } = require('../site/html');
 const { searchPatterns } = require('../persons/person-routes');
@@ -333,7 +334,7 @@ function createMediaRoutes(options) {
     });
   };
 
-  router.get('/fotobibliotheek/:id(\\d{1,9})/', guard, async (req, res, next) => {
+  router.get(routePath('/fotobibliotheek/:id(\\d{1,9})/'), guard, async (req, res, next) => {
     try {
       const item = await library.get(req.params.id);
       if (!item) return notFound(req, res);
@@ -343,7 +344,7 @@ function createMediaRoutes(options) {
     }
   });
 
-  router.post('/fotobibliotheek/:id(\\d{1,9})/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/fotobibliotheek/:id(\\d{1,9})/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const saved = await library.update(req.params.id, { ...req.body, countryIds: req.body.land }, (client) => auth.audit(req, {
         userId: req.user.id, action: 'media.gewijzigd', entity: 'media', entityId: req.params.id,
@@ -369,7 +370,7 @@ function createMediaRoutes(options) {
     }
   });
 
-  router.post('/fotobibliotheek/:id(\\d{1,9})/verwijderen/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/fotobibliotheek/:id(\\d{1,9})/verwijderen/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const outcome = await library.remove(req.params.id, (client) => auth.audit(req, {
         userId: req.user.id, action: 'media.verwijderd', entity: 'media', entityId: req.params.id,

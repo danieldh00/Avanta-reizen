@@ -5,6 +5,7 @@
  * de menu's opnieuw (`cms/menus.js`).
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
 const { createMenus, validateMenuItem, MENUS, MAX_ITEMS, MENU_LIMITS } = require('./menus');
@@ -218,7 +219,7 @@ function createMenuRoutes(options) {
     }
   });
 
-  router.get('/menus/:id(\\d{1,9})/', guard, async (req, res, next) => {
+  router.get(routePath('/menus/:id(\\d{1,9})/'), guard, async (req, res, next) => {
     try {
       const row = await findItem(req.params.id);
       if (!row) return notFound(req, res);
@@ -228,7 +229,7 @@ function createMenuRoutes(options) {
     }
   });
 
-  router.post('/menus/:id(\\d{1,9})/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/menus/:id(\\d{1,9})/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const { values, errors } = validateMenuItem(req.body);
       const fail = async (fieldErrors) => {
@@ -246,7 +247,7 @@ function createMenuRoutes(options) {
     }
   });
 
-  router.post('/menus/:id(\\d{1,9})/verwijderen/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/menus/:id(\\d{1,9})/verwijderen/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const outcome = await menus.remove(req.params.id, (client) => audit(req, 'menu.verwijderd', client));
       if (outcome === 'weg') return notFound(req, res);

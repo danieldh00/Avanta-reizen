@@ -5,6 +5,7 @@
  * categorie verwijderen. Een gewijzigde of samengevoegde slug krijgt automatisch een 301. Elke wijziging in de auditlog.
  */
 const express = require('express');
+const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
 const { categoryPath } = require('../site/format');
@@ -231,7 +232,7 @@ function createCategoryRoutes(options) {
     return category;
   };
 
-  router.get('/reistypes-en-landen/:id(\\d{1,9})/', guard, async (req, res, next) => {
+  router.get(routePath('/reistypes-en-landen/:id(\\d{1,9})/'), guard, async (req, res, next) => {
     try {
       const category = await loadOr404(req, res);
       if (!category) return undefined;
@@ -242,7 +243,7 @@ function createCategoryRoutes(options) {
     }
   });
 
-  router.post('/reistypes-en-landen/:id(\\d{1,9})/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/reistypes-en-landen/:id(\\d{1,9})/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const { values, errors } = validateCategory(req.body);
       const filled = { ...req.body, show_on_home: values.showOnHome };
@@ -268,7 +269,7 @@ function createCategoryRoutes(options) {
     }
   });
 
-  router.post('/reistypes-en-landen/:id(\\d{1,9})/foto/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/reistypes-en-landen/:id(\\d{1,9})/foto/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const none = req.body.geen === '1';
       const mediaId = none ? null : req.body.media_id;
@@ -292,7 +293,7 @@ function createCategoryRoutes(options) {
     }
   });
 
-  router.post('/reistypes-en-landen/:id(\\d{1,9})/samenvoegen/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/reistypes-en-landen/:id(\\d{1,9})/samenvoegen/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const target = typeof req.body.doel === 'string' && /^\d{1,9}$/.test(req.body.doel) ? Number(req.body.doel) : null;
       const showError = async (status, message) => {
@@ -316,7 +317,7 @@ function createCategoryRoutes(options) {
     }
   });
 
-  router.post('/reistypes-en-landen/:id(\\d{1,9})/verwijderen/', guard, auth.checkCsrf, async (req, res, next) => {
+  router.post(routePath('/reistypes-en-landen/:id(\\d{1,9})/verwijderen/'), guard, auth.checkCsrf, async (req, res, next) => {
     try {
       const outcome = await categories.remove(req.params.id, (client) => auth.audit(req, {
         userId: req.user.id, action: 'categorie.verwijderd', entity: 'trip_categories', entityId: req.params.id,
