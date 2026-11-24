@@ -25,8 +25,14 @@ jobs:
       pull-requests: read
     outputs:
       code: ${{ steps.scope.outputs.code }}
+      screens: ${{ steps.scope.outputs.screens }}
     steps:
-      - name: Raakt deze wijziging code?
+      # Alleen het script dat bestanden aan schermen koppelt; de rest van de repository is hier niet nodig.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: app/tools/design-check/changed-screens.js
+          sparse-checkout-cone-mode: false
+      - name: Raakt deze wijziging code, en welke schermen?
         id: scope
         env:
           GH_TOKEN: ${{ github.token }}
@@ -39,6 +45,10 @@ jobs:
           fi
           files=$(gh api "repos/$REPO/pulls/$NUMBER/files" --paginate --jq '.[].filename') || { echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; }
           echo "$files"
+          # Schermen voor de design-controle (leeg = geen scherm geraakt, dan draait de job `design` niet).
+          screens=$(printf '%s\n' "$files" | node app/tools/design-check/changed-screens.js)
+          echo "screens=$screens" >> "$GITHUB_OUTPUT"
+          echo "Schermen voor de design-controle: ${screens:-geen}"
           if echo "$files" | grep -Eq '^(app/|tools/|tests/|deploy/|docker-compose\.yml|Dockerfile|\.github/workflows/)'; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
@@ -111,3 +121,87 @@ jobs:
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3400/api/health && exit 0; sleep 2; done
           docker logs smoke
           exit 1
+
+  # Design-controle met Playwright, alleen op de schermen die deze PR raakt (`changed-screens.js`), op 1440 en 375 px.
+  # Faalt bij bevindingen met ernst "hoog" (overloop, overlap, afgekapt, kapotte afbeelding); het rapport (.xlsx met
+  # uitsneden) staat in het artefact `design-controle`. Draait niet op main en niet als de PR geen scherm raakt.
+  design:
+    needs: changes
+    if: needs.changes.outputs.screens != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: avanta_design
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # Wegwerpdatabase en -app in deze job; de controles in guards.js accepteren alleen localhost en een databasenaam
+      # met "design".
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/avanta_design
+      DATA_DIR: /tmp/avanta-design/data
+      PORT: "3400"
+      SITE_URL: http://localhost:3400
+      PASSWORD_BREACH_CHECK: "false"
+      DESIGN_BASE_URL: http://localhost:3400
+      SCREENS: ${{ needs.changes.outputs.screens }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Afhankelijkheden app
+        run: npm ci
+      - name: Playwright met Chromium (geen dependency van de app)
+        run: |
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Wachtwoord voor de testaccounts (per run nieuw)
+        run: |
+          password=$(openssl rand -base64 24)
+          echo "::add-mask::$password"
+          echo "DESIGN_WACHTWOORD=$password" >> "$GITHUB_ENV"
+      - name: App starten
+        run: |
+          mkdir -p "$DATA_DIR"
+          nohup node src/server.js > /tmp/avanta-design/app.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3400/api/health > /dev/null && exit 0; sleep 2; done
+          cat /tmp/avanta-design/app.log
+          exit 1
+      - name: Testgegevens
+        # De uitvoer van de testdata bevat een tijdelijk wachtwoord; die blijft buiten het log.
+        run: |
+          node src/dev/seed/cli.js vullen --testomgeving > /dev/null
+          node tools/design-check/seed.js
+      - name: Design-controle op de gewijzigde schermen
+        run: |
+          echo "Schermen: $SCREENS"
+          node tools/design-check/check.js --paths="$SCREENS" --out=/tmp/avanta-design/uitslag
+      - name: Samenvatting en rapport
+        if: always()
+        run: |
+          node tools/design-check/ci-summary.js /tmp/avanta-design/uitslag/results.json >> "$GITHUB_STEP_SUMMARY"
+          if [ -f /tmp/avanta-design/uitslag/results.json ]; then
+            node tools/design-check/report.js /tmp/avanta-design/uitslag/results.json /tmp/avanta-design/uitslag/design-controle.xlsx
+          fi
+      - name: Rapport bewaren
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: design-controle
+          path: |
+            /tmp/avanta-design/uitslag/design-controle.xlsx
+            /tmp/avanta-design/uitslag/results.json
+            /tmp/avanta-design/uitslag/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7

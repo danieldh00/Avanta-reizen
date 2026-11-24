@@ -53,7 +53,8 @@ Algemene afspraken voor samenwerken met Claude in een project met een coördinat
 - Auto-merge pas als CI en de verplichte reviews groen zijn **en** de reviewopmerkingen op de huidige head gelezen en verwerkt zijn (een groene review kan nog open bevindingen hebben). Faalt een review op limieten, draai hem opnieuw.
 - Databasemigraties zijn positioneel: neem bij het mergen het eerstvolgende vrije nummer op de hoofdbranch en rebase vlak voor de merge. Er lopen vaak meerdere threads tegelijk.
 - Tests voor randgevallen; dezelfde database als productie in de tests.
-- UI controleren op 1440 en 375 px via DOM/CSS-meting; geen screenshots tenzij gevraagd.
+- UI controleren op 1440 en 375 px met de design-controle (Playwright, alleen de geraakte schermen; draait ook in CI);
+  schermafbeeldingen alleen als uitsnede van een bevinding of als erom gevraagd wordt.
 - Eén diepe beveiligingsscan vóór go-live.
 - Geen verwijzingen naar andere projecten (namen, repository's, paden, containernamen) in bestanden, commits of PR-teksten.
 - Geen modelnamen of -ID's in commits, PR's, code of docs. Nooit secrets, wachtwoorden of persoonsgegevens in repo, chat of geheugen (zeker niet in een publieke repo).
