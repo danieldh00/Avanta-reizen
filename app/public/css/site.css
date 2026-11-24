@@ -452,7 +452,7 @@ h4, h5, h6 { font-size: 16px; }
   .homepage__about-text { order: -1; margin: 0 30px 30px; }
   .homepage__about .section__content { padding-left: 0; }
   .about__image { padding-right: 0; }
-  .stamp { top: 20px; left: auto; right: -70px; font-size: 162px; }
+  .stamp { top: 20px; left: auto; right: -40px; font-size: 100px; }
 }
 @media (max-width: 768px) {
   .grid { margin: 0; }
@@ -473,7 +473,7 @@ h4, h5, h6 { font-size: 16px; }
   .filter__item:last-child { margin: 0; }
   .filter__control select { border: 1px solid var(--av-line); }
   .filter__icon { left: 8px; }
-  .filter__submit { margin-top: 0; }
+  .filter__submit { margin-top: 22px; }
   .trip-types { margin: 0 -15px; }
   .trip-type { flex: 1 1 40%; height: 180px; }
   .homepage__inspiration { padding: 0 30px; }
@@ -607,7 +607,7 @@ h4, h5, h6 { font-size: 16px; }
 .guide__image img { display: block; width: 100%; height: auto; }
 .guide__quote { margin: 60px 60px 0; font-family: var(--av-serif); font-size: 34px; font-weight: 700; line-height: 1.2; text-align: left; color: var(--av-heading); }
 .guide__details { width: 100%; margin-bottom: 60px; text-align: center; }
-.guide__name { margin: 0; font-size: 90px; font-weight: 900; }
+.guide__name { margin: 0; font-size: 90px; font-weight: 900; line-height: 1; }
 .guide__surname { margin: 10px 0 22.5px; font-family: var(--av-serif); font-size: 20px; font-style: italic; line-height: 1; color: var(--av-heading); }
 .guide__stats { display: flex; border-top: 4px solid var(--av-line); border-bottom: 4px solid var(--av-line); }
 .guide__stat { display: flex; flex: 0 0 50%; flex-direction: column; padding: 30px; }
@@ -660,7 +660,7 @@ h4, h5, h6 { font-size: 16px; }
   .post-teaser--guide .post-teaser__title { font-size: 20px; line-height: 1.2; }
   .guide__personal, .guide__featured-image { padding: 0; }
   .guide__featured-image { padding-right: 60px; }
-  .guide__quote { margin: 30px 0; font-size: 24px; }
+  .guide__quote { margin: 30px 0 15px; font-size: 24px; }
   .guide__name { font-size: 40px; }
   .guide__stats { flex-wrap: wrap; padding: 15px 0; }
   .guide__stat { flex: 1 1 100%; padding: 0; }
@@ -877,10 +877,6 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
    met genoeg regelhoogte zodat ze niet over elkaar vallen; zo beginnen alle regels op dezelfde rand. */
 .box__additional > .trip__additional-costs, .box__additional > .trip__offer-date { align-self: stretch; text-align: center; }
 .trip__meta .trip__additional-costs, .trip__meta .trip__offer-date { line-height: 1.5; }
-/* Reisleider: label en waarde los van elkaar, de naam vrij van de lijn eronder. */
-.guide__name { line-height: 1.1; }
-.guide__stats { margin-top: 15px; }
-.guide__year { margin-top: 0; }
 /* Homepage-zoekfilter: de drie keuzevakken breed genoeg voor 'Maak jouw keuze'; schakelaar en knop op één regel. */
 @media (min-width: 1025px) {
   .filter__item:nth-child(-n+3) { width: calc(21.5% - 30px); }
@@ -889,28 +885,39 @@ body:not(.home) > .site-main { padding-bottom: 60px; }
   .filter__control select { padding-right: 64px; }
   .filter__submit { padding-left: 1em; padding-right: 1em; }
 }
-/* Reisdetail: terug-link en tekstkolom op dezelfde linkerrand als de titel en het blok Reisleider/Kenmerken. */
+/* Reisleider: label boven woonplaats en jaar met een krappe regelhoogte, zodat het vak van het label niet over het jaar
+   valt; de tekst staat op dezelfde plek als op de huidige site (het jaar hooguit een paar pixels lager). */
+.guide__stat .label { margin-top: 5px; line-height: 1.2; }
+.guide__year { margin-top: -14px; }
+/* Reisdetail: terug-link op dezelfde linkerrand als de titel. */
 @media (min-width: 1025px) { .page-header--trip .to-archive { left: -.75em; } }
-.trip__content .page-introduction { margin: 0; }
-.trip__content .page-content > [class*="page-content__"] { margin: 0 0 60px; }
-/* Kenmerken bij een reis: klein icoon in een vak met de naam ernaast, in twee kolommen. */
-.trip-types--compact { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; width: 100%; margin: 0 0 15px; }
-.trip-types--compact .trip-type { flex-direction: row; align-items: center; gap: 10px; width: auto; height: auto; margin: 0; border: 0; }
-.trip-types--compact .trip-type__icon { box-sizing: content-box; width: 20px; height: 20px; margin: 0; padding: 9px; border: 1px solid rgba(67, 66, 72, .25); }
-.trip-types--compact .trip-type:hover .trip-type__icon { border-color: var(--av-heading); }
-.trip-type__label { min-width: 0; font-size: 14px; line-height: 1.3; text-align: left; color: var(--av-text); overflow-wrap: break-word; }
+/* Kenmerken bij een reis: vakjes met alleen het icoon (de naam staat in de titel en voor schermlezers), die naar een
+   volgende regel gaan als ze niet naast elkaar passen, zoals op de huidige site. */
+.trip-types--compact { flex-wrap: wrap; }
+.trip-types--compact .trip-type__icon { margin: 0 auto; align-self: center; font-size: 30px; }
+.trip-types--compact .trip-type { justify-content: center; }
 /* Reisleider: de tekst met fotostrook mag niet breder worden dan zijn kolom (een flex-item krimpt anders niet onder
    de breedte van de fotostrook, waardoor de pagina op mobiel zijwaarts uitsteekt). */
 .content-main .grid__item > .page-content { width: 100%; min-width: 0; }
 @media (max-width: 768px) {
-  /* Reisleider: het stempel naast de foto blijft binnen het scherm. */
-  .content-main .grid__item > .stamp { right: 0; font-size: 120px; }
-  /* Zoekfilter: binnenmarge links gelijk aan die van het pijltje rechts. */
-  .filter__label { left: 12px; }
-  .filter__icon { left: 12px; }
-  .filter__control select { padding: 30px 40px 0 40px; }
-  .filter__arrow { right: 12px; }
+  /* Reisleider: zie hierboven; op mobiel staat het label zonder marge onder. */
+  .guide__stat .label { margin: 5px 0 0; }
+  .guide__year { margin-top: 0; }
+  /* Reisdetail: de tekst springt in, op dezelfde rand als de inleiding erboven (zoals de huidige site). */
+  .trip__content .page-content > .page-content__text { padding: 0 15px; }
+  /* Reiskaart in de lijst: het prijsblok staat links uitgelijnd, de bijkomende kosten dus ook (zoals de huidige site). */
+  .box--additional .box__additional > .trip__additional-costs, .box--additional .box__additional > .trip__offer-date { text-align: left; }
+  /* Zoekfilter zoals de huidige site: geen kader om de keuzevakken; label, icoon en schakelaar links tegen de rand,
+     het pijltje rechts tegen de rand, en de schakelaar direct onder het laatste keuzevak. */
+  .filter__control select { border: 0; padding: 30px 30px 0; }
+  .filter__icon { left: 0; }
+  .filter__arrow { right: 0; }
+  .filter__item:nth-child(3) { margin-bottom: 0; }
   /* Klikdoelen van minimaal 24 px: links in de reisgegevens en het telefoonnummer op Contact. */
   .content-main dl dd a, .location__phone a { display: inline-flex; align-items: center; min-height: 24px; }
   .location__phone a { min-height: 44px; }
 }
+/* Menuknop op mobiel: dezelfde stevige streepjes als op de huidige site. */
+.menutoggle__open { stroke-width: 2.3; }
+/* Schakelaar "Nieuwe reizen": tekst op dezelfde afstand van de schakelaar als op de huidige site. */
+.filter__select-info { padding-left: 19px; }

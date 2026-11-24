@@ -451,6 +451,8 @@
 .beheer-filter input { flex: 1 1 auto; min-width: 0; }
 .beheer-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
 .beheer-actions form { margin: 0; }
+/* Bevestigingsvinkje boven een rij knoppen (de knop hoort via `form=` bij het formulier van het vinkje). */
+.beheer-confirm { margin: 0; }
 .beheer-content { display: grid; gap: 1rem; min-width: 0; }
 .beheer-content h2 { margin: .5rem 0 0; }
 .beheer-content p { margin: 0; }
