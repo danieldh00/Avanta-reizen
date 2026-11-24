@@ -309,7 +309,17 @@ test('bevestiging aan de ouder of voogd: naam van de deelnemer en de reis, nooit
   assert.equal(message.to, 'petra@example.nl');
   assert.equal(message.kind, 'bevestiging-ouder');
   assert.equal(message.subject, 'Aanmelding AV-2027-0000000B met uw toestemming: 8 dagen Albanië');
-  assert.match(message.text, /Beste Petra Jansen,/);
-  assert.match(message.text, /Deelnemer: Sam Jansen/);
+  assert.match(message.text, /^Beste ouder of voogd,/m, 'vaste aanhef, geen vrije tekst van de aanmelder');
+  assert.match(message.text, /Ouder of voogd: Petra Jansen\nDeelnemer: Sam Jansen/);
   assert.doesNotMatch(message.text + message.html, /PKN|Notenallergie|2012|sam@example/, 'nooit bijzondere gegevens of het adres van de deelnemer');
+  // Hoogstens drie per ontvangend adres per etmaal, ongeacht hoofdletters; daarna pas weer na het venster.
+  let clock = 1_000_000;
+  const limited = fakeMailer();
+  const notifications = createNotifications({ mailer: limited, settings: fakeSettings({}), now: () => clock });
+  for (let i = 0; i < 3; i++) assert.equal(await notifications.guardianConfirmation(booking), true);
+  assert.equal(await notifications.guardianConfirmation({ ...booking, values: { ...values, guardian_email: 'PETRA@example.nl' } }), false);
+  assert.equal(await notifications.guardianConfirmation({ ...booking, values: { ...values, guardian_email: 'ander@example.nl' } }), true, 'ander adres telt apart');
+  clock += 24 * 60 * 60 * 1000 + 1;
+  assert.equal(await notifications.guardianConfirmation(booking), true);
+  assert.equal(limited.sent.length, 5);
 });
