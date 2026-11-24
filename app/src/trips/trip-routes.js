@@ -41,6 +41,80 @@ const TRIP_ACTION_LABELS = {
 };
 
 /**
+ * De veldbouwers van het reisformulier: tekstveld, tekstvak en vinkje, met foutmelding en `aria-invalid` per veld.
+ * @param {any} values De waarden in het formulier.
+ * @param {any} errors Fouten per veldnaam.
+ * @returns {{input: Function, textarea: Function, checkbox: Function}} De bouwers.
+ */
+function formFieldHelpers(values, errors) {
+  const error = (name) => (errors[name] ? html`<span class="field__error" id="veld-${name}-fout">${errors[name]}</span>` : '');
+  const invalid = (name) => (errors[name] ? raw(` aria-invalid="true" aria-describedby="veld-${name}-fout"`) : '');
+  const input = (name, label, attributes = {}) => html`<div class="field"><span class="field__label"><label for="veld-${name}">${label}</label></span>
+    <input id="veld-${name}" name="${name}" type="${attributes.type || 'text'}" value="${values[name] ?? ''}"${attributes.max ? raw(` maxlength="${Number(attributes.max)}"`) : ''}${attributes.inputmode ? raw(` inputmode="${attributes.inputmode}"`) : ''}${attributes.required ? raw(' required') : ''}${invalid(name)}>${error(name)}
+    ${attributes.help ? html`<span class="field__help">${attributes.help}</span>` : ''}</div>`;
+  const textarea = (name, label, { rows, max = null, help = '', rich = false }) => html`<div class="field"><span class="field__label"><label for="veld-${name}">${label}</label></span>
+    <textarea id="veld-${name}" name="${name}" rows="${rows}"${rich ? raw(' class="cms-richtext"') : ''}${max ? raw(` maxlength="${Number(max)}"`) : ''}${invalid(name)}>${values[name] ?? ''}</textarea>${error(name)}
+    ${help ? html`<span class="field__help">${help}</span>` : ''}</div>`;
+  const checkbox = (name, label) => html`<div class="field field--checkbox"><label><input type="checkbox" name="${name}" value="1"${values[name] === true || values[name] === '1' ? raw(' checked') : ''}> ${label}</label></div>`;
+  return { input, textarea, checkbox };
+}
+
+/**
+ * De samenvatting boven een bestaande reis: status, volgeboekt, reiscode, vertrekdatum en plaatsen.
+ * @param {any} trip Reis uit `trips.get`.
+ * @returns {object} HTML.
+ */
+function renderTripSummary(trip) {
+  const status = trip.published ? ui.renderStatus('gepubliceerd', 'Gepubliceerd') : ui.renderStatus('concept', 'Concept');
+  const parts = [trip.trip_code, formatDate(trip.departure_date), seatsText(trip)].filter(Boolean);
+  return html`<p class="crm-summary">${status}${seatSummary(trip).full ? html` ${ui.renderStatus('vol', 'Volgeboekt')}` : ''}
+          ${parts.map((part, index) => html`${index ? ' · ' : ''}<span class="crm-nowrap">${part}</span>`)}</p>`;
+}
+
+/**
+ * Een groep vinkjes voor één soort categorie (landen, reistypes of overig); landen krijgen een zoekveld erboven.
+ * @param {{categories: any[], chosen: Set<string>, kind: string, title: string}} group Alle categorieën, de gekozen
+ *   id's, de soort en de kop van de groep.
+ * @returns {object|string} HTML, of een lege tekst als er van deze soort geen categorieën zijn.
+ */
+function renderCategoryGroup({ categories, chosen, kind, title }) {
+  const items = categories.filter((category) => category.kind === kind);
+  // Landen: alle landen van de wereld staan erin, dus een zoekveld erboven (verborgen zonder JavaScript).
+  const search = kind === 'bestemming' ? html`<input class="crm-checklist-search" type="search" placeholder="Zoek een land" aria-label="Zoek een land" data-checklist-search hidden>` : '';
+  return items.length ? html`<fieldset class="crm-checklist"${kind === 'bestemming' ? raw(' data-checklist-filter') : ''}><legend>${title}</legend>${search}${items.map((category) => html`<label><input type="checkbox" name="categorie" value="${category.id}"${chosen.has(String(category.id)) ? raw(' checked') : ''}> ${category.name}</label>`)}</fieldset>` : '';
+}
+
+/**
+ * De keuzelijst met reisleiders; een reisleider die niet online staat krijgt dat erachter.
+ * @param {any[]} guides De reisleiders uit `trips.choices`.
+ * @param {any} chosenId Het gekozen id uit het formulier.
+ * @returns {object} HTML.
+ */
+function renderGuideSelect(guides, chosenId) {
+  return html`<div class="field"><span class="field__label"><label for="veld-reisleider">Reisleider</label></span>
+      <select id="veld-reisleider" name="reisleider"><option value="">–</option>${guides.map((guide) => html`<option value="${guide.id}"${String(chosenId || '') === String(guide.id) ? raw(' selected') : ''}>${guide.name}${guide.published ? '' : ' (niet gepubliceerd)'}</option>`)}</select></div>`;
+}
+
+/**
+ * De tekst naast de knop Opslaan: wie de reis het laatst wijzigde, of bij een nieuwe reis dat hij een concept wordt.
+ * @param {any} trip Reis uit `trips.get`, of `null` bij een nieuwe reis.
+ * @returns {object|string} HTML of tekst.
+ */
+function renderSaveNote(trip) {
+  if (!trip) return 'De reis wordt als concept aangemaakt, tenzij je bij Zichtbaarheid Gepubliceerd kiest.';
+  return html`Laatst gewijzigd ${formatDateTime(trip.updated_at)}${trip.updated_by_name ? html` door ${trip.updated_by_name}` : ''}.`;
+}
+
+/**
+ * De uitleg bij een reis die nog uit de import komt (nog niet in het CRM beheerd).
+ * @param {any} trip Reis uit `trips.get`.
+ * @returns {object|string} HTML, of een lege tekst als de reis al in het CRM wordt beheerd.
+ */
+function renderImportNote(trip) {
+  return trip.managed_in_crm ? '' : html`<p class="field__help">Deze reis komt nog uit de import van de huidige site; na opslaan beheer je hem hier en slaat de import hem over.</p>`;
+}
+
+/**
  * Tekst voor de plaatsen in de lijst: bezet van totaal, of alleen bezet als het aantal plaatsen onbekend is.
  * @param {object} trip Reis met `booked_seats` en `capacity`.
  * @returns {string} Tekst.
@@ -161,23 +235,7 @@ function createTripRoutes(options) {
     const trip = state.trip || null;
     const action = trip ? `${BASE}${trip.id}/` : `${BASE}nieuw/`;
     const chosen = new Set([].concat(values.categorie || []).map(String));
-    const error = (name) => (errors[name] ? html`<span class="field__error" id="veld-${name}-fout">${errors[name]}</span>` : '');
-    const invalid = (name) => (errors[name] ? raw(` aria-invalid="true" aria-describedby="veld-${name}-fout"`) : '');
-    const input = (name, label, attributes = {}) => html`<div class="field"><span class="field__label"><label for="veld-${name}">${label}</label></span>
-      <input id="veld-${name}" name="${name}" type="${attributes.type || 'text'}" value="${values[name] ?? ''}"${attributes.max ? raw(` maxlength="${Number(attributes.max)}"`) : ''}${attributes.inputmode ? raw(` inputmode="${attributes.inputmode}"`) : ''}${attributes.required ? raw(' required') : ''}${invalid(name)}>${error(name)}
-      ${attributes.help ? html`<span class="field__help">${attributes.help}</span>` : ''}</div>`;
-    const textarea = (name, label, { rows, max = null, help = '', rich = false }) => html`<div class="field"><span class="field__label"><label for="veld-${name}">${label}</label></span>
-      <textarea id="veld-${name}" name="${name}" rows="${rows}"${rich ? raw(' class="cms-richtext"') : ''}${max ? raw(` maxlength="${Number(max)}"`) : ''}${invalid(name)}>${values[name] ?? ''}</textarea>${error(name)}
-      ${help ? html`<span class="field__help">${help}</span>` : ''}</div>`;
-    const checkbox = (name, label) => html`<div class="field field--checkbox"><label><input type="checkbox" name="${name}" value="1"${values[name] === true || values[name] === '1' ? raw(' checked') : ''}> ${label}</label></div>`;
-    const categoryGroup = (kind, title) => {
-      const items = categories.filter((category) => category.kind === kind);
-      // Landen: alle landen van de wereld staan erin, dus een zoekveld erboven (verborgen zonder JavaScript).
-      const search = kind === 'bestemming' ? html`<input class="crm-checklist-search" type="search" placeholder="Zoek een land" aria-label="Zoek een land" data-checklist-search hidden>` : '';
-      return items.length ? html`<fieldset class="crm-checklist"${kind === 'bestemming' ? raw(' data-checklist-filter') : ''}><legend>${title}</legend>${search}${items.map((category) => html`<label><input type="checkbox" name="categorie" value="${category.id}"${chosen.has(String(category.id)) ? raw(' checked') : ''}> ${category.name}</label>`)}</fieldset>` : '';
-    };
-    const guideSelect = () => html`<div class="field"><span class="field__label"><label for="veld-reisleider">Reisleider</label></span>
-      <select id="veld-reisleider" name="reisleider"><option value="">–</option>${guides.map((guide) => html`<option value="${guide.id}"${String(values.reisleider || '') === String(guide.id) ? raw(' selected') : ''}>${guide.name}${guide.published ? '' : ' (niet gepubliceerd)'}</option>`)}</select></div>`;
+    const { input, textarea, checkbox } = formFieldHelpers(values, errors);
     const published = values.published === true || values.published === '1';
     const tabs = [
       { key: 'algemeen', label: 'Algemeen' },
@@ -195,11 +253,11 @@ function createTripRoutes(options) {
         ${input('duration_label', 'Reisduur (tekst, bijvoorbeeld 20 dagen)', { max: LIMITS.duration_label })}
         ${input('duration_days', 'Aantal dagen', { inputmode: 'numeric' })}
         ${input('capacity', 'Aantal plaatsen', { inputmode: 'numeric', help: 'Leeg = onbekend.' })}
-        ${guideSelect()}
+        ${renderGuideSelect(guides, values.reisleider)}
         <h2>Landen en reistypes</h2>
-        ${categoryGroup('bestemming', 'Landen')}
-        ${categoryGroup('type', 'Reistypes')}
-        ${categoryGroup('overig', KINDS.overig)}
+        ${renderCategoryGroup({ categories, chosen, kind: 'bestemming', title: 'Landen' })}
+        ${renderCategoryGroup({ categories, chosen, kind: 'type', title: 'Reistypes' })}
+        ${renderCategoryGroup({ categories, chosen, kind: 'overig', title: KINDS.overig })}
       </section>
       <aside class="crm-edit-side" aria-labelledby="reis-zichtbaarheid">
         <h2 id="reis-zichtbaarheid">Zichtbaarheid</h2>
@@ -224,20 +282,17 @@ function createTripRoutes(options) {
       ${textarea('summary', 'Samenvatting (in de lijsten)', { rows: 3, max: LIMITS.summary })}
       ${textarea('body_html', 'Reisomschrijving', { rows: 14, help: RICHTEXT_HELP, rich: true })}
     </section>`;
-    const saveNote = trip
-      ? html`Laatst gewijzigd ${formatDateTime(trip.updated_at)}${trip.updated_by_name ? html` door ${trip.updated_by_name}` : ''}.`
-      : 'De reis wordt als concept aangemaakt, tenzij je bij Zichtbaarheid Gepubliceerd kiest.';
+    const saveNote = renderSaveNote(trip);
     return renderCrmPage({
       title: trip ? trip.title : 'Nieuwe reis',
       user: req.user,
       csrf: req.session.csrf,
       path: BASE,
       actions: ui.renderActions([trip && trip.published ? { label: 'Bekijk op de site', href: tripPath(trip.slug) } : null]),
-      body: html`${trip ? html`<p class="crm-summary">${trip.published ? ui.renderStatus('gepubliceerd', 'Gepubliceerd') : ui.renderStatus('concept', 'Concept')}${seatSummary(trip).full ? html` ${ui.renderStatus('vol', 'Volgeboekt')}` : ''}
-          ${[trip.trip_code, formatDate(trip.departure_date), seatsText(trip)].filter(Boolean).map((part, index) => html`${index ? ' · ' : ''}<span class="crm-nowrap">${part}</span>`)}</p>` : ''}
+      body: html`${trip ? renderTripSummary(trip) : ''}
         ${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
         ${renderAlert(state.error)}
-        ${trip && !trip.managed_in_crm ? html`<p class="field__help">Deze reis komt nog uit de import van de huidige site; na opslaan beheer je hem hier en slaat de import hem over.</p>` : ''}
+        ${trip ? renderImportNote(trip) : ''}
         <div class="crm-tabbed" data-tabs>
           ${ui.renderTabNav(tabs)}
           <form class="form" method="post" action="${action}" data-tab-form>

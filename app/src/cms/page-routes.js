@@ -17,7 +17,7 @@ const { YOUTUBE_ORIGIN } = require('../site/homepage');
 const { searchPatterns } = require('../persons/person-routes');
 const { createMediaLibrary } = require('../media/library');
 const { BLOCK_TYPES, BLOCK_ID_PATTERN } = require('./blocks');
-const { createBlockEditor, fieldRow, invalidAttributes } = require('./block-editor');
+const { createBlockEditor, fieldRow, invalidAttributes, renderDraftStatus, renderRevisions, renderVisibilityActions } = require('./block-editor');
 const { createPages, validatePageFields, editableState, imageFromMedia, PAGE_LIMITS } = require('./pages');
 const { slugify, MAX_SLUG_LENGTH } = require('../trips/slugs');
 const { createHomepageStore } = require('../site/homepage');
@@ -88,6 +88,61 @@ function renderPlacementFields(parents, placement, errors, prefix) {
     help: 'Kleine letters, cijfers en streepjes, bijv. onze-reizen. Het adres wordt dan /onder-pagina/onze-reizen/.',
     control: html`<input id="${prefix}-slug" name="slug" type="text" value="${placement.slug}" maxlength="${MAX_SLUG_LENGTH}" pattern="[a-z0-9]+(-[a-z0-9]+)*"${invalidAttributes(`${prefix}-slug`, errors.slug)}>`,
   })}`;
+}
+
+/**
+ * Het tabblad *Inhoud* van een pagina: titel, bovenkop, inleiding, vindbaarheid en de kopfoto.
+ * @param {{page: object, pageUrl: string, hiddenFields: object, values: object, errors: object, imageUrl: string}} panel
+ *   Pagina, adres van het bewerkscherm, verborgen velden, ingevulde waarden, fouten en de huidige kopfoto.
+ * @returns {object} HTML.
+ */
+function renderPageContentPanel({ page, pageUrl, hiddenFields, values, errors, imageUrl }) {
+  const isHomepage = page.path === '/';
+  const field = (name, label, control, help) => fieldRow({ id: `pagina-${name}`, label, control, help, error: errors[name] });
+  return html`<section class="crm-block" id="gegevens">
+          <h2>Gegevens</h2>
+          <form class="form crm-narrow" method="post" action="${pageUrl}gegevens/">
+            ${hiddenFields}
+            ${isHomepage ? html`<p class="field__help">Op de homepage staan titel, bovenkop, inleiding en kopfoto niet in beeld; de titel is alleen de naam in deze lijst. De hoofdkop (h1) is de titel van het blok "Over Avanta met stempel".</p>` : ''}
+            ${field('title', 'Titel', html`<input id="pagina-title" name="title" type="text" value="${values.title}" maxlength="${PAGE_LIMITS.title}" required${invalidAttributes('pagina-title', errors.title)}>`)}
+            ${field('pretitle', 'Bovenkop (kleine tekst boven de titel)', html`<input id="pagina-pretitle" name="pretitle" type="text" value="${values.pretitle}" maxlength="${PAGE_LIMITS.pretitle}"${invalidAttributes('pagina-pretitle', errors.pretitle)}>`)}
+            ${field('intro', 'Inleiding (grote tekst bovenaan)', html`<textarea id="pagina-intro" name="intro" rows="4" maxlength="${PAGE_LIMITS.intro}"${invalidAttributes('pagina-intro', errors.intro)}>${values.intro}</textarea>`)}
+            <details class="cms-style"${errors.seo_title || errors.seo_description || values.seoTitle || values.seoDescription ? raw(' open') : ''}><summary>Vindbaarheid (zoekmachines)</summary>
+              ${field('seo_title', 'Titel voor zoekmachines', html`<input id="pagina-seo_title" name="seo_title" type="text" value="${values.seoTitle}" maxlength="${PAGE_LIMITS.seoTitle}"${invalidAttributes('pagina-seo_title', errors.seo_title)}>`, `Leeg = de titel van de pagina. Hoogstens ${PAGE_LIMITS.seoTitle} tekens; de naam van de site komt er vanzelf achter.`)}
+              ${field('seo_description', 'Omschrijving voor zoekmachines', html`<textarea id="pagina-seo_description" name="seo_description" rows="3" maxlength="${PAGE_LIMITS.seoDescription}"${invalidAttributes('pagina-seo_description', errors.seo_description)}>${values.seoDescription}</textarea>`, `Leeg = de inleiding. Ongeveer 150 tekens werkt het best (hoogstens ${PAGE_LIMITS.seoDescription}).`)}
+            </details>
+            ${ui.renderSaveBar({ label: 'Opslaan in concept', note: 'Wijzigingen komen in het concept. Publiceren doe je bovenaan.' })}
+          </form>
+        </section>
+
+        <section class="crm-block" id="kopfoto">
+          <h2>Kopfoto</h2>
+          ${imageUrl ? html`<img class="media-preview media-preview--small" src="${imageUrl}" alt="" width="400" height="300">` : html`<p>Geen kopfoto: de kop van de pagina is dan een effen vlak.</p>`}
+          <p><a class="btn btn--small btn--outline" href="${pageUrl}kopfoto/">${imageUrl ? 'Andere kopfoto kiezen' : 'Kopfoto kiezen'}</a></p>
+        </section>`;
+}
+
+/**
+ * Het tabblad *Adres en zichtbaarheid* van een pagina (op de homepage alleen *Zichtbaarheid*): adres wijzigen,
+ * offline of online, en verwijderen als dat mag.
+ * @param {{page: object, pageUrl: string, hiddenFields: object, parents: object[], placement: object, errors: object, canDelete: boolean}} panel
+ *   Pagina, adres van het bewerkscherm, verborgen velden, mogelijke bovenliggende pagina's, het ingevulde adres,
+ *   fouten en of verwijderen mag.
+ * @returns {object} HTML.
+ */
+function renderPageAddressPanel({ page, pageUrl, hiddenFields, parents, placement, errors, canDelete }) {
+  const isHomepage = page.path === '/';
+  return html`<section class="crm-block" id="adres">
+          <h2>${isHomepage ? 'Zichtbaarheid' : 'Adres en zichtbaarheid'}</h2>
+          ${isHomepage ? html`<p class="field__help">Staat de homepage offline (of is hij nog nooit gepubliceerd), dan toont de site de vaste homepage.</p>` : html`<form class="form crm-narrow" method="post" action="${pageUrl}adres/">
+            ${hiddenFields}
+            ${renderPlacementFields(parents, placement, errors, 'adres')}
+            <p class="field__help">Wijzig je het adres, dan verwijst het oude adres automatisch door (ook voor de pagina's eronder) en gaan menu-items mee.</p>
+            <div><button class="btn btn--small btn--outline" type="submit">Adres wijzigen</button></div>
+          </form>`}
+          ${renderVisibilityActions({ item: page, url: pageUrl, hiddenFields: hiddenFields, canDelete, deleteLabel: 'deze pagina' })}
+          ${!page.published && page.legacy_id !== null ? html`<p class="field__help">Een pagina van de oude site kun je alleen offline halen (bij een nieuwe import zou hij anders terugkomen).</p>` : ''}
+        </section>`;
 }
 
 /**
@@ -200,7 +255,6 @@ function createPageRoutes(options) {
     const values = state.values || current;
     const errors = state.errors || {};
     const openBlock = state.blockErrors ? state.blockErrors.id : (typeof req.query.blok === 'string' ? req.query.blok : '');
-    const field = (name, label, control, help) => fieldRow({ id: `pagina-${name}`, label, control, help, error: errors[name] });
     const isHomepage = page.path === '/';
     const option = ([type, definition]) => html`<option value="${type}">${definition.label}</option>`;
     const entries = Object.entries(BLOCK_TYPES);
@@ -216,73 +270,25 @@ function createPageRoutes(options) {
       actions: ui.renderActions([{ label: `Voorbeeld van ${page.draft ? 'het concept' : 'de pagina'}`, href: `${pageUrl}voorbeeld/` }, { label: 'Bekijk op de site', href: page.path }]),
       body: html`${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
         ${renderAlert(state.error)}
-        <section class="crm-block cms-status">
-          ${page.draft ? html`<p><strong>Concept met wijzigingen</strong> die nog niet op de site staan.</p>
-            <div class="crm-actions">
-              <form method="post" action="${pageUrl}publiceren/">${hidden(req, page)}<button class="btn btn--small" type="submit">Publiceren</button></form>
-              <form method="post" action="${pageUrl}concept-weggooien/">${hidden(req, page)}<button class="btn btn--small btn--outline" type="submit">Concept weggooien</button></form>
-            </div>` : html`<p>Geen openstaande wijzigingen: wat je hier ziet staat op de site. Een wijziging komt eerst in een concept.</p>`}
-          <dl class="crm-facts">
-            <dt>Adres</dt><dd><code>${page.path}</code></dd>
-            <dt>Op de site</dt><dd>${page.published ? 'online' : 'offline'}</dd>
-            <dt>Laatst gewijzigd</dt><dd>${formatDateTime(page.updated_at)}${page.updated_by_name ? html` door ${page.updated_by_name}` : ''}</dd>
-          </dl>
-        </section>
+        ${renderDraftStatus({
+          item: page,
+          url: pageUrl,
+          hiddenFields: hidden(req, page),
+          draftNote: '',
+          publishedText: 'staat op de site',
+          facts: [
+            ['Adres', html`<code>${page.path}</code>`],
+            ['Op de site', page.published ? 'online' : 'offline'],
+            ['Laatst gewijzigd', html`${formatDateTime(page.updated_at)}${page.updated_by_name ? html` door ${page.updated_by_name}` : ''}`],
+          ],
+        })}
 
         <div class="crm-tabbed" data-tabs>
           ${ui.renderTabNav([{ key: 'inhoud', label: 'Inhoud' }, { key: 'blokken', label: 'Blokken' }, { key: 'instellingen', label: isHomepage ? 'Zichtbaarheid' : 'Adres en zichtbaarheid' }, { key: 'versies', label: 'Versies', count: revisionRows.length }])}
-          ${ui.renderTabPanel('inhoud', html`<section class="crm-block" id="gegevens">
-          <h2>Gegevens</h2>
-          <form class="form crm-narrow" method="post" action="${pageUrl}gegevens/">
-            ${hidden(req, page)}
-            ${isHomepage ? html`<p class="field__help">Op de homepage staan titel, bovenkop, inleiding en kopfoto niet in beeld; de titel is alleen de naam in deze lijst. De hoofdkop (h1) is de titel van het blok "Over Avanta met stempel".</p>` : ''}
-            ${field('title', 'Titel', html`<input id="pagina-title" name="title" type="text" value="${values.title}" maxlength="${PAGE_LIMITS.title}" required${invalidAttributes('pagina-title', errors.title)}>`)}
-            ${field('pretitle', 'Bovenkop (kleine tekst boven de titel)', html`<input id="pagina-pretitle" name="pretitle" type="text" value="${values.pretitle}" maxlength="${PAGE_LIMITS.pretitle}"${invalidAttributes('pagina-pretitle', errors.pretitle)}>`)}
-            ${field('intro', 'Inleiding (grote tekst bovenaan)', html`<textarea id="pagina-intro" name="intro" rows="4" maxlength="${PAGE_LIMITS.intro}"${invalidAttributes('pagina-intro', errors.intro)}>${values.intro}</textarea>`)}
-            <details class="cms-style"${errors.seo_title || errors.seo_description || values.seoTitle || values.seoDescription ? raw(' open') : ''}><summary>Vindbaarheid (zoekmachines)</summary>
-              ${field('seo_title', 'Titel voor zoekmachines', html`<input id="pagina-seo_title" name="seo_title" type="text" value="${values.seoTitle}" maxlength="${PAGE_LIMITS.seoTitle}"${invalidAttributes('pagina-seo_title', errors.seo_title)}>`, `Leeg = de titel van de pagina. Hoogstens ${PAGE_LIMITS.seoTitle} tekens; de naam van de site komt er vanzelf achter.`)}
-              ${field('seo_description', 'Omschrijving voor zoekmachines', html`<textarea id="pagina-seo_description" name="seo_description" rows="3" maxlength="${PAGE_LIMITS.seoDescription}"${invalidAttributes('pagina-seo_description', errors.seo_description)}>${values.seoDescription}</textarea>`, `Leeg = de inleiding. Ongeveer 150 tekens werkt het best (hoogstens ${PAGE_LIMITS.seoDescription}).`)}
-            </details>
-            ${ui.renderSaveBar({ label: 'Opslaan in concept', note: 'Wijzigingen komen in het concept. Publiceren doe je bovenaan.' })}
-          </form>
-        </section>
-
-        <section class="crm-block" id="kopfoto">
-          <h2>Kopfoto</h2>
-          ${current.imageUrl ? html`<img class="media-preview media-preview--small" src="${current.imageUrl}" alt="" width="400" height="300">` : html`<p>Geen kopfoto: de kop van de pagina is dan een effen vlak.</p>`}
-          <p><a class="btn btn--small btn--outline" href="${pageUrl}kopfoto/">${current.imageUrl ? 'Andere kopfoto kiezen' : 'Kopfoto kiezen'}</a></p>
-        </section>`)}
+          ${ui.renderTabPanel('inhoud', renderPageContentPanel({ page, pageUrl, hiddenFields: hidden(req, page), values, errors, imageUrl: current.imageUrl }))}
           ${ui.renderTabPanel('blokken', html`${editor.renderBlocksSection({ item: page, hidden: hidden(req, page), options, state, openBlock, typeOptions, homeTypes: isHomepage })}`)}
-          ${ui.renderTabPanel('instellingen', html`<section class="crm-block" id="adres">
-          <h2>${isHomepage ? 'Zichtbaarheid' : 'Adres en zichtbaarheid'}</h2>
-          ${isHomepage ? html`<p class="field__help">Staat de homepage offline (of is hij nog nooit gepubliceerd), dan toont de site de vaste homepage.</p>` : html`<form class="form crm-narrow" method="post" action="${pageUrl}adres/">
-            ${hidden(req, page)}
-            ${renderPlacementFields(parents, placement, errors, 'adres')}
-            <p class="field__help">Wijzig je het adres, dan verwijst het oude adres automatisch door (ook voor de pagina's eronder) en gaan menu-items mee.</p>
-            <div><button class="btn btn--small btn--outline" type="submit">Adres wijzigen</button></div>
-          </form>`}
-          <div class="crm-actions">
-            ${page.published
-              ? html`<form method="post" action="${pageUrl}online/">${hidden(req, page)}<input type="hidden" name="stand" value="offline"><button class="btn btn--small btn--outline" type="submit">Offline halen</button></form>`
-              : html`<form method="post" action="${pageUrl}online/">${hidden(req, page)}<input type="hidden" name="stand" value="online"><button class="btn btn--small btn--outline" type="submit">Weer online zetten</button></form>`}
-            ${canDelete ? html`<form method="post" action="${pageUrl}verwijderen/">${hidden(req, page)}
-              <label class="checkbox"><input type="checkbox" name="zeker" value="ja" required> Ja, verwijder deze pagina met alle versies</label>
-              <button class="btn btn--small btn--outline" type="submit">Verwijderen</button></form>` : ''}
-          </div>
-          ${!page.published && page.legacy_id !== null ? html`<p class="field__help">Een pagina van de oude site kun je alleen offline halen (bij een nieuwe import zou hij anders terugkomen).</p>` : ''}
-        </section>`)}
-          ${ui.renderTabPanel('versies', html`<section class="crm-block" id="versies">
-          <h2>Versies</h2>
-          ${revisionRows.length ? html`<div class="crm-table-wrap"><table class="crm-table">
-            <thead><tr><th>Versie</th><th>Gepubliceerd</th><th>Door</th><th></th></tr></thead>
-            <tbody>${revisionRows.map((row) => html`<tr>
-              <td>${String(row.version)}${row.note ? html` <span class="field__help">(${row.note})</span>` : ''}</td>
-              <td>${formatDateTime(row.published_at)}</td>
-              <td>${row.published_by_name || '–'}</td>
-              <td><form method="post" action="${pageUrl}versies/${row.version}/terugzetten/">${hidden(req, page)}<button class="btn btn--small btn--outline" type="submit">Terugzetten als concept</button></form></td>
-            </tr>`)}</tbody>
-          </table></div>` : html`<p>Nog geen versies. Bij de eerste publicatie wordt ook de huidige stand bewaard.</p>`}
-        </section>`)}
+          ${ui.renderTabPanel('instellingen', renderPageAddressPanel({ page, pageUrl, hiddenFields: hidden(req, page), parents, placement, errors, canDelete }))}
+          ${ui.renderTabPanel('versies', renderRevisions(revisionRows, pageUrl, hidden(req, page)))}
         </div>`,
     });
   };

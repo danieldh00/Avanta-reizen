@@ -18,8 +18,9 @@ const { COOKIE_NAME } = require('../src/crm/auth');
 const { sanitizeHtml } = require('../tools/import/sanitize');
 const { toString } = require('../src/site/html');
 const {
-  newBlock, validateBlockForm, normalizeBlocks, renderBlocks, publishedBlocks, blockSummary, mediaIdsOf, youtubeId, loadBlockData, MAX_TRIP_BLOCKS,
+  newBlock, validateBlockForm, normalizeBlocks, publishedBlocks, blockSummary, mediaIdsOf, youtubeId, MAX_TRIP_BLOCKS,
 } = require('../src/cms/blocks');
+const { renderBlocks, loadBlockData } = require('../src/cms/block-render');
 const { validatePageFields, buildPagePath } = require('../src/cms/pages');
 const { validateMenuItem, buildMenus, isMenuHref } = require('../src/cms/menus');
 

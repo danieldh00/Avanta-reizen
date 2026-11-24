@@ -84,23 +84,7 @@ function createServices(options) {
   const mailer = options.mailer || createMailer({ settings });
   const wanIp = options.wanIp || createWanIp();
   const notifications = createNotifications({ mailer, settings, appLog });
-  // Versleutelde back-ups (Beheer > Back-ups en herstel); alleen met een verbindings-URL voor pg_dump. Na elke back-up
-  // gaat er een kopie naar Google Drive als die gekoppeld is (tests geven een eigen fetch mee als nep-Google).
-  const backupDir = options.backupDir || path.join(DATA_DIR, 'backups');
-  const drive = createDrive({
-    settings, dir: backupDir, fetchImpl: options.googleFetch, now: options.now,
-    audit: (entry, client) => client.query('INSERT INTO audit_log (user_id, action, entity) VALUES ($1, $2, $3)', [entry.userId ?? null, entry.action, 'google-drive']),
-    isAllowed: async (userId) => {
-      const [user] = await options.db.query('SELECT role, active FROM users WHERE id = $1', [userId]);
-      return Boolean(user && user.active && roleHasRight(user.role, 'systeem'));
-    },
-  });
-  const backups = options.backups || createBackupService({
-    db: options.db, settings, dir: backupDir, masterKey: options.masterKey,
-    connectionString: options.databaseUrl, pgDumpPath: options.pgDumpPath, now: options.now,
-    onCreated: () => drive.sync().catch((error) => console.error(`Google Drive: ${String(error.message).replace(/[\r\n]/g, ' ')}`)),
-  });
-  const restoreTests = createRestoreTests({ dir: backupDir, masterKey: options.masterKey, previousKeys: options.previousKeys, drive, now: options.now });
+  const { drive, backups, restoreTests } = createBackupServices(options, settings);
   // Bewaking (Beheer > Systeem > Bewaking): de planner start pas in `start()`; tests geven een eigen statfs/verzender mee.
   const monitor = createMonitor({
     db: options.db, settings, mailer, appLog, backups, drive, restoreTests, systemUpdate,
@@ -127,6 +111,33 @@ function createServices(options) {
     mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders,
     infobriefSender, siteContent, homepage, accounts,
   };
+}
+
+/**
+ * Maakt de diensten voor back-ups aan: Google Drive, de back-ups zelf en de hersteltest.
+ * @param {any} options De opties van `createServices`.
+ * @param {any} settings De instellingen uit Beheer.
+ * @returns {{drive: any, backups: any, restoreTests: any}} De drie diensten.
+ */
+function createBackupServices(options, settings) {
+  // Versleutelde back-ups (Beheer > Back-ups en herstel); alleen met een verbindings-URL voor pg_dump. Na elke back-up
+  // gaat er een kopie naar Google Drive als die gekoppeld is (tests geven een eigen fetch mee als nep-Google).
+  const backupDir = options.backupDir || path.join(DATA_DIR, 'backups');
+  const drive = createDrive({
+    settings, dir: backupDir, fetchImpl: options.googleFetch, now: options.now,
+    audit: (entry, client) => client.query('INSERT INTO audit_log (user_id, action, entity) VALUES ($1, $2, $3)', [entry.userId ?? null, entry.action, 'google-drive']),
+    isAllowed: async (userId) => {
+      const [user] = await options.db.query('SELECT role, active FROM users WHERE id = $1', [userId]);
+      return Boolean(user && user.active && roleHasRight(user.role, 'systeem'));
+    },
+  });
+  const backups = options.backups || createBackupService({
+    db: options.db, settings, dir: backupDir, masterKey: options.masterKey,
+    connectionString: options.databaseUrl, pgDumpPath: options.pgDumpPath, now: options.now,
+    onCreated: () => drive.sync().catch((error) => console.error(`Google Drive: ${String(error.message).replace(/[\r\n]/g, ' ')}`)),
+  });
+  const restoreTests = createRestoreTests({ dir: backupDir, masterKey: options.masterKey, previousKeys: options.previousKeys, drive, now: options.now });
+  return { drive, backups, restoreTests };
 }
 
 /**

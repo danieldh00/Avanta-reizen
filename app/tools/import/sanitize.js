@@ -48,6 +48,67 @@ function escapeText(value) {
   return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/** Attributen die alleen een getal van hoogstens vier cijfers mogen zijn. */
+const NUMERIC_ATTRIBUTES = new Set(['width', 'height', 'colspan', 'rowspan']);
+
+/**
+ * Controleert en herschrijft de waarde van één toegestaan attribuut.
+ * @param {string} name Naam van het attribuut.
+ * @param {string|undefined|null} value Waarde uit de bron.
+ * @param {{rewriteLink: Function, rewriteImage: Function}} rewrites Herschrijvers voor links en afbeeldingen.
+ * @returns {string|null} De veilige waarde, of `null` als het attribuut weg moet.
+ */
+function cleanAttributeValue(name, value, rewrites) {
+  if (value === undefined || value === null || value === '') return null;
+  if (name === 'href') return isSafeUrl(value) ? rewrites.rewriteLink(value.trim()) : null;
+  if (name === 'src') return /^https?:/i.test(value) || value.startsWith('/') ? rewrites.rewriteImage(value.trim()) : null;
+  if (NUMERIC_ATTRIBUTES.has(name) && !/^\d{1,4}$/.test(value)) return null;
+  return value;
+}
+
+/**
+ * Een ingesloten video (iframe) wordt een gewone link naar de video, alleen voor een veilig http(s)-adres.
+ * @param {object} node De iframe-knoop.
+ * @returns {string} HTML of een lege tekst.
+ */
+function renderVideoLink(node) {
+  const source = node.getAttribute('src') || '';
+  return isSafeUrl(source) && /^https?:/i.test(source) ? `<p><a href="${escapeAttribute(source)}" rel="noopener" target="_blank">Bekijk de video</a></p>` : '';
+}
+
+/**
+ * Een afbeelding met de gecontroleerde attributen: zonder bron valt hij weg, zonder alt krijgt hij een lege alt.
+ * @param {string[]} attributes De attributen als `naam="waarde"`.
+ * @returns {string} HTML of een lege tekst.
+ */
+function renderImage(attributes) {
+  if (!attributes.some((attribute) => attribute.startsWith('src='))) return '';
+  const complete = attributes.some((attribute) => attribute.startsWith('alt=')) ? [...attributes] : [...attributes, 'alt=""'];
+  complete.push('loading="lazy"');
+  return `<img ${complete.join(' ')}>`;
+}
+
+/**
+ * Of een link naar een http(s)-adres in een nieuw venster opent (`target="_blank"` in de bron).
+ * @param {object} node De `a`-knoop.
+ * @returns {boolean} Waar als de link een nieuw venster opent.
+ */
+function opensInNewWindow(node) {
+  return /^https?:/i.test(node.getAttribute('href') || '') && node.getAttribute('target') === '_blank';
+}
+
+/**
+ * Een element met attributen en inhoud; een lege alinea (alleen spaties, `&nbsp;` of `<br>`) valt weg.
+ * @param {string} tag De tagnaam.
+ * @param {string[]} attributes De attributen als `naam="waarde"`.
+ * @param {string} inner De veilige HTML van de kinderen.
+ * @returns {string} HTML of een lege tekst.
+ */
+function renderElement(tag, attributes, inner) {
+  if (tag === 'p' && !inner.replace(/&nbsp;|\s|<br>/g, '')) return '';
+  return `<${tag}${attributes.length ? ` ${attributes.join(' ')}` : ''}>${inner}</${tag}>`;
+}
+
 /**
  * Schoont een HTML-fragment op.
  * @param {string} markup De ruwe HTML.
@@ -70,10 +131,7 @@ function sanitizeHtml(markup, options = {}) {
     const tag = (node.rawTagName || '').toLowerCase();
     if (DROPPED_TAGS.has(tag)) return '';
     const children = () => node.childNodes.map(renderNode).join('');
-    if (tag === 'iframe') {
-      const source = node.getAttribute('src') || '';
-      return isSafeUrl(source) && /^https?:/i.test(source) ? `<p><a href="${escapeAttribute(source)}" rel="noopener" target="_blank">Bekijk de video</a></p>` : '';
-    }
+    if (tag === 'iframe') return renderVideoLink(node);
     // Fotogalerijen (slider in WordPress) worden een eenvoudig raster.
     if (tag === 'div' && /slick-slider(?!__)|gallery/.test(node.getAttribute('class') || '') && !node.closest?.('.gallery')) {
       return `<div class="gallery">${children()}</div>`;
@@ -84,32 +142,13 @@ function sanitizeHtml(markup, options = {}) {
 
     const attributes = [];
     for (const name of allowed) {
-      let value = node.getAttribute(name);
-      if (value === undefined || value === null || value === '') continue;
-      if (name === 'href') {
-        if (!isSafeUrl(value)) continue;
-        value = rewriteLink(value.trim());
-      }
-      if (name === 'src') {
-        if (!/^https?:/i.test(value) && !value.startsWith('/')) continue;
-        value = rewriteImage(value.trim());
-      }
-      if ((name === 'width' || name === 'height' || name === 'colspan' || name === 'rowspan') && !/^\d{1,4}$/.test(value)) continue;
-      attributes.push(`${name}="${escapeAttribute(value)}"`);
+      const value = cleanAttributeValue(name, node.getAttribute(name), { rewriteLink, rewriteImage });
+      if (value !== null) attributes.push(`${name}="${escapeAttribute(value)}"`);
     }
-    if (finalTag === 'img') {
-      if (!attributes.some((attribute) => attribute.startsWith('src='))) return '';
-      if (!attributes.some((attribute) => attribute.startsWith('alt='))) attributes.push('alt=""');
-      attributes.push('loading="lazy"');
-      return `<img ${attributes.join(' ')}>`;
-    }
-    if (finalTag === 'a' && /^https?:/i.test(node.getAttribute('href') || '') && (node.getAttribute('target') === '_blank')) {
-      attributes.push('target="_blank"', 'rel="noopener"');
-    }
+    if (finalTag === 'img') return renderImage(attributes);
+    if (finalTag === 'a' && opensInNewWindow(node)) attributes.push('target="_blank"', 'rel="noopener"');
     if (finalTag === 'br' || finalTag === 'hr') return `<${finalTag}>`;
-    const inner = children();
-    if (finalTag === 'p' && !inner.replace(/&nbsp;|\s|<br>/g, '')) return '';
-    return `<${finalTag}${attributes.length ? ` ${attributes.join(' ')}` : ''}>${inner}</${finalTag}>`;
+    return renderElement(finalTag, attributes, children());
   };
 
   return root.childNodes.map(renderNode).join('').replace(/\n{3,}/g, '\n\n').trim();

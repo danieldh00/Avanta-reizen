@@ -167,6 +167,29 @@ async function measureSite(baseUrl, pages = LAYOUT_PAGES) {
 }
 
 /**
+ * Vergelijkt één element van een pagina: aanwezig, positie en maat binnen de marge, lettergrootte en -gewicht exact.
+ * @param {object|null} expected Meting van het element op de huidige site.
+ * @param {object|null} found Meting van het element op de nieuwe site.
+ * @param {{tolerance: number, report: (property: string, text: string) => void}} options Marge en melder.
+ * @returns {void}
+ */
+function compareElement(expected, found, { tolerance, report }) {
+  if (!expected && !found) return;
+  if (!expected || !found) {
+    report('aanwezig', expected ? 'ontbreekt op de nieuwe site' : 'staat alleen op de nieuwe site');
+    return;
+  }
+  for (const property of ['x', 'y', 'w', 'h']) {
+    if (property === 'h' && expected.h > MAX_COMPARED_HEIGHT) continue;
+    if (property === 'y' && expected.y > MAX_COMPARED_Y) continue;
+    if (Math.abs(expected[property] - found[property]) > tolerance) report(property, `${property} ${expected[property]} → ${found[property]}`);
+  }
+  for (const property of ['fontSize', 'fontWeight']) {
+    if (expected[property] !== found[property]) report(property, `${property} ${expected[property]} → ${found[property]}`);
+  }
+}
+
+/**
  * Vergelijkt twee metingen. Positie x en breedte altijd, y tot 900 px onder de kop, hoogte tot 120 px, lettergrootte
  * en -gewicht exact;
  * horizontaal scrollen mag nooit.
@@ -199,19 +222,7 @@ function compareMeasurements(reference, actual, options = {}) {
       const report = (property, text) => {
         if (!known.has(`${pageKey} ${selector} ${property}`)) differences.push(`${pageKey} ${selector}: ${text}`);
       };
-      if (!expected && !found) continue;
-      if (!expected || !found) {
-        report('aanwezig', expected ? 'ontbreekt op de nieuwe site' : 'staat alleen op de nieuwe site');
-        continue;
-      }
-      for (const property of ['x', 'y', 'w', 'h']) {
-        if (property === 'h' && expected.h > MAX_COMPARED_HEIGHT) continue;
-        if (property === 'y' && expected.y > MAX_COMPARED_Y) continue;
-        if (Math.abs(expected[property] - found[property]) > tolerance) report(property, `${property} ${expected[property]} → ${found[property]}`);
-      }
-      for (const property of ['fontSize', 'fontWeight']) {
-        if (expected[property] !== found[property]) report(property, `${property} ${expected[property]} → ${found[property]}`);
-      }
+      compareElement(expected, found, { tolerance, report });
     }
   }
   return differences;

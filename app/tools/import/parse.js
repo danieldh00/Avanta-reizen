@@ -117,6 +117,58 @@ function parseCommon(markup) {
 }
 
 /**
+ * Leest de feitenlijst van een reis (`dt`/`dd` in `.trip__meta`) als knopen per label in kleine letters.
+ * @param {object} root De geparste pagina.
+ * @returns {Record<string, object>} De `dd`-knoop per label (bijv. `reiscode`, `vertrek`, `reisleider`).
+ */
+function readTripFacts(root) {
+  const facts = {};
+  const list = root.querySelector('.trip__meta dl');
+  if (!list) return facts;
+  let label = null;
+  for (const node of list.childNodes) {
+    if (node.nodeType !== 1) continue;
+    if (node.rawTagName.toLowerCase() === 'dt') label = cleanText(node.text).toLowerCase();
+    else if (node.rawTagName.toLowerCase() === 'dd' && label) facts[label] = node;
+  }
+  return facts;
+}
+
+/**
+ * Leest de prijzen van een reis: reissom, oude prijs bij een aanbieding, einddatum van de aanbieding en bijkomende kosten.
+ * @param {object} root De geparste pagina.
+ * @returns {{priceCents: number|null, oldPriceCents: number|null, offerUntil: string|null, extraCostsCents: number|null}} De prijzen.
+ */
+function readTripPrices(root) {
+  const priceNode = root.querySelector('.trip__meta .trip__price');
+  const oldPriceNode = priceNode?.querySelector('.trip__price--old');
+  let priceText = priceNode ? priceNode.text : '';
+  if (oldPriceNode) priceText = priceText.replace(oldPriceNode.text, '');
+  const extraCosts = root.querySelector('.trip__meta .trip__additional-costs span');
+  return {
+    priceCents: parseEuros(priceText),
+    oldPriceCents: oldPriceNode ? parseEuros(oldPriceNode.text) : null,
+    offerUntil: parseDutchDate(root.querySelector('.trip__meta .trip__offer-date')?.text),
+    extraCostsCents: extraCosts ? parseEuros(extraCosts.text) : null,
+  };
+}
+
+/**
+ * Leest de fotogalerij van een reis met kop en ondertitel.
+ * @param {object} root De geparste pagina.
+ * @returns {{galleryTitle: string, gallerySubtitle: string, gallery: Array<{url: string, alt: string}>}} De galerij.
+ */
+function readTripGallery(root) {
+  const gallerySection = root.querySelector('.page-gallery');
+  const gallery = (gallerySection?.querySelectorAll('img') || []).map((image) => ({ url: image.getAttribute('src'), alt: image.getAttribute('alt') || '' })).filter((image) => image.url);
+  return {
+    galleryTitle: cleanText(gallerySection?.querySelector('.section__title')?.text),
+    gallerySubtitle: cleanText(gallerySection?.querySelector('.section__subtitle')?.text),
+    gallery,
+  };
+}
+
+/**
  * Leest een reis (posttype journey).
  * @param {string} markup HTML van de reispagina.
  * @param {string} url Adres van de pagina.
@@ -125,27 +177,11 @@ function parseCommon(markup) {
 function parseTrip(markup, url) {
   const common = parseCommon(markup);
   const { root } = common;
-  const facts = {};
-  const list = root.querySelector('.trip__meta dl');
-  if (list) {
-    let label = null;
-    for (const node of list.childNodes) {
-      if (node.nodeType !== 1) continue;
-      if (node.rawTagName.toLowerCase() === 'dt') label = cleanText(node.text).toLowerCase();
-      else if (node.rawTagName.toLowerCase() === 'dd' && label) facts[label] = node;
-    }
-  }
-  const priceNode = root.querySelector('.trip__meta .trip__price');
-  const oldPriceNode = priceNode?.querySelector('.trip__price--old');
-  let priceText = priceNode ? priceNode.text : '';
-  if (oldPriceNode) priceText = priceText.replace(oldPriceNode.text, '');
-  const extraCosts = root.querySelector('.trip__meta .trip__additional-costs span');
+  const facts = readTripFacts(root);
   const guideLink = root.querySelector('.guide-widget__title a') || facts.reisleider?.querySelector('a');
   const guideMatch = /\/reisleider\/([^/]+)\/?/.exec(guideLink?.getAttribute('href') || '');
   const typeLinks = root.querySelectorAll('.trip-types a.trip-type').map((link) => ({ slug: slugFromUrl(link.getAttribute('href')), name: link.getAttribute('title') || '' }));
   const destinationLinks = (facts.bestemming?.querySelectorAll('a') || []).map((link) => ({ slug: slugFromUrl(link.getAttribute('href')), name: cleanText(link.text) }));
-  const gallerySection = root.querySelector('.page-gallery');
-  const gallery = (gallerySection?.querySelectorAll('img') || []).map((image) => ({ url: image.getAttribute('src'), alt: image.getAttribute('alt') || '' })).filter((image) => image.url);
   const durationLabel = cleanText(facts.reisduur?.text);
   const daysMatch = /(\d+)/.exec(durationLabel);
   const bodyText = cleanText(parse(common.bodyHtml).text);
@@ -164,10 +200,7 @@ function parseTrip(markup, url) {
     departureDate: parseDutchDate(facts.vertrek?.text),
     durationLabel,
     durationDays: daysMatch ? Number(daysMatch[1]) : null,
-    priceCents: parseEuros(priceText),
-    oldPriceCents: oldPriceNode ? parseEuros(oldPriceNode.text) : null,
-    offerUntil: parseDutchDate(root.querySelector('.trip__meta .trip__offer-date')?.text),
-    extraCostsCents: extraCosts ? parseEuros(extraCosts.text) : null,
+    ...readTripPrices(root),
     destinations: destinationLinks,
     types: typeLinks,
     guideRef: guideMatch ? decodeURIComponent(guideMatch[1]) : null,
@@ -175,9 +208,7 @@ function parseTrip(markup, url) {
     guaranteed: /gegarandeerd/i.test(guaranteedText),
     fullyBooked: /volgeboekt/i.test(cleanText(root.querySelector('.trip__meta .btn--inactive')?.text)),
     statusLabel: placesMatch ? placesMatch[1].toLowerCase() : '',
-    galleryTitle: cleanText(gallerySection?.querySelector('.section__title')?.text),
-    gallerySubtitle: cleanText(gallerySection?.querySelector('.section__subtitle')?.text),
-    gallery,
+    ...readTripGallery(root),
   };
 }
 

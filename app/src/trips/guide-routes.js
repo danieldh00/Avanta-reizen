@@ -41,6 +41,56 @@ const NOTICES = {
 };
 
 /**
+ * De ingevulde waarden van het profielformulier. Een reisleider die nog niet in het CRM is gewijzigd, krijgt de
+ * gegevens die de site nu uit `site-content.json` toont alvast in het formulier.
+ * @param {object} guide Rij uit `guides`.
+ * @param {object} fixed Gegevens uit het bestand (`extraOf`), leeg als de reisleider al in het CRM wordt beheerd.
+ * @returns {object} Waarden per veld.
+ */
+function guideFormValues(guide, fixed) {
+  const own = Boolean(guide.managed_in_crm);
+  return {
+    name: guide.name,
+    surname: own ? guide.surname : fixed.surname || '',
+    slug: guide.slug,
+    city: own ? guide.city : fixed.city || '',
+    since: own ? guide.since : fixed.since || '',
+    quote: own ? guide.quote : fixed.quote || '',
+    intro: guide.intro,
+    bodyInput: guide.body_html,
+  };
+}
+
+/**
+ * Het portret en de tweede foto zoals de site ze nu toont: uit het CRM, of nog uit het bestand.
+ * @param {object} guide Rij uit `guides`.
+ * @param {object} fixed Gegevens uit het bestand (`extraOf`).
+ * @returns {{portrait: string, image: string}} Adressen.
+ */
+function guidePhotos(guide, fixed) {
+  if (guide.managed_in_crm) return { portrait: guide.photo_url, image: guide.image_url };
+  return { portrait: fixed.portrait || guide.photo_url, image: fixed.image || guide.image_url };
+}
+
+/**
+ * Het blok *Status* van een reisleider: online of offline, aantal reizen en de knop om dat om te zetten.
+ * @param {object} guide Rij uit `guides`.
+ * @param {string} csrf CSRF-token.
+ * @returns {object} HTML.
+ */
+function renderGuideStatus(guide, csrf) {
+  return html`<section class="crm-block" id="status">
+        <h2>Status</h2>
+        <p>${guide.published ? 'Online' : 'Offline'} · ${String(guide.trip_count)} ${guide.trip_count === 1 ? 'reis' : 'reizen'}${guide.managed_in_crm ? '' : ' · nog niet gewijzigd in het CRM (de site toont de gegevens van de huidige site)'}</p>
+        <form method="post" action="${BASE}${guide.id}/online/">
+          <input type="hidden" name="_csrf" value="${csrf}">
+          <input type="hidden" name="stand" value="${guide.published ? 'offline' : 'online'}">
+          <button class="btn btn--small${guide.published ? ' btn--outline' : ''}" type="submit">${guide.published ? 'Offline halen' : 'Online zetten'}</button>
+        </form>
+      </section>`;
+}
+
+/**
  * Maakt de routes voor reisleiders.
  * @param {{db: object, auth: object, redirects?: object, library?: object, siteContent?: object, mediaDir?: string}} options
  *   Database, sessie- en rechtenlaag, doorverwijzingen (opnieuw laden na een nieuw adres), fotobibliotheek en
@@ -169,19 +219,9 @@ function createGuideRoutes(options) {
   const renderEdit = (req, guide, state = {}) => {
     // Nog niet beheerd: de gegevens die de site nu uit site-content.json toont, staan alvast in het formulier.
     const fixed = guide.managed_in_crm ? {} : extraOf(guide);
-    const values = state.values || {
-      name: guide.name,
-      surname: guide.managed_in_crm ? guide.surname : fixed.surname || '',
-      slug: guide.slug,
-      city: guide.managed_in_crm ? guide.city : fixed.city || '',
-      since: guide.managed_in_crm ? guide.since : fixed.since || '',
-      quote: guide.managed_in_crm ? guide.quote : fixed.quote || '',
-      intro: guide.intro,
-      bodyInput: guide.body_html,
-    };
+    const values = state.values || guideFormValues(guide, fixed);
     const errors = state.errors || {};
-    const portrait = guide.managed_in_crm ? guide.photo_url : fixed.portrait || guide.photo_url;
-    const image = guide.managed_in_crm ? guide.image_url : fixed.image || guide.image_url;
+    const { portrait, image } = guidePhotos(guide, fixed);
     /**
      * Eén tekstveld.
      * @param {string} name Veldnaam.
@@ -194,15 +234,7 @@ function createGuideRoutes(options) {
     const notice = NOTICES[req.query.opgeslagen];
     return page(req, `Reisleider: ${guide.name}`, html`${notice ? html`<p class="notice" role="status">${notice}</p>` : ''}
       ${renderAlert(state.error)}
-      <section class="crm-block" id="status">
-        <h2>Status</h2>
-        <p>${guide.published ? 'Online' : 'Offline'} · ${String(guide.trip_count)} ${guide.trip_count === 1 ? 'reis' : 'reizen'}${guide.managed_in_crm ? '' : ' · nog niet gewijzigd in het CRM (de site toont de gegevens van de huidige site)'}</p>
-        <form method="post" action="${BASE}${guide.id}/online/">
-          <input type="hidden" name="_csrf" value="${req.session.csrf}">
-          <input type="hidden" name="stand" value="${guide.published ? 'offline' : 'online'}">
-          <button class="btn btn--small${guide.published ? ' btn--outline' : ''}" type="submit">${guide.published ? 'Offline halen' : 'Online zetten'}</button>
-        </form>
-      </section>
+      ${renderGuideStatus(guide, req.session.csrf)}
       <div class="crm-tabbed" data-tabs>
         ${ui.renderTabNav([{ key: 'profiel-tab', label: 'Profiel' }, { key: 'fotos-tab', label: 'Foto\'s' }, { key: 'verwijderen', label: 'Verwijderen' }])}
         ${ui.renderTabPanel('profiel-tab', html`<form class="form crm-block" method="post" action="${BASE}${guide.id}/" id="profiel">

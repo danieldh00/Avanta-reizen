@@ -17,7 +17,7 @@ const { YOUTUBE_ORIGIN } = require('../site/homepage');
 const { searchPatterns } = require('../persons/person-routes');
 const { createMediaLibrary } = require('../media/library');
 const { BLOCK_TYPES } = require('./blocks');
-const { createBlockEditor, fieldRow, invalidAttributes } = require('./block-editor');
+const { createBlockEditor, fieldRow, invalidAttributes, renderDraftStatus, renderRevisions, renderVisibilityActions } = require('./block-editor');
 const { imageFromMedia } = require('./pages');
 const { createPostTerms, TERM_KINDS } = require('./post-terms');
 const { createPosts, validatePostFields, editablePostState, postStatus, toLocalDateTime, fromLocalDateTime, POST_LIMITS } = require('./posts');
@@ -70,6 +70,62 @@ const STATUS_LABELS = { online: 'Online', ingepland: 'Ingepland', offline: 'Offl
 
 /** Melding als het formulier van een oudere stand van het concept uitging. */
 const STALE_MESSAGE = 'Het bericht is intussen gewijzigd (in een ander tabblad of door een collega). Je wijziging is niet opgeslagen; bekijk de nieuwe stand en probeer het opnieuw.';
+
+/**
+ * Het tabblad *Inhoud* van een bericht: titel, publicatiedatum, inleiding, samenvatting, vindbaarheid en de
+ * uitgelichte afbeelding.
+ * @param {{postUrl: string, hiddenFields: object, values: object, errors: object, imageUrl: string}} panel Adres van het
+ *   bewerkscherm, verborgen velden, ingevulde waarden, fouten en de huidige afbeelding.
+ * @returns {object} HTML.
+ */
+function renderPostContentPanel({ postUrl, hiddenFields, values, errors, imageUrl }) {
+  const field = (name, label, control, help) => fieldRow({ id: `blog-${name}`, label, control, help, error: errors[name] });
+  return html`<section class="crm-block" id="gegevens">
+          <h2>Gegevens</h2>
+          <form class="form crm-narrow" method="post" action="${postUrl}gegevens/">
+            ${hiddenFields}
+            ${field('title', 'Titel', html`<input id="blog-title" name="title" type="text" value="${values.title}" maxlength="${POST_LIMITS.title}" required${invalidAttributes('blog-title', errors.title)}>`)}
+            ${field('post_date', 'Publicatiedatum', html`<input id="blog-post_date" name="post_date" type="datetime-local" value="${values.postDate}"${invalidAttributes('blog-post_date', errors.post_date)}>`, 'Tijd in Nederland. Leeg = het moment van publiceren. Een datum in de toekomst plant het bericht in: het verschijnt dan vanzelf.')}
+            ${field('intro', 'Inleiding (grote tekst bovenaan)', html`<textarea id="blog-intro" name="intro" rows="4" maxlength="${POST_LIMITS.intro}"${invalidAttributes('blog-intro', errors.intro)}>${values.intro}</textarea>`)}
+            ${field('excerpt', 'Samenvatting (in de lijst van het blog)', html`<textarea id="blog-excerpt" name="excerpt" rows="3" maxlength="${POST_LIMITS.excerpt}"${invalidAttributes('blog-excerpt', errors.excerpt)}>${values.excerpt}</textarea>`, 'Leeg = bij publiceren het begin van de tekst.')}
+            <details class="cms-style"${errors.seo_title || errors.seo_description || values.seoTitle || values.seoDescription ? raw(' open') : ''}><summary>Vindbaarheid (zoekmachines)</summary>
+              ${field('seo_title', 'Titel voor zoekmachines', html`<input id="blog-seo_title" name="seo_title" type="text" value="${values.seoTitle}" maxlength="${POST_LIMITS.seoTitle}"${invalidAttributes('blog-seo_title', errors.seo_title)}>`, `Leeg = de titel van het bericht. Hoogstens ${POST_LIMITS.seoTitle} tekens; de naam van de site komt er vanzelf achter.`)}
+              ${field('seo_description', 'Omschrijving voor zoekmachines', html`<textarea id="blog-seo_description" name="seo_description" rows="3" maxlength="${POST_LIMITS.seoDescription}"${invalidAttributes('blog-seo_description', errors.seo_description)}>${values.seoDescription}</textarea>`, `Leeg = de samenvatting. Ongeveer 150 tekens werkt het best (hoogstens ${POST_LIMITS.seoDescription}).`)}
+            </details>
+            ${ui.renderSaveBar({ label: 'Opslaan in concept', note: 'Wijzigingen komen in het concept. Publiceren doe je bovenaan.' })}
+          </form>
+        </section>
+
+        <section class="crm-block" id="kopfoto">
+          <h2>Uitgelichte afbeelding</h2>
+          ${imageUrl ? html`<img class="media-preview media-preview--small" src="${imageUrl}" alt="" width="400" height="300">` : html`<p>Geen uitgelichte afbeelding: in de lijst van het blog en bovenaan het bericht staat dan een effen vlak.</p>`}
+          <p><a class="btn btn--small btn--outline" href="${postUrl}kopfoto/">${imageUrl ? 'Andere afbeelding kiezen' : 'Afbeelding kiezen'}</a></p>
+        </section>`;
+}
+
+/**
+ * Het tabblad *Categorieën en tags* van een bericht, met het vinkje Uitgelicht (wordt meteen opgeslagen).
+ * @param {{post: object, postUrl: string, csrf: string, termRows: object[], chosenTerms: number[]}} panel Bericht, adres van
+ *   het bewerkscherm, CSRF-token, alle categorieën en tags en de gekozen id's.
+ * @returns {object} HTML.
+ */
+function renderPostTermsPanel({ post, postUrl, csrf, termRows, chosenTerms }) {
+  return html`<section class="crm-block" id="indeling">
+          <h2>Categorieën, tags en uitgelicht</h2>
+          <form class="form" method="post" action="${postUrl}indeling/">
+            <input type="hidden" name="_csrf" value="${csrf}">
+            ${Object.entries(TERM_KINDS).map(([kind, definition]) => {
+              const own = termRows.filter((row) => row.kind === kind);
+              return html`<fieldset class="cms-repeat"><legend>${definition.plural}</legend>
+                ${own.length ? own.map((row) => html`<label class="checkbox"><input type="checkbox" name="term" value="${row.id}"${chosenTerms.includes(row.id) ? raw(' checked') : ''}> ${row.name}</label>`) : html`<p>Nog geen ${definition.plural.toLowerCase()}.</p>`}
+              </fieldset>`;
+            })}
+            <label class="checkbox"><input type="checkbox" name="uitgelicht" value="ja"${post.featured ? raw(' checked') : ''}> Uitgelicht bericht (groot op het blog en de homepage; een ander uitgelicht bericht wordt dan gewoon)</label>
+            <p class="field__help">Dit wordt meteen opgeslagen, zonder concept. <a href="${BASE}categorieen-en-tags/">Categorieën en tags beheren</a></p>
+            <div><button class="btn btn--small" type="submit">Opslaan</button></div>
+          </form>
+        </section>`;
+}
 
 /**
  * Maakt de routes voor blogberichten.
@@ -176,7 +232,6 @@ function createPostRoutes(options) {
     const values = state.values || current;
     const errors = state.errors || {};
     const openBlock = state.blockErrors ? state.blockErrors.id : (typeof req.query.blok === 'string' ? req.query.blok : '');
-    const field = (name, label, control, help) => fieldRow({ id: `blog-${name}`, label, control, help, error: errors[name] });
     const typeOptions = Object.entries(BLOCK_TYPES).filter(([, definition]) => !definition.homeOnly).map(([type, definition]) => html`<option value="${type}">${definition.label}</option>`);
     return renderCrmPage({
       title: current.title,
@@ -186,58 +241,24 @@ function createPostRoutes(options) {
       actions: ui.renderActions([{ label: `Voorbeeld van ${post.draft ? 'het concept' : 'het bericht'}`, href: `${postUrl}voorbeeld/` }, status === 'online' ? { label: 'Bekijk op de site', href: `/${post.slug}/` } : null]),
       body: html`${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
         ${renderAlert(state.error)}
-        <section class="crm-block cms-status">
-          ${post.draft ? html`<p><strong>Concept met wijzigingen</strong> die nog niet op de site staan.${current.postDate && current.postDate > toLocalDateTime(new Date()) ? ' De publicatiedatum ligt in de toekomst: publiceren plant het bericht in.' : ''}</p>
-            <div class="crm-actions">
-              <form method="post" action="${postUrl}publiceren/">${hidden(req, post)}<button class="btn btn--small" type="submit">Publiceren</button></form>
-              <form method="post" action="${postUrl}concept-weggooien/">${hidden(req, post)}<button class="btn btn--small btn--outline" type="submit">Concept weggooien</button></form>
-            </div>` : html`<p>Geen openstaande wijzigingen: wat je hier ziet is gepubliceerd. Een wijziging komt eerst in een concept.</p>`}
-          <dl class="crm-facts">
-            <dt>Adres</dt><dd><code>/${post.slug}/</code></dd>
-            <dt>Op de site</dt><dd>${status === 'ingepland' ? html`ingepland voor ${formatDateTime(post.published_at)}` : status}</dd>
-            <dt>Laatst gewijzigd</dt><dd>${formatDateTime(post.updated_at)}${post.updated_by_name ? html` door ${post.updated_by_name}` : ''}</dd>
-          </dl>
-        </section>
+        ${renderDraftStatus({
+          item: post,
+          url: postUrl,
+          hiddenFields: hidden(req, post),
+          draftNote: current.postDate && current.postDate > toLocalDateTime(new Date()) ? ' De publicatiedatum ligt in de toekomst: publiceren plant het bericht in.' : '',
+          publishedText: 'is gepubliceerd',
+          facts: [
+            ['Adres', html`<code>/${post.slug}/</code>`],
+            ['Op de site', status === 'ingepland' ? html`ingepland voor ${formatDateTime(post.published_at)}` : status],
+            ['Laatst gewijzigd', html`${formatDateTime(post.updated_at)}${post.updated_by_name ? html` door ${post.updated_by_name}` : ''}`],
+          ],
+        })}
 
         <div class="crm-tabbed" data-tabs>
           ${ui.renderTabNav([{ key: 'inhoud', label: 'Inhoud' }, { key: 'blokken', label: 'Blokken' }, { key: 'indeling', label: 'Categorieën en tags' }, { key: 'instellingen', label: 'Adres en zichtbaarheid' }, { key: 'versies', label: 'Versies', count: revisionRows.length }])}
-          ${ui.renderTabPanel('inhoud', html`<section class="crm-block" id="gegevens">
-          <h2>Gegevens</h2>
-          <form class="form crm-narrow" method="post" action="${postUrl}gegevens/">
-            ${hidden(req, post)}
-            ${field('title', 'Titel', html`<input id="blog-title" name="title" type="text" value="${values.title}" maxlength="${POST_LIMITS.title}" required${invalidAttributes('blog-title', errors.title)}>`)}
-            ${field('post_date', 'Publicatiedatum', html`<input id="blog-post_date" name="post_date" type="datetime-local" value="${values.postDate}"${invalidAttributes('blog-post_date', errors.post_date)}>`, 'Tijd in Nederland. Leeg = het moment van publiceren. Een datum in de toekomst plant het bericht in: het verschijnt dan vanzelf.')}
-            ${field('intro', 'Inleiding (grote tekst bovenaan)', html`<textarea id="blog-intro" name="intro" rows="4" maxlength="${POST_LIMITS.intro}"${invalidAttributes('blog-intro', errors.intro)}>${values.intro}</textarea>`)}
-            ${field('excerpt', 'Samenvatting (in de lijst van het blog)', html`<textarea id="blog-excerpt" name="excerpt" rows="3" maxlength="${POST_LIMITS.excerpt}"${invalidAttributes('blog-excerpt', errors.excerpt)}>${values.excerpt}</textarea>`, 'Leeg = bij publiceren het begin van de tekst.')}
-            <details class="cms-style"${errors.seo_title || errors.seo_description || values.seoTitle || values.seoDescription ? raw(' open') : ''}><summary>Vindbaarheid (zoekmachines)</summary>
-              ${field('seo_title', 'Titel voor zoekmachines', html`<input id="blog-seo_title" name="seo_title" type="text" value="${values.seoTitle}" maxlength="${POST_LIMITS.seoTitle}"${invalidAttributes('blog-seo_title', errors.seo_title)}>`, `Leeg = de titel van het bericht. Hoogstens ${POST_LIMITS.seoTitle} tekens; de naam van de site komt er vanzelf achter.`)}
-              ${field('seo_description', 'Omschrijving voor zoekmachines', html`<textarea id="blog-seo_description" name="seo_description" rows="3" maxlength="${POST_LIMITS.seoDescription}"${invalidAttributes('blog-seo_description', errors.seo_description)}>${values.seoDescription}</textarea>`, `Leeg = de samenvatting. Ongeveer 150 tekens werkt het best (hoogstens ${POST_LIMITS.seoDescription}).`)}
-            </details>
-            ${ui.renderSaveBar({ label: 'Opslaan in concept', note: 'Wijzigingen komen in het concept. Publiceren doe je bovenaan.' })}
-          </form>
-        </section>
-
-        <section class="crm-block" id="kopfoto">
-          <h2>Uitgelichte afbeelding</h2>
-          ${current.imageUrl ? html`<img class="media-preview media-preview--small" src="${current.imageUrl}" alt="" width="400" height="300">` : html`<p>Geen uitgelichte afbeelding: in de lijst van het blog en bovenaan het bericht staat dan een effen vlak.</p>`}
-          <p><a class="btn btn--small btn--outline" href="${postUrl}kopfoto/">${current.imageUrl ? 'Andere afbeelding kiezen' : 'Afbeelding kiezen'}</a></p>
-        </section>`)}
+          ${ui.renderTabPanel('inhoud', renderPostContentPanel({ postUrl, hiddenFields: hidden(req, post), values, errors, imageUrl: current.imageUrl }))}
           ${ui.renderTabPanel('blokken', html`${editor.renderBlocksSection({ item: post, hidden: hidden(req, post), options, state, openBlock, typeOptions })}`)}
-          ${ui.renderTabPanel('indeling', html`<section class="crm-block" id="indeling">
-          <h2>Categorieën, tags en uitgelicht</h2>
-          <form class="form" method="post" action="${postUrl}indeling/">
-            <input type="hidden" name="_csrf" value="${req.session.csrf}">
-            ${Object.entries(TERM_KINDS).map(([kind, definition]) => {
-              const own = termRows.filter((row) => row.kind === kind);
-              return html`<fieldset class="cms-repeat"><legend>${definition.plural}</legend>
-                ${own.length ? own.map((row) => html`<label class="checkbox"><input type="checkbox" name="term" value="${row.id}"${chosenTerms.includes(row.id) ? raw(' checked') : ''}> ${row.name}</label>`) : html`<p>Nog geen ${definition.plural.toLowerCase()}.</p>`}
-              </fieldset>`;
-            })}
-            <label class="checkbox"><input type="checkbox" name="uitgelicht" value="ja"${post.featured ? raw(' checked') : ''}> Uitgelicht bericht (groot op het blog en de homepage; een ander uitgelicht bericht wordt dan gewoon)</label>
-            <p class="field__help">Dit wordt meteen opgeslagen, zonder concept. <a href="${BASE}categorieen-en-tags/">Categorieën en tags beheren</a></p>
-            <div><button class="btn btn--small" type="submit">Opslaan</button></div>
-          </form>
-        </section>`)}
+          ${ui.renderTabPanel('indeling', renderPostTermsPanel({ post, postUrl, csrf: req.session.csrf, termRows, chosenTerms }))}
           ${ui.renderTabPanel('instellingen', html`<section class="crm-block" id="adres">
           <h2>Adres en zichtbaarheid</h2>
           <form class="form crm-narrow" method="post" action="${postUrl}adres/">
@@ -251,28 +272,10 @@ function createPostRoutes(options) {
             })}
             <div><button class="btn btn--small btn--outline" type="submit">Adres wijzigen</button></div>
           </form>
-          <div class="crm-actions">
-            ${post.published
-              ? html`<form method="post" action="${postUrl}online/">${hidden(req, post)}<input type="hidden" name="stand" value="offline"><button class="btn btn--small btn--outline" type="submit">Offline halen</button></form>`
-              : html`<form method="post" action="${postUrl}online/">${hidden(req, post)}<input type="hidden" name="stand" value="online"><button class="btn btn--small btn--outline" type="submit">Weer online zetten</button></form>`}
-            ${canDelete ? html`<form method="post" action="${postUrl}verwijderen/">${hidden(req, post)}
-              <label class="checkbox"><input type="checkbox" name="zeker" value="ja" required> Ja, verwijder dit bericht met alle versies</label>
-              <button class="btn btn--small btn--outline" type="submit">Verwijderen</button></form>` : ''}
-          </div>
+          ${renderVisibilityActions({ item: post, url: postUrl, hiddenFields: hidden(req, post), canDelete, deleteLabel: 'dit bericht' })}
           ${!post.published && post.legacy_id !== null ? html`<p class="field__help">Een bericht van de oude site kun je alleen offline halen (bij een nieuwe import zou het anders terugkomen).</p>` : ''}
         </section>`)}
-          ${ui.renderTabPanel('versies', html`<section class="crm-block" id="versies">
-          <h2>Versies</h2>
-          ${revisionRows.length ? html`<div class="crm-table-wrap"><table class="crm-table">
-            <thead><tr><th>Versie</th><th>Gepubliceerd</th><th>Door</th><th></th></tr></thead>
-            <tbody>${revisionRows.map((row) => html`<tr>
-              <td>${String(row.version)}${row.note ? html` <span class="field__help">(${row.note})</span>` : ''}</td>
-              <td>${formatDateTime(row.published_at)}</td>
-              <td>${row.published_by_name || '–'}</td>
-              <td><form method="post" action="${postUrl}versies/${row.version}/terugzetten/">${hidden(req, post)}<button class="btn btn--small btn--outline" type="submit">Terugzetten als concept</button></form></td>
-            </tr>`)}</tbody>
-          </table></div>` : html`<p>Nog geen versies. Bij de eerste publicatie wordt ook de huidige stand bewaard.</p>`}
-        </section>`)}
+          ${ui.renderTabPanel('versies', renderRevisions(revisionRows, postUrl, hidden(req, post)))}
         </div>`,
     });
   };
