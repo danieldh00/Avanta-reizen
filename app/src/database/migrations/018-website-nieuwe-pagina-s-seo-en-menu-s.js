@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 18: website: nieuwe pagina's, SEO en menu's.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

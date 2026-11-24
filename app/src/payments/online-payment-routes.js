@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Openbare routes voor online betalen (migratie 28): de betaalpagina `/betalen/<id>-<token>/` met het openstaande
  * bedrag en een knop naar Mollie, de terugkeerpagina `…/klaar/` en de webhook `/betalen/webhook/`. De pagina toont
@@ -31,7 +32,7 @@ const MESSAGES = {
 
 /**
  * Maakt de openbare routes.
- * @param {{db: object, onlinePayments: object, settings: object, now?: () => number}} options Database, online betalen,
+ * @param {{db: any, onlinePayments: any, settings: any, now?: () => number}} options Database, online betalen,
  *   instellingen en klok.
  * @returns {express.Router} Router.
  */
@@ -45,8 +46,8 @@ function createOnlinePaymentRoutes(options) {
   /**
    * Stuurt een betaalpagina (noindex, geen cache, geen referrer naar Mollie). 'same-origin' en niet 'no-referrer',
    * omdat Chrome anders bij het betaalformulier `Origin: null` stuurt en de herkomstcontrole het weigert.
-   * @param {object} res Express-antwoord.
-   * @param {object} body Inhoud.
+   * @param {any} res Express-antwoord.
+   * @param {any} body Inhoud.
    * @param {number} [status] HTTP-status.
    * @returns {void}
    */
@@ -60,7 +61,7 @@ function createOnlinePaymentRoutes(options) {
 
   /**
    * Een melding zonder knop.
-   * @param {object} res Express-antwoord.
+   * @param {any} res Express-antwoord.
    * @param {string} message Melding.
    * @param {number} [status] HTTP-status.
    * @returns {void}
@@ -69,8 +70,8 @@ function createOnlinePaymentRoutes(options) {
 
   /**
    * De aanmelding uit de link, of een 404 als de link niet klopt.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {(number|null)} Id, of null (antwoord al verstuurd).
    */
   const bookingFromLink = (req, res) => {

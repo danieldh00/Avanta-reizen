@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Bewaking (Beheer > Systeem > Bewaking): elke vijf minuten een reeks controles (back-up, kopie op Google Drive,
  * hersteltest, mail, schijfruimte, fouten in de app, laatste update). Een controle die niet in orde is opent een
@@ -58,7 +59,7 @@ function timeOf(value) {
 
 /**
  * Controle van de back-ups: de laatste geslaagde is niet ouder dan de drempel en de laatste poging is gelukt.
- * @param {object} sources Bronnen (zie `createMonitor`).
+ * @param {any} sources Bronnen (zie `createMonitor`).
  * @returns {{state: string, message: string}} De uitkomst.
  */
 function checkBackup({ backups, settings, now, startedAt }) {
@@ -80,7 +81,7 @@ function checkBackup({ backups, settings, now, startedAt }) {
 
 /**
  * Controle van de kopie op Google Drive (alleen als die aan staat).
- * @param {object} sources Bronnen.
+ * @param {any} sources Bronnen.
  * @returns {{state: string, message: string}} De uitkomst.
  */
 function checkDrive({ drive, settings, now }) {
@@ -100,7 +101,7 @@ function checkDrive({ drive, settings, now }) {
 
 /**
  * Controle van de hersteltest op de server (wekelijks) en van de Drive-kopie.
- * @param {object} sources Bronnen.
+ * @param {any} sources Bronnen.
  * @returns {{state: string, message: string}} De uitkomst.
  */
 function checkRestoreTest({ restoreTests, settings, now }) {
@@ -119,7 +120,7 @@ function checkRestoreTest({ restoreTests, settings, now }) {
 
 /**
  * Controle van het versturen van mail: de laatste verzending sinds de herstart is gelukt.
- * @param {object} sources Bronnen.
+ * @param {any} sources Bronnen.
  * @returns {{state: string, message: string}} De uitkomst.
  */
 function checkMail({ mailer }) {
@@ -132,7 +133,7 @@ function checkMail({ mailer }) {
 
 /**
  * Controle van de vrije ruimte op de schijf van de datamap.
- * @param {object} sources Bronnen.
+ * @param {any} sources Bronnen.
  * @returns {{state: string, message: string}} De uitkomst.
  */
 function checkDisk({ dataDir, statfs, settings }) {
@@ -155,7 +156,7 @@ function checkDisk({ dataDir, statfs, settings }) {
 
 /**
  * Controle van het aantal fouten in het logboek in het afgelopen uur (zonder de eigen regels van de bewaking).
- * @param {object} sources Bronnen.
+ * @param {any} sources Bronnen.
  * @returns {Promise<{state: string, message: string}>} De uitkomst.
  */
 async function checkErrors({ db, settings, now }) {
@@ -169,7 +170,7 @@ async function checkErrors({ db, settings, now }) {
 
 /**
  * Controle van de laatste update vanuit de app.
- * @param {object} sources Bronnen.
+ * @param {any} sources Bronnen.
  * @returns {{state: string, message: string}} De uitkomst.
  */
 function checkUpdate({ systemUpdate }) {
@@ -193,7 +194,7 @@ const CHECK_FUNCTIONS = {
 /**
  * Draait alle controles; een controle die zelf faalt telt als waarschuwing (zonder de foutmelding, die kan iets
  * gevoeligs bevatten).
- * @param {object} sources Bronnen.
+ * @param {any} sources Bronnen.
  * @returns {Promise<Array<{key: string, label: string, state: string, message: string}>>} De uitkomsten.
  */
 async function runChecks(sources) {
@@ -212,11 +213,11 @@ async function runChecks(sources) {
 
 /**
  * Maakt de bewaking.
- * @param {{db: object, settings: object, mailer?: object, appLog?: object, backups?: object, drive?: object,
- *   restoreTests?: object, systemUpdate?: object, dataDir: string, now?: () => number, statfs?: Function,
+ * @param {{db: any, settings: any, mailer?: any, appLog?: any, backups?: any, drive?: any,
+ *   restoreTests?: any, systemUpdate?: any, dataDir: string, now?: () => number, statfs?: Function,
  *   request?: Function}} options Database, instellingen, de bronnen van de controles, de datamap en voor tests een
  *   eigen klok, `statfs` en verzendfunctie (standaard `safeRequest`).
- * @returns {object} `run`, `test`, `view`, `incidents`, `start`, `stop`.
+ * @returns {any} `run`, `test`, `view`, `incidents`, `start`, `stop`.
  */
 function createMonitor(options) {
   const { db, settings } = options;
@@ -342,9 +343,9 @@ function createMonitor(options) {
    * Legt een controle met een waarschuwing of fout vast als open incident (nieuw of bijgewerkt) en bepaalt of er een
    * melding nodig is: bij een nieuw incident, als het erger wordt (van waarschuwing naar fout) of als herinnering na
    * `monitorRepeatHours`.
-   * @param {object} check Uitkomst van de controle.
+   * @param {any} check Uitkomst van de controle.
    * @param {{at: number, repeatMs: number}} round Tijdstip van de ronde en de herhaaltermijn (0 = nooit herhalen).
-   * @returns {Promise<{item: (object|null), incidentId: number}>} Het te melden item (of null) en het id van het incident.
+   * @returns {Promise<{item: (any|null), incidentId: number}>} Het te melden item (of null) en het id van het incident.
    */
   const recordProblem = async (check, { at, repeatMs }) => {
     const atDate = new Date(at);
@@ -363,9 +364,9 @@ function createMonitor(options) {
 
   /**
    * Sluit de open incidenten van een controle die weer in orde is.
-   * @param {object} check Uitkomst van de controle.
+   * @param {any} check Uitkomst van de controle.
    * @param {Date} atDate Tijdstip van de ronde.
-   * @returns {Promise<object[]>} Items `opgelost` voor de incidenten waarover al gemeld was.
+   * @returns {Promise<any[]>} Items `opgelost` voor de incidenten waarover al gemeld was.
    */
   const closeIncidents = async (check, atDate) => {
     const closed = await db.query('UPDATE monitor_incidents SET resolved_at = $2 WHERE check_key = $1 AND resolved_at IS NULL RETURNING id, severity, opened_at, notified_at', [check.key, atDate]);
@@ -379,7 +380,7 @@ function createMonitor(options) {
 
   /**
    * Eén ronde: controles, incidenten openen/bijwerken/sluiten, melden, heartbeat en opschonen.
-   * @returns {Promise<{checks: object[], notified: number}>} De uitkomsten en het aantal gemelde incidenten.
+   * @returns {Promise<{checks: any[], notified: number}>} De uitkomsten en het aantal gemelde incidenten.
    */
   const runOnce = async () => {
     await settings.ready();
@@ -428,7 +429,7 @@ function createMonitor(options) {
 
   /**
    * Draait een ronde, of wacht op de lopende.
-   * @returns {Promise<{checks: object[], notified: number}>} De uitkomst.
+   * @returns {Promise<{checks: any[], notified: number}>} De uitkomst.
    */
   const run = () => {
     if (!running) running = runOnce().finally(() => { running = null; });
@@ -452,7 +453,7 @@ function createMonitor(options) {
 
   /**
    * De stand voor de pagina.
-   * @returns {{enabled: boolean, lastRunAt: (Date|null), checks: object[], deliveries: object[], heartbeat: (object|null), open: object[], closed: object[]}}
+   * @returns {{enabled: boolean, lastRunAt: (Date|null), checks: any[], deliveries: any[], heartbeat: (any|null), open: any[], closed: any[]}}
    *   De stand, met de incidenten van de laatste ronde.
    */
   const view = () => ({
@@ -468,7 +469,7 @@ function createMonitor(options) {
   /**
    * Open incidenten en de laatste gesloten.
    * @param {number} [limit] Hoeveel gesloten incidenten (standaard 30).
-   * @returns {Promise<{open: object[], closed: object[]}>} De incidenten.
+   * @returns {Promise<{open: any[], closed: any[]}>} De incidenten.
    */
   const incidents = async (limit = 30) => {
     const open = await db.query('SELECT id, check_key, severity, message, opened_at, last_seen_at, notified_at, notify_count FROM monitor_incidents WHERE resolved_at IS NULL ORDER BY opened_at DESC');

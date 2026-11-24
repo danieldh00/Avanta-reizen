@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Tweestapsverificatie (TOTP) voor het CRM: opslag in `users` (migratie 9) en de schermen.
  * Aanpak: het geheim staat versleuteld in `users.totp_secret` (vault, AAD
@@ -86,9 +87,9 @@ const groupSecret = (secret) => secret.match(/.{1,4}/g).join(' ');
 
 /**
  * Maakt de opslag voor tweestapsverificatie.
- * @param {{db: object, vault: {seal: Function, open: Function}, now?: () => number}} options Database, kluis en (voor
+ * @param {{db: any, vault: {seal: Function, open: Function}, now?: () => number}} options Database, kluis en (voor
  *   tests) de klok.
- * @returns {object} Functies, zie onder.
+ * @returns {any} Functies, zie onder.
  */
 function createTwoFactor(options) {
   const { db, vault } = options;
@@ -98,7 +99,7 @@ function createTwoFactor(options) {
    * De 2FA-gegevens van een gebruiker.
    * @param {number} userId Gebruiker.
    * @param {{query: Function}} [client] Database of transactie-client.
-   * @returns {Promise<(object|undefined)>} Rij met `totp_secret`, `totp_enabled_at`, `totp_last_step`, `totp_recovery`.
+   * @returns {Promise<(any|undefined)>} Rij met `totp_secret`, `totp_enabled_at`, `totp_last_step`, `totp_recovery`.
    */
   const rowOf = async (userId, client = db) => (await client.query(
     'SELECT totp_secret, totp_enabled_at, totp_last_step, totp_recovery FROM users WHERE id = $1',
@@ -318,7 +319,7 @@ function createTwoFactor(options) {
 
 /**
  * Maakt de routes voor de codestap en het 2FA-scherm.
- * @param {{db: object, auth: object, twoFactor: object, now?: () => number}} options Database, sessie- en rechtenlaag,
+ * @param {{db: any, auth: any, twoFactor: any, now?: () => number}} options Database, sessie- en rechtenlaag,
  *   de opslag (`createTwoFactor`) en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router.
  */
@@ -330,8 +331,9 @@ function createTwoFactorRoutes(options) {
 
   /**
    * Het account van het verzoek: de ingelogde gebruiker, of de halve sessie die 2FA nog moet instellen.
-   * @param {object} req Express-verzoek.
-   * @returns {({id: number, email: string, name: string, role: string, csrf: string, pending: boolean}|null)} Account, of null.
+   * @param {any} req Express-verzoek.
+   * @returns {({id: number, email: string, name: string, role: string, csrf: string, pending: boolean, tokenHash?: string,
+   *   setupOk?: boolean}|null)} Account, of null.
    */
   const accountOf = (req) => {
     if (req.user) return { ...req.user, csrf: req.session.csrf, tokenHash: req.session.tokenHash, setupOk: req.session.setupOk, pending: false };
@@ -343,15 +345,15 @@ function createTwoFactorRoutes(options) {
    * Of dit account 2FA mag instellen: pas nadat deze sessie de activatiecode van de beheerder heeft gegeven. Dat geldt
    * ook voor een ingelogde gebruiker zonder 2FA: die sessie bewijst alleen het wachtwoord, en een gelekt wachtwoord mag
    * nooit genoeg zijn om een eigen app te koppelen.
-   * @param {object} account Account (`accountOf`).
+   * @param {any} account Account (`accountOf`).
    * @returns {boolean} Waar als instellen mag.
    */
   const mayConfigure = (account) => account.setupOk === true;
 
   /**
    * Middleware: een ingelogde gebruiker of een halve sessie die 2FA moet instellen; anders als `requireLogin`.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende stap.
    * @returns {void}
    */
@@ -359,8 +361,8 @@ function createTwoFactorRoutes(options) {
 
   /**
    * Weigert een POST van een andere site.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende stap.
    * @returns {void}
    */
@@ -368,9 +370,9 @@ function createTwoFactorRoutes(options) {
 
   /**
    * Een CRM-pagina voor een account; een halve sessie krijgt geen menu, wel een knop om uit te loggen.
-   * @param {object} account Account (`accountOf`).
+   * @param {any} account Account (`accountOf`).
    * @param {string} title Titel.
-   * @param {object} body Inhoud.
+   * @param {any} body Inhoud.
    * @returns {string} HTML-pagina.
    */
   const page = (account, title, body) => renderCrmPage({
@@ -384,7 +386,7 @@ function createTwoFactorRoutes(options) {
   /**
    * Knop om uit te loggen (voor schermen zonder menu).
    * @param {string} csrf CSRF-token.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderLogoutForm = (csrf) => html`<form class="crm-logout-inline" method="post" action="/app/uitloggen/">
     <input type="hidden" name="_csrf" value="${csrf}"><button class="btn btn--outline btn--small" type="submit">Annuleren en uitloggen</button>
@@ -393,7 +395,7 @@ function createTwoFactorRoutes(options) {
   /**
    * Invoerveld voor een code (cijfers uit de app, of een herstelcode).
    * @param {{name?: string, label: string, error?: string, allowRecovery?: boolean}} field Veld.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderCodeInput = (field) => {
     const name = field.name || 'code';
@@ -408,7 +410,7 @@ function createTwoFactorRoutes(options) {
   /**
    * Lijst met herstelcodes (één keer getoond).
    * @param {string[]} codes Codes.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderRecoveryCodes = (codes) => html`<p>Bewaar deze herstelcodes op een veilige plek (bijv. in een wachtwoordkluis of
       geprint). Met een herstelcode log je in als je telefoon kwijt is; elke code werkt één keer. Ze worden <strong>niet</strong>
@@ -419,7 +421,7 @@ function createTwoFactorRoutes(options) {
 
   /**
    * Het scherm van de codestap.
-   * @param {object} req Express-verzoek (met `req.pending`).
+   * @param {any} req Express-verzoek (met `req.pending`).
    * @param {string} [error] Melding.
    * @returns {string} HTML-pagina.
    */
@@ -439,8 +441,8 @@ function createTwoFactorRoutes(options) {
 
   /**
    * Middleware: alleen met een halve sessie die een code moet geven; anders naar de juiste plek.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende stap.
    * @returns {void}
    */
@@ -483,8 +485,8 @@ function createTwoFactorRoutes(options) {
 
   /**
    * Het overzicht van de eigen 2FA.
-   * @param {object} req Express-verzoek.
-   * @param {{errors?: object, notice?: string}} [state] Fouten per formulier en een melding.
+   * @param {any} req Express-verzoek.
+   * @param {{errors?: any, notice?: string}} [state] Fouten per formulier en een melding.
    * @returns {Promise<string>} HTML-pagina.
    */
   const renderOverview = async (req, state = {}) => {
@@ -587,7 +589,7 @@ function createTwoFactorRoutes(options) {
 
   /**
    * Het scherm met de QR-code en het bevestigen.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{secret: string, uri: string}} setup Geheim en otpauth-adres.
    * @param {string} [error] Melding.
    * @returns {string} HTML-pagina.

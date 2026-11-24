@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Berichten via het contactformulier in het CRM (tabel `contact_messages`, migraties 3 en 30): lijst met filter en
  * zoeken, één bericht, afhandelen, weer openen en verwijderen, en het aantal nieuwe berichten voor de teller in het menu.
@@ -37,13 +38,13 @@ function messageNote(value) {
 /**
  * Een pagina berichten, met de aantallen per status voor de filterknoppen.
  * @param {{query: Function}} db Database.
- * @param {{status?: string, q?: string, page?: number}} filter Status (leeg = alle), zoektekst en paginanummer.
- * @returns {Promise<{rows: object[], hasNext: boolean, counts: Record<string, number>, text: string}>} De berichten,
+ * @param {{status?: string, q?: string, page?: (number|string)}} filter Status (leeg = alle), zoektekst en paginanummer.
+ * @returns {Promise<{rows: any[], hasNext: boolean, counts: Record<string, number>, text: string}>} De berichten,
  *   of er een volgende pagina is, het aantal per status (binnen de zoektekst) en de gebruikte zoektekst.
  */
 async function listMessages(db, filter) {
   const status = Object.hasOwn(MESSAGE_STATUSES, filter.status) ? filter.status : '';
-  const page = Math.min(Math.max(Number.parseInt(filter.page, 10) || 1, 1), 10000);
+  const page = Math.min(Math.max(Number.parseInt(String(filter.page), 10) || 1, 1), 10000);
   const { text, patterns } = searchPatterns(filter.q);
   const matches = `NOT EXISTS (SELECT 1 FROM unnest($1::text[]) AS term WHERE ${SEARCH_TEXT} NOT LIKE term)`;
   const [rows, counts] = await Promise.all([
@@ -69,7 +70,7 @@ async function listMessages(db, filter) {
  * Zoekt één bericht op id, met de naam van wie het afhandelde en de reis waar het over gaat.
  * @param {{query: Function}} client Database of transactie-client.
  * @param {(string|number)} id Id uit de URL (alleen cijfers).
- * @returns {Promise<(object|null)>} Het bericht, of null.
+ * @returns {Promise<(any|null)>} Het bericht, of null.
  */
 async function findMessage(client, id) {
   const [message] = await client.query(

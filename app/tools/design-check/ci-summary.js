@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Design-controle in CI: zet `results.json` van `check.js` om in een korte samenvatting in Markdown voor de
  * job-samenvatting van GitHub Actions (aantallen per ernst en de bevindingen, ernstigste eerst). Het volledige rapport
@@ -25,7 +26,7 @@ function cell(value) {
 
 /**
  * Bouwt de samenvatting.
- * @param {{pages: object[], findings: object[]}} results Inhoud van `results.json`.
+ * @param {{pages: any[], findings: any[]}} results Inhoud van `results.json`.
  * @returns {string} Markdown.
  */
 function summaryMarkdown(results) {

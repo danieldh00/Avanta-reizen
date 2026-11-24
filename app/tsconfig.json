@@ -1,5 +1,5 @@
 {
-  "//": "Typecontrole op de JSDoc (npm run typecheck). Alleen bestanden met `// @ts-check` bovenaan worden gecontroleerd; nieuwe bestanden krijgen die regel altijd. Uitbreiden per map: regel toevoegen, meldingen oplossen.",
+  "//": "Typecontrole op de JSDoc (npm run typecheck) van src/ en tools/. Elk bestand begint met `// @ts-check`; test/ts-check.test.js bewaakt dat (B08).",
   "compilerOptions": {
     "allowJs": true,
     "checkJs": false,
@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.js"]
+  "include": ["src/**/*.js", "tools/**/*.js"]
 }

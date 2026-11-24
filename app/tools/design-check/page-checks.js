@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Design-controle: de metingen die in de browser op één pagina draaien (via `page.evaluate`). Elke controle geeft
  * bevindingen terug met een soort, een korte omschrijving, een herkenbare selector en de rechthoek van het element, zodat
@@ -99,7 +100,9 @@ function runPageChecks(context) {
    * @param {string} message Omschrijving.
    * @returns {void}
    */
-  const add = (check, element, message) => findings.push({ check, message, selector: describe(element), rect: pageRect(element) });
+  const add = (check, element, message) => {
+    findings.push({ check, message, selector: describe(element), rect: pageRect(element) });
+  };
 
   /**
    * Of het element in een vaste of meeschuivende laag zit (kopbalk, balk "in ontwikkeling", cookiebalk): die mag over

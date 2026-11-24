@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Berichten in het CRM (`/app/berichten/`, recht `berichten`): de lijst met filter op status en zoeken, één bericht
  * met de gegevens van de afzender, afhandelen (met een optionele notitie), weer openen en verwijderen. Elke wijziging
@@ -32,7 +33,7 @@ const NOTICES = {
 
 /**
  * Maakt de routes voor de berichten.
- * @param {{db: object, auth: object}} options Database en de sessie- en rechtenlaag.
+ * @param {{db: any, auth: any}} options Database en de sessie- en rechtenlaag.
  * @returns {express.Router} Router.
  */
 function createMessageRoutes(options) {
@@ -42,8 +43,8 @@ function createMessageRoutes(options) {
 
   /**
    * 404-pagina binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => res.status(404).send(renderCrmPage({
@@ -95,8 +96,8 @@ function createMessageRoutes(options) {
 
   /**
    * De pagina van één bericht.
-   * @param {object} req Express-verzoek.
-   * @param {object} message Het bericht (`findMessage`).
+   * @param {any} req Express-verzoek.
+   * @param {any} message Het bericht (`findMessage`).
    * @param {{notice?: string, error?: string}} [state] Melding en foutmelding.
    * @returns {string} HTML-pagina.
    */

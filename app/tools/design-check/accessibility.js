@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Toegankelijkheidscontrole met axe-core (P7.3, bevinding A20), als onderdeel van de design-controle (`check.js --axe`).
  * Per pagina en vensterbreedte draait axe met de regels voor WCAG 2.1 niveau A en AA. Elke overtreding wordt een
@@ -79,7 +80,7 @@ function violationsToFindings(violations) {
 /**
  * Draait axe in een geladen pagina.
  * @param {{evaluate: Function}} page Playwright-pagina.
- * @returns {Promise<object[]>} Bevindingen (leeg als er niets is; bij een fout één bevinding `fout`).
+ * @returns {Promise<any[]>} Bevindingen (leeg als er niets is; bij een fout één bevinding `fout`).
  */
 async function runAccessibilityChecks(page) {
   try {

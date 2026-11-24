@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 6: beheer: doorverwijzingen en 404-lijst.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

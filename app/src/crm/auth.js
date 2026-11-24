@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Sessies, CSRF-bescherming, rechtencontrole en auditlog van het CRM.
  * - Sessie: willekeurig token in een cookie (`HttpOnly`, `Secure`, `SameSite=Strict`, pad `/app`); in de database staat
@@ -37,7 +38,7 @@ const AUDIT_IP_RETENTION_DAYS = 90;
 
 /**
  * Een instelling als die er is, anders de standaard (voor code en tests zonder instellingenlaag).
- * @param {(object|undefined)} settings De instellingen (`beheer/settings.js`).
+ * @param {(any|undefined)} settings De instellingen (`beheer/settings.js`).
  * @param {string} key Naam van de instelling.
  * @param {number} fallback Standaardwaarde.
  * @returns {number} De waarde.
@@ -60,7 +61,7 @@ function hashToken(token) {
 
 /**
  * Leest één cookie uit de `Cookie`-kop.
- * @param {object} req Express-verzoek.
+ * @param {any} req Express-verzoek.
  * @param {string} name Naam van de cookie.
  * @returns {string} Waarde, of leeg.
  */
@@ -75,7 +76,7 @@ function readCookie(req, name) {
 /**
  * Ingekort IP-adres voor het auditlog: IPv4 per /24, IPv6 per /48. Genoeg om misbruik te herkennen, niet om een
  * aansluiting precies aan te wijzen.
- * @param {object} req Express-verzoek.
+ * @param {any} req Express-verzoek.
  * @returns {string} Voorvoegsel, bijv. `203.0.113.0/24`.
  */
 function ipPrefix(req) {
@@ -96,7 +97,7 @@ function ipPrefix(req) {
  * `sessions.created_at` scant de kleine tabel). Draait bij het starten van de server en daarna dagelijks (zie
  * `startCrmMaintenance`).
  * @param {{query: Function}} db Database.
- * @param {object} [settings] De instellingen (`beheer/settings.js`); zonder instellingen gelden de standaardtermijnen.
+ * @param {any} [settings] De instellingen (`beheer/settings.js`); zonder instellingen gelden de standaardtermijnen.
  * @returns {Promise<void>}
  */
 async function purgeExpired(db, settings) {
@@ -116,7 +117,7 @@ async function purgeExpired(db, settings) {
  * Start het dagelijkse onderhoud: meteen een keer opruimen, daarna elke 24 uur. De timer houdt het proces niet open.
  * Een mislukte ronde wordt gelogd (zonder gegevens) en de volgende ronde probeert het opnieuw.
  * @param {{query: Function}} db Database.
- * @param {object} [settings] De instellingen (bewaartermijnen).
+ * @param {any} [settings] De instellingen (bewaartermijnen).
  * @returns {NodeJS.Timeout} De timer.
  */
 function startCrmMaintenance(db, settings) {
@@ -127,9 +128,9 @@ function startCrmMaintenance(db, settings) {
 
 /**
  * Maakt de sessie- en rechtenlaag.
- * @param {{db: object, masterKey: Buffer, settings?: object, secureCookies?: boolean}} options Database, hoofdsleutel (voor
+ * @param {{db: any, masterKey: Buffer, settings?: any, secureCookies?: boolean}} options Database, hoofdsleutel (voor
  *   de CSRF-sleutel), de instellingen (sessieduur) en of de cookie `Secure` krijgt (standaard ja).
- * @returns {object} Functies en middleware, zie onder.
+ * @returns {any} Functies en middleware, zie onder.
  */
 function createAuth(options) {
   const { db } = options;
@@ -145,7 +146,7 @@ function createAuth(options) {
   /**
    * Schrijft een regel in het auditlog. Fouten bij het schrijven laten het verzoek mislukken: een actie die niet gelogd
    * kan worden, gaat niet door.
-   * @param {object} req Express-verzoek (voor het IP-voorvoegsel).
+   * @param {any} req Express-verzoek (voor het IP-voorvoegsel).
    * @param {{userId?: (number|null), action: string, entity?: string, entityId?: (string|number)}} entry Wat er gebeurde.
    * @param {{query: Function}} [client] Database of transactie-client.
    * @returns {Promise<void>}
@@ -159,7 +160,7 @@ function createAuth(options) {
 
   /**
    * Zet de sessiecookie.
-   * @param {object} res Express-antwoord.
+   * @param {any} res Express-antwoord.
    * @param {string} token Token (of leeg om te wissen).
    * @param {number} maxAgeSeconds Levensduur.
    * @returns {void}
@@ -183,7 +184,7 @@ function createAuth(options) {
   /**
    * Maakt een nieuwe sessie (na inloggen) en zet de cookie. Ruimt meteen verlopen sessies op (via de index op
    * `expires_at`; een sessie die door inactiviteit ongeldig is, verdwijnt uiterlijk op dat moment).
-   * @param {object} res Express-antwoord.
+   * @param {any} res Express-antwoord.
    * @param {number} userId Gebruiker.
    * @param {{query: Function}} [client] Database of transactie-client.
    * @param {{mfaOk?: boolean}} [mode] `mfaOk: false` = halve sessie (alleen de tweede stap), 15 minuten geldig.
@@ -205,8 +206,8 @@ function createAuth(options) {
   /**
    * Rondt de tweede stap af: de halve sessie vervalt en er komt een nieuwe, volledige sessie met een nieuw token
    * (zo kan een vooraf bekend token nooit een volledige sessie worden).
-   * @param {object} req Express-verzoek (met `req.pending`).
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek (met `req.pending`).
+   * @param {any} res Express-antwoord.
    * @param {{query: Function}} client Transactie-client.
    * @returns {Promise<void>}
    */
@@ -217,8 +218,8 @@ function createAuth(options) {
 
   /**
    * Beëindigt de huidige sessie en wist de cookie.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {Promise<void>}
    */
   const endSession = async (req, res) => {
@@ -252,8 +253,8 @@ function createAuth(options) {
    * Een halve sessie (2FA nodig, code nog niet gegeven) zet alleen `req.pending` met `step` `code` (2FA staat aan) of
    * `setup` (2FA verplicht maar nog niet ingesteld; `setupOk` = de activatiecode van de beheerder is gegeven);
    * `req.user` blijft dan leeg.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende stap.
    * @returns {Promise<void>}
    */
@@ -291,7 +292,7 @@ function createAuth(options) {
 
   /**
    * Waar een halve sessie heen moet: de codestap of het instellen van 2FA.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @returns {string} Pad, of leeg zonder halve sessie.
    */
   const pendingPath = (req) => {
@@ -302,8 +303,8 @@ function createAuth(options) {
   /**
    * Middleware: alleen voor ingelogde gebruikers. Anders een GET naar het inlogscherm (of, met een halve sessie, naar
    * de codestap of het instellen van 2FA), een POST 401.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende stap.
    * @returns {void}
    */
@@ -337,8 +338,8 @@ function createAuth(options) {
   /**
    * Middleware: controleert bij een POST de herkomst en het CSRF-token uit het formulier (veld `_csrf`). Vereist een
    * (volledige of halve) sessie en een geparste body.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende stap.
    * @returns {void}
    */
@@ -350,7 +351,7 @@ function createAuth(options) {
   /**
    * Of een verzoek van deze site komt en het gegeven CSRF-token bij de (volledige of halve) sessie hoort. Voor
    * formulieren die niet als geheel geparst worden (uploads): daar wordt het token gecontroleerd zodra het binnenkomt.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {*} token Het meegestuurde token.
    * @returns {boolean} Waar als herkomst en token kloppen.
    */

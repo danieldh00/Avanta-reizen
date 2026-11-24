@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Design-controle: veiligheidscontroles die `seed.js`, `check.js` en `overview.js` vóór de eerste stap uitvoeren, zodat
  * testgegevens en het wachtwoord van de testaccounts nooit bij een echte database of een publieke omgeving terechtkomen.

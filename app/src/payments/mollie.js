@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Koppeling met Mollie (iDEAL en andere betaalmethoden) voor online betalen, standaard uit (Beheer > CRM > Online
  * betalen: `mollieEnabled`, sleutel `mollieApiKey` als geheim). Alleen het vaste adres `https://api.mollie.com/v2`;
@@ -68,7 +69,7 @@ function isMollieUrl(value) {
 
 /**
  * Maakt de Mollie-koppeling.
- * @param {{settings: object, fetchImpl?: Function}} options Instellingen en (voor tests) fetch.
+ * @param {{settings: any, fetchImpl?: Function}} options Instellingen en (voor tests) fetch.
  * @returns {{enabled: Function, createPayment: Function, getPayment: Function}} Functies.
  */
 function createMollie(options) {
@@ -85,8 +86,8 @@ function createMollie(options) {
    * Doet een verzoek aan de API.
    * @param {string} method GET of POST.
    * @param {string} path Pad onder `/v2` (vaste tekst of een gecontroleerd id).
-   * @param {object} [body] JSON-inhoud.
-   * @returns {Promise<object>} Het antwoord.
+   * @param {any} [body] JSON-inhoud.
+   * @returns {Promise<any>} Het antwoord.
    * @throws {MollieError} Bij een fout.
    */
   const call = async (method, path, body) => {
@@ -113,7 +114,7 @@ function createMollie(options) {
 
   /**
    * Maakt een betaling aan.
-   * @param {{amountCents: number, description: string, redirectUrl: string, webhookUrl: string, metadata: object}} input Gegevens.
+   * @param {{amountCents: number, description: string, redirectUrl: string, webhookUrl: string, metadata: any}} input Gegevens.
    * @returns {Promise<{id: string, checkoutUrl: string}>} Id en adres van het betaalscherm.
    */
   const createPayment = async (input) => {
@@ -135,7 +136,7 @@ function createMollie(options) {
   /**
    * Vraagt een betaling op.
    * @param {string} id Mollie-id (`tr_…`).
-   * @returns {Promise<{id: string, status: string, amountCents: (number|null), paidAt: (string|null), metadata: object}>} Stand.
+   * @returns {Promise<{id: string, status: string, amountCents: (number|null), paidAt: (string|null), metadata: any}>} Stand.
    */
   const getPayment = async (id) => {
     if (!PAYMENT_ID_PATTERN.test(String(id))) throw new MollieError('invalid_id', 'Ongeldig betaal-id.');

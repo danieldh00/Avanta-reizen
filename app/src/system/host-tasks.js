@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Servertaken (Beheer > Systeem > Servertaken): dingen die op apps01 of de
  * Proxmox-host moeten gebeuren en die de app en de automatische update zelf niet kunnen doen. De lijst staat hier in
@@ -52,14 +53,14 @@ function parseDone(value) {
 
 /**
  * Maakt de servertakenlaag.
- * @param {{statusDir?: string, settings: object, tasks?: object[]}} options De statusmap van de host (leeg = niet
+ * @param {{statusDir?: string, settings: any, tasks?: any[]}} options De statusmap van de host (leeg = niet
  *   ingericht: dan kan de host niets afvinken), de instellingen en (voor tests) een eigen lijst.
  * @returns {{view: Function, checkedValue: Function, known: Function, command: string}} De laag.
  */
 function createHostTasks({ statusDir = '', settings, tasks = HOST_TASKS }) {
   /**
    * De lijst met taken en hun stand.
-   * @returns {{command: string, checkedAt: (string|null), pending: number, tasks: object[]}} De weergave.
+   * @returns {{command: string, checkedAt: (string|null), pending: number, tasks: any[]}} De weergave.
    */
   function view() {
     const ledger = statusDir ? readJsonFile(statusDir, 'host-tasks.json') : null;

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * De blokken-motor van het CMS (pakket H): een pagina is een lijst blokken (JSON in `pages.blocks` en het concept in
  * `pages.draft`). Elk bloktype heeft vaste velden en elk blok dezelfde stijlopties uit de huisstijl (achtergrond,
@@ -319,7 +320,7 @@ function newBlockId() {
 
 /**
  * De standaardwaarde van een veld.
- * @param {object} field Velddefinitie.
+ * @param {any} field Velddefinitie.
  * @returns {*} Waarde.
  */
 function defaultValue(field) {
@@ -332,7 +333,7 @@ function defaultValue(field) {
 /**
  * Een nieuw, leeg blok van een type.
  * @param {string} type Bloktype.
- * @returns {(object|null)} Blok, of null bij een onbekend type.
+ * @returns {(any|null)} Blok, of null bij een onbekend type.
  */
 function newBlock(type) {
   if (!Object.hasOwn(BLOCK_TYPES, type)) return null;
@@ -343,7 +344,7 @@ function newBlock(type) {
 
 /**
  * De standaardstijl van een blok.
- * @returns {object} Stijl.
+ * @returns {any} Stijl.
  */
 function defaultStyle() {
   return Object.fromEntries(Object.entries(STYLE_OPTIONS).map(([name, option]) => [name, Object.keys(option.choices)[0]]));
@@ -352,7 +353,7 @@ function defaultStyle() {
 /**
  * Leest de stijl van een blok: onbekende of ontbrekende keuzes worden de standaard.
  * @param {*} style Opgeslagen of ingezonden stijl.
- * @returns {object} Stijl met alleen geldige keuzes.
+ * @returns {any} Stijl met alleen geldige keuzes.
  */
 function normalizeStyle(style) {
   const source = style && typeof style === 'object' ? style : {};
@@ -365,7 +366,7 @@ function normalizeStyle(style) {
 
 /**
  * Of een stijl helemaal de standaard is (dan geen omhullende sectie, zodat bestaande pagina's precies zo blijven).
- * @param {object} style Genormaliseerde stijl.
+ * @param {any} style Genormaliseerde stijl.
  * @returns {boolean} Waar bij de standaard.
  */
 function isDefaultStyle(style) {
@@ -375,7 +376,7 @@ function isDefaultStyle(style) {
 
 /**
  * Leest één tekst uit een formulier (een herhaald veld telt als leeg).
- * @param {object} body Ingezonden velden.
+ * @param {any} body Ingezonden velden.
  * @param {string} name Naam.
  * @returns {string} Tekst.
  */
@@ -385,7 +386,7 @@ function formText(body, name) {
 
 /**
  * Controleert één veld (geen `image` of `repeat`).
- * @param {object} field Velddefinitie.
+ * @param {any} field Velddefinitie.
  * @param {string} input Ingezonden tekst.
  * @returns {{value: *, error?: string}} Waarde en eventueel een fout.
  */
@@ -414,7 +415,7 @@ function validateField(field, input) {
 /**
  * Controleert een veld met gewone tekst (tekst, tekstvak of link): zonder stuurtekens, witruimte samengevoegd (behalve
  * in een tekstvak), hoogstens `max` tekens en een link alleen naar deze site, https, mailto of tel.
- * @param {object} field Velddefinitie.
+ * @param {any} field Velddefinitie.
  * @param {string} input Ingezonden tekst.
  * @returns {{value: string, error?: string}} Waarde en eventueel een fout.
  */
@@ -433,10 +434,10 @@ function validatePlainField(field, input) {
 /**
  * Leest een fotoreeks (`images`) uit het formulier. Foto's komen van het fotoscherm; hier kun je ze alleen weghalen
  * (vinkje `f_<naam>_weg`) of verplaatsen (volgnummer `f_<naam>_<index>_volgorde`).
- * @param {object} field Velddefinitie.
- * @param {object[]} images Huidige foto's van het blok.
- * @param {object} body Ingezonden velden.
- * @returns {object[]} De overgebleven foto's in de nieuwe volgorde.
+ * @param {any} field Velddefinitie.
+ * @param {any[]} images Huidige foto's van het blok.
+ * @param {any} body Ingezonden velden.
+ * @returns {any[]} De overgebleven foto's in de nieuwe volgorde.
  */
 function imagesFromForm(field, images, body) {
   const removed = new Set([].concat(body[`f_${field.name}_weg`] || []).filter((value) => typeof value === 'string'));
@@ -452,10 +453,10 @@ function imagesFromForm(field, images, body) {
 /**
  * Leest de regels van een herhaalveld (`repeat`) uit het formulier (`f_<naam>_<regel>_<subveld>`). Een regel telt
  * alleen mee als minstens één subveld dat geen keuzelijst is een waarde heeft.
- * @param {object} field Velddefinitie met `count` en `fields`.
- * @param {object} body Ingezonden velden.
- * @param {object} errors Fouten per veldnaam; deze functie vult ze aan.
- * @returns {object[]} De ingevulde regels.
+ * @param {any} field Velddefinitie met `count` en `fields`.
+ * @param {any} body Ingezonden velden.
+ * @param {any} errors Fouten per veldnaam; deze functie vult ze aan.
+ * @returns {any[]} De ingevulde regels.
  */
 function repeatRowsFromForm(field, body, errors) {
   const rows = [];
@@ -477,9 +478,9 @@ function repeatRowsFromForm(field, body, errors) {
 /**
  * Controleert de ingezonden velden van een blok. Velden heten `f_<naam>` (bij `repeat`: `f_<naam>_<regel>_<subveld>`),
  * stijlopties `s_<naam>`. Een foto (`image`) wijzigt hier niet: die komt van het fotoscherm en blijft zoals hij was.
- * @param {object} block Het huidige blok.
- * @param {object} body Ingezonden velden.
- * @returns {{block: object, errors: object}} Het nieuwe blok en fouten per veldnaam.
+ * @param {any} block Het huidige blok.
+ * @param {any} body Ingezonden velden.
+ * @returns {{block: any, errors: any}} Het nieuwe blok en fouten per veldnaam.
  */
 function validateBlockForm(block, body) {
   const definition = BLOCK_TYPES[block.type];
@@ -531,7 +532,7 @@ function validateBlockForm(block, body) {
 
 /**
  * Hoe een opgeslagen veld per soort wordt teruggelezen; een soort zonder regel is gewone tekst.
- * @type {Object<string, (field: any, value: *) => *>}
+ * @type {Record<string, (field: any, value: *) => *>}
  */
 const STORED_FIELD_READERS = {
   image: (_field, value) => normalizeImage(value),
@@ -546,7 +547,7 @@ const STORED_FIELD_READERS = {
  * Leest een opgeslagen blok terug (uit de database of een versie): onbekende types vallen weg, velden krijgen hun
  * standaard als ze ontbreken. De inhoud is bij het opslaan al gecontroleerd; dit beschermt tegen oude of kapotte JSON.
  * @param {*} stored Opgeslagen blok.
- * @returns {(object|null)} Blok, of null als het niet te gebruiken is.
+ * @returns {(any|null)} Blok, of null als het niet te gebruiken is.
  */
 function normalizeBlock(stored) {
   if (!stored || typeof stored !== 'object' || !Object.hasOwn(BLOCK_TYPES, stored.type)) return null;
@@ -564,7 +565,7 @@ function normalizeBlock(stored) {
 /**
  * Leest een opgeslagen foto van een blok: `{mediaId, url, alt, width, height}` met een adres onder `/media/`.
  * @param {*} value Opgeslagen waarde.
- * @returns {(object|null)} Foto of null.
+ * @returns {(any|null)} Foto of null.
  */
 function normalizeImage(value) {
   if (!value || typeof value !== 'object') return null;
@@ -583,7 +584,7 @@ function normalizeImage(value) {
 /**
  * Leest een lijst opgeslagen blokken.
  * @param {*} stored JSON uit de database.
- * @returns {object[]} Bruikbare blokken (hoogstens `MAX_BLOCKS`).
+ * @returns {any[]} Bruikbare blokken (hoogstens `MAX_BLOCKS`).
  */
 function normalizeBlocks(stored) {
   return (Array.isArray(stored) ? stored : []).map(normalizeBlock).filter(Boolean).slice(0, MAX_BLOCKS);
@@ -593,7 +594,7 @@ function normalizeBlocks(stored) {
  * De gepubliceerde blokken van een pagina. Een pagina die nog nooit in het CRM is gepubliceerd en (nog) geen blokken
  * heeft, maar wel tekst uit de import (bijv. ingevoegd buiten de import om), toont die tekst als één tekstblok.
  * @param {{blocks?: *, body_html?: string, managed_in_crm?: boolean}} page Rij uit de tabel `pages`.
- * @returns {object[]} Blokken.
+ * @returns {any[]} Blokken.
  */
 function publishedBlocks(page) {
   const blocks = normalizeBlocks(page.blocks);
@@ -603,7 +604,7 @@ function publishedBlocks(page) {
 
 /**
  * De id's van de foto's uit de bibliotheek die in blokken staan (om bij publiceren te vergrendelen).
- * @param {object[]} blocks Blokken.
+ * @param {any[]} blocks Blokken.
  * @returns {number[]} Unieke id's.
  */
 function mediaIdsOf(blocks) {
@@ -621,7 +622,7 @@ function mediaIdsOf(blocks) {
 /**
  * De omschrijving per bloktype in de lijst van het CRM, uit de gegevens van het blok. Een homepage-sectie zonder eigen
  * regel toont haar titel.
- * @type {Object<string, (data: any) => string>}
+ * @type {Record<string, (data: any) => string>}
  */
 const BLOCK_SUMMARIES = {
   tekst: (data) => String(data.html).replace(/<[^>]*>/g, ' '),
@@ -645,7 +646,7 @@ const BLOCK_SUMMARIES = {
 
 /**
  * Een korte omschrijving van een blok voor de lijst in het CRM.
- * @param {object} block Blok.
+ * @param {any} block Blok.
  * @returns {string} Tekst (hoogstens 80 tekens).
  */
 function blockSummary(block) {

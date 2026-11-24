@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * HTML van het reizigersaccount (CMS-pakket J2): inloggen, registreren, bevestigen, wachtwoord vergeten en herstellen,
  * en het overzicht. In de huisstijl van de site (`form--theme`, `page-content__form`); alles via `html\`…\`` (escaping).
@@ -9,7 +10,7 @@ const { MAX_LENGTH, MIN_LENGTH } = require('../crm/passwords');
  * Eén invoerveld met label en foutmelding.
  * @param {{name: string, label: string, type?: string, value?: string, error?: string, autocomplete?: string, max?: number, help?: string}} field
  *   Naam, label, type, waarde, foutmelding, autocomplete, maximale lengte en hulptekst.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderField(field) {
   const id = `veld-${field.name}`;
@@ -24,8 +25,8 @@ function renderField(field) {
 
 /**
  * Het kader om een accountscherm: inleiding, melding en inhoud.
- * @param {{intro?: object, alert?: string, notice?: string, content: object}} parts Onderdelen.
- * @returns {object} HTML.
+ * @param {{intro?: any, alert?: string, notice?: string, content: any}} parts Onderdelen.
+ * @returns {any} HTML.
  */
 function frame(parts) {
   return html`<div class="content-main">
@@ -41,7 +42,7 @@ function frame(parts) {
 /**
  * Het inlogscherm.
  * @param {{email?: string, error?: string, notice?: string}} state Ingevuld adres, foutmelding en melding.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function loginView(state = {}) {
   return frame({
@@ -59,9 +60,9 @@ function loginView(state = {}) {
 
 /**
  * Het registratiescherm.
- * @param {{values?: object, errors?: object, hiddenFields: object, captchaField: (object|string)}} state Waarden,
+ * @param {{values?: any, errors?: any, hiddenFields: any, captchaField: (any|string)}} state Waarden,
  *   fouten, de verborgen velden van de formulierbeveiliging en het captchaveld.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function registerView(state) {
   const values = state.values || {};
@@ -83,7 +84,7 @@ function registerView(state) {
 /**
  * Melding na registreren of wachtwoord vergeten: altijd dezelfde tekst, of het adres nu een account heeft of niet.
  * @param {string} message De melding.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function mailSentView(message) {
   return frame({
@@ -95,7 +96,7 @@ function mailSentView(message) {
 /**
  * Bevestigen: inloggen met het wachtwoord van de registratie (de link alleen is niet genoeg).
  * @param {{token: string, error?: string}} state Token uit de link en foutmelding.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function verifyView(state) {
   return frame({
@@ -112,7 +113,7 @@ function verifyView(state) {
 /**
  * Melding bij een verlopen, gebruikte of onbekende link.
  * @param {string} again Pad om een nieuwe link aan te vragen.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function invalidLinkView(again) {
   return frame({
@@ -123,9 +124,9 @@ function invalidLinkView(again) {
 
 /**
  * Wachtwoord vergeten: e-mailadres invullen.
- * @param {{values?: object, errors?: object, hiddenFields: object, captchaField: (object|string)}} state Waarden,
+ * @param {{values?: any, errors?: any, hiddenFields: any, captchaField: (any|string)}} state Waarden,
  *   fouten, de verborgen velden van de formulierbeveiliging en het captchaveld.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function forgotView(state) {
   const values = state.values || {};
@@ -143,8 +144,8 @@ function forgotView(state) {
 
 /**
  * Nieuw wachtwoord instellen via de link.
- * @param {{token: string, errors?: object}} state Token en fouten.
- * @returns {object} HTML.
+ * @param {{token: string, errors?: any}} state Token en fouten.
+ * @returns {any} HTML.
  */
 function resetView(state) {
   const errors = state.errors || {};
@@ -162,9 +163,9 @@ function resetView(state) {
 
 /**
  * Het overzicht van een ingelogde reiziger.
- * @param {{email: string, csrf: string, notice?: string, content?: object}} state Adres, CSRF-token, melding en de
+ * @param {{email: string, csrf: string, notice?: string, content?: any}} state Adres, CSRF-token, melding en de
  *   inhoud van het overzicht (Mijn reizen, J3).
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function overviewView(state) {
   return frame({
@@ -182,7 +183,7 @@ function overviewView(state) {
  * Code per e-mail aanvragen of invullen, vóór een gevoelige actie.
  * @param {{csrf: string, next: string, sent: boolean, error?: string, notice?: string}} state CSRF-token, waar het daarna
  *   heen gaat, of er al een code is verstuurd, foutmelding en melding.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function codeView(state) {
   return frame({
@@ -205,8 +206,8 @@ function codeView(state) {
 
 /**
  * Mijn gegevens met de knop om alles als Excel te downloaden.
- * @param {{content: object, stepUp: boolean}} state De gegevens en of de code al gegeven is.
- * @returns {object} HTML.
+ * @param {{content: any, stepUp: boolean}} state De gegevens en of de code al gegeven is.
+ * @returns {any} HTML.
  */
 function detailsView(state) {
   return frame({
@@ -220,8 +221,8 @@ function detailsView(state) {
 
 /**
  * Wachtwoord wijzigen (na de code per e-mail).
- * @param {{csrf: string, errors?: object}} state CSRF-token en fouten.
- * @returns {object} HTML.
+ * @param {{csrf: string, errors?: any}} state CSRF-token en fouten.
+ * @returns {any} HTML.
  */
 function passwordView(state) {
   const errors = state.errors || {};

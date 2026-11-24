@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 29: CRM: toestemming van ouder of voogd.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

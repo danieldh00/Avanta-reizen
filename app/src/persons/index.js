@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Ingang van de module Personen voor het CRM: koppelt de routes van deelnemers (met inzage en wissen), het
  * samenvoegen van dubbelen en de deelnemerslijsten. Een nieuw scherm in deze module krijgt hier een regel;
@@ -10,7 +11,7 @@ const { createParticipantListRoutes } = require('./participant-list-routes');
 
 /**
  * Bouwt de routes van de module Personen.
- * @param {object} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` (sessies en rechten),
+ * @param {any} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` (sessies en rechten),
  *   `persons` (versleutelde persoonsblokken) en de gedeelde diensten uit `server.js`.
  * @returns {express.Router} Router, te koppelen binnen `/app`.
  */

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Extra's van Beheer > Systeem > Bewaking en meldingen (recht `systeem`): de stand van elke controle, open en gesloten
  * incidenten, de laatste meldingen en heartbeat, *Nu controleren* en een testmelding. De instellingen (meldadres,
@@ -30,7 +31,7 @@ function channelResult(value) {
 
 /**
  * Maakt de routes en het paneel van de bewaking.
- * @param {{auth: object, guard: Function, monitor: object, renderSettingsSection: Function, now?: () => number}} options
+ * @param {{auth: any, guard: Function, monitor: any, renderSettingsSection: Function, now?: () => number}} options
  *   Sessielaag, rechtencontrole, de bewaking (`system/monitor.js`), de weergave van een instellingensectie en (voor
  *   tests) de klok van de limieten.
  * @returns {{router: express.Router, renderPanel: Function}} Router en paneel (voor onder het formulier).
@@ -46,9 +47,9 @@ function createMonitorRoutes(options) {
 
   /**
    * Het paneel onder het formulier.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{result?: {ok: boolean, message: string}}} [state] Uitkomst van een actie.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderPanel = (req, state = {}) => {
     const view = monitor.view();

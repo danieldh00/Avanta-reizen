@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Zoeken over het hele CRM (`/app/zoeken/`, het zoekveld in de kopbalk): één zoekterm in aanmeldingen, deelnemers,
  * berichten, reizen, reisleiders, pagina's, blog, veelgestelde vragen en gebruikers. Elke bron telt alleen mee als de
@@ -146,7 +147,7 @@ const SEARCH_SOURCES = [
 /**
  * De bronnen waarin een rol mag zoeken.
  * @param {string} role Rol.
- * @returns {object[]} Bronnen uit `SEARCH_SOURCES`.
+ * @returns {any[]} Bronnen uit `SEARCH_SOURCES`.
  */
 function sourcesFor(role) {
   return SEARCH_SOURCES.filter((source) => (source.global ? roleHasGlobalRight : roleHasRight)(role, source.right));
@@ -166,7 +167,7 @@ function canSearch(role) {
  * @param {{query: Function}} db Database.
  * @param {string} role Rol van de gebruiker.
  * @param {*} value Zoekterm uit de querystring.
- * @returns {Promise<{text: string, tooShort: boolean, groups: {source: object, rows: object[], more: boolean}[]}>}
+ * @returns {Promise<{text: string, tooShort: boolean, groups: {source: any, rows: any[], more: boolean}[]}>}
  *   De gebruikte zoekterm, of die te kort is, en per bron met treffers de rijen (hoogstens `SEARCH_LIMIT`) en of er meer
  *   zijn.
  */

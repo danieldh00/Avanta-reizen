@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Extra's van Beheer > E-mail > Mailserver (recht `systeem`): de status van de mailserver, een testmail, het WAN-IP
  * van de server (voor een Exchange Online-connector) en de laatste verzendingen. De instellingen zelf staan in het
@@ -17,7 +18,7 @@ const KIND_LABELS = { testmail: 'Testmail', 'melding-contact': 'Melding contactb
 
 /**
  * Maakt de routes en het paneel van de mailserver.
- * @param {{auth: object, guard: Function, settings: object, mailer: object, wanIp: object, renderSettingsSection: Function, now?: () => number}} options
+ * @param {{auth: any, guard: Function, settings: any, mailer: any, wanIp: any, renderSettingsSection: Function, now?: () => number}} options
  *   Sessielaag, rechtencontrole, instellingen, mailer (`mail/mailer.js`), WAN-IP-opzoeker (`mail/wan-ip.js`), de
  *   weergave van een instellingensectie en (voor tests) de klok van de limiet.
  * @returns {{router: express.Router, renderPanel: Function, renderLayoutPanel: Function}} Router en panelen (voor onder
@@ -33,24 +34,24 @@ function createMailRoutes(options) {
 
   /**
    * Een mail in de huidige opmaak.
-   * @param {object} content Titel, inleiding, rijen en tekst (zie `renderMail`).
-   * @returns {{html: string, text: string, attachments: object[]}} De mail.
+   * @param {any} content Titel, inleiding, rijen en tekst (zie `renderMail`).
+   * @returns {{html: string, text: string, attachments: any[]}} De mail.
    */
   const layout = (content) => renderMail({ headerColor: settings.get('mailHeaderColor'), footerText: settings.get('mailFooterText'), siteName: settings.get('siteName'), ...content });
 
   /**
    * Het paneel onder de mail-opmaak: een link naar het voorbeeld.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderLayoutPanel = () => html`<h2>Voorbeeld</h2>
       <p>Sla eerst op en bekijk dan het <a href="/app/beheer/mail-opmaak/voorbeeld/" target="_blank" rel="noopener">voorbeeld van een melding</a> (opent in een nieuw tabblad), of verstuur een testmail onder <a href="/app/beheer/mailserver/#testmail">Mailserver</a>.</p>`;
 
   /**
    * Het paneel onder het formulier: status, testmail, WAN-IP en de laatste verzendingen.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{testTo?: string, testResult?: {ok: boolean, message: string}, wan?: {ip?: string, checkedAt?: Date, error?: string}}} [state]
    *   Ingevuld adres en uitkomst van een testmail, en de uitkomst van het opzoeken van het WAN-IP.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderPanel = (req, state = {}) => {
     const configured = mailer.configured();

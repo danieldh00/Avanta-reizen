@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * HTML van de reispagina's in de opmaak van de huidige site (CMS-pakket E3): de reisbox in een lijst (liggend, met
  * prijsvak), het reisdetail (reisleider, kenmerken met iconen, inleiding, tekst, zijvak met prijs, gegevens,
@@ -33,8 +34,8 @@ const IMAGE_SIZES = {
 
 /**
  * Het prijsvak: prijs (met oude prijs en sterretje bij een aanbieding), bijkomende kosten en aanbiedingsdatum.
- * @param {object} trip Reis.
- * @returns {object|string} HTML, of leeg zonder prijs.
+ * @param {any} trip Reis.
+ * @returns {any|string} HTML, of leeg zonder prijs.
  */
 function priceBox(trip) {
   if (trip.price_cents === null || trip.price_cents === undefined) return '';
@@ -47,8 +48,8 @@ function priceBox(trip) {
 
 /**
  * Label op een reisbox: "Volgeboekt" gaat voor "Nieuw".
- * @param {object} trip Reis.
- * @returns {object|string} HTML of leeg.
+ * @param {any} trip Reis.
+ * @returns {any|string} HTML of leeg.
  */
 function tripLabel(trip) {
   if (trip.fully_booked) return html`<span class="box__label box__label--full">Volgeboekt</span>`;
@@ -58,8 +59,8 @@ function tripLabel(trip) {
 
 /**
  * Eén reis in een lijst: liggende box met foto, datum en reiscode, titel, samenvatting en het donkere prijsvak.
- * @param {object} trip Reis (kaartkolommen).
- * @returns {object} HTML.
+ * @param {any} trip Reis (kaartkolommen).
+ * @returns {any} HTML.
  */
 function tripListItem(trip) {
   return html`<div class="list__item">
@@ -81,9 +82,9 @@ function tripListItem(trip) {
 
 /**
  * Lijst met reizen (reisoverzicht, categorie), met een melding als hij leeg is.
- * @param {object[]} trips Reizen.
+ * @param {any[]} trips Reizen.
  * @param {string} empty Melding bij een lege lijst.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function tripList(trips, empty) {
   if (!trips.length) return html`<div class="alert">${empty}</div>`;
@@ -108,8 +109,8 @@ function quoteText(quote) {
 
 /**
  * Reistypes als kleine tegels met icoon (de kenmerken bij een reis).
- * @param {object[]} types Reistypes (slug, naam).
- * @returns {object} HTML.
+ * @param {any[]} types Reistypes (slug, naam).
+ * @returns {any} HTML.
  */
 function compactTripTypes(types) {
   return html`<div class="trip-types trip-types--compact">${types.map((type) => html`<a class="trip-type" href="${categoryPath(type.slug)}" title="${type.name}">
@@ -120,7 +121,7 @@ function compactTripTypes(types) {
 /**
  * Fotogalerij met titel en subtitel: een strook die je opzij kunt schuiven (ook met de knoppen).
  * @param {{title?: string, subtitle?: string, images: Array<string|{url: string, alt?: string}>}} gallery Galerij.
- * @returns {object|string} HTML, of leeg zonder foto's.
+ * @returns {any|string} HTML, of leeg zonder foto's.
  */
 function renderGallery(gallery) {
   const images = (gallery.images || []).map((image) => (typeof image === 'string' ? { url: image, alt: '' } : image)).filter((image) => image && image.url);
@@ -141,9 +142,9 @@ function renderGallery(gallery) {
 /**
  * Detailpagina van een reis: links reisleider, kenmerken, inleiding en tekst; rechts het vak met prijs, gegevens,
  * gegarandeerd vertrek en de aanmeldknop; daaronder de galerij.
- * @param {object} trip Reis met categorieën en reisleider.
+ * @param {any} trip Reis met categorieën en reisleider.
  * @param {{isPast: boolean}} state Of de reis al vertrokken is.
- * @returns {object} HTML van de inhoud.
+ * @returns {any} HTML van de inhoud.
  */
 function tripDetail(trip, state) {
   const types = trip.categories.filter((category) => category.kind === 'type');
@@ -199,7 +200,7 @@ function tripDetail(trip, state) {
 /**
  * Inleiding boven een lijst (bijvoorbeeld "Ontmoet alvast onze reisleiders!").
  * @param {string} text Tekst.
- * @returns {object|string} HTML of leeg.
+ * @returns {any|string} HTML of leeg.
  */
 function pageIntroduction(text) {
   return text ? html`<div class="page-introduction">${text}</div>` : '';
@@ -207,8 +208,8 @@ function pageIntroduction(text) {
 
 /**
  * Eén reisleider in de lijst: staande foto en voornaam.
- * @param {object} guide Reisleider met `extra` (gegevens uit `site-content.json`).
- * @returns {object} HTML.
+ * @param {any} guide Reisleider met `extra` (gegevens uit `site-content.json`).
+ * @returns {any} HTML.
  */
 function guideTeaser(guide) {
   const portrait = guide.extra.portrait || guide.photo_url;
@@ -225,9 +226,9 @@ function guideTeaser(guide) {
 
 /**
  * Lijst van reisleiders.
- * @param {object[]} guides Reisleiders (met `extra`).
+ * @param {any[]} guides Reisleiders (met `extra`).
  * @param {string} introduction Inleiding.
- * @returns {object} HTML van de inhoud.
+ * @returns {any} HTML van de inhoud.
  */
 function guideList(guides, introduction) {
   return html`<div class="content-main">
@@ -241,8 +242,8 @@ function guideList(guides, introduction) {
 /**
  * Detailpagina van een reisleider: links stempel, portret, tweede foto en citaat; rechts naam, achternaam,
  * woonplaats en "bij Avanta sinds", daaronder de tekst; onderaan de galerij.
- * @param {object} guide Reisleider met `extra`.
- * @returns {object} HTML van de inhoud.
+ * @param {any} guide Reisleider met `extra`.
+ * @returns {any} HTML van de inhoud.
  */
 function guideDetail(guide) {
   const { extra } = guide;

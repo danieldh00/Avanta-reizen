@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Blogberichten in het CMS (pakket I1, migratie 19): lijst, één bericht met concept, het concept wijzigen (gegevens,
  * uitgelichte afbeelding, blokken uit `cms/blocks.js`), publiceren of inplannen (met versie), concept weggooien, een
@@ -74,8 +75,8 @@ function fromLocalDateTime(value) {
 
 /**
  * Leest en controleert de gegevens van een bericht uit een formulier.
- * @param {object} body Ingezonden velden.
- * @returns {{values: {title: string, intro: string, excerpt: string, seoTitle: string, seoDescription: string, postDate: string}, errors: object}}
+ * @param {any} body Ingezonden velden.
+ * @returns {{values: {title: string, intro: string, excerpt: string, seoTitle: string, seoDescription: string, postDate: string}, errors: any}}
  *   Waarden en fouten.
  */
 function validatePostFields(body) {
@@ -106,7 +107,7 @@ function validatePostFields(body) {
 
 /**
  * De platte tekst van blokken (opgemaakte tekst en tekstvakken), voor de automatische samenvatting.
- * @param {object[]} blocks Blokken.
+ * @param {any[]} blocks Blokken.
  * @returns {string} Tekst.
  */
 function blocksText(blocks) {
@@ -125,8 +126,8 @@ function blocksText(blocks) {
 
 /**
  * De stand die je bewerkt: het concept als dat er is, anders het gepubliceerde bericht.
- * @param {object} post Rij uit de database.
- * @returns {{title: string, intro: string, excerpt: string, imageUrl: (string|null), imageMediaId: (number|null), blocks: object[], seoTitle: string, seoDescription: string, postDate: string}} Stand.
+ * @param {any} post Rij uit de database.
+ * @returns {{title: string, intro: string, excerpt: string, imageUrl: (string|null), imageMediaId: (number|null), blocks: any[], seoTitle: string, seoDescription: string, postDate: string}} Stand.
  */
 function editablePostState(post) {
   const draft = post.draft && typeof post.draft === 'object' ? post.draft : null;
@@ -160,8 +161,8 @@ function postStatus(post) {
 
 /**
  * Maakt de functies voor blogberichten.
- * @param {{db: object}} options Database.
- * @returns {object} Functies.
+ * @param {{db: any}} options Database.
+ * @returns {any} Functies.
  */
 function createPosts(options) {
   const { db } = options;
@@ -170,7 +171,7 @@ function createPosts(options) {
    * Alle berichten (nieuwste eerst), met of er een concept openstaat en het aantal versies; optioneel gefilterd op
    * titel of slug en op status.
    * @param {{patterns?: string[], status?: string}} [filter] Zoekpatronen (ILIKE, ge-escaped) en status.
-   * @returns {Promise<object[]>} Berichten (hoogstens 500).
+   * @returns {Promise<any[]>} Berichten (hoogstens 500).
    */
   const list = (filter = {}) => db.query(
     `SELECT p.id, p.slug, p.title, p.published, p.published_at, (p.published AND p.published_at > now()) AS scheduled,
@@ -192,7 +193,7 @@ function createPosts(options) {
   /**
    * Eén bericht met de naam van wie het het laatst wijzigde.
    * @param {(number|string)} id Id.
-   * @returns {Promise<(object|null)>} Bericht of null.
+   * @returns {Promise<(any|null)>} Bericht of null.
    */
   const get = async (id) => {
     if (!/^\d{1,9}$/.test(String(id))) return null;
@@ -206,7 +207,7 @@ function createPosts(options) {
   /**
    * De versies van een bericht, nieuwste eerst.
    * @param {number} id Id van het bericht.
-   * @returns {Promise<object[]>} Versies (versie, notitie, moment, door wie).
+   * @returns {Promise<any[]>} Versies (versie, notitie, moment, door wie).
    */
   const revisions = (id) => db.query(
     `SELECT r.version, r.note, r.published_at, u.name AS published_by_name
@@ -220,10 +221,10 @@ function createPosts(options) {
    * `change` de stand aanpassen en slaat die op (met audit).
    * @param {(number|string)} id Id van het bericht.
    * @param {(number|string)} version De versie van het concept waar het formulier van uitging.
-   * @param {(state: object, client: object) => Promise<(object|undefined)>} change Past de stand aan; geeft eventueel
+   * @param {(state: any, client: any) => Promise<(any|undefined)>} change Past de stand aan; geeft eventueel
    *   `{errors}` of `{status}` terug om niet op te slaan.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client) => Promise`).
-   * @returns {Promise<{status: string, version?: number, errors?: object}>} `ok`, `weg`, `verouderd` of wat `change` teruggaf.
+   * @returns {Promise<{status: string, version?: number, errors?: any}>} `ok`, `weg`, `verouderd` of wat `change` teruggaf.
    */
   const changeDraft = (id, version, change, context) => db.transaction(async (client) => {
     if (!/^\d{1,9}$/.test(String(id))) return { status: 'weg' };
@@ -362,7 +363,7 @@ function createPosts(options) {
   /**
    * Of een slug vrij is voor een bericht: geen gereserveerd adres, geen pagina op `/<slug>/` (een pagina gaat op de
    * site voor), geen ander bericht en (bij een nieuw bericht) geen doorverwijzing vanaf dat adres.
-   * @param {object} client Transactie-client.
+   * @param {any} client Transactie-client.
    * @param {string} slug Slug.
    * @param {(number|null)} selfId Id van het bericht zelf (bij wijzigen).
    * @param {boolean} checkRedirect Ook een doorverwijzing weigeren.
@@ -388,7 +389,7 @@ function createPosts(options) {
    * Maakt een nieuw bericht: offline met een concept met alleen de titel, tot de eerste publicatie.
    * @param {{title: string, slug: string}} values Titel en slug.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, id) => Promise`).
-   * @returns {Promise<{id?: number, errors?: object}>} Nieuw id of fouten.
+   * @returns {Promise<{id?: number, errors?: any}>} Nieuw id of fouten.
    */
   const create = (values, context) => db.transaction(async (client) => {
     const title = cleanText(values.title || '', POST_LIMITS.title + 1);
@@ -414,7 +415,7 @@ function createPosts(options) {
    * @param {(number|string)} id Id.
    * @param {string} slug Nieuwe slug.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit.
-   * @returns {Promise<{status: ('ok'|'weg'|'fout'|'gelijk'), errors?: object}>} Uitkomst.
+   * @returns {Promise<{status: ('ok'|'weg'|'fout'|'gelijk'), errors?: any}>} Uitkomst.
    */
   const changeSlug = (id, slug, context) => db.transaction(async (client) => {
     if (!/^\d{1,9}$/.test(String(id))) return { status: 'weg' };

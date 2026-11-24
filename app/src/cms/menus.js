@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Menu's van de website (CMS-pakket H3, migratie 18): het hoofdmenu (met één niveau submenu) en het menu in de
  * voettekst, in de tabel `menu_items`. De site leest ze uit het geheugen (`current()`); na elke wijziging in het CRM
@@ -26,8 +27,8 @@ function isMenuHref(href) {
 
 /**
  * Leest en controleert de velden van een menu-item.
- * @param {object} body Ingezonden velden.
- * @returns {{values: {menu: string, parentId: (number|null), label: string, href: string, sortOrder: number}, errors: object}} Waarden en fouten.
+ * @param {any} body Ingezonden velden.
+ * @returns {{values: {menu: string, parentId: (number|null), label: string, href: string, sortOrder: number}, errors: any}} Waarden en fouten.
  */
 function validateMenuItem(body) {
   const text = (name) => (typeof body[name] === 'string' ? body[name] : '');
@@ -50,8 +51,8 @@ function validateMenuItem(body) {
 
 /**
  * Bouwt de menu's uit de rijen: per menu de items op volgorde, met `children` voor het hoofdmenu.
- * @param {object[]} rows Rijen uit `menu_items`.
- * @returns {{hoofd: object[], voet: object[]}} Menu's in de vorm die `site/layout.js` verwacht.
+ * @param {any[]} rows Rijen uit `menu_items`.
+ * @returns {{hoofd: any[], voet: any[]}} Menu's in de vorm die `site/layout.js` verwacht.
  */
 function buildMenus(rows) {
   const result = { hoofd: [], voet: [] };
@@ -69,8 +70,8 @@ function buildMenus(rows) {
 
 /**
  * Maakt de functies voor menu's.
- * @param {{db: object}} options Database.
- * @returns {object} Functies: `ready`, `reload`, `current`, `list`, `create`, `update`, `remove`.
+ * @param {{db: any}} options Database.
+ * @returns {any} Functies: `ready`, `reload`, `current`, `list`, `create`, `update`, `remove`.
  */
 function createMenus(options) {
   const { db } = options;
@@ -80,7 +81,7 @@ function createMenus(options) {
 
   /**
    * Alle items op menu, ouder en volgorde.
-   * @returns {Promise<object[]>} Rijen.
+   * @returns {Promise<any[]>} Rijen.
    */
   const list = () => db.query(
     `SELECT m.id, m.menu, m.parent_id, m.label, m.href, m.sort_order
@@ -111,17 +112,17 @@ function createMenus(options) {
 
   /**
    * De menu's uit het geheugen (null als ze nog niet geladen zijn: dan toont de site de vaste standaard).
-   * @returns {({hoofd: object[], voet: object[]}|null)} Menu's.
+   * @returns {({hoofd: any[], voet: any[]}|null)} Menu's.
    */
   const current = () => menus;
 
   /**
    * Controleert het bovenliggende item (bestaat, zelf geen submenu-item, in het hoofdmenu, niet het item zelf) en het
    * maximum aantal items. Binnen de transactie, met een slot op de items van het menu.
-   * @param {object} client Transactie-client.
-   * @param {object} values Waarden uit `validateMenuItem`.
+   * @param {any} client Transactie-client.
+   * @param {any} values Waarden uit `validateMenuItem`.
    * @param {(number|null)} selfId Id van het item dat je wijzigt (of null bij een nieuw item).
-   * @returns {Promise<(object|null)>} Fouten, of null als het klopt.
+   * @returns {Promise<(any|null)>} Fouten, of null als het klopt.
    */
   const checkPlacement = async (client, values, selfId) => {
     // Slot per menu: FOR UPDATE vergrendelt alleen bestaande rijen, dus zonder dit slot zien twee gelijktijdige
@@ -139,9 +140,9 @@ function createMenus(options) {
 
   /**
    * Maakt een menu-item.
-   * @param {object} values Waarden uit `validateMenuItem`.
+   * @param {any} values Waarden uit `validateMenuItem`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, id) => Promise`).
-   * @returns {Promise<{id?: number, errors?: object}>} Nieuw id of fouten.
+   * @returns {Promise<{id?: number, errors?: any}>} Nieuw id of fouten.
    */
   const create = async (values, context) => {
     const outcome = await db.transaction(async (client) => {
@@ -161,9 +162,9 @@ function createMenus(options) {
   /**
    * Wijzigt een menu-item (een item met een submenu blijft in zijn menu).
    * @param {(number|string)} id Id.
-   * @param {object} values Waarden uit `validateMenuItem`.
+   * @param {any} values Waarden uit `validateMenuItem`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client) => Promise`).
-   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: object}>} Uitkomst.
+   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: any}>} Uitkomst.
    */
   const update = async (id, values, context) => {
     if (!/^\d{1,9}$/.test(String(id))) return { status: 'weg' };

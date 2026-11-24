@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Personen van het CRM (tabel `persons`): één persoon, meerdere aanmeldingen. Bijzondere en identiteitsgegevens staan
  * per categorie versleuteld in een eigen blok (zie `docs/OPZET-CRM.md` §3), met AAD `persons:<blok>:<id>` zodat een
@@ -69,8 +70,8 @@ function comparable(value) {
 
 /**
  * Maakt het hulpmiddel voor personen.
- * @param {{vault: {seal: Function, open: Function, deriveKey: Function}}} options De kluis (`security/vault.js`).
- * @returns {object} Functies voor de opslag van personen.
+ * @param {{vault: {seal: Function, open: Function, deriveKey: Function, previousKeys?: Buffer[]}}} options De kluis (`security/vault.js`).
+ * @returns {any} Functies voor de opslag van personen.
  */
 function createPersons(options) {
   const { vault } = options;
@@ -152,9 +153,9 @@ function createPersons(options) {
 
   /**
    * Voegt nieuwe gegevens samen met een bestaande persoon, maar alleen als niets wat al is ingevuld wordt overschreven.
-   * @param {object} existing Bestaande persoon (met versleutelde blokken).
-   * @param {{plain: object, blocks: object}} incoming Nieuwe gegevens.
-   * @returns {({plain: object, blocks: object}|null)} De aangevulde gegevens, of null als er een ingevuld veld afwijkt of
+   * @param {any} existing Bestaande persoon (met versleutelde blokken).
+   * @param {{plain: any, blocks: any}} incoming Nieuwe gegevens.
+   * @returns {({plain: any, blocks: any}|null)} De aangevulde gegevens, of null als er een ingevuld veld afwijkt of
    *   een blok van de bestaande persoon niet te openen is.
    */
   const mergeInto = (existing, incoming) => {
@@ -191,7 +192,7 @@ function createPersons(options) {
   /**
    * Slaat een nieuwe persoon op.
    * @param {{query: Function}} client Transactie-client.
-   * @param {{plain: object, blocks: object}} data Gegevens.
+   * @param {{plain: any, blocks: any}} data Gegevens.
    * @param {string} key De match_key.
    * @param {(number|null)} duplicateOf Mogelijk dezelfde persoon als deze id.
    * @returns {Promise<number>} Id van de nieuwe persoon.
@@ -217,7 +218,7 @@ function createPersons(options) {
    * Werkt een bestaande persoon bij met aangevulde gegevens.
    * @param {{query: Function}} client Transactie-client.
    * @param {number} id Id van de persoon.
-   * @param {{plain: object, blocks: object}} data Aangevulde gegevens.
+   * @param {{plain: any, blocks: any}} data Aangevulde gegevens.
    * @returns {Promise<void>}
    */
   const updatePerson = async (client, id, data) => {
@@ -454,7 +455,7 @@ function createPersons(options) {
    * @param {{query: Function}} client Database of transactie-client.
    * @param {(number|string)} id Id (alleen cijfers, zie de routes).
    * @param {{lock?: boolean}} [mode] Met `lock` de rij vergrendelen (in een transactie).
-   * @returns {Promise<(object|null)>} Persoon, of null.
+   * @returns {Promise<(any|null)>} Persoon, of null.
    */
   const findPerson = async (client, id, mode = {}) => {
     const [person] = await client.query(
@@ -469,8 +470,8 @@ function createPersons(options) {
    * en toestemmingen gaan mee, verwijzingen van andere dubbels wijzen daarna naar de blijvende persoon en het dubbel
    * wordt verwijderd. Draait in de transactie van de route, met beide rijen vergrendeld.
    * @param {{query: Function}} client Transactie-client.
-   * @param {object} keep Persoon die blijft (met blokken).
-   * @param {object} remove Persoon die verdwijnt (met blokken).
+   * @param {any} keep Persoon die blijft (met blokken).
+   * @param {any} remove Persoon die verdwijnt (met blokken).
    * @param {{plain: Record<string, ('keep'|'remove')>, blocks: Record<string, ('fill'|'keep'|'remove')>}} choices Keuze
    *   per NAW-veld (standaard: de ingevulde waarde van wie blijft) en per blok (standaard `fill`: lege velden aanvullen).
    * @returns {Promise<void>}

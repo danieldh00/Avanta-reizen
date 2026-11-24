@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Mogelijke dubbelen afhandelen (`/app/deelnemers/:id/samenvoegen/` en `…/niet-dubbel/`, recht
  * `deelnemers.wijzigen`): een persoon met `duplicate_of` samenvoegen met die oorspronkelijke persoon, of de markering
@@ -49,7 +50,7 @@ function differs(first, second) {
 
 /**
  * Leest de keuzes uit het formulier; alleen bekende waarden, blokken zonder recht altijd `fill`.
- * @param {object} body Ingezonden velden.
+ * @param {any} body Ingezonden velden.
  * @param {string} role Rol van de gebruiker.
  * @returns {{plain: Record<string, string>, blocks: Record<string, string>}} Keuzes.
  */
@@ -64,7 +65,7 @@ function readChoices(body, role) {
 
 /**
  * Maakt de routes voor samenvoegen en "geen dubbel".
- * @param {{db: object, auth: object, persons: object}} options Database, sessie- en rechtenlaag en de personen.
+ * @param {{db: any, auth: any, persons: any}} options Database, sessie- en rechtenlaag en de personen.
  * @returns {express.Router} Router.
  */
 function createPersonMergeRoutes(options) {
@@ -74,8 +75,8 @@ function createPersonMergeRoutes(options) {
 
   /**
    * 404-pagina binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => res.status(404).send(renderCrmPage({
@@ -88,7 +89,7 @@ function createPersonMergeRoutes(options) {
    * @param {{query: Function}} client Database of transactie-client.
    * @param {string} id Id uit de URL.
    * @param {{lock?: boolean}} [mode] Rijen vergrendelen.
-   * @returns {Promise<({duplicate: object, original: object}|null)>} Beide personen, of null.
+   * @returns {Promise<({duplicate: any, original: any}|null)>} Beide personen, of null.
    */
   const findPair = async (client, id, mode = {}) => {
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -113,8 +114,8 @@ function createPersonMergeRoutes(options) {
 
   /**
    * De vergelijkingspagina.
-   * @param {object} req Express-verzoek.
-   * @param {{duplicate: object, original: object}} pair Beide personen.
+   * @param {any} req Express-verzoek.
+   * @param {{duplicate: any, original: any}} pair Beide personen.
    * @param {string} [error] Foutmelding.
    * @returns {Promise<string>} HTML-pagina.
    */

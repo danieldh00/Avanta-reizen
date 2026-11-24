@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Schoont geïmporteerde WordPress-HTML op met een allowlist: alleen opmaak-tags en veilige attributen blijven over,
  * scripts/iframes/formulieren verdwijnen, links en afbeeldingen worden herschreven naar de nieuwe site.
@@ -68,7 +69,7 @@ function cleanAttributeValue(name, value, rewrites) {
 
 /**
  * Een ingesloten video (iframe) wordt een gewone link naar de video, alleen voor een veilig http(s)-adres.
- * @param {object} node De iframe-knoop.
+ * @param {any} node De iframe-knoop.
  * @returns {string} HTML of een lege tekst.
  */
 function renderVideoLink(node) {
@@ -90,7 +91,7 @@ function renderImage(attributes) {
 
 /**
  * Of een link naar een http(s)-adres in een nieuw venster opent (`target="_blank"` in de bron).
- * @param {object} node De `a`-knoop.
+ * @param {any} node De `a`-knoop.
  * @returns {boolean} Waar als de link een nieuw venster opent.
  */
 function opensInNewWindow(node) {
@@ -122,7 +123,7 @@ function sanitizeHtml(markup, options = {}) {
 
   /**
    * Zet een knoop (en zijn kinderen) om naar veilige HTML.
-   * @param {object} node Knoop uit node-html-parser.
+   * @param {any} node Knoop uit node-html-parser.
    * @returns {string} HTML.
    */
   const renderNode = (node) => {

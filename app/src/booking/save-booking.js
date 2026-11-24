@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Een aanmelding opslaan, gedeeld door het openbare formulier (`routes.js`) en het handmatig invoeren door kantoor
  * (`manual-routes.js`). In één transactie: de reis vergrendelen en controleren of er nog plaats is, de persoon zoeken of
@@ -37,8 +38,8 @@ function createBookingSaver(options) {
   /**
    * Slaat één poging op met een vaste referentie.
    * @param {string} reference Referentie.
-   * @param {object} booking Zie `saveBooking`.
-   * @returns {Promise<(object|null)>} Zie `saveBooking`.
+   * @param {any} booking Zie `saveBooking`.
+   * @returns {Promise<(any|null)>} Zie `saveBooking`.
    */
   const saveOnce = (reference, booking) => db.transaction(async (client) => {
     const { trip, values } = booking;
@@ -84,8 +85,8 @@ function createBookingSaver(options) {
 
   /**
    * Slaat een aanmelding op.
-   * @param {{trip: object, values: Record<string, string>, accountId?: (number|null), refuseExisting?: boolean,
-   *   afterSave?: (client: object, saved: {bookingId: number, personId: number, reference: string}) => Promise<void>}} booking
+   * @param {{trip: any, values: Record<string, string>, accountId?: (number|null), refuseExisting?: boolean,
+   *   afterSave?: (client: any, saved: {bookingId: number, personId: number, reference: string}) => Promise<void>}} booking
    *   De reis (id, trip_code, title, departure_date, price_cents), de gecontroleerde formulierwaarden, het
    *   reizigersaccount (of null), of een bestaande niet-geannuleerde aanmelding voor dezelfde reis met hetzelfde
    *   e-mailadres, achternaam en voornamen het opslaan tegenhoudt, en eventueel extra stappen in dezelfde transactie.

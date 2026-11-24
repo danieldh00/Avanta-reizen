@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 31: CRM: het auditlog filteren op gebruiker en actie.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

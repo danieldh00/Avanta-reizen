@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Reizigersaccounts (CMS-pakket J2, migratie 23): accounts, sessies en eenmalige links per e-mail, los van de
  * medewerkers van het CRM (`users`, `sessions`).
@@ -67,8 +68,8 @@ function tokenShapeOk(token) {
 
 /**
  * Maakt de opslag van reizigersaccounts.
- * @param {{db: object}} options De database.
- * @returns {object} Functies, zie onder.
+ * @param {{db: any}} options De database.
+ * @returns {any} Functies, zie onder.
  */
 function createAccounts(options) {
   const { db } = options;
@@ -77,7 +78,7 @@ function createAccounts(options) {
    * Zoekt een account op e-mailadres.
    * @param {string} email Genormaliseerd e-mailadres.
    * @param {{query: Function}} [client] Database of transactie-client.
-   * @returns {Promise<(object|null)>} Account (id, email, password_hash, verified) of null.
+   * @returns {Promise<(any|null)>} Account (id, email, password_hash, verified) of null.
    */
   const findByEmail = async (email, client = db) => {
     const [account] = await client.query(
@@ -225,7 +226,7 @@ function createAccounts(options) {
    * @param {string} purpose Soort.
    * @param {{query: Function}} [client] Database of transactie-client; met `lock` vergrendeld tot het einde van de transactie.
    * @param {{lock?: boolean}} [mode] Vergrendelen (binnen een transactie, vóór het verbruiken).
-   * @returns {Promise<(object|null)>} `{token_hash, account_id, email, password_hash, verified}` of null.
+   * @returns {Promise<(any|null)>} `{token_hash, account_id, email, password_hash, verified}` of null.
    */
   const findToken = async (token, purpose, client = db, mode = {}) => {
     if (!tokenShapeOk(token)) return null;
@@ -270,7 +271,7 @@ function createAccounts(options) {
   /**
    * Zoekt de sessie bij een token; een verlopen of inactieve sessie telt niet.
    * @param {string} token Token uit de cookie.
-   * @returns {Promise<(object|null)>} `{accountId, email, tokenHash, stepUp}` of null.
+   * @returns {Promise<(any|null)>} `{accountId, email, tokenHash, stepUp}` of null.
    */
   const loadSession = async (token) => {
     if (!tokenShapeOk(token)) return null;

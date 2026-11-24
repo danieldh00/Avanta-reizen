@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * De homepage, gelijk aan de huidige site (CMS-pakket E2): slider met foto's, filterbalk, last-minutes in boxen met
  * label, reistypes met iconen, inspiratie-slider, bestemmingen als fotobanners, blog en het blok "Voor Avanta Reizen is
@@ -23,7 +24,7 @@ const IMAGE_SIZES = {
  * Een achtergrondfoto als style-attribuut (leeg zonder veilige URL), in de lichtste versie die breed genoeg is.
  * @param {string} url Adres van de foto.
  * @param {number} width Benodigde breedte in pixels (voor scherpe schermen al verdubbeld waar nodig).
- * @returns {object|string} Het attribuut.
+ * @returns {any|string} Het attribuut.
  */
 function backgroundStyle(url, width) {
   const safe = cssImageUrl(sizedImageUrl(url, width));
@@ -64,8 +65,8 @@ function videoUrl(videoId) {
 /**
  * De slider bovenaan: foto (of stille YouTube-video) over de volle breedte, pretitel, titel en een knop; ruitjes links om te wisselen en een
  * muis-icoon naar de last-minutes.
- * @param {object[]} slides Dia's (`homepage.js`), met eventueel `fallbackImage`.
- * @returns {object} HTML.
+ * @param {any[]} slides Dia's (`homepage.js`), met eventueel `fallbackImage`.
+ * @returns {any} HTML.
  */
 function renderSlides(slides) {
   return html`<section class="homepage__slides" data-slider data-interval="7000" aria-roledescription="carousel" aria-label="Uitgelicht">
@@ -87,10 +88,10 @@ function renderSlides(slides) {
 
 /**
  * De filterbalk onder de slider: bestemming, type, vertrek, "nieuwe reizen bovenaan" en de zoekknop.
- * @param {{destinations: object[], types: object[], dates: string[]}} finder Keuzes.
+ * @param {{destinations: any[], types: any[], dates: string[]}} finder Keuzes.
  * @param {number} newCount Aantal nieuwe reizen.
  * @param {{bestemming?: string, type?: string, vertrek?: string, nieuw?: boolean}} [selected] Huidige keuze (op `/reis/`).
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderFilterBar(finder, newCount, selected = {}) {
   /**
@@ -99,7 +100,7 @@ function renderFilterBar(finder, newCount, selected = {}) {
    * @param {string} label Label.
    * @param {string} iconName Icoon links.
    * @param {{value: string, label: string}[]} options Opties.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const select = (name, label, iconName, options) => html`<div class="filter__item">
     <label class="filter__label" for="filter-${name}">${label}</label>
@@ -131,8 +132,8 @@ function renderFilterBar(finder, newCount, selected = {}) {
 /**
  * Eén reis als box (last-minutes en straks het reisoverzicht): foto met papierrand, datum en reiscode, titel en
  * "Lees verder"; label "Nieuw" (blauw) of "Volgeboekt" (donker).
- * @param {object} trip Reis (kaartkolommen).
- * @returns {object} HTML.
+ * @param {any} trip Reis (kaartkolommen).
+ * @returns {any} HTML.
  */
 function tripBox(trip) {
   const label = trip.fully_booked ? html`<span class="box__label box__label--full">Volgeboekt</span>` : trip.is_new ? html`<span class="box__label">Nieuw</span>` : '';
@@ -151,9 +152,9 @@ function tripBox(trip) {
 
 /**
  * Sectie "Inpakken en wegwezen!" met de eerstvolgende reizen.
- * @param {object} section Titel, subtitel en knoptekst.
- * @param {object[]} trips Reizen.
- * @returns {object} HTML.
+ * @param {any} section Titel, subtitel en knoptekst.
+ * @param {any[]} trips Reizen.
+ * @returns {any} HTML.
  */
 function renderLastMinutes(section, trips) {
   return html`<section class="homepage__last-minutes section section--multiplebgs" id="last-minutes">
@@ -168,9 +169,9 @@ function renderLastMinutes(section, trips) {
 
 /**
  * Sectie met de reistypes als tegels met icoon op de "aarde"-achtergrond.
- * @param {object} section Titel en subtitel.
- * @param {object[]} types Reistypes (slug, naam).
- * @returns {object} HTML.
+ * @param {any} section Titel en subtitel.
+ * @param {any[]} types Reistypes (slug, naam).
+ * @returns {any} HTML.
  */
 function renderTripTypes(section, types) {
   if (!types.length) return '';
@@ -188,8 +189,8 @@ function renderTripTypes(section, types) {
 
 /**
  * De inspiratie-slider: grote foto met een groen tekstvak en pijlen.
- * @param {object[]} items Dia's (titel, tekst, foto, eventueel `fallbackImage`).
- * @returns {object} HTML.
+ * @param {any[]} items Dia's (titel, tekst, foto, eventueel `fallbackImage`).
+ * @returns {any} HTML.
  */
 function renderInspiration(items) {
   return html`<section class="homepage__inspiration section" data-slider aria-roledescription="carousel" aria-label="De Avanta manier van reizen">
@@ -209,9 +210,9 @@ function renderInspiration(items) {
 
 /**
  * Sectie "Onze bestemmingen": fotobanners per land in een strook die je kunt scrollen, met pijlen eronder.
- * @param {object} section Titel en subtitel.
- * @param {object[]} destinations Bestemmingen met reizen (slug, naam, foto).
- * @returns {object} HTML.
+ * @param {any} section Titel en subtitel.
+ * @param {any[]} destinations Bestemmingen met reizen (slug, naam, foto).
+ * @returns {any} HTML.
  */
 function renderDestinations(section, destinations) {
   if (!destinations.length) return '';
@@ -234,11 +235,11 @@ function renderDestinations(section, destinations) {
 
 /**
  * Eén blogbericht als teaser.
- * @param {object} post Bericht (slug, titel, `summary` uit `content.posts` of anders `excerpt`, foto, datum).
+ * @param {any} post Bericht (slug, titel, `summary` uit `content.posts` of anders `excerpt`, foto, datum).
  * @param {number} summaryLength Lengte van de samenvatting.
  * @param {{heading?: ('h2'|'h3'), landscape?: boolean}} [options] Kopniveau van de titel (standaard h3, op de
  *   blogpagina h2 zoals de huidige site) en of de teaser liggend is (tagpagina).
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function postTeaser(post, summaryLength, options = {}) {
   const published = post.published_at ? new Date(post.published_at) : null;
@@ -257,9 +258,9 @@ function postTeaser(post, summaryLength, options = {}) {
 
 /**
  * Sectie "Blog": links drie berichten onder elkaar, rechts een groot bericht.
- * @param {object} section Titel, subtitel en knoptekst.
- * @param {object[]} posts De nieuwste berichten (de eerste drie links, de vierde rechts).
- * @returns {object} HTML.
+ * @param {any} section Titel, subtitel en knoptekst.
+ * @param {any[]} posts De nieuwste berichten (de eerste drie links, de vierde rechts).
+ * @returns {any} HTML.
  */
 function renderBlog(section, posts) {
   if (!posts.length) return '';
@@ -280,8 +281,8 @@ function renderBlog(section, posts) {
 
 /**
  * Het blok "Voor Avanta Reizen is geen bestemming te ver" met foto en stempel.
- * @param {object} about Titel, tekst, link en foto.
- * @returns {object} HTML.
+ * @param {any} about Titel, tekst, link en foto.
+ * @returns {any} HTML.
  */
 function renderAbout(about) {
   const image = cssImageUrl(about.image || about.fallbackImage);
@@ -306,8 +307,8 @@ function renderAbout(about) {
 
 /**
  * De hele homepage.
- * @param {{home: object, finder: object, newCount: number, lastMinutes: object[], types: object[], destinations: object[], posts: object[]}} data Inhoud.
- * @returns {object} HTML van de inhoud (binnen `<main>`).
+ * @param {{home: any, finder: any, newCount: number, lastMinutes: any[], types: any[], destinations: any[], posts: any[]}} data Inhoud.
+ * @returns {any} HTML van de inhoud (binnen `<main>`).
  */
 function renderHome(data) {
   const { home } = data;
@@ -325,9 +326,9 @@ function renderHome(data) {
 
 /**
  * Vult ontbrekende foto's van de slider, de inspiratie en "over Avanta" aan met foto's van reizen, elk een andere.
- * @param {object} home Inhoud (`homepage.js`).
+ * @param {any} home Inhoud (`homepage.js`).
  * @param {string[]} images Kaartfoto's van reizen.
- * @returns {object} Inhoud met `fallbackImage` waar een eigen foto ontbreekt.
+ * @returns {any} Inhoud met `fallbackImage` waar een eigen foto ontbreekt.
  */
 function withFallbackImages(home, images) {
   const pool = [...new Set(images.filter(Boolean))];

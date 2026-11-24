@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Vergelijkende DOM-meting: meet dezelfde onderdelen op de huidige site (www.avantareizen.nl) en op de nieuwe site,
  * op 1440 en 375 px breed, en meldt waar positie, breedte, hoogte of letter verschillen. Zo blijft het ontwerp gelijk
@@ -101,11 +102,11 @@ const KNOWN_DIFFERENCES = new Set([
 
 /**
  * Meet de onderdelen van één pagina in de browser.
- * @param {object} browser Playwright-browser.
+ * @param {any} browser Playwright-browser.
  * @param {string} url Volledig adres.
  * @param {number} width Breedte van het venster.
  * @param {string[]} selectors Selectors.
- * @returns {Promise<Record<string, (object|null)>>} Meting per selector (null als het onderdeel ontbreekt).
+ * @returns {Promise<Record<string, (any|null)>>} Meting per selector (null als het onderdeel ontbreekt).
  */
 async function measurePage(browser, url, width, selectors) {
   const page = await browser.newPage({ viewport: { width, height: 900 } });
@@ -146,11 +147,12 @@ async function measurePage(browser, url, width, selectors) {
 /**
  * Meet alle pagina's op één site.
  * @param {string} baseUrl Basisadres zonder slash aan het eind.
- * @param {object[]} [pages] Pagina's (standaard `LAYOUT_PAGES`).
- * @returns {Promise<Record<string, object>>} Meting per `pagina@breedte`.
+ * @param {any[]} [pages] Pagina's (standaard `LAYOUT_PAGES`).
+ * @returns {Promise<Record<string, any>>} Meting per `pagina@breedte`.
  */
 async function measureSite(baseUrl, pages = LAYOUT_PAGES) {
   // Playwright is geen dependency van de app; het staat in de ontwikkelomgeving (cloud-sandbox, CI met browser).
+  // @ts-ignore -- zonder Playwright in node_modules zijn er geen typen; het pakket wordt alleen hier geladen.
   const { chromium } = require('playwright');
   const browser = await chromium.launch();
   try {
@@ -168,8 +170,8 @@ async function measureSite(baseUrl, pages = LAYOUT_PAGES) {
 
 /**
  * Vergelijkt één element van een pagina: aanwezig, positie en maat binnen de marge, lettergrootte en -gewicht exact.
- * @param {object|null} expected Meting van het element op de huidige site.
- * @param {object|null} found Meting van het element op de nieuwe site.
+ * @param {any|null} expected Meting van het element op de huidige site.
+ * @param {any|null} found Meting van het element op de nieuwe site.
  * @param {{tolerance: number, report: (property: string, text: string) => void}} options Marge en melder.
  * @returns {void}
  */
@@ -193,8 +195,8 @@ function compareElement(expected, found, { tolerance, report }) {
  * Vergelijkt twee metingen. Positie x en breedte altijd, y tot 900 px onder de kop, hoogte tot 120 px, lettergrootte
  * en -gewicht exact;
  * horizontaal scrollen mag nooit.
- * @param {Record<string, object>} reference Meting van de huidige site.
- * @param {Record<string, object>} actual Meting van de nieuwe site.
+ * @param {Record<string, any>} reference Meting van de huidige site.
+ * @param {Record<string, any>} actual Meting van de nieuwe site.
  * @param {{tolerance?: number, known?: Set<string>}} [options] Toegestaan verschil en bekende verschillen.
  * @returns {string[]} De verschillen, leesbaar (leeg = gelijk).
  */

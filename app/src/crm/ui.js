@@ -98,8 +98,9 @@ function renderSearch(search) {
  * Een tabel met kolomkoppen, of de melding dat er niets is.
  * Op een smal scherm (≤ 800 px) toont `crm.css` elke rij als kaart: de kolomnaam staat dan als label voor de waarde
  * (uit `data-label`), zodat alle kolommen zichtbaar blijven zonder horizontaal te scrollen.
- * @param {{columns: {label: string, cell: (row: object) => (object|string|number), numeric?: boolean, wrap?: boolean}[],
- *   rows: object[], empty: string, caption?: string}} table Kolommen (met per kolom de inhoud van een cel, of het een
+ * @template Row Soort rij (bijvoorbeeld een databaserij).
+ * @param {{columns: {label: string, cell: (row: Row) => (object|string|number), numeric?: boolean, wrap?: boolean}[],
+ *   rows: Row[], empty: string, caption?: string}} table Kolommen (met per kolom de inhoud van een cel, of het een
  *   getal is en of lange tekst mag afbreken), rijen, de melding bij een lege lijst en een onzichtbaar bijschrift.
  * @returns {object} HTML.
  */

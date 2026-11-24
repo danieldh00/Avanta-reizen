@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Veelgestelde vragen beheren (CMS-pakket I3, migratie 21): categorieën met een volgorde (`faq_categories`) en vragen
  * met een opgemaakt antwoord (`faqs`). `faqs.category` is een afgeleide kopie van de categorienaam (de site, het
@@ -15,7 +16,7 @@ const FAQ_LIMITS = { category: 120, question: 300, answer: 20_000, categories: 5
 /**
  * Leest een volgorde (heel getal, mag leeg).
  * @param {string} text Ingevulde tekst.
- * @param {object} errors Fouten (wordt aangevuld).
+ * @param {any} errors Fouten (wordt aangevuld).
  * @returns {number} Volgorde (0 als leeg of ongeldig).
  */
 function readSortOrder(text, errors) {
@@ -30,8 +31,8 @@ function readSortOrder(text, errors) {
 /**
  * Leest en controleert een categorie uit een formulier. De naam mag geen `<` of `>` bevatten (het FAQ-blok kiest een
  * categorie op naam).
- * @param {object} body Ingezonden velden.
- * @returns {{values: {name: string, sortOrder: number}, errors: object}} Waarden en fouten.
+ * @param {any} body Ingezonden velden.
+ * @returns {{values: {name: string, sortOrder: number}, errors: any}} Waarden en fouten.
  */
 function validateCategoryFields(body) {
   const text = (name) => (typeof body[name] === 'string' ? body[name] : '');
@@ -46,8 +47,8 @@ function validateCategoryFields(body) {
 
 /**
  * Leest en controleert een vraag uit een formulier; het antwoord gaat door `sanitizeHtml`.
- * @param {object} body Ingezonden velden.
- * @returns {{values: {question: string, categoryId: string, answerHtml: string, answerInput: string, sortOrder: number}, errors: object}} Waarden en fouten.
+ * @param {any} body Ingezonden velden.
+ * @returns {{values: {question: string, categoryId: string, answerHtml: string, answerInput: string, sortOrder: number}, errors: any}} Waarden en fouten.
  */
 function validateQuestionFields(body) {
   const text = (name) => (typeof body[name] === 'string' ? body[name] : '');
@@ -80,15 +81,15 @@ const validId = (id) => /^\d{1,9}$/.test(String(id));
 
 /**
  * Maakt de functies voor de FAQ.
- * @param {{db: object}} options Database.
- * @returns {object} Functies.
+ * @param {{db: any}} options Database.
+ * @returns {any} Functies.
  */
 function createFaqs(options) {
   const { db } = options;
 
   /**
    * Alle categorieën (op volgorde en naam) met hun vragen (op volgorde en vraag), en vragen zonder categorie apart.
-   * @returns {Promise<{categories: object[], loose: object[]}>} Categorieën met `questions`, en losse vragen.
+   * @returns {Promise<{categories: any[], loose: any[]}>} Categorieën met `questions`, en losse vragen.
    */
   const overview = async () => {
     const [categories, questions] = await Promise.all([
@@ -108,7 +109,7 @@ function createFaqs(options) {
   /**
    * Eén categorie.
    * @param {(number|string)} id Id.
-   * @returns {Promise<(object|null)>} Rij met `question_count`, of null.
+   * @returns {Promise<(any|null)>} Rij met `question_count`, of null.
    */
   const getCategory = async (id) => {
     if (!validId(id)) return null;
@@ -122,7 +123,7 @@ function createFaqs(options) {
   /**
    * Eén vraag.
    * @param {(number|string)} id Id.
-   * @returns {Promise<(object|null)>} Rij of null.
+   * @returns {Promise<(any|null)>} Rij of null.
    */
   const getQuestion = async (id) => {
     if (!validId(id)) return null;
@@ -134,7 +135,7 @@ function createFaqs(options) {
    * Maakt een categorie.
    * @param {{name: string, sortOrder: number}} values Uit `validateCategoryFields`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, id) => Promise`).
-   * @returns {Promise<{id?: number, errors?: object}>} Nieuw id of fouten.
+   * @returns {Promise<{id?: number, errors?: any}>} Nieuw id of fouten.
    */
   const createCategory = (values, context) => db.transaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['faq-categorieen']);
@@ -154,7 +155,7 @@ function createFaqs(options) {
    * @param {(number|string)} id Id.
    * @param {{name: string, sortOrder: number}} values Uit `validateCategoryFields`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit.
-   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: object, renamed?: boolean}>} Uitkomst.
+   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: any, renamed?: boolean}>} Uitkomst.
    */
   const updateCategory = (id, values, context) => db.transaction(async (client) => {
     if (!validId(id)) return { status: 'weg' };
@@ -194,9 +195,9 @@ function createFaqs(options) {
 
   /**
    * Zoekt de gekozen categorie op en houdt die vast tot het einde van de transactie.
-   * @param {object} client Databaseclient in een transactie.
+   * @param {any} client Databaseclient in een transactie.
    * @param {string} categoryId Gekozen id.
-   * @returns {Promise<(object|null)>} Categorie of null.
+   * @returns {Promise<(any|null)>} Categorie of null.
    */
   const lockCategory = async (client, categoryId) => {
     const [category] = await client.query('SELECT id, name FROM faq_categories WHERE id = $1 FOR SHARE', [Number(categoryId)]);
@@ -205,9 +206,9 @@ function createFaqs(options) {
 
   /**
    * Maakt een vraag; de slug (alleen voor oude adressen, die naar /faq/ verwijzen) komt uit de vraag en is uniek.
-   * @param {object} values Uit `validateQuestionFields`.
+   * @param {any} values Uit `validateQuestionFields`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit (`(client, id) => Promise`).
-   * @returns {Promise<{id?: number, errors?: object}>} Nieuw id of fouten.
+   * @returns {Promise<{id?: number, errors?: any}>} Nieuw id of fouten.
    */
   const createQuestion = (values, context) => db.transaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['faq-vragen']);
@@ -234,9 +235,9 @@ function createFaqs(options) {
   /**
    * Wijzigt een vraag.
    * @param {(number|string)} id Id.
-   * @param {object} values Uit `validateQuestionFields`.
+   * @param {any} values Uit `validateQuestionFields`.
    * @param {{userId: number, audit: Function}} context Gebruiker en audit.
-   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: object}>} Uitkomst.
+   * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: any}>} Uitkomst.
    */
   const updateQuestion = (id, values, context) => db.transaction(async (client) => {
     if (!validId(id)) return { status: 'weg' };

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Migratie 5: beheer: instellingen.
  * Staat deze migratie op main, dan verandert hij nooit meer; een wijziging is een nieuwe migratie.

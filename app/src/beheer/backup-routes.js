@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Extra's van Beheer > Back-ups en herstel > Back-ups (recht `systeem`): status van de laatste back-up, *Nu maken*, de
  * lijst met back-ups en downloaden (versleuteld). Maken en downloaden komen in het auditlog. De instellingen (aan/uit,
@@ -46,7 +47,7 @@ function describeNext({ enabled, hour, now, doneToday }) {
 /**
  * De lijst met back-ups op de server, met een downloadlink per bestand.
  * @param {Array<{name: string, createdAt: string, size: number}>} items Back-ups, nieuwste eerst.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderBackupList(items) {
   return html`<h2>Back-ups op de server</h2>
@@ -64,7 +65,7 @@ function renderBackupList(items) {
 
 /**
  * Maakt de routes en het paneel van de back-ups.
- * @param {{auth: object, guard: Function, settings: object, backups: object, renderSettingsSection: Function, notFound: Function, now?: () => number}} options
+ * @param {{auth: any, guard: Function, settings: any, backups: any, renderSettingsSection: Function, notFound: Function, now?: () => number}} options
  *   Sessielaag, rechtencontrole, instellingen, back-updienst (`backup/backups.js`), weergave van een instellingensectie,
  *   de 404 van Beheer en (voor tests) de klok.
  * @returns {{router: express.Router, renderPanel: Function}} Router en paneel (voor onder het formulier).
@@ -81,9 +82,9 @@ function createBackupRoutes(options) {
 
   /**
    * Het paneel onder het formulier: status, Nu maken en de lijst.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{result?: {ok: boolean, message: string}}} [state] Uitkomst van *Nu maken*.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderPanel = (req, state = {}) => {
     if (!backups.available()) return html`<h2>Status</h2><p>Back-ups zijn op deze installatie niet beschikbaar (geen databaseverbinding ingesteld).</p>`;

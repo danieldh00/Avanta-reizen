@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Extra's van Beheer > Back-ups en herstel > Google Drive (recht `systeem`): het terugkeeradres voor de Google Cloud
  * Console, de status van de koppeling, *Koppelen met Google*, *Ontkoppelen*, *Nu synchroniseren* en de laatste
@@ -14,7 +15,7 @@ const { REVOKE_BY_HAND } = require('../backup/drive');
 
 /**
  * Maakt de routes en het paneel van Google Drive.
- * @param {{auth: object, guard: Function, settings: object, drive: object, renderSettingsSection: Function, now?: () => number}} options
+ * @param {{auth: any, guard: Function, settings: any, drive: any, renderSettingsSection: Function, now?: () => number}} options
  *   Sessielaag, rechtencontrole, instellingen, Drive-koppeling (`backup/drive.js`), weergave van een instellingensectie
  *   en (voor tests) de klok van de limieten.
  * @returns {{router: express.Router, renderPanel: Function}} Router en paneel (voor onder het formulier).
@@ -29,9 +30,9 @@ function createDriveRoutes(options) {
 
   /**
    * Het paneel onder het formulier.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {{result?: {ok: boolean, message: string}}} [state] Uitkomst van een actie.
-   * @returns {object} HTML.
+   * @returns {any} HTML.
    */
   const renderPanel = (req, state = {}) => {
     const driveState = drive.state();
@@ -73,12 +74,12 @@ function createDriveRoutes(options) {
 
   /**
    * Toont de sectie met de uitkomst van een actie.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {number} status HTTP-status.
    * @param {boolean} ok Gelukt of niet.
    * @param {string} message Melding.
-   * @returns {object} Express-antwoord.
+   * @returns {any} Express-antwoord.
    */
   const respond = (req, res, status, ok, message) => res.status(status).send(options.renderSettingsSection(req, section, { extra: { result: { ok, message } } }));
 
@@ -109,7 +110,7 @@ function createDriveRoutes(options) {
      * @param {number} status HTTP-status.
      * @param {string} message Melding.
      * @param {string} target Adres om naartoe te gaan.
-     * @returns {object} Express-antwoord.
+     * @returns {any} Express-antwoord.
      */
     const page = (status, message, target) => res.status(status).send(renderCrmPage({
       title: 'Google Drive',

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Categorieën en tags van het blog beheren in het CRM (`/app/blog/categorieen-en-tags/`, recht `content`, CMS-pakket
  * I2): lijst per soort met het aantal berichten, nieuw, wijzigen (naam, adres met 301, inleiding, volgorde),
@@ -36,10 +37,10 @@ const NOTICES = {
 
 /**
  * De velden van een categorie of tag.
- * @param {object} values Ingevulde waarden (`name`, `slug`, `intro`, `sortOrder`).
- * @param {object} errors Fouten.
+ * @param {any} values Ingevulde waarden (`name`, `slug`, `intro`, `sortOrder`).
+ * @param {any} errors Fouten.
  * @param {string} prefix Voorvoegsel voor de id's.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function termFields(values, errors, prefix) {
   const row = (name, label, control, help) => fieldRow({ id: `${prefix}-${name}`, label, control, help, error: errors[name] });
@@ -51,7 +52,7 @@ function termFields(values, errors, prefix) {
 
 /**
  * Maakt de routes voor categorieën en tags.
- * @param {{db: object, auth: object, redirects?: object, siteContent?: object}} options Database, sessie- en rechtenlaag,
+ * @param {{db: any, auth: any, redirects?: any, siteContent?: any}} options Database, sessie- en rechtenlaag,
  *   doorverwijzingen (opnieuw laden na een nieuw adres) en `site-content.json` (tags overnemen).
  * @returns {express.Router} Router.
  */
@@ -64,7 +65,7 @@ function createPostTermRoutes(options) {
 
   /**
    * Audit voor een actie.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {string} action Actie.
    * @param {(number|string|null)} [entityId] Id.
    * @returns {Function} `(client, id?) => Promise`.
@@ -73,8 +74,8 @@ function createPostTermRoutes(options) {
 
   /**
    * Het overzicht met per soort de lijst en een formulier voor een nieuwe.
-   * @param {object} req Express-verzoek.
-   * @param {{notice?: string, error?: string, kind?: string, values?: object, errors?: object}} [state] Meldingen en een
+   * @param {any} req Express-verzoek.
+   * @param {{notice?: string, error?: string, kind?: string, values?: any, errors?: any}} [state] Meldingen en een
    *   nieuw formulier met fouten.
    * @returns {Promise<string>} HTML.
    */
@@ -123,9 +124,9 @@ function createPostTermRoutes(options) {
 
   /**
    * Het bewerkscherm van één categorie of tag.
-   * @param {object} req Express-verzoek.
-   * @param {object} term Rij.
-   * @param {{error?: string, values?: object, errors?: object}} [state] Fouten.
+   * @param {any} req Express-verzoek.
+   * @param {any} term Rij.
+   * @param {{error?: string, values?: any, errors?: any}} [state] Fouten.
    * @returns {string} HTML.
    */
   const renderEdit = (req, term, state = {}) => {
@@ -154,8 +155,8 @@ function createPostTermRoutes(options) {
 
   /**
    * 404 binnen het CRM.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @returns {void}
    */
   const notFound = (req, res) => {

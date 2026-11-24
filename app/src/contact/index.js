@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Ingang van de module Contact voor het CRM: koppelt de routes van de berichten (`message-routes.js`). Het openbare
  * contactformulier (`routes.js`) hoort bij de pagina `/contact/` van de site en wordt daar gekoppeld. Een nieuw scherm
@@ -8,7 +9,7 @@ const { createMessageRoutes } = require('./message-routes');
 
 /**
  * Bouwt de CRM-routes van de module Contact.
- * @param {object} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` en de gedeelde diensten.
+ * @param {any} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` en de gedeelde diensten.
  * @returns {express.Router} Router, te koppelen binnen `/app`.
  */
 function createContactModuleRoutes(context) {

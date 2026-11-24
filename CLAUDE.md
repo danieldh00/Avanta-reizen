@@ -122,9 +122,10 @@ Regels:
   code*; ESLint bewaakt namen, diepte, parameters en callbacks overal, en complexiteit (20) en bestandslengte (600)
   in `app/src/` en `app/tools/` (sinds P6a voor alle code).
 - Elke functie een `/** … */`-blok in het Nederlands (wat, `@param`, `@returns`); elk bestand een kopcommentaar.
-- **Lint en typecontrole**: `npm run lint` (ESLint, `app/eslint.config.js`) moet schoon zijn. Een nieuw bestand onder
-  `app/src/` begint met `// @ts-check`; `npm run typecheck` controleert die bestanden op hun JSDoc. Een bestaand bestand
-  krijgt de regel zodra je er toch aan werkt en de meldingen oplost. Uitzondering op een regel alleen met
+- **Lint en typecontrole**: `npm run lint` (ESLint, `app/eslint.config.js`) moet schoon zijn. Elk bestand onder
+  `app/src/` en `app/tools/` begint met `// @ts-check` (B08; de test `test/ts-check.test.js` bewaakt het, `@ts-nocheck`
+  mag niet); `npm run typecheck` controleert ze op hun JSDoc. Typ in JSDoc met `any` of een echte vorm, niet met
+  `object` (daar kun je geen velden van lezen). Uitzondering op een regel alleen met
   `// eslint-disable-next-line <regel>` en de reden erboven.
 - **Dekking**: CI draait `npm run test:coverage` met een drempel (regels 95%, takken 85%, functies 93%); nieuwe code
   krijgt tests zodat de dekking niet zakt.

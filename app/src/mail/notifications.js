@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Meldingen aan kantoor (Beheer > E-mail > Meldingen): een mail bij een nieuw bericht via het contactformulier en bij
  * een nieuwe aanmelding. Daarnaast de bevestiging aan de reiziger na een aanmelding (Beheer > E-mail > Bevestiging aan
@@ -23,7 +24,7 @@ const PAYMENT_LABELS = { aanbetaling: 'Aanbetaling', totaal: 'Totaalbedrag' };
 
 /**
  * Maakt de meldingen.
- * @param {{mailer: object, settings: object, appLog?: object, now?: () => number}} options De mailer (`mail/mailer.js`),
+ * @param {{mailer: any, settings: any, appLog?: any, now?: () => number}} options De mailer (`mail/mailer.js`),
  *   de instellingen en het logboek (`system/app-log.js`, voor overgeslagen bevestigingen).
  * @returns {{contactMessage: Function, booking: Function, bookingConfirmation: Function, guardianConfirmation: Function, layoutOptions: Function}} Functies die een melding versturen
  *   (en nooit een fout gooien) en de opmaakinstellingen voor `renderMail`.
@@ -45,7 +46,7 @@ function createNotifications(options) {
    * mailer legt een fout vast in het overzicht en het serverlog (zonder adressen).
    * @param {string} toggleKey Instelling die deze melding aan- of uitzet.
    * @param {string} kind Soort voor het overzicht.
-   * @param {{subject: string, replyTo?: string, content: object}} mail Onderwerp, antwoordadres en inhoud voor `renderMail`.
+   * @param {{subject: string, replyTo?: string, content: any}} mail Onderwerp, antwoordadres en inhoud voor `renderMail`.
    * @returns {Promise<boolean>} Waar als de melding is verstuurd.
    */
   const deliver = async (toggleKey, kind, mail) => {
@@ -63,7 +64,7 @@ function createNotifications(options) {
   /**
    * Melding van een nieuw contactbericht. Het antwoordadres is dat van de afzender, zodat kantoor direct kan antwoorden.
    * @param {{name: string, email: string, phone?: string, subject?: string, message: string}} message Het bericht.
-   * @param {(object|null)} trip De reis waar de bezoeker vandaan kwam, of null.
+   * @param {(any|null)} trip De reis waar de bezoeker vandaan kwam, of null.
    * @returns {Promise<boolean>} Waar als de melding is verstuurd.
    */
   const contactMessage = (message, trip) => deliver('notifyContact', 'melding-contact', {
@@ -80,7 +81,7 @@ function createNotifications(options) {
   /**
    * Melding van een nieuwe aanmelding, met alleen de gewone gegevens (geen geboortedatum, kerk, paspoort, noodnummer
    * of bijzonderheden).
-   * @param {{reference: string, trip: object, values: object}} booking Referentie, reis en de gecontroleerde velden.
+   * @param {{reference: string, trip: any, values: any}} booking Referentie, reis en de gecontroleerde velden.
    * @returns {Promise<boolean>} Waar als de melding is verstuurd.
    */
   const booking = (booking) => {
@@ -111,7 +112,7 @@ function createNotifications(options) {
   /**
    * De bedragen van een aanmelding: reissom, SGR-garantie, boekingskosten (alleen bij de aanbetaling), totaal en de
    * aanbetaling van de reis (als die is ingevuld en voor een aanbetaling is gekozen).
-   * @param {object} trip De reis (`price_cents`).
+   * @param {any} trip De reis (`price_cents`).
    * @param {string} paymentChoice 'aanbetaling' of 'totaal'.
    * @param {(number|null)} depositCents Aanbetaling van de reis, of null.
    * @returns {Array<[string, string]>} Rijen voor de mail; zonder reissom alleen de vaste bedragen.
@@ -133,7 +134,7 @@ function createNotifications(options) {
    * Bevestiging aan de reiziger na een aanmelding, naar het opgegeven e-mailadres. Alleen de gewone gegevens: nooit
    * geboortedatum, kerk, paspoort, noodnummer of bijzonderheden. Gaat alleen als de bevestiging aan staat en er een
    * mailserver is; gooit nooit (een fout staat in het overzicht van Beheer > E-mail > Mailserver, zonder adressen).
-   * @param {{reference: string, trip: object, values: object, depositCents?: (number|null)}} booking Referentie, reis,
+   * @param {{reference: string, trip: any, values: any, depositCents?: (number|null)}} booking Referentie, reis,
    *   de gecontroleerde velden en de aanbetaling van de reis.
    * @returns {Promise<boolean>} Waar als de bevestiging is verstuurd.
    */
@@ -169,7 +170,7 @@ function createNotifications(options) {
    * staat alleen ge-escaped in de tabel, zodat de mail niet te misbruiken is voor eigen tekst. Hoogstens
    * `GUARDIAN_MAILS_PER_DAY` per adres per etmaal. Valt onder dezelfde instelling als de bevestiging aan de reiziger;
    * gooit nooit.
-   * @param {{reference: string, trip: object, values: object}} booking Referentie, reis en de gecontroleerde velden
+   * @param {{reference: string, trip: any, values: any}} booking Referentie, reis en de gecontroleerde velden
    *   (met `guardian_name` en `guardian_email`).
    * @returns {Promise<boolean>} Waar als de bevestiging is verstuurd.
    */

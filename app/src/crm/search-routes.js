@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * De resultatenpagina van het zoeken over het hele CRM (`/app/zoeken/?q=…`), het doel van het zoekveld in de kopbalk.
  * Per bron (`crm/search.js`) een kopje met de treffers en, als er meer zijn, een link naar de lijst van die bron.
@@ -11,7 +12,7 @@ const { searchCrm, canSearch, MIN_LENGTH, SEARCH_LIMIT } = require('./search');
 
 /**
  * Maakt de route van de zoekpagina.
- * @param {{db: object, auth: object}} options Database en de sessie- en rechtenlaag.
+ * @param {{db: any, auth: any}} options Database en de sessie- en rechtenlaag.
  * @returns {express.Router} Router.
  */
 function createSearchRoutes(options) {
@@ -25,6 +26,7 @@ function createSearchRoutes(options) {
       }
       const result = await searchCrm(db, req.user.role, req.query.q);
       const total = result.groups.reduce((sum, group) => sum + group.rows.length, 0);
+      /** @type {(string|object)} */
       let summary = '';
       if (result.tooShort) summary = html`<p class="crm-empty">Typ minstens ${MIN_LENGTH} tekens.</p>`;
       else if (result.text && !total) summary = html`<p class="crm-empty">Niets gevonden voor “${result.text}”.</p>`;

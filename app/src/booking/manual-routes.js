@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Aanmelding handmatig invoeren in het CRM (`/app/aanmeldingen/nieuw/`), voor een aanmelding die per telefoon, mail of
  * papieren formulier binnenkomt. Dezelfde velden en dezelfde controle als het openbare formulier (`fields.js`,
@@ -93,10 +94,10 @@ function noteField(value) {
 
 /**
  * Het invoerelement van een veld naar het type: keuzerondjes, vinkje, tekstvak of invoerveld.
- * @param {object} field Veld uit `FIELD_GROUPS`.
- * @param {{id: string, value: string, error?: string, common: object}} control Id, ingevulde waarde, foutmelding en de
+ * @param {any} field Veld uit `FIELD_GROUPS`.
+ * @param {{id: string, value: string, error?: string, common: any}} control Id, ingevulde waarde, foutmelding en de
  *   gedeelde attributen (id, naam, verplicht, lengte, aria).
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderControl(field, { id, value, error, common }) {
   if (field.type === 'radio') {
@@ -113,10 +114,10 @@ function renderControl(field, { id, value, error, common }) {
 
 /**
  * Eén formulierveld met label, hulptekst en foutmelding (zelfde opbouw als het openbare formulier).
- * @param {object} field Veld uit `FIELD_GROUPS`.
+ * @param {any} field Veld uit `FIELD_GROUPS`.
  * @param {Record<string, string>} values Ingevulde waarden.
  * @param {Record<string, string>} errors Fouten per veld.
- * @returns {object} HTML.
+ * @returns {any} HTML.
  */
 function renderField(field, values, errors) {
   const id = `veld-${field.name}`;
@@ -135,7 +136,7 @@ function renderField(field, values, errors) {
 
 /**
  * Maakt de routes om een aanmelding handmatig in te voeren.
- * @param {{db: object, auth: object, persons: object, notifications?: object, now?: () => number}} options Database,
+ * @param {{db: any, auth: any, persons: any, notifications?: any, now?: () => number}} options Database,
  *   sessie- en rechtenlaag, de personenlaag (`createPersons`), de mails aan de reiziger (`mail/notifications.js`) en de
  *   klok (tests).
  * @returns {express.Router} Router.
@@ -148,8 +149,8 @@ function createManualBookingRoutes(options) {
 
   /**
    * Weigert (403) wie naast `aanmeldingen` niet de rechten voor de bijzondere blokken heeft.
-   * @param {object} req Express-verzoek.
-   * @param {object} res Express-antwoord.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
    * @param {Function} next Volgende.
    * @returns {void}
    */
@@ -164,7 +165,7 @@ function createManualBookingRoutes(options) {
 
   /**
    * De reizen waarvoor kantoor iemand kan aanmelden: nog niet vertrokken, met of zonder publicatie.
-   * @returns {Promise<object[]>} Reizen met `full`.
+   * @returns {Promise<any[]>} Reizen met `full`.
    */
   const upcomingTrips = () => db.query(
     `SELECT t.id, t.title, t.trip_code, t.departure_date, t.published, ${fullyBookedSql('t')} AS full
@@ -176,7 +177,7 @@ function createManualBookingRoutes(options) {
   /**
    * Zoekt de reis uit het formulier en of er nog iemand bij kan.
    * @param {*} value Id uit de querystring of het formulier.
-   * @returns {Promise<{trip: (object|null), reason: string}>} De reis en anders de reden.
+   * @returns {Promise<{trip: (any|null), reason: string}>} De reis en anders de reden.
    */
   const findTrip = async (value) => {
     if (!/^\d{1,9}$/.test(String(value || ''))) return { trip: null, reason: '' };
@@ -194,7 +195,7 @@ function createManualBookingRoutes(options) {
 
   /**
    * De pagina om een reis te kiezen.
-   * @param {object} req Express-verzoek.
+   * @param {any} req Express-verzoek.
    * @param {string} [error] Foutmelding.
    * @returns {Promise<string>} HTML-pagina.
    */
@@ -217,9 +218,9 @@ function createManualBookingRoutes(options) {
 
   /**
    * Het formulier voor één reis.
-   * @param {object} req Express-verzoek.
-   * @param {object} trip De reis.
-   * @param {{values?: object, errors?: object, existing?: {id: number, reference: string}}} [state] Ingevulde waarden,
+   * @param {any} req Express-verzoek.
+   * @param {any} trip De reis.
+   * @param {{values?: any, errors?: any, existing?: {id: number, reference: string}}} [state] Ingevulde waarden,
    *   fouten en een bestaande aanmelding voor dezelfde reis en persoon (dan staat het vinkje *Toch opslaan* erbij).
    * @returns {string} HTML-pagina.
    */
