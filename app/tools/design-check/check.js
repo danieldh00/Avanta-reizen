@@ -12,12 +12,14 @@
  *
  * Gebruik (app draait lokaal met testgegevens uit `seed.js`):
  *   DESIGN_BASE_URL=http://localhost:3400 node tools/design-check/check.js --full --out=/tmp/design
+ * Met `--axe` draait per pagina en breedte ook de toegankelijkheidscontrole (`accessibility.js`, axe-core, WCAG 2.1 AA).
  * Exitcode 1 als er bevindingen zijn met ernst "hoog" (overloop, overlap, afgekapt, afbeelding), zodat een CI-stap kan
  * falen; met `--no-fail` altijd 0.
  */
 const fs = require('node:fs');
 const path = require('node:path');
 const { runPageChecks } = require('./page-checks');
+const { runAccessibilityChecks } = require('./accessibility');
 const { login } = require('./login');
 const { accounts } = require('./credentials');
 const { assertLocalBaseUrl } = require('./guards');
@@ -37,7 +39,7 @@ const PARALLEL = 4;
 /**
  * Leest de opdrachtregel.
  * @param {string[]} argv Argumenten.
- * @returns {{full: boolean, paths: string[], out: string, fail: boolean}} Opties.
+ * @returns {{full: boolean, paths: string[], out: string, fail: boolean, axe: boolean}} Opties.
  */
 function parseArguments(argv) {
   const value = (name) => (argv.find((argument) => argument.startsWith(`--${name}=`)) || '').split('=').slice(1).join('=');
@@ -46,6 +48,7 @@ function parseArguments(argv) {
     paths: value('paths') ? value('paths').split(',').map((entry) => entry.trim()).filter(Boolean) : [],
     out: value('out') || path.join(process.cwd(), 'design-check-output'),
     fail: !argv.includes('--no-fail'),
+    axe: argv.includes('--axe'),
   };
 }
 
@@ -141,9 +144,10 @@ async function bookingFormPath(context) {
  * Controleert één URL op alle vensterbreedtes.
  * @param {object} context Playwright-context.
  * @param {string} url Pad.
+ * @param {{axe?: boolean}} [options] Met `axe`: ook de toegankelijkheidscontrole.
  * @returns {Promise<{url: string, status: number, findings: object[], links: string[], consoleErrors: string[]}>} Uitslag.
  */
-async function checkUrl(context, url) {
+async function checkUrl(context, url, options = {}) {
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
   const consoleErrors = [];
@@ -166,6 +170,9 @@ async function checkUrl(context, url) {
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     const pageFindings = await page.evaluate(runPageChecks, { mobile: viewport.mobile }).catch((error) => [{ check: 'fout', message: String(error.message), selector: '', rect: null }]);
     for (const finding of pageFindings) findings.push({ ...finding, viewport: viewport.name, width: viewport.width });
+    if (options.axe) {
+      for (const finding of await runAccessibilityChecks(page)) findings.push({ ...finding, viewport: viewport.name, width: viewport.width });
+    }
     if (viewport === VIEWPORTS[0]) {
       links = await page.$$eval('a[href]', (anchors) => anchors.map((anchor) => anchor.getAttribute('href'))).catch(() => []);
     }
@@ -242,7 +249,7 @@ async function pool(items, limit, worker) {
  * Controleert één onderdeel: startschermen, sitemap (publieke site, volledige run) en links onder `/app/` (CRM).
  * @param {object} browser Playwright-browser.
  * @param {object} area Onderdeel uit `areas()`.
- * @param {{full: boolean, paths: string[]}} options Opties.
+ * @param {{full: boolean, paths: string[], axe?: boolean}} options Opties.
  * @returns {Promise<{area: string, context: object, pages: object[]}>} Uitslagen per pagina, met de context voor uitsneden.
  */
 async function checkArea(browser, area, options) {
@@ -281,7 +288,7 @@ async function checkArea(browser, area, options) {
   queue.map((entry) => entry.replace(/\*$/, '')).forEach(enqueue);
   while (pending.length) {
     const batch = pending.splice(0, pending.length);
-    const results = await pool(batch, PARALLEL, (url) => checkUrl(context, url));
+    const results = await pool(batch, PARALLEL, (url) => checkUrl(context, url, { axe: options.axe }));
     for (const result of results) {
       pages.push({ ...result, area: area.area, type: screenType(result.url) });
       process.stdout.write(`${area.area} ${result.status} ${result.url} (${result.findings.length})\n`);
@@ -307,9 +314,11 @@ function groupFindings(pages) {
   const groups = new Map();
   for (const page of pages) {
     for (const finding of page.findings) {
-      const key = [page.area, finding.check, finding.selector, finding.viewport].join('|');
+      // `rule` (de axe-regel) hoort in de sleutel: twee regels op hetzelfde element blijven twee bevindingen, zodat een
+      // regel met ernst hoog nooit achter een andere regel verdwijnt.
+      const key = [page.area, finding.check, finding.rule || '', finding.selector, finding.viewport].join('|');
       if (!groups.has(key)) {
-        groups.set(key, { area: page.area, check: finding.check, severity: SEVERITY[finding.check] || 'midden', selector: finding.selector, viewport: finding.viewport, message: finding.message, example: page.url, type: page.type, rect: finding.rect, urls: new Set(), types: new Set() });
+        groups.set(key, { area: page.area, check: finding.check, severity: finding.severity || SEVERITY[finding.check] || 'midden', selector: finding.selector, viewport: finding.viewport, message: finding.message, example: page.url, type: page.type, rect: finding.rect, urls: new Set(), types: new Set() });
       }
       groups.get(key).urls.add(page.url);
       groups.get(key).types.add(page.type);

@@ -42,12 +42,12 @@ jobs:
       ref: ${{ steps.bump.outputs.ref }}
       version: ${{ steps.bump.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: main
           fetch-depth: 0
           token: ${{ secrets.RELEASE_PUSH_TOKEN || github.token }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
       - name: Versie en releasenotes bijwerken
@@ -83,7 +83,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17@sha256:223efeb196329b55b3b9a13db144956411dbc18e727e59f681c3e0aede6475cf
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -94,10 +94,10 @@ jobs:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.prepare.outputs.ref }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: npm
@@ -122,12 +122,13 @@ jobs:
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
       REVISION: ${{ needs.prepare.outputs.ref }}
+      TRIVY_IMAGE: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -147,12 +148,12 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
         if: steps.exists.outputs.skip == 'false'
 
       - name: Bouwen (lokaal laden voor de smoketest)
         if: steps.exists.outputs.skip == 'false'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: app
           platforms: linux/amd64
@@ -169,22 +170,33 @@ jobs:
         if: steps.exists.outputs.skip == 'false'
         run: |
           docker network create smokenet
-          docker run -d --name smokedb --network smokenet -e POSTGRES_PASSWORD=smoke postgres:17
+          docker run -d --name smokedb --network smokenet -e POSTGRES_PASSWORD=smoke postgres:17@sha256:223efeb196329b55b3b9a13db144956411dbc18e727e59f681c3e0aede6475cf
           for i in $(seq 1 30); do docker exec smokedb pg_isready -U postgres && break; sleep 2; done
           docker run -d --name smoke --network smokenet -p 3400:3400 -e DATABASE_URL="postgres://postgres:smoke@smokedb:5432/postgres" avanta:smoke
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3400/api/health && exit 0; sleep 2; done
           docker logs smoke
           exit 1
 
+      # Zelfde image-scan als in CI (ci.yml, job image): een release met een te verhelpen HIGH/CRITICAL gaat niet uit.
+      - name: Image-scan (Trivy)
+        if: steps.exists.outputs.skip == 'false'
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/app:/src:ro" "$TRIVY_IMAGE" \
+            image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --ignorefile /src/.trivyignore \
+            --exit-code 1 --no-progress avanta:smoke
+
       # Pas na een geslaagde smoketest naar GHCR: :latest wijst nooit naar een kapot image. Zelfde context, platform
       # en labels als de smoketest-build; alle lagen komen uit de gha-cache, dus dit is het geteste image.
       - name: Pushen naar GHCR
         if: steps.exists.outputs.skip == 'false'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: app
           platforms: linux/amd64
           push: true
+          # SBOM en herkomst (provenance) als attestatie bij het image in GHCR.
+          sbom: true
+          provenance: mode=max
           tags: |
             ${{ env.IMAGE }}:${{ env.VERSION }}
             ${{ env.IMAGE }}:latest

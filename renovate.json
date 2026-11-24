@@ -1,7 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    "docker:pinDigests"
   ],
   "timezone": "Europe/Amsterdam",
   "schedule": [
@@ -32,6 +34,20 @@
         "major"
       ],
       "automerge": false
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Images met digest in workflows en scripts (docker run, env-variabelen) die Renovate anders niet ziet",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/",
+        "/^deploy/.+\\.sh$/"
+      ],
+      "matchStrings": [
+        "(?<depName>(?:[a-z0-9.-]+/)?[a-z0-9._/-]+):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
     }
   ]
 }

@@ -14,6 +14,7 @@ const { assertLocalDatabase, assertLocalBaseUrl } = require('../tools/design-che
 const { accounts, designPassword } = require('../tools/design-check/credentials');
 const { screensFor, SITE_CORE, CRM_CORE, SMOKE } = require('../tools/design-check/changed-screens');
 const { summaryMarkdown, cell, MAX_ROWS } = require('../tools/design-check/ci-summary');
+const { violationsToFindings, runAccessibilityChecks, PENDING_RULES } = require('../tools/design-check/accessibility');
 
 /** Omgevingsvariabelen die de seed-controle lezen; per test leeg begonnen en daarna teruggezet. */
 const SEED_ENV = ['NODE_ENV', 'DESIGN_SEED_TOEGESTAAN', 'PGHOST', 'PGHOSTADDR'];
@@ -250,4 +251,57 @@ test('metingen in de browser: afgekapt telt geen schuifbalk of verborgen dia, we
   </body>`);
   const clipped = await page.evaluate(runPageChecks, { mobile: true });
   assert.ok(clipped.some((finding) => finding.check === 'afgekapt'), 'echte afkapping blijft een melding');
+});
+
+test('toegankelijkheid: impact bepaalt de ernst, regels op de wachtlijst blokkeren niet', () => {
+  const findings = violationsToFindings([
+    { id: 'image-alt', impact: 'critical', help: 'Afbeeldingen hebben alt-tekst', nodes: [{ target: ['img.foto'] }] },
+    { id: 'region', impact: 'moderate', help: 'Inhoud in landmarks', nodes: [{ target: ['div.los'] }] },
+    { id: 'color-contrast', impact: 'serious', help: 'Contrast', nodes: [1, 2, 3, 4, 5].map((index) => ({ target: [`p:nth-child(${index})`] })) },
+  ]);
+  assert.equal(findings.find((finding) => finding.selector === 'img.foto').severity, 'hoog');
+  assert.equal(findings.find((finding) => finding.selector === 'div.los').severity, 'laag');
+  const contrast = findings.filter((finding) => finding.message.startsWith('color-contrast'));
+  assert.equal(contrast.length, 3, 'maximaal drie elementen per overtreding');
+  assert.ok(contrast.every((finding) => finding.severity === 'midden' && finding.check === 'toegankelijkheid'));
+  assert.match(contrast[0].message, /wachtlijst W26.*\(\+2 elementen\)/);
+  assert.ok(Object.values(PENDING_RULES).every((reason) => /^W\d+$/.test(reason)), 'elke uitzondering verwijst naar de wachtlijst');
+});
+
+test('toegankelijkheid: twee axe-regels op hetzelfde element blijven twee bevindingen met hun eigen ernst', () => {
+  const findings = violationsToFindings([
+    { id: 'color-contrast', impact: 'serious', help: 'Contrast', nodes: [{ target: ['a.knop'] }] },
+    { id: 'link-name', impact: 'serious', help: 'Linktekst', nodes: [{ target: ['a.knop'] }] },
+  ]).map((finding) => ({ ...finding, viewport: 'desktop' }));
+  const groups = groupFindings([{ area: 'Publieke site', url: '/', type: '/', findings }]);
+  assert.equal(groups.length, 2);
+  assert.equal(groups[0].severity, 'hoog', 'de blokkerende regel staat bovenaan');
+  assert.match(groups[0].message, /^link-name/);
+});
+
+/**
+ * Of axe-core beschikbaar is (alleen in de ontwikkelomgeving en de design-job in CI).
+ * @returns {boolean} Waar als het pakket te vinden is.
+ */
+function axeAvailable() {
+  try {
+    require.resolve('axe-core/axe.min.js');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+test('toegankelijkheid in de browser: axe vindt een knop zonder naam, ook onder een strenge CSP', { skip: (!playwright || !axeAvailable()) && 'Playwright of axe-core niet beschikbaar' }, async (t) => {
+  const browser = await playwright.chromium.launch();
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  await page.setContent(`<!doctype html><html lang="nl"><head><title>Test</title>
+    <meta http-equiv="Content-Security-Policy" content="script-src 'none'"></head>
+    <body><main><h1>Kop</h1><button id="leeg"></button></main></body></html>`);
+  const findings = await runAccessibilityChecks(page);
+  const buttonName = findings.find((finding) => finding.message.startsWith('button-name'));
+  assert.ok(buttonName, 'knop zonder naam gevonden');
+  assert.equal(buttonName.severity, 'hoog');
+  assert.equal(buttonName.selector, '#leeg');
 });
