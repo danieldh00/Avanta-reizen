@@ -108,6 +108,36 @@ function isValidDate(value) {
 }
 
 /**
+ * Maakt de invoer van één veld schoon: zonder stuurtekens, regeleinden als `\n`, witruimte samengevoegd (behalve in
+ * een tekstvak). Een selectievakje telt alleen als akkoord met precies de waarde die het formulier verstuurt (bewijs
+ * voor `consent_at`).
+ * @param {object} field Veld uit FIELDS.
+ * @param {*} raw Ingezonden waarde.
+ * @returns {string} Schone waarde, of een lege tekst.
+ */
+function cleanFieldInput(field, raw) {
+  let value = typeof raw === 'string' ? raw.replace(CONTROL_CHARACTERS, '').replace(/\r\n/g, '\n').trim() : '';
+  if (field.type !== 'textarea') value = value.replace(/\s+/g, ' ');
+  if (field.type === 'checkbox' && value !== 'ja') value = '';
+  return value;
+}
+
+/**
+ * Controleert de vorm van een ingevulde waarde: lengte, keuze uit de opties, e-mailadres, telefoonnummer of datum.
+ * @param {object} field Veld uit FIELDS.
+ * @param {string} value Schone, niet-lege waarde.
+ * @returns {string} Foutmelding, of een lege tekst als de waarde klopt.
+ */
+function formatProblem(field, value) {
+  if (field.max && value.length > field.max) return `Maximaal ${field.max} tekens.`;
+  if (field.options && !field.options.some((option) => option.value === value)) return 'Kies een van de opties.';
+  if (field.type === 'email' && !/^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/i.test(value)) return 'Vul een geldig e-mailadres in.';
+  if (field.type === 'tel' && !/^[+()\d\s-]{6,30}$/.test(value)) return 'Vul een geldig telefoonnummer in.';
+  if (field.type === 'date' && !isValidDate(value)) return 'Vul een geldige datum in.';
+  return '';
+}
+
+/**
  * Controleert en normaliseert een deel van de velden (ook gebruikt door het CRM bij het wijzigen van een persoon).
  * @param {object[]} fields Velden uit FIELDS.
  * @param {object} body Ingezonden velden.
@@ -118,11 +148,7 @@ function validateFields(fields, body, context) {
   const values = {};
   const errors = {};
   for (const field of fields) {
-    const raw = body[field.name];
-    let value = typeof raw === 'string' ? raw.replace(CONTROL_CHARACTERS, '').replace(/\r\n/g, '\n').trim() : '';
-    if (field.type !== 'textarea') value = value.replace(/\s+/g, ' ');
-    // Een selectievakje telt alleen als akkoord met precies de waarde die het formulier verstuurt (bewijs voor consent_at).
-    if (field.type === 'checkbox' && value !== 'ja') value = '';
+    const value = cleanFieldInput(field, body[field.name]);
     values[field.name] = value;
     if (field.required && !value) {
       errors[field.name] = field.type === 'checkbox' ? 'Ga akkoord om je aan te melden.' : 'Dit veld is verplicht.';
@@ -132,12 +158,8 @@ function validateFields(fields, body, context) {
       errors[field.name] = 'Geef toestemming, of laat het veld hierboven leeg.';
       continue;
     }
-    if (!value) continue;
-    if (field.max && value.length > field.max) errors[field.name] = `Maximaal ${field.max} tekens.`;
-    else if (field.options && !field.options.some((option) => option.value === value)) errors[field.name] = 'Kies een van de opties.';
-    else if (field.type === 'email' && !/^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/i.test(value)) errors[field.name] = 'Vul een geldig e-mailadres in.';
-    else if (field.type === 'tel' && !/^[+()\d\s-]{6,30}$/.test(value)) errors[field.name] = 'Vul een geldig telefoonnummer in.';
-    else if (field.type === 'date' && !isValidDate(value)) errors[field.name] = 'Vul een geldige datum in.';
+    const problem = value ? formatProblem(field, value) : '';
+    if (problem) errors[field.name] = problem;
   }
   if (!errors.birth_date && values.birth_date && (values.birth_date >= context.today || values.birth_date < '1900-01-01')) {
     errors.birth_date = 'Vul een geldige geboortedatum in.';

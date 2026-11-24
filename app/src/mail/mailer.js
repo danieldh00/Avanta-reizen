@@ -58,6 +58,24 @@ function serverReply(error) {
 }
 
 /**
+ * Uitleg bij een verbindingsfout met de mailserver: naam niet gevonden, verbinding geweigerd, time-out of anders
+ * niet bereikbaar.
+ * @param {string} code Foutcode van nodemailer (`ETIMEDOUT`, `ECONNECTION`, `ESOCKET` of `EDNS`).
+ * @param {string} message Foutmelding.
+ * @param {string} where De mailserver als `host:poort`, of "de mailserver".
+ * @returns {string} Wat er misging en wat te controleren.
+ */
+function connectionAdvice(code, message, where) {
+  const text = `${code} ${message}`;
+  if (code === 'EDNS' || /ENOTFOUND|EAI_AGAIN/.test(text)) return `de naam van ${where} is niet gevonden. Controleer de servernaam.`;
+  if (/ECONNREFUSED/.test(text)) return `${where} weigert de verbinding. Controleer de poort (587 met STARTTLS, 465 met SSL/TLS of 25 voor een connector).`;
+  if (code === 'ETIMEDOUT' || /timeout|never received/i.test(text)) {
+    return `${where} geeft geen antwoord (time-out). Meestal blokkeert een firewall of de provider uitgaand verkeer naar die poort (vaak poort 25). Probeer 587 met STARTTLS of 465 met SSL/TLS.`;
+  }
+  return `${where} is niet bereikbaar. Controleer server en poort en of de server naar buiten mag verbinden.`;
+}
+
+/**
  * Maakt van een fout bij het versturen een melding waar de beheerder iets mee kan: wat er misging en waar het meestal
  * aan ligt, met het antwoord van de mailserver erachter. Eigen fouten (`not_configured`, `invalid_to`, `invalid_host`)
  * zijn al leesbaar. Nooit het wachtwoord of een e-mailadres.
@@ -83,15 +101,7 @@ function mailFailure(error) {
   if (code === 'ETLS' || /CERT|SIGNED|UNABLE_TO_VERIFY|TLS|SSL/.test(code) || (connectionProblem && /certificate|self.signed|TLS|SSL/i.test(message))) {
     return withReply('de beveiligde verbinding (TLS) met de mailserver lukt niet. Controleer de poort en de instelling SSL/TLS; een ongeldig certificaat wordt niet geaccepteerd.');
   }
-  if (connectionProblem) {
-    const text = `${code} ${message}`;
-    if (code === 'EDNS' || /ENOTFOUND|EAI_AGAIN/.test(text)) return withReply(`de naam van ${where} is niet gevonden. Controleer de servernaam.`);
-    if (/ECONNREFUSED/.test(text)) return withReply(`${where} weigert de verbinding. Controleer de poort (587 met STARTTLS, 465 met SSL/TLS of 25 voor een connector).`);
-    if (code === 'ETIMEDOUT' || /timeout|never received/i.test(text)) {
-      return withReply(`${where} geeft geen antwoord (time-out). Meestal blokkeert een firewall of de provider uitgaand verkeer naar die poort (vaak poort 25). Probeer 587 met STARTTLS of 465 met SSL/TLS.`);
-    }
-    return withReply(`${where} is niet bereikbaar. Controleer server en poort en of de server naar buiten mag verbinden.`);
-  }
+  if (connectionProblem) return withReply(connectionAdvice(code, message, where));
   if (code === 'EENVELOPE') {
     return withReply(error.command === 'MAIL FROM'
       ? 'de mailserver weigert het afzenderadres. Gebruik een afzender waarvoor deze mailserver mag versturen (bij een connector: een domein van de eigen organisatie).'

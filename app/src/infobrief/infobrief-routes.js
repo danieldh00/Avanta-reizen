@@ -77,6 +77,22 @@ function overviewFileName(infobrief) {
 }
 
 /**
+ * De feiten boven een infobrief: vertrek, status, wie hem aanmaakte en wijzigde, en wanneer hij is verstuurd.
+ * @param {any} infobrief De infobrief.
+ * @returns {Array<Array<*>>} Paren van label en waarde.
+ */
+function infobriefFacts(infobrief) {
+  return [
+    ['Vertrek', tripLabel(infobrief)],
+    ['Status', ui.renderStatus(infobrief.status, infobrieven.STATUSES[infobrief.status] || infobrief.status)],
+    ['Aangemaakt', `${formatDateTime(infobrief.created_at)}${infobrief.created_by_name ? ` · ${infobrief.created_by_name}` : ''}`],
+    ['Laatst gewijzigd', `${formatDateTime(infobrief.updated_at)}${infobrief.updated_by_name ? ` · ${infobrief.updated_by_name}` : ''}`],
+    ...(infobrief.send_started_at ? [['Verstuurd', `${formatDateTime(infobrief.send_started_at)}${infobrief.sent_by_name ? ` · ${infobrief.sent_by_name}` : ''}`]] : []),
+    ...(infobrief.send_finished_at ? [['Klaar', formatDateTime(infobrief.send_finished_at)]] : []),
+  ];
+}
+
+/**
  * Maakt de routes voor de infobrieven.
  * @param {{db: any, auth: any, persons: {openBlock: Function}, settings: {get: (key: string) => any}, mailer: {configured: () => boolean, send: Function}, sender: {kick: () => void}, now?: () => number}} options
  *   Database, sessie- en rechtenlaag, personen, instellingen, mailer, de verzender in de achtergrond en (voor tests)
@@ -171,74 +187,65 @@ function createInfobriefRoutes(options) {
   });
 
   /**
-   * De pagina van één infobrief: als concept het formulier, voorbeeld, testmail en versturen; daarna het
-   * verzendoverzicht.
+   * Het concept: formulier, voorbeeld, testmail, versturen (met het aantal ontvangers en wat het tegenhoudt) en
+   * verwijderen.
    * @param {any} req Express-verzoek.
-   * @param {any} infobrief De infobrief (`findInfobrief`).
-   * @param {{notice?: string, error?: string, values?: any, errors?: Record<string, string>}} [state] Melding, fout en
-   *   (na een mislukte controle) de ingevulde waarden.
+   * @param {any} infobrief De infobrief (status `concept`).
+   * @param {{values?: any, errors?: Record<string, string>}} state Ingevulde waarden en fouten na een mislukte controle.
+   * @param {{title: string, header: object, preview: object, hidden: object, action: string}} parts Gedeelde delen van de
+   *   pagina (`renderInfobrief`).
    * @returns {Promise<string>} HTML-pagina.
    */
-  const renderInfobrief = async (req, infobrief, state = {}) => {
-    const hidden = html`<input type="hidden" name="_csrf" value="${req.session.csrf}">`;
-    const action = `${BASE}${infobrief.id}/`;
-    const facts = [
-      ['Vertrek', tripLabel(infobrief)],
-      ['Status', ui.renderStatus(infobrief.status, infobrieven.STATUSES[infobrief.status] || infobrief.status)],
-      ['Aangemaakt', `${formatDateTime(infobrief.created_at)}${infobrief.created_by_name ? ` · ${infobrief.created_by_name}` : ''}`],
-      ['Laatst gewijzigd', `${formatDateTime(infobrief.updated_at)}${infobrief.updated_by_name ? ` · ${infobrief.updated_by_name}` : ''}`],
-      ...(infobrief.send_started_at ? [['Verstuurd', `${formatDateTime(infobrief.send_started_at)}${infobrief.sent_by_name ? ` · ${infobrief.sent_by_name}` : ''}`]] : []),
-      ...(infobrief.send_finished_at ? [['Klaar', formatDateTime(infobrief.send_finished_at)]] : []),
-    ];
-    const preview = html`<h2>Voorbeeld</h2>
-      <iframe class="crm-mail-preview" src="${action}voorbeeld/" title="Voorbeeld van de infobrief" sandbox=""></iframe>
-      <p class="field__help">Zo ziet een deelnemer de mail; de aanhef krijgt de roepnaam. <a href="${action}voorbeeld/?rol=ouder_voogd" target="_blank" rel="noopener">Bekijk de versie voor de ouder of voogd</a>.</p>`;
-    const header = html`<p><a href="${BASE}">Naar de infobrieven</a></p>
-      ${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
-      ${renderAlert(state.error)}
-      <dl class="crm-facts">${facts.map(([label, value]) => html`<dt>${label}</dt><dd>${value}</dd>`)}</dl>`;
-    const title = infobrief.subject ? `Infobrief: ${infobrief.subject}` : 'Infobrief';
+  const renderConcept = async (req, infobrief, state, { title, header, preview, hidden, action }) => {
+    const values = state.values || { subject: infobrief.subject, bodyHtml: infobrief.body_html, includeNew: infobrief.include_new, includeGuardians: infobrief.include_guardians };
+    const errors = state.errors || {};
+    const { list: candidates, tooMany } = await infobrieven.recipientCandidates(db, { trip_id: infobrief.trip_id, include_new: infobrief.include_new, include_guardians: infobrief.include_guardians }, persons);
+    const counts = infobrieven.countCandidates(candidates);
+    const skipped = candidates.filter((item) => item.status === 'overgeslagen');
+    const blocker = (tooMany ? TOO_MANY : '') || infobrieven.readyToSend(infobrief) || (mailer.configured() ? '' : 'Er is nog geen mailserver ingesteld (Beheer > E-mail > Mailserver).') || (counts.total ? '' : 'Er is nog niemand met een e-mailadres om deze infobrief naar te sturen.');
+    return page(req, title, html`${header}
+      <form class="form crm-block" method="post" action="${action}">${hidden}
+        ${fieldRow({ id: 'veld-onderwerp', label: 'Onderwerp', error: errors.onderwerp, control: html`<input id="veld-onderwerp" name="onderwerp" type="text" value="${values.subject}" maxlength="${infobrieven.LIMITS.subject}"${invalidAttributes('veld-onderwerp', errors.onderwerp)}>` })}
+        ${fieldRow({ id: 'veld-tekst', label: 'Tekst', error: errors.tekst, help: `${RICHTEXT_HELP} De aanhef (Beste …) en de reis zet het CRM er zelf boven.`, control: html`<textarea id="veld-tekst" name="tekst" rows="16" class="cms-richtext"${invalidAttributes('veld-tekst', errors.tekst)}>${values.bodyHtml}</textarea>` })}
+        <label class="choice"><input type="checkbox" name="ouders" value="ja"${values.includeGuardians ? html` checked` : ''}> <span>Ook naar de ouder of voogd (deelnemers onder de 16)</span></label>
+        <label class="choice"><input type="checkbox" name="nieuw" value="ja"${values.includeNew ? html` checked` : ''}> <span>Ook naar aanmeldingen met status Nieuw (nog niet bevestigd door kantoor)</span></label>
+        ${ui.renderSaveBar({ label: 'Opslaan', note: 'Opslaan voordat je het voorbeeld bekijkt of een testmail stuurt.' })}
+      </form>
+      <div class="crm-columns">
+        <section>${preview}</section>
+        <section>
+          <h2>Testmail</h2>
+          <form class="form crm-narrow" method="post" action="${action}testmail/">${hidden}
+            <p>Stuurt de opgeslagen versie naar je eigen adres (${req.user.email}), met [Test] voor het onderwerp.</p>
+            <div><button class="btn btn--outline" type="submit">Stuur een testmail naar mij</button></div>
+          </form>
+          <h2>Versturen</h2>
+          <p>Deze infobrief gaat naar <strong>${counts.total}</strong> ${counts.total === 1 ? 'ontvanger' : 'ontvangers'}: ${counts.participants} ${counts.participants === 1 ? 'deelnemer' : 'deelnemers'} en ${counts.guardians} ${counts.guardians === 1 ? 'ouder of voogd' : 'ouders of voogden'}. Geannuleerde aanmeldingen krijgen hem niet.</p>
+          ${skipped.length ? html`<details><summary>${skipped.length} overgeslagen</summary><ul>${skipped.map((item) => html`<li>${item.name}: ${item.note}</li>`)}</ul></details>` : ''}
+          ${blocker ? html`<p class="field__help">${blocker}</p>` : html`<form class="form crm-narrow" method="post" action="${action}versturen/">${hidden}
+            <input type="hidden" name="aantal" value="${counts.total}">
+            <label class="choice"><input type="checkbox" name="bevestig" value="ja" required> <span>Ja, verstuur deze infobrief nu naar ${counts.total} ${counts.total === 1 ? 'ontvanger' : 'ontvangers'}. Daarna kan hij niet meer worden gewijzigd.</span></label>
+            <div><button class="btn" type="submit">Infobrief versturen</button></div>
+          </form>`}
+          <h2>Verwijderen</h2>
+          <form class="form crm-narrow" method="post" action="${action}verwijderen/">${hidden}
+            <label class="choice"><input type="checkbox" name="bevestig" value="ja" required> <span>Ja, verwijder dit concept</span></label>
+            <div><button class="btn btn--outline" type="submit">Concept verwijderen</button></div>
+          </form>
+        </section>
+      </div>`);
+  };
 
-    if (infobrief.status === 'concept') {
-      const values = state.values || { subject: infobrief.subject, bodyHtml: infobrief.body_html, includeNew: infobrief.include_new, includeGuardians: infobrief.include_guardians };
-      const errors = state.errors || {};
-      const { list: candidates, tooMany } = await infobrieven.recipientCandidates(db, { trip_id: infobrief.trip_id, include_new: infobrief.include_new, include_guardians: infobrief.include_guardians }, persons);
-      const counts = infobrieven.countCandidates(candidates);
-      const skipped = candidates.filter((item) => item.status === 'overgeslagen');
-      const blocker = (tooMany ? TOO_MANY : '') || infobrieven.readyToSend(infobrief) || (mailer.configured() ? '' : 'Er is nog geen mailserver ingesteld (Beheer > E-mail > Mailserver).') || (counts.total ? '' : 'Er is nog niemand met een e-mailadres om deze infobrief naar te sturen.');
-      return page(req, title, html`${header}
-        <form class="form crm-block" method="post" action="${action}">${hidden}
-          ${fieldRow({ id: 'veld-onderwerp', label: 'Onderwerp', error: errors.onderwerp, control: html`<input id="veld-onderwerp" name="onderwerp" type="text" value="${values.subject}" maxlength="${infobrieven.LIMITS.subject}"${invalidAttributes('veld-onderwerp', errors.onderwerp)}>` })}
-          ${fieldRow({ id: 'veld-tekst', label: 'Tekst', error: errors.tekst, help: `${RICHTEXT_HELP} De aanhef (Beste …) en de reis zet het CRM er zelf boven.`, control: html`<textarea id="veld-tekst" name="tekst" rows="16" class="cms-richtext"${invalidAttributes('veld-tekst', errors.tekst)}>${values.bodyHtml}</textarea>` })}
-          <label class="choice"><input type="checkbox" name="ouders" value="ja"${values.includeGuardians ? html` checked` : ''}> <span>Ook naar de ouder of voogd (deelnemers onder de 16)</span></label>
-          <label class="choice"><input type="checkbox" name="nieuw" value="ja"${values.includeNew ? html` checked` : ''}> <span>Ook naar aanmeldingen met status Nieuw (nog niet bevestigd door kantoor)</span></label>
-          ${ui.renderSaveBar({ label: 'Opslaan', note: 'Opslaan voordat je het voorbeeld bekijkt of een testmail stuurt.' })}
-        </form>
-        <div class="crm-columns">
-          <section>${preview}</section>
-          <section>
-            <h2>Testmail</h2>
-            <form class="form crm-narrow" method="post" action="${action}testmail/">${hidden}
-              <p>Stuurt de opgeslagen versie naar je eigen adres (${req.user.email}), met [Test] voor het onderwerp.</p>
-              <div><button class="btn btn--outline" type="submit">Stuur een testmail naar mij</button></div>
-            </form>
-            <h2>Versturen</h2>
-            <p>Deze infobrief gaat naar <strong>${counts.total}</strong> ${counts.total === 1 ? 'ontvanger' : 'ontvangers'}: ${counts.participants} ${counts.participants === 1 ? 'deelnemer' : 'deelnemers'} en ${counts.guardians} ${counts.guardians === 1 ? 'ouder of voogd' : 'ouders of voogden'}. Geannuleerde aanmeldingen krijgen hem niet.</p>
-            ${skipped.length ? html`<details><summary>${skipped.length} overgeslagen</summary><ul>${skipped.map((item) => html`<li>${item.name}: ${item.note}</li>`)}</ul></details>` : ''}
-            ${blocker ? html`<p class="field__help">${blocker}</p>` : html`<form class="form crm-narrow" method="post" action="${action}versturen/">${hidden}
-              <input type="hidden" name="aantal" value="${counts.total}">
-              <label class="choice"><input type="checkbox" name="bevestig" value="ja" required> <span>Ja, verstuur deze infobrief nu naar ${counts.total} ${counts.total === 1 ? 'ontvanger' : 'ontvangers'}. Daarna kan hij niet meer worden gewijzigd.</span></label>
-              <div><button class="btn" type="submit">Infobrief versturen</button></div>
-            </form>`}
-            <h2>Verwijderen</h2>
-            <form class="form crm-narrow" method="post" action="${action}verwijderen/">${hidden}
-              <label class="choice"><input type="checkbox" name="bevestig" value="ja" required> <span>Ja, verwijder dit concept</span></label>
-              <div><button class="btn btn--outline" type="submit">Concept verwijderen</button></div>
-            </form>
-          </section>
-        </div>`);
-    }
-
+  /**
+   * Een verstuurde of nog verzendende infobrief: voorbeeld, verzendoverzicht met download en opnieuw versturen van
+   * de mislukte ontvangers.
+   * @param {any} req Express-verzoek.
+   * @param {any} infobrief De infobrief.
+   * @param {{title: string, header: object, preview: object, hidden: object, action: string}} parts Gedeelde delen van de
+   *   pagina (`renderInfobrief`).
+   * @returns {Promise<string>} HTML-pagina.
+   */
+  const renderSent = async (req, infobrief, { title, header, preview, hidden, action }) => {
     const overview = await infobrieven.recipientOverview(db, infobrief.id);
     const countText = Object.entries(overview.counts).filter(([, count]) => count > 0)
       .map(([status, count]) => `${count} ${infobrieven.RECIPIENT_STATUSES[status].toLowerCase()}`).join(', ');
@@ -271,6 +278,30 @@ function createInfobriefRoutes(options) {
           { label: 'Verzonden op', cell: (/** @type {any} */ row) => (row.sent_at ? formatDateTime(row.sent_at) : '–') },
         ],
       })}`);
+  };
+
+  /**
+   * De pagina van één infobrief: als concept het formulier, voorbeeld, testmail en versturen; daarna het
+   * verzendoverzicht.
+   * @param {any} req Express-verzoek.
+   * @param {any} infobrief De infobrief (`findInfobrief`).
+   * @param {{notice?: string, error?: string, values?: any, errors?: Record<string, string>}} [state] Melding, fout en
+   *   (na een mislukte controle) de ingevulde waarden.
+   * @returns {Promise<string>} HTML-pagina.
+   */
+  const renderInfobrief = async (req, infobrief, state = {}) => {
+    const hidden = html`<input type="hidden" name="_csrf" value="${req.session.csrf}">`;
+    const action = `${BASE}${infobrief.id}/`;
+    const preview = html`<h2>Voorbeeld</h2>
+      <iframe class="crm-mail-preview" src="${action}voorbeeld/" title="Voorbeeld van de infobrief" sandbox=""></iframe>
+      <p class="field__help">Zo ziet een deelnemer de mail; de aanhef krijgt de roepnaam. <a href="${action}voorbeeld/?rol=ouder_voogd" target="_blank" rel="noopener">Bekijk de versie voor de ouder of voogd</a>.</p>`;
+    const header = html`<p><a href="${BASE}">Naar de infobrieven</a></p>
+      ${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
+      ${renderAlert(state.error)}
+      <dl class="crm-facts">${infobriefFacts(infobrief).map(([label, value]) => html`<dt>${label}</dt><dd>${value}</dd>`)}</dl>`;
+    const title = infobrief.subject ? `Infobrief: ${infobrief.subject}` : 'Infobrief';
+    const parts = { title, header, preview, hidden, action };
+    return infobrief.status === 'concept' ? renderConcept(req, infobrief, state, parts) : renderSent(req, infobrief, parts);
   };
 
   router.get(routePath(`${ROUTE}${ID}/`), guard, async (req, res, next) => {
