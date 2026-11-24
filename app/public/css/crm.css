@@ -99,6 +99,7 @@
 /* Infobrief (infobrief/infobrief-routes.js): status van de brief en per ontvanger, en het voorbeeld van de mail. */
 .crm-status--verzenden, .crm-status--wachtrij, .crm-status--bezig { background: #fbf0d9; color: #734600; }
 .crm-status--verzonden { background: #e2f1e5; color: #1e5a2c; }
+.crm-status--overgeslagen { background: #eeeef0; color: #4a4950; }
 .crm-status--mislukt, .crm-status--onzeker { background: #f7e6e2; color: #8a3f31; }
 .crm-mail-preview { display: block; width: 100%; height: 640px; border: 1px solid var(--crm-line); border-radius: 8px; background: #f3ede6; }
 /* Overzicht (crm/dashboard.js): tegels Te doen, panelen en twee kolommen. */

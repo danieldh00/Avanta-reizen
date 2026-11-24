@@ -32,6 +32,9 @@ const TESTMAIL_LIMIT = 10;
 /** Hoogstens zoveel exports van het verzendoverzicht per gebruiker per tien minuten. */
 const EXPORT_LIMIT = 30;
 
+/** Melding als een vertrek meer aanmeldingen heeft dan één infobrief aankan (`MAX_BOOKINGS`). */
+const TOO_MANY = `Dit vertrek heeft meer dan ${infobrieven.MAX_BOOKINGS} aanmeldingen; zo'n infobrief verstuurt het CRM niet in één keer.`;
+
 /** Acties voor het auditlog (zie `ACTION_LABELS` in `crm/users.js`). */
 const INFOBRIEF_ACTION_LABELS = {
   'infobrief.aangemaakt': 'Infobrief aangemaakt',
@@ -198,10 +201,10 @@ function createInfobriefRoutes(options) {
     if (infobrief.status === 'concept') {
       const values = state.values || { subject: infobrief.subject, bodyHtml: infobrief.body_html, includeNew: infobrief.include_new, includeGuardians: infobrief.include_guardians };
       const errors = state.errors || {};
-      const candidates = await infobrieven.recipientCandidates(db, { trip_id: infobrief.trip_id, include_new: infobrief.include_new, include_guardians: infobrief.include_guardians }, persons);
+      const { list: candidates, tooMany } = await infobrieven.recipientCandidates(db, { trip_id: infobrief.trip_id, include_new: infobrief.include_new, include_guardians: infobrief.include_guardians }, persons);
       const counts = infobrieven.countCandidates(candidates);
       const skipped = candidates.filter((item) => item.status === 'overgeslagen');
-      const blocker = infobrieven.readyToSend(infobrief) || (mailer.configured() ? '' : 'Er is nog geen mailserver ingesteld (Beheer > E-mail > Mailserver).') || (counts.total ? '' : 'Er is nog niemand met een e-mailadres om deze infobrief naar te sturen.');
+      const blocker = (tooMany ? TOO_MANY : '') || infobrieven.readyToSend(infobrief) || (mailer.configured() ? '' : 'Er is nog geen mailserver ingesteld (Beheer > E-mail > Mailserver).') || (counts.total ? '' : 'Er is nog niemand met een e-mailadres om deze infobrief naar te sturen.');
       return page(req, title, html`${header}
         <form class="form crm-block" method="post" action="${action}">${hidden}
           ${fieldRow({ id: 'veld-onderwerp', label: 'Onderwerp', error: errors.onderwerp, control: html`<input id="veld-onderwerp" name="onderwerp" type="text" value="${values.subject}" maxlength="${infobrieven.LIMITS.subject}"${invalidAttributes('veld-onderwerp', errors.onderwerp)}>` })}
@@ -355,7 +358,8 @@ function createInfobriefRoutes(options) {
         if (!locked || locked.status !== 'concept') return { error: 'Deze infobrief is al verstuurd.', status: 409 };
         const notReady = infobrieven.readyToSend(locked);
         if (notReady) return { error: notReady, status: 422 };
-        const list = await infobrieven.recipientCandidates(client, locked, persons);
+        const { list, tooMany } = await infobrieven.recipientCandidates(client, locked, persons);
+        if (tooMany) return { error: TOO_MANY, status: 422 };
         const counts = infobrieven.countCandidates(list);
         if (!counts.total) return { error: 'Er is niemand met een e-mailadres om deze infobrief naar te sturen.', status: 422 };
         // Het aantal op het scherm moet nog kloppen; anders eerst opnieuw laten bevestigen.

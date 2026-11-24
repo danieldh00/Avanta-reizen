@@ -403,6 +403,35 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     clock += 1;
   });
 
+  await t.test('verzender: fout halverwege een ronde laat de rest in de wachtrij; te veel aanmeldingen = niet versturen', async () => {
+    const [brief] = await db.query("INSERT INTO infobrieven (trip_id, subject, body_html, status, send_started_at) VALUES ($1, 'Halverwege', '<p>x</p>', 'verzenden', now()) RETURNING id", [trip.id]);
+    const ids = await db.query("SELECT id FROM bookings WHERE reference IN ('AV-2', 'AV-3', 'AV-7') ORDER BY id");
+    for (const row of ids) await db.query("INSERT INTO infobrief_recipients (infobrief_id, booking_id, role) VALUES ($1, $2, 'deelnemer')", [brief.id, row.id]);
+    // Twee keer: het vastleggen na het versturen én het vastleggen van de fout mislukken.
+    let failures = 2;
+    const flaky = {
+      query: (sql, params) => {
+        if (failures > 0 && sql.includes('SET status = $2, note = $3')) {
+          failures--;
+          return Promise.reject(Object.assign(new Error('database weg'), { code: 'ECONNRESET' }));
+        }
+        return db.query(sql, params);
+      },
+    };
+    mailer.ready = true;
+    mailer.sent.length = 0;
+    const own = createInfobriefSender({ db: flaky, mailer, settings: { get: (key) => (key === 'infobriefPerMinute' ? 10 : app.locals.settings.get(key)) }, persons });
+    await assert.rejects(own.runOnce(), /database weg/);
+    const statuses = (await db.query('SELECT status FROM infobrief_recipients WHERE infobrief_id = $1 ORDER BY id', [brief.id])).map((row) => row.status);
+    assert.deepEqual(statuses, ['bezig', 'wachtrij', 'wachtrij'], 'alleen de ene regel van het moment blijft hangen');
+    await own.runOnce();
+    const after = (await db.query('SELECT status FROM infobrief_recipients WHERE infobrief_id = $1 ORDER BY id', [brief.id])).map((row) => row.status);
+    assert.deepEqual(after, ['bezig', 'verzonden', 'verzonden']);
+
+    const many = { query: async () => Array.from({ length: infobrieven.MAX_BOOKINGS + 1 }, (_, index) => ({ booking_id: index, display_name: 'x', email: `x${index}@example.nl` })) };
+    assert.deepEqual(await infobrieven.recipientCandidates(many, { trip_id: 1, include_new: false, include_guardians: true }, persons), { list: [], tooMany: true });
+  });
+
   await t.test('verzender: kick schrijft alleen aantallen of de soort fout in het log', async () => {
     const logs = [];
     const originalLog = console.log;

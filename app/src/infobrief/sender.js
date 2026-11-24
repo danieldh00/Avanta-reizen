@@ -1,7 +1,8 @@
 // @ts-check
 /**
  * Versturen van infobrieven in de achtergrond. Een ronde pakt ontvangers uit de wachtrij (`infobrief_recipients` met
- * status *wachtrij*), hoogstens zoveel per minuut als Beheer > E-mail > Infobrief toestaat, en verstuurt ze één voor één.
+ * status *wachtrij*) één voor één, vlak voor het versturen, hoogstens zoveel per minuut als Beheer > E-mail > Infobrief
+ * toestaat.
  *
  * Nooit dubbel: een ontvanger gaat eerst op *bezig* (met `FOR UPDATE SKIP LOCKED`, zodat twee rondes of twee processen
  * nooit dezelfde regel pakken) en pas na het versturen op *verzonden* of *mislukt*. Blijft een regel door een herstart
@@ -120,28 +121,27 @@ function createInfobriefSender(options) {
       await finish();
       return counts;
     }
+    // Eén ontvanger tegelijk pakken, vlak voor het versturen: stopt de ronde halverwege (fout of herstart), dan kan
+    // alleen de ene regel die net werd verstuurd *niet zeker* worden; de rest blijft gewoon in de wachtrij.
     const limit = budget();
-    if (limit > 0) {
-      const claimed = await db.query(
-        `UPDATE infobrief_recipients SET status = 'bezig', attempts = attempts + 1, updated_at = $2
-          WHERE id IN (SELECT id FROM infobrief_recipients WHERE status = 'wachtrij' ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED)
+    for (let index = 0; index < limit; index++) {
+      const [claimed] = await db.query(
+        `UPDATE infobrief_recipients SET status = 'bezig', attempts = attempts + 1, updated_at = $1
+          WHERE id = (SELECT id FROM infobrief_recipients WHERE status = 'wachtrij' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED)
           RETURNING id`,
-        [limit, new Date(now()).toISOString()],
+        [new Date(now()).toISOString()],
       );
-      if (claimed.length) {
-        const rows = await db.query(
-          `SELECT r.id, r.role, ${infobrieven.RECIPIENT_COLUMNS},
-                  i.subject, i.body_html, t.title AS trip_title, t.trip_code, t.departure_date
-             FROM infobrief_recipients r JOIN infobrieven i ON i.id = r.infobrief_id JOIN trips t ON t.id = i.trip_id
-             LEFT JOIN bookings b ON b.id = r.booking_id LEFT JOIN persons p ON p.id = b.person_id
-            WHERE r.id = ANY($1::int[]) ORDER BY r.id`,
-          [claimed.map((row) => row.id)],
-        );
-        for (const row of rows) {
-          const outcome = await deliver(row);
-          counts[outcome]++;
-        }
-      }
+      if (!claimed) break;
+      const [row] = await db.query(
+        `SELECT r.id, r.role, ${infobrieven.RECIPIENT_COLUMNS},
+                i.subject, i.body_html, t.title AS trip_title, t.trip_code, t.departure_date
+           FROM infobrief_recipients r JOIN infobrieven i ON i.id = r.infobrief_id JOIN trips t ON t.id = i.trip_id
+           LEFT JOIN bookings b ON b.id = r.booking_id LEFT JOIN persons p ON p.id = b.person_id
+          WHERE r.id = $1`,
+        [claimed.id],
+      );
+      const outcome = await deliver(row);
+      counts[outcome]++;
     }
     await finish();
     return counts;

@@ -213,7 +213,9 @@ function guardianAddress(persons, row) {
  * @param {{query: Function}} client Database of transactie-client.
  * @param {{trip_id: number, include_new: boolean, include_guardians: boolean}} infobrief De infobrief.
  * @param {{openBlock: Function}} persons Personen (`persons/persons.js`).
- * @returns {Promise<Array<{bookingId: number, role: string, name: string, status: string, note: string}>>} Ontvangers op naam.
+ * @returns {Promise<{list: Array<{bookingId: number, role: string, name: string, status: string, note: string}>, tooMany: boolean}>}
+ *   Ontvangers op naam, en of het vertrek meer dan `MAX_BOOKINGS` aanmeldingen heeft (dan wordt er niet verstuurd:
+ *   liever weigeren dan stil afkappen).
  */
 async function recipientCandidates(client, infobrief, persons) {
   const rows = await client.query(
@@ -222,8 +224,9 @@ async function recipientCandidates(client, infobrief, persons) {
       WHERE b.trip_id = $1 AND b.status <> 'geannuleerd' AND b.anonymized_at IS NULL AND ($2::boolean OR b.status <> 'nieuw')
       ORDER BY lower(coalesce(nullif(p.last_name, ''), b.last_name)), lower(coalesce(nullif(p.first_names, ''), b.first_names)), b.id
       LIMIT $3`,
-    [infobrief.trip_id, infobrief.include_new, MAX_BOOKINGS],
+    [infobrief.trip_id, infobrief.include_new, MAX_BOOKINGS + 1],
   );
+  if (rows.length > MAX_BOOKINGS) return { list: [], tooMany: true };
   const seen = new Set();
   const list = [];
   /**
@@ -251,7 +254,7 @@ async function recipientCandidates(client, infobrief, persons) {
       add(row.booking_id, 'ouder_voogd', `Ouder of voogd van ${row.display_name}`, guardian.email, guardian.unreadable ? 'gegevens van de ouder niet te openen' : 'geen e-mailadres');
     }
   }
-  return list;
+  return { list, tooMany: false };
 }
 
 /**
