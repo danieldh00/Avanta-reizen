@@ -14,7 +14,8 @@ services:
         nl.avantareizen.stack: avanta
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://avanta:${POSTGRES_PASSWORD:?zet POSTGRES_PASSWORD in .env}@db:5432/avanta
+      # Eigen rol zonder superuser-rechten (P7.4); install.sh maakt hem aan met app-rol.sql vóór de app start.
+      DATABASE_URL: postgres://avanta_app:${APP_DB_PASSWORD:?zet APP_DB_PASSWORD in .env (install.sh doet dat)}@db:5432/avanta
       SITE_URL: ${SITE_URL:?zet SITE_URL in .env}
       SITE_INDEXABLE: "${SITE_INDEXABLE:-false}"
       AVANTA_MASTER_KEY: ${AVANTA_MASTER_KEY:-}
