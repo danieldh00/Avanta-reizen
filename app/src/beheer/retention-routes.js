@@ -57,11 +57,12 @@ function createRetentionRoutes(options) {
         <div class="crm-table-wrap"><table class="crm-table">
           <tbody>${Object.keys(COUNT_LABELS).map((key) => html`<tr><th scope="row">${COUNT_LABELS[key]}</th><td>${Number(state.preview[key] || 0)}</td></tr>`)}</tbody>
         </table></div>` : ''}
+      <form class="beheer-confirm" id="form-opschonen" method="post" action="/app/beheer/bewaartermijnen/opschonen/">${csrfField}
+        <label class="choice"><input type="checkbox" name="bevestigen" value="ja" required> <span>Ik begrijp dat wissen niet terug te draaien is</span></label>
+      </form>
       <div class="beheer-actions">
         <form method="post" action="/app/beheer/bewaartermijnen/voorbeeld/">${csrfField}<button class="btn btn--outline btn--small" type="submit">Voorbeeld berekenen</button></form>
-        <form method="post" action="/app/beheer/bewaartermijnen/opschonen/">${csrfField}
-          <label class="choice"><input type="checkbox" name="bevestigen" value="ja" required> <span>Ik begrijp dat wissen niet terug te draaien is</span></label>
-          <button class="btn btn--outline btn--small" type="submit">Nu opschonen</button></form>
+        <button class="btn btn--outline btn--small" type="submit" form="form-opschonen">Nu opschonen</button>
       </div>
       <p class="field__help">Wissen en anonimiseren is niet terug te draaien (alleen nog in oudere back-ups, die volgens hun eigen bewaartermijn verdwijnen).</p>
       <h2>Laatste rondes</h2>

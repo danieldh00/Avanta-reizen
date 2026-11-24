@@ -117,7 +117,7 @@ test('reisleiders: lijst met staande foto en voornaam, detail met citaat, woonpl
   assert.match(detail, /icon--badge stamp/);
   assert.match(detail, /<span class="guide__featured-image"><img src="\/media\/p.jpg" alt="Caroline"/);
   assert.match(detail, /<span class="guide__image"><img src="\/media\/i.jpg"/);
-  assert.match(detail, /<blockquote class="guide__quote">Antarctica!<\/blockquote>/);
+  assert.match(detail, /<blockquote class="guide__quote">“Antarctica!”<\/blockquote>/);
   assert.match(detail, /<h1 class="guide__name">Caroline<\/h1>\s*<p class="guide__surname">de Bruin<\/p>/);
   assert.match(detail, /<span class="guide__city">Gouda<\/span>[\s\S]*<span class="guide__year">2012<\/span>/);
   assert.match(detail, /<p>Over mij<\/p>/);

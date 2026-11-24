@@ -13,7 +13,7 @@ const { createVault } = require('../src/security/vault');
 const { createPersons } = require('../src/persons/persons');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { ANONYMIZED_NAME } = require('../src/persons/retention');
+const { ANONYMIZED_NAME, createRetention } = require('../src/persons/retention');
 const { summarize } = require('../src/beheer/retention-routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -205,6 +205,21 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.equal(Object.values(outcome.counts).reduce((sum, value) => sum + value, 0), 0);
   });
 
+  await t.test('planner: hooguit één dagelijkse ronde per dag, ook na een herstart', async () => {
+    const count = async () => (await db.query("SELECT count(*)::int AS n FROM retention_runs WHERE trigger = 'dagelijks'"))[0].n;
+    const before = await count();
+    assert.equal(await retention.tick(), false, 'de eerste ronde was minder dan 23 uur geleden');
+    assert.equal(await count(), before);
+    // Een herstart begint met een nieuwe opschoning die dezelfde tabel leest: ook die slaat over.
+    const restarted = createRetention({ db, persons, settings: app.locals.settings, today: () => today });
+    assert.equal(await restarted.tick(), false);
+    // Is de vorige dagelijkse ronde langer dan 23 uur geleden, dan draait de planner wel.
+    await db.query("UPDATE retention_runs SET started_at = started_at - interval '1 day' WHERE trigger = 'dagelijks'");
+    assert.equal(await restarted.tick(), true);
+    assert.equal(await count(), before + 1);
+    assert.equal(await restarted.tick(), false, 'daarna weer niet');
+  });
+
   await t.test('een nieuwe aanmelding schuift de termijn op; daarna wordt opnieuw gewist', async () => {
     await insertBooking({ reference: 'AV-AGAIN', tripId: futureTrip, personId: recent });
     await persons.writeBlock(db, recent, 'health_data', { particulars: 'Pinda-allergie' });
@@ -261,6 +276,9 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.match(page.text, /Dagelijks/);
     assert.match(page.text, /Personen geanonimiseerd: 2/);
     assert.match(page.text, /name="retentionPersonMonths"/);
+    // Vinkje boven de knoppen; Nu opschonen hoort via form= bij het formulier van het vinkje.
+    assert.match(page.text, /<form class="beheer-confirm" id="form-opschonen"[^>]*>[\s\S]*?name="bevestigen"[\s\S]*?<\/form>\s*<div class="beheer-actions">/);
+    assert.match(page.text, /<button class="btn btn--outline btn--small" type="submit" form="form-opschonen">Nu opschonen<\/button>/);
     assert.doesNotMatch(page.text, /Bakker|Grietje/, 'nooit namen');
 
     const preview = await request('/app/beheer/bewaartermijnen/voorbeeld/', { cookie: beheer.cookie, form: { _csrf: beheer.csrf } });
