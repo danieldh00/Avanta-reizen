@@ -12,7 +12,7 @@ const { createXlsx, XLSX_TYPE } = require('../export/xlsx');
 const { createRateLimiter } = require('../security/rate-limit');
 const { roleHasRight } = require('../crm/rights');
 const { PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS } = require('./persons');
-const { BLOCK_INFO } = require('./person-routes');
+const { BLOCK_INFO, CONSENT_LABELS, GIVEN_BY_LABELS } = require('./person-routes');
 const { anonymizePerson, BOOKING_END_SQL } = require('./retention');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
 const { CHARGE_KINDS, PAYMENT_METHODS } = require('../payments/payments');
@@ -43,13 +43,6 @@ const BOOKING_COLUMNS = [
   ['driver_interest', 'Wil chauffeur zijn'], ['driver_before', 'Eerder chauffeur'], ['driver_when', 'Wanneer chauffeur'],
   ['payment_choice', 'Betaalkeuze'], ['price_cents', 'Reissom (euro)'],
 ];
-
-/** Omschrijving van de toestemmingen. */
-const CONSENT_LABELS = {
-  voorwaarden: 'Algemene voorwaarden en privacyverklaring',
-  art9_religie: 'Kerkgenootschap vastleggen (art. 9)',
-  art9_gezondheid: 'Gezondheid vastleggen en delen met de reisleiding (art. 9)',
-};
 
 /**
  * Zet een waarde uit de database om naar tekst voor de export (datum/tijd in Nederlandse tijd, ja/nee, bedragen).
@@ -105,7 +98,10 @@ function buildInspectionWorkbook(input) {
       cellValue('departure_date', line.received_on),
       cellValue('created_at', line.created_at),
     ])];
-  const consentRows = [['Toestemming', 'Tekstversie', 'Gegeven', 'Ingetrokken'], ...input.consents.map((consent) => [CONSENT_LABELS[consent.kind] || consent.kind, consent.text_version, cellValue('given_at', consent.given_at), cellValue('withdrawn_at', consent.withdrawn_at)])];
+  const consentRows = [['Toestemming', 'Gegeven door', 'Tekstversie', 'Gegeven', 'Ingetrokken'], ...input.consents.map((consent) => [
+    CONSENT_LABELS[consent.kind] || consent.kind, GIVEN_BY_LABELS[consent.given_by] || consent.given_by || '', consent.text_version,
+    cellValue('given_at', consent.given_at), cellValue('withdrawn_at', consent.withdrawn_at),
+  ])];
   const aboutRows = [
     ['Over deze export', ''],
     ['Wat', 'Alle gegevens die Avanta Reizen in het CRM van deze persoon bewaart (inzageverzoek, art. 15 AVG).'],
@@ -218,7 +214,7 @@ function createPersonPrivacyRoutes(options) {
             WHERE b.person_id = $1 ORDER BY e.created_at, e.id`,
           [person.id],
         ),
-        db.query('SELECT kind, text_version, given_at, withdrawn_at FROM consents WHERE person_id = $1 ORDER BY given_at, id', [person.id]),
+        db.query('SELECT kind, text_version, given_at, given_by, withdrawn_at FROM consents WHERE person_id = $1 ORDER BY given_at, id', [person.id]),
         person.email ? db.query('SELECT created_at FROM customer_accounts WHERE email = $1', [person.email.toLowerCase()]) : [],
         db.query(
           `SELECT b.reference, 'bedrag' AS line, c.kind AS kind, c.description AS text, c.amount_cents, NULL::date AS received_on, c.created_at, c.removed_at

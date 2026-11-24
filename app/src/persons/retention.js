@@ -78,7 +78,8 @@ const personEnds = (where) => `ends AS (
 const CANDIDATES = {
   // Een blok dat al is gewist, komt pas terug als de persoon daarna is gewijzigd (nieuwe aanmelding of kantoor).
   blokken: `WITH ${personEnds(`(p.blocks_purged_at IS NULL OR p.updated_at > p.blocks_purged_at)
-      AND (p.identity_data IS NOT NULL OR p.special_data IS NOT NULL OR p.health_data IS NOT NULL OR p.emergency_data IS NOT NULL)`)}
+      AND (p.identity_data IS NOT NULL OR p.special_data IS NOT NULL OR p.health_data IS NOT NULL OR p.emergency_data IS NOT NULL
+        OR p.guardian_data IS NOT NULL)`)}
     SELECT id FROM ends WHERE end_date + make_interval(months => $2) < $1::date ORDER BY id LIMIT $3`,
   personen: `WITH ${personEnds('true')}
     SELECT id FROM ends WHERE end_date + make_interval(months => $2) < $1::date ORDER BY id LIMIT $3`,
@@ -142,7 +143,7 @@ async function anonymizePerson(client, personId) {
   await client.query(
     `UPDATE persons SET gender = '', first_names = '', call_name = '', last_name = $2, email = '', mobile = '', phone = '',
        street = '', postal_code = '', city = '', occupation = '', match_key = 'verwijderd:' || id::text, identity_data = NULL,
-       special_data = NULL, health_data = NULL, emergency_data = NULL, duplicate_of = NULL, blocks_purged_at = now(),
+       special_data = NULL, health_data = NULL, emergency_data = NULL, guardian_data = NULL, duplicate_of = NULL, blocks_purged_at = now(),
        anonymized_at = now(), updated_at = now()
      WHERE id = $1`,
     [personId, ANONYMIZED_NAME],

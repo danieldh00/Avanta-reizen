@@ -13,7 +13,7 @@ const RIGHTS = {
   deelnemers: 'Deelnemers (NAW en contact) inzien',
   'deelnemers.wijzigen': 'Deelnemers wijzigen, samenvoegen en toestemmingen intrekken',
   'gegevens.identiteit': 'Paspoort- en identiteitsgegevens inzien',
-  'gegevens.gezondheid': 'Medische gegevens en noodnummer inzien',
+  'gegevens.gezondheid': 'Medische gegevens, noodnummer en ouder of voogd inzien',
   'gegevens.religie': 'Kerkgenootschap inzien',
   betalingen: 'Betalingen afboeken',
   facturen: 'Facturen en export naar de boekhouding',

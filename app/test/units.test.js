@@ -13,7 +13,7 @@ const parsers = require('../tools/import/parse');
 const { formatPrice, formatDate, isoDate } = require('../src/site/format');
 const { createVault, loadMasterKey } = require('../src/security/vault');
 const { createRateLimiter, clientKey } = require('../src/security/rate-limit');
-const { validateBooking } = require('../src/booking/fields');
+const { validateBooking, ageOn, needsGuardian } = require('../src/booking/fields');
 const { rewriteLink, cacheName } = require('../tools/import-wordpress');
 const { parseTrustProxy } = require('../src/server');
 const { isInternalRequest, isInternalAddress } = require('../src/system/health');
@@ -190,6 +190,32 @@ test('form-guard: isCrossSite, ook met Origin null (Chrome bij Referrer-Policy n
   assert.equal(isCrossSite(fakeRequest({ origin: 'null', 'sec-fetch-site': 'cross-site' })), true);
   assert.equal(isCrossSite(fakeRequest({ origin: 'null', 'sec-fetch-site': 'none' })), true, 'none telt niet als eigen site bij null');
   assert.equal(isCrossSite(fakeRequest({ 'sec-fetch-site': 'same-site' })), true);
+});
+
+test('ageOn en needsGuardian: leeftijd op de dag van aanmelden, ook rond 29 februari', () => {
+  assert.equal(ageOn('2010-11-19', '2026-11-19'), 16, 'op de verjaardag een jaar ouder');
+  assert.equal(ageOn('2010-11-20', '2026-11-19'), 15, 'de dag ervoor nog niet');
+  assert.equal(ageOn('2008-02-29', '2025-02-28'), 16, 'jarig op 29 februari: op 28 februari nog niet');
+  assert.equal(ageOn('2008-02-29', '2025-03-01'), 17);
+  assert.equal(needsGuardian({ birth_date: '2010-11-20' }, { today: '2026-11-19' }), true);
+  assert.equal(needsGuardian({ birth_date: '2010-11-19' }, { today: '2026-11-19' }), false);
+  assert.equal(needsGuardian({ birth_date: '' }, { today: '2026-11-19' }), false);
+  assert.equal(needsGuardian({ birth_date: '2010-02-31' }, { today: '2026-11-19' }), false, 'ongeldige datum: de datumcontrole meldt de fout');
+});
+
+test('validateBooking: onder de 16 verplicht een ouder of voogd, daarboven worden de oudervelden leeggemaakt', () => {
+  const day = { today: '2026-11-19' };
+  const minor = { ...validBooking(), birth_date: '2012-05-04' };
+  const { errors } = validateBooking(minor, day);
+  assert.deepEqual(Object.keys(errors).sort(), ['consent_guardian', 'guardian_email', 'guardian_name', 'guardian_relation']);
+  const guardian = { guardian_name: 'Petra Jansen', guardian_relation: 'ouder', guardian_email: 'petra@example.nl', guardian_phone: '', consent_guardian: 'ja' };
+  assert.deepEqual(validateBooking({ ...minor, ...guardian }, day).errors, {}, 'telefoon is vrijwillig');
+  assert.ok(validateBooking({ ...minor, ...guardian, guardian_relation: 'oom' }, day).errors.guardian_relation, 'alleen ouder of voogd');
+  assert.ok(validateBooking({ ...minor, ...guardian, guardian_email: 'geen-adres' }, day).errors.guardian_email);
+  assert.ok(validateBooking({ ...minor, ...guardian, consent_guardian: 'nee' }, day).errors.consent_guardian, 'alleen ja telt');
+  const adult = validateBooking({ ...validBooking(), ...guardian, guardian_email: 'geen-adres' }, day);
+  assert.deepEqual(adult.errors, {});
+  for (const name of Object.keys(guardian)) assert.equal(adult.values[name], '', `${name} leeg bij een volwassene`);
 });
 
 test('form-guard: token per formulier, minimale en maximale invultijd, honeypot', () => {

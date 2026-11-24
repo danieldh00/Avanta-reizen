@@ -33,7 +33,7 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
   const db = createDatabase(DATABASE_URL);
   await db.query('DROP SCHEMA public CASCADE');
   await db.query('CREATE SCHEMA public');
-  assert.deepEqual(await db.migrate(), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]);
+  assert.deepEqual(await db.migrate(), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]);
   assert.deepEqual(await db.migrate(), [], 'tweede keer migreren doet niets');
 
   const [guide] = await db.query("INSERT INTO guides (legacy_id, slug, name, body_html) VALUES (500, 'harmen', 'Harmen', '<p>Ervaren</p>') RETURNING id");
@@ -398,6 +398,68 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     assert.equal((await post(retry, ip)).status, 303);
     assert.equal((await db.query('SELECT COUNT(*)::int AS total FROM bookings'))[0].total, 2);
     await db.query("DELETE FROM bookings WHERE reference = (SELECT reference FROM bookings ORDER BY created_at DESC LIMIT 1)");
+  });
+
+  await t.test('deelnemer onder de 16: ouder of voogd verplicht, vastgelegd in consents en een eigen blok (A02)', async () => {
+    const ip = { 'x-forwarded-for': '203.0.113.60' };
+    const day = today();
+    // Precies 16 min één dag: nog 15, dus een ouder moet tekenen.
+    const minorBirth = `${Number(day.slice(0, 4)) - 16}${day.slice(4)}`;
+    const almost = new Date(`${minorBirth}T12:00:00Z`);
+    almost.setUTCDate(almost.getUTCDate() + 1);
+    const form = await formFor(1001);
+    form.set('email', 'kind@example.nl');
+    form.set('email_confirm', 'kind@example.nl');
+    form.set('birth_date', almost.toISOString().slice(0, 10));
+    clock += 5000;
+    const refused = await post(form, ip);
+    assert.equal(refused.status, 422);
+    assert.match(refused.text, /data-guardian="16"/);
+    assert.equal((refused.text.match(/Verplicht bij een deelnemer jonger dan 16 jaar/g) || []).length, 3, 'naam, relatie en e-mailadres');
+    assert.match(refused.text, /Bij een deelnemer jonger dan 16 jaar geeft een ouder of voogd toestemming/);
+    const before = (await db.query('SELECT count(*)::int AS total FROM bookings'))[0].total;
+    assert.equal(before, 1, 'niets opgeslagen');
+
+    const signed = await formFor(1001);
+    for (const [name, value] of form) if (name !== 'token') signed.set(name, value);
+    signed.set('guardian_name', 'Petra Jansen');
+    signed.set('guardian_relation', 'ouder');
+    signed.set('guardian_email', 'petra@example.nl');
+    signed.set('guardian_phone', '0611112222');
+    signed.set('consent_guardian', 'ja');
+    clock += 5000;
+    assert.equal((await post(signed, ip)).status, 303);
+    const [booking] = await db.query('SELECT id, person_id FROM bookings ORDER BY id DESC LIMIT 1');
+    const consents = await db.query('SELECT kind, given_by FROM consents WHERE booking_id = $1 ORDER BY kind', [booking.id]);
+    assert.deepEqual(consents.map((row) => [row.kind, row.given_by]), [
+      ['art9_gezondheid', 'ouder_voogd'], ['art9_religie', 'ouder_voogd'], ['ouder_voogd', 'ouder_voogd'], ['voorwaarden', 'ouder_voogd'],
+    ]);
+    const [person] = await db.query('SELECT id, guardian_data FROM persons WHERE id = $1', [booking.person_id]);
+    assert.doesNotMatch(person.guardian_data, /Petra|petra@/, 'versleuteld');
+    const persons = createPersons({ vault: createVault(MASTER_KEY) });
+    assert.deepEqual(persons.openBlock('guardian_data', person), {
+      guardian_name: 'Petra Jansen', guardian_relation: 'ouder', guardian_email: 'petra@example.nl', guardian_phone: '0611112222',
+    });
+    await db.query('DELETE FROM bookings WHERE id = $1', [booking.id]);
+    await db.query('DELETE FROM persons WHERE id = $1', [person.id]);
+  });
+
+  await t.test('volwassene: oudervelden worden genegeerd en niet bewaard', async () => {
+    const form = await formFor(1001);
+    form.set('email', 'volwassen@example.nl');
+    form.set('email_confirm', 'volwassen@example.nl');
+    form.set('guardian_name', 'Niet nodig');
+    form.set('guardian_email', 'geen-adres');
+    form.set('consent_guardian', 'ja');
+    clock += 5000;
+    assert.equal((await post(form, { 'x-forwarded-for': '203.0.113.61' })).status, 303, 'een fout in een overbodig veld blokkeert niet');
+    const [booking] = await db.query('SELECT id, person_id FROM bookings ORDER BY id DESC LIMIT 1');
+    const consents = await db.query('SELECT kind, given_by FROM consents WHERE booking_id = $1', [booking.id]);
+    assert.ok(consents.every((row) => row.given_by === 'deelnemer' && row.kind !== 'ouder_voogd'));
+    const [person] = await db.query('SELECT id, guardian_data FROM persons WHERE id = $1', [booking.person_id]);
+    assert.equal(person.guardian_data, null);
+    await db.query('DELETE FROM bookings WHERE id = $1', [booking.id]);
+    await db.query('DELETE FROM persons WHERE id = $1', [person.id]);
   });
 
   await t.test('aanmelden kan niet voor volle, vertrokken of onbekende reizen', async () => {

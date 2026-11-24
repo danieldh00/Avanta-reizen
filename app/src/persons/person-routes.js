@@ -27,6 +27,7 @@ const BLOCK_INFO = {
   special_data: { label: 'Kerkgenootschap', slug: 'religie' },
   health_data: { label: 'Bijzonderheden (gezondheid)', slug: 'gezondheid' },
   emergency_data: { label: 'Noodnummer', slug: 'noodnummer' },
+  guardian_data: { label: 'Ouder of voogd (deelnemer onder 16)', slug: 'ouder' },
 };
 
 /** Omschrijving van de toestemmingen. */
@@ -34,7 +35,11 @@ const CONSENT_LABELS = {
   voorwaarden: 'Algemene voorwaarden en privacyverklaring',
   art9_religie: 'Kerkgenootschap vastleggen (art. 9)',
   art9_gezondheid: 'Gezondheid vastleggen en delen met de reisleiding (art. 9)',
+  ouder_voogd: 'Aanmelding door ouder of voogd (deelnemer onder 16)',
 };
+
+/** Wie een toestemming gaf (kolom `consents.given_by`, migratie 29). */
+const GIVEN_BY_LABELS = { deelnemer: 'Deelnemer', ouder_voogd: 'Ouder of voogd' };
 
 /** Acties voor het auditlog (zie `ACTION_LABELS` in `crm/users.js`). */
 const PERSON_ACTION_LABELS = {
@@ -47,6 +52,17 @@ const PERSON_ACTION_LABELS = {
     `deelnemer.toestemming.ingetrokken.${BLOCK_INFO[block].slug}`, `Deelnemer: toestemming ${BLOCK_INFO[block].label.toLowerCase()} ingetrokken (gegevens gewist)`,
   ])),
 };
+
+/**
+ * Of een toestemming in het CRM los in te trekken is. Alleen de art. 9-toestemmingen: intrekken wist hun blok. De
+ * voorwaarden en de toestemming van de ouder of voogd horen bij de aanmelding zelf; die eindigen met annuleren of
+ * wissen (recht `avg`), niet met deze knop.
+ * @param {string} kind Soort toestemming.
+ * @returns {boolean} Waar voor een art. 9-toestemming.
+ */
+function isWithdrawable(kind) {
+  return Object.values(BLOCK_CONSENTS).includes(kind);
+}
 
 /** Formuliervelden op naam. */
 const FIELD_BY_NAME = Object.fromEntries(FIELDS.map((field) => [field.name, field]));
@@ -230,7 +246,7 @@ function createPersonRoutes(options) {
           WHERE person_id = $1 ORDER BY created_at DESC, id DESC`,
         [person.id],
       ),
-      db.query('SELECT id, kind, text_version, given_at, withdrawn_at, booking_id FROM consents WHERE person_id = $1 ORDER BY given_at DESC, id DESC', [person.id]),
+      db.query('SELECT id, kind, text_version, given_at, given_by, withdrawn_at, booking_id FROM consents WHERE person_id = $1 ORDER BY given_at DESC, id DESC', [person.id]),
       db.query('SELECT id, first_names, last_name FROM persons WHERE duplicate_of = $1 ORDER BY id', [person.id]),
     ]);
     const [original] = person.duplicate_of
@@ -294,9 +310,9 @@ function createPersonRoutes(options) {
         </table></div>` : html`<p>Nog geen aanmeldingen.</p>`}
         <h2>Toestemmingen</h2>
         ${consents.length ? html`<div class="crm-table-wrap"><table class="crm-table">
-          <thead><tr><th scope="col">Toestemming</th><th scope="col">Tekstversie</th><th scope="col">Gegeven</th><th scope="col">Ingetrokken</th><th scope="col"><span class="visually-hidden">Actie</span></th></tr></thead>
-          <tbody>${consents.map((consent) => html`<tr><td>${CONSENT_LABELS[consent.kind] || consent.kind}</td><td>${consent.text_version}</td><td>${consent.text_version === LEGACY_ART9_TEXT_VERSION ? html`niet los gegeven (aanmelding ${formatDateTime(consent.given_at)})` : formatDateTime(consent.given_at)}</td><td>${formatDateTime(consent.withdrawn_at)}</td>
-            <td>${canChange && consent.kind !== 'voorwaarden' && !consent.withdrawn_at ? html`<form method="post" action="/app/deelnemers/${person.id}/toestemming/${consent.id}/intrekken/">${hidden}<button class="btn btn--outline btn--small" type="submit">Intrekken en gegevens wissen</button></form>` : ''}</td></tr>`)}</tbody>
+          <thead><tr><th scope="col">Toestemming</th><th scope="col">Gegeven door</th><th scope="col">Tekstversie</th><th scope="col">Gegeven</th><th scope="col">Ingetrokken</th><th scope="col"><span class="visually-hidden">Actie</span></th></tr></thead>
+          <tbody>${consents.map((consent) => html`<tr><td>${CONSENT_LABELS[consent.kind] || consent.kind}</td><td>${GIVEN_BY_LABELS[consent.given_by] || consent.given_by}</td><td>${consent.text_version}</td><td>${consent.text_version === LEGACY_ART9_TEXT_VERSION ? html`niet los gegeven (aanmelding ${formatDateTime(consent.given_at)})` : formatDateTime(consent.given_at)}</td><td>${formatDateTime(consent.withdrawn_at)}</td>
+            <td>${canChange && isWithdrawable(consent.kind) && !consent.withdrawn_at ? html`<form method="post" action="/app/deelnemers/${person.id}/toestemming/${consent.id}/intrekken/">${hidden}<button class="btn btn--outline btn--small" type="submit">Intrekken en gegevens wissen</button></form>` : ''}</td></tr>`)}</tbody>
         </table></div>` : html`<p>Geen toestemmingen vastgelegd.</p>`}
         ${renderPrivacyPanel(req, person, state.eraseError)}`,
     });
@@ -389,8 +405,8 @@ function createPersonRoutes(options) {
         await client.query('SELECT id FROM persons WHERE id = $1 FOR UPDATE', [personId]);
         // De toestemming alleen samen met de persoon uit de URL opzoeken.
         const [consent] = await client.query(
-          "SELECT id, kind FROM consents WHERE id = $1 AND person_id = $2 AND kind <> 'voorwaarden' AND withdrawn_at IS NULL FOR UPDATE",
-          [Number(req.params.consentId), personId],
+          'SELECT id, kind FROM consents WHERE id = $1 AND person_id = $2 AND kind = ANY($3::text[]) AND withdrawn_at IS NULL FOR UPDATE',
+          [Number(req.params.consentId), personId, Object.values(BLOCK_CONSENTS)],
         );
         if (!consent) return 'weg';
         const block = Object.keys(BLOCK_CONSENTS).find((name) => BLOCK_CONSENTS[name] === consent.kind);
@@ -411,4 +427,4 @@ function createPersonRoutes(options) {
   return router;
 }
 
-module.exports = { createPersonRoutes, searchPatterns, PERSON_ACTION_LABELS, BLOCK_INFO, PAGE_SIZE };
+module.exports = { createPersonRoutes, searchPatterns, PERSON_ACTION_LABELS, BLOCK_INFO, CONSENT_LABELS, GIVEN_BY_LABELS, PAGE_SIZE };

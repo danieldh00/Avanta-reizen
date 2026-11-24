@@ -1,9 +1,10 @@
 /**
  * Aanmelden voor een reis (`/aanmelden/?id=<oud reis-id>`, zoals op de huidige site). De aanmelding komt in de tabel
  * bookings, de persoon in persons (`persons/persons.js`, ontdubbeld). Bijzondere en paspoortgegevens worden per categorie
- * versleuteld bij de persoon opgeslagen; art. 9-gegevens alleen met een eigen toestemmingsvinkje (tabel consents). Daarna gaat er een
- * melding naar kantoor en een bevestiging naar de reiziger (`mail/notifications.js`, als die aan staan), beide zonder de
- * bijzondere gegevens.
+ * versleuteld bij de persoon opgeslagen; art. 9-gegevens alleen met een eigen toestemmingsvinkje (tabel consents). Is de
+ * deelnemer jonger dan 16, dan geeft een ouder of voogd de toestemming (`booking/fields.js`, migratie 29). Daarna gaat er
+ * een melding naar kantoor en een bevestiging naar de reiziger en, onder de 16, naar de ouder (`mail/notifications.js`,
+ * als die aan staan), alle zonder de bijzondere gegevens.
  * Bescherming via `security/form-guard.js`: limiet per bezoeker, herkomst, honeypot en ondertekend tijdstempel; met
  * een actieve captcha (`security/captcha.js`) ook een onzichtbare controle door Google.
  */
@@ -13,7 +14,7 @@ const { html, raw } = require('../site/html');
 const { renderPage, renderPageHeader } = require('../site/layout');
 const { createContent, today } = require('../site/content');
 const { formatPrice, formatDate, isoDate, tripPath } = require('../site/format');
-const { FIELD_GROUPS, validateBooking, SGR_CENTS, BOOKING_FEE_CENTS } = require('./fields');
+const { FIELD_GROUPS, validateBooking, GUARDIAN_AGE, SGR_CENTS, BOOKING_FEE_CENTS } = require('./fields');
 const { addInitialCharges } = require('../payments/payments');
 const { createPersons } = require('../persons/persons');
 const { createFormGuard } = require('../security/form-guard');
@@ -175,7 +176,7 @@ function createBookingRouter(options) {
             <dt>Boekingskosten</dt><dd>${formatPrice(BOOKING_FEE_CENTS)} (vervalt bij betaling van het totaalbedrag)</dd>
           </dl>
         </section>
-        ${FIELD_GROUPS.map((group) => html`<fieldset>
+        ${FIELD_GROUPS.map((group) => html`<fieldset${group.guardian ? html` data-guardian="${GUARDIAN_AGE}"` : ''}>
           <legend class="form__section-title">${group.title}</legend>
           ${group.intro ? html`<p class="field__help">${group.intro}</p>` : ''}
           <div class="form-grid">${group.fields.map((field) => renderField(field, values, errors))}</div>
@@ -244,6 +245,8 @@ function createBookingRouter(options) {
           if (options.notifications) {
             void options.notifications.booking({ reference, trip, values });
             void options.notifications.bookingConfirmation({ reference, trip, values, depositCents: saved.depositCents });
+            // Deelnemer onder de 16: de ouder of voogd krijgt een eigen bevestiging, zodat een valse opgave opvalt.
+            if (values.consent_guardian === 'ja') void options.notifications.guardianConfirmation({ reference, trip, values });
           }
           break;
         } catch (error) {

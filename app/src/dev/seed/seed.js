@@ -22,6 +22,10 @@
 const { createPersons } = require('../../persons/persons');
 const { addInitialCharges, addDays, localDay, summarize, termsFrom } = require('../../payments/payments');
 const data = require('./data');
+const { needsGuardian, FIELDS } = require('../../booking/fields');
+
+/** Namen van de velden van de ouder of voogd (`booking/fields.js`). */
+const GUARDIAN_FIELDS = FIELDS.filter((field) => field.guardian).map((field) => field.name);
 
 /** Startwaarde van de toevalsgenerator: dezelfde testdata bij elke run. */
 const RANDOM_SEED = 20261123;
@@ -327,6 +331,28 @@ function createSeeder({ vault, today, terms }) {
   };
 
   /**
+   * Vult bij een deelnemer onder de 16 (op de dag van aanmelden) een verzonnen ouder in die toestemming geeft, zoals
+   * het formulier eist; bij een oudere deelnemer gaan de oudervelden eruit.
+   * @param {Record<string, string>} values Formulierwaarden van de reiziger.
+   * @param {string} bookedOn Dag van aanmelden (jjjj-mm-dd).
+   * @returns {Record<string, string>} Nieuwe waarden (het origineel blijft ongewijzigd).
+   */
+  const withGuardian = (values, bookedOn) => {
+    const result = { ...values };
+    for (const name of GUARDIAN_FIELDS) delete result[name];
+    if (!needsGuardian(result, { today: bookedOn })) return result;
+    const parentName = random.pick(data.FIRST_NAMES[random.chance(0.6) ? 'vrouw' : 'man']);
+    return {
+      ...result,
+      guardian_name: `${parentName} ${values.last_name}`,
+      guardian_relation: random.chance(0.95) ? 'ouder' : 'voogd',
+      guardian_email: email(`${emailPart(parentName)}.${emailPart(values.last_name)}.ouder`),
+      guardian_phone: `06-98${String(random.int(0, 999999)).padStart(6, '0')}`,
+      consent_guardian: 'ja',
+    };
+  };
+
+  /**
    * Kiest het verloop van een aanmelding: wanneer ze binnenkwam en welke status ze nu heeft.
    * @param {object} trip De reis (met `departure`).
    * @param {boolean} cancelled Of het een geannuleerde aanmelding is.
@@ -457,6 +483,7 @@ function createSeeder({ vault, today, terms }) {
         // Wie het totaalbedrag kiest, betaalt in één keer: aanbetaald bestaat dan niet.
         if (paymentChoice === 'totaal' && plot.status === 'aanbetaald') plot.status = 'betaald';
         values.earlier_trip = travellers.filter((traveller) => traveller.email === values.email).length > 1 || random.chance(0.3) ? 'ja' : 'nee';
+        values = withGuardian(values, plot.createdOn);
         const { personId } = await persons.savePerson(client, values);
         const createdAt = momentOn(plot.createdOn, random);
         const driver = Number(trip.departure.slice(0, 4)) - Number(values.birth_date.slice(0, 4)) >= 21 && random.chance(0.25);

@@ -3,14 +3,22 @@
  * Velden met `sensitive: true` worden versleuteld opgeslagen (bijzondere persoonsgegevens en paspoortgegevens).
  * Een veld met `consentFor` is het losse toestemmingsvinkje (AVG art. 9.2a) voor dat bijzondere veld: niet verplicht,
  * maar wie het bijzondere veld invult, moet het aanvinken.
+ * Velden met `guardian: true` horen bij de ouder of voogd: verplicht als de deelnemer op de dag van aanmelden jonger is
+ * dan `GUARDIAN_AGE` (art. 8 AVG, art. 5 UAVG), anders worden ze leeggemaakt en niet opgeslagen (dataminimalisatie).
  */
 
 /** Versie van de toestemmingsteksten; komt bij elke toestemming in `consents.text_version`. Verhogen bij een nieuwe tekst. */
-const CONSENT_TEXT_VERSION = '2026-11-21';
+const CONSENT_TEXT_VERSION = '2026-11-23';
 
 /** Vaste bedragen bij elke aanmelding (in centen): SGR-garantie en boekingskosten (vervallen bij het totaalbedrag). */
 const SGR_CENTS = 500;
 const BOOKING_FEE_CENTS = 1500;
+
+/** Jonger dan deze leeftijd (in jaren, op de dag van aanmelden) geeft een ouder of voogd de toestemmingen. */
+const GUARDIAN_AGE = 16;
+
+/** Velden van de ouder of voogd die verplicht zijn bij een deelnemer onder `GUARDIAN_AGE` (telefoon is vrijwillig). */
+const GUARDIAN_REQUIRED = ['guardian_name', 'guardian_relation', 'guardian_email', 'consent_guardian'];
 
 const YES_NO = [{ value: 'ja', label: 'ja' }, { value: 'nee', label: 'nee' }];
 
@@ -58,6 +66,18 @@ const FIELD_GROUPS = [
       { name: 'driver_interest', label: 'Heb evt. interesse om te chauffeuren tijdens de reis (en min. 1 jaar rijbewijs)', type: 'radio', required: true, options: YES_NO },
       { name: 'driver_before', label: 'Ben eerder chauffeur geweest tijdens een Avantareis', type: 'radio', required: true, options: YES_NO },
       { name: 'driver_when', label: 'Zo ja, wanneer?', max: 200 },
+    ],
+  },
+  {
+    title: 'Ouder of voogd',
+    guardian: true,
+    intro: 'Alleen invullen als de deelnemer op de dag van aanmelden jonger is dan 16 jaar. Dan geeft een ouder of voogd de toestemming voor deze aanmelding en voor de gegevens in dit formulier.',
+    fields: [
+      { name: 'guardian_name', label: 'Naam ouder of voogd', max: 160, guardian: true },
+      { name: 'guardian_relation', label: 'Ouder of voogd', type: 'radio', options: [{ value: 'ouder', label: 'Ouder' }, { value: 'voogd', label: 'Voogd' }], guardian: true },
+      { name: 'guardian_email', label: 'E-mailadres ouder of voogd', type: 'email', max: 200, guardian: true, help: 'Naar dit adres sturen we een bevestiging van de aanmelding en van de toestemming.' },
+      { name: 'guardian_phone', label: 'Telefoonnummer ouder of voogd', type: 'tel', max: 30, guardian: true },
+      { name: 'consent_guardian', label: 'Ik ben de ouder of voogd van de deelnemer. Ik geef toestemming voor deze aanmelding en voor het vastleggen van de gegevens in dit formulier, ook van de bijzondere gegevens waarvoor een toestemmingsvinkje is gezet. Intrekken kan altijd.', type: 'checkbox', guardian: true, store: false, full: true },
     ],
   },
   {
@@ -129,6 +149,54 @@ function validateFields(fields, body, context) {
 }
 
 /**
+ * Berekent de leeftijd in hele jaren op een dag. Wie op 29 februari jarig is, wordt in een gewoon jaar op 1 maart een
+ * jaar ouder (de dag na 28 februari), zoals in het Nederlandse recht.
+ * @param {string} birthDate Geboortedatum (jjjj-mm-dd, gecontroleerd).
+ * @param {string} onDate De dag (jjjj-mm-dd).
+ * @returns {number} Leeftijd in jaren.
+ */
+function ageOn(birthDate, onDate) {
+  const years = Number(onDate.slice(0, 4)) - Number(birthDate.slice(0, 4));
+  // Tekstvergelijking van mm-dd: vóór de verjaardag in dat jaar is iemand een jaar jonger.
+  return onDate.slice(5) < birthDate.slice(5) ? years - 1 : years;
+}
+
+/**
+ * Of de deelnemer op de dag van aanmelden jonger is dan `GUARDIAN_AGE`, en dus een ouder of voogd moet tekenen.
+ * @param {Record<string, string>} values Gecontroleerde waarden (met `birth_date`).
+ * @param {{today: string}} context Datum van vandaag (jjjj-mm-dd).
+ * @returns {boolean} Waar bij een geldige geboortedatum onder de grens.
+ */
+function needsGuardian(values, context) {
+  return isValidDate(values.birth_date || '') && ageOn(values.birth_date, context.today) < GUARDIAN_AGE;
+}
+
+/**
+ * Controleert de velden van de ouder of voogd. Onder de grens zijn naam, relatie, e-mailadres en het vinkje verplicht;
+ * daarboven worden alle oudervelden leeggemaakt, zodat er geen gegevens van een ouder worden bewaard die niet nodig zijn.
+ * @param {Record<string, string>} values Waarden (wordt aangepast).
+ * @param {Record<string, string>} errors Fouten per veld (wordt aangevuld).
+ * @param {{today: string}} context Datum van vandaag (jjjj-mm-dd).
+ * @returns {void}
+ */
+function checkGuardian(values, errors, context) {
+  if (errors.birth_date) return;
+  if (!needsGuardian(values, context)) {
+    for (const field of FIELDS.filter((item) => item.guardian)) {
+      values[field.name] = '';
+      delete errors[field.name];
+    }
+    return;
+  }
+  for (const name of GUARDIAN_REQUIRED) {
+    if (values[name] || errors[name]) continue;
+    errors[name] = name === 'consent_guardian'
+      ? 'Bij een deelnemer jonger dan 16 jaar geeft een ouder of voogd toestemming.'
+      : 'Verplicht bij een deelnemer jonger dan 16 jaar.';
+  }
+}
+
+/**
  * Controleert en normaliseert de invoer van het hele aanmeldformulier.
  * @param {object} body Ingezonden velden.
  * @param {{today: string}} context Datum van vandaag (jjjj-mm-dd).
@@ -139,7 +207,8 @@ function validateBooking(body, context) {
   if (!errors.email && !errors.email_confirm && values.email.toLowerCase() !== values.email_confirm.toLowerCase()) {
     errors.email_confirm = 'De e-mailadressen zijn niet gelijk.';
   }
+  checkGuardian(values, errors, context);
   return { values, errors };
 }
 
-module.exports = { FIELD_GROUPS, FIELDS, validateBooking, validateFields, isValidDate, CONSENT_TEXT_VERSION, SGR_CENTS, BOOKING_FEE_CENTS };
+module.exports = { FIELD_GROUPS, FIELDS, validateBooking, validateFields, isValidDate, ageOn, needsGuardian, GUARDIAN_AGE, CONSENT_TEXT_VERSION, SGR_CENTS, BOOKING_FEE_CENTS };

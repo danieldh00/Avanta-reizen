@@ -20,6 +20,7 @@ const BLOCKS = {
   special_data: ['church'],
   health_data: ['particulars'],
   emergency_data: ['emergency_phone'],
+  guardian_data: ['guardian_name', 'guardian_relation', 'guardian_email', 'guardian_phone'],
 };
 
 /** Welk recht nodig is om een blok in te zien (`crm/rights.js`). */
@@ -28,10 +29,15 @@ const BLOCK_RIGHTS = {
   special_data: 'gegevens.religie',
   health_data: 'gegevens.gezondheid',
   emergency_data: 'gegevens.gezondheid',
+  // Net als het noodnummer: wie in een noodgeval moet bellen, heeft ook de ouder van een minderjarige deelnemer nodig.
+  guardian_data: 'gegevens.gezondheid',
 };
 
 /** Toestemming die bij een blok met bijzondere gegevens (art. 9) hoort. */
 const BLOCK_CONSENTS = { special_data: 'art9_religie', health_data: 'art9_gezondheid' };
+
+/** Soort toestemming van de ouder of voogd voor de aanmelding van een deelnemer onder de 16 (migratie 29). */
+const GUARDIAN_CONSENT = 'ouder_voogd';
 
 /** Advisory lock (eerste sleutel) rond het zoeken en aanmaken van een persoon, tegen dubbel aanmaken bij gelijktijdige aanmeldingen. */
 const PERSON_LOCK = 727010;
@@ -169,12 +175,13 @@ function createPersons(options) {
     const { plain } = data;
     await client.query(
       `INSERT INTO persons (id, gender, first_names, call_name, last_name, email, mobile, phone, street, postal_code, city,
-         occupation, match_key, identity_data, special_data, health_data, emergency_data, duplicate_of)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+         occupation, match_key, identity_data, special_data, health_data, emergency_data, guardian_data, duplicate_of)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
       [id, plain.gender, plain.first_names, plain.call_name, plain.last_name, plain.email, plain.mobile, plain.phone,
         plain.street, plain.postal_code, plain.city, plain.occupation, key,
         sealBlock('identity_data', id, data.blocks.identity_data), sealBlock('special_data', id, data.blocks.special_data),
-        sealBlock('health_data', id, data.blocks.health_data), sealBlock('emergency_data', id, data.blocks.emergency_data), duplicateOf],
+        sealBlock('health_data', id, data.blocks.health_data), sealBlock('emergency_data', id, data.blocks.emergency_data),
+        sealBlock('guardian_data', id, data.blocks.guardian_data), duplicateOf],
     );
     return id;
   };
@@ -191,12 +198,13 @@ function createPersons(options) {
     await client.query(
       `UPDATE persons SET gender = $2, first_names = $3, call_name = $4, last_name = $5, email = $6, mobile = $7, phone = $8,
          street = $9, postal_code = $10, city = $11, occupation = $12, identity_data = $13, special_data = $14,
-         health_data = $15, emergency_data = $16, updated_at = now(), last_activity_at = now()
+         health_data = $15, emergency_data = $16, guardian_data = $17, updated_at = now(), last_activity_at = now()
        WHERE id = $1`,
       [id, plain.gender, plain.first_names, plain.call_name, plain.last_name, plain.email, plain.mobile, plain.phone,
         plain.street, plain.postal_code, plain.city, plain.occupation,
         sealBlock('identity_data', id, data.blocks.identity_data), sealBlock('special_data', id, data.blocks.special_data),
-        sealBlock('health_data', id, data.blocks.health_data), sealBlock('emergency_data', id, data.blocks.emergency_data)],
+        sealBlock('health_data', id, data.blocks.health_data), sealBlock('emergency_data', id, data.blocks.emergency_data),
+        sealBlock('guardian_data', id, data.blocks.guardian_data)],
     );
   };
 
@@ -241,7 +249,10 @@ function createPersons(options) {
   };
 
   /**
-   * Legt de toestemmingen van een aanmelding vast: altijd de voorwaarden, en art. 9 alleen als het vinkje aan stond.
+   * Legt de toestemmingen van een aanmelding vast: altijd de voorwaarden, art. 9 alleen als het vinkje aan stond, en bij
+   * een deelnemer onder de 16 de toestemming van de ouder of voogd. Heeft de ouder getekend (`consent_guardian`, alleen
+   * mogelijk onder de grens, zie `booking/fields.js`), dan krijgen alle regels van deze aanmelding `given_by =
+   * 'ouder_voogd'`; wie het was, staat in het blok `guardian_data` van de persoon.
    * @param {{query: Function}} client Transactie-client.
    * @param {{personId: number, bookingId: number, values: Record<string, string>, textVersion?: string, givenAt?: Date}} consent
    *   Persoon, aanmelding, de formulierwaarden en (bij het omzetten van oude aanmeldingen) de tekstversie en het tijdstip.
@@ -253,10 +264,13 @@ function createPersons(options) {
       const block = Object.keys(BLOCKS).find((name) => BLOCKS[name].includes(field.consentFor));
       if (consent.values[field.name] === 'ja' && consent.values[field.consentFor]) kinds.push(BLOCK_CONSENTS[block]);
     }
+    const byGuardian = consent.values.consent_guardian === 'ja';
+    if (byGuardian) kinds.push(GUARDIAN_CONSENT);
     await client.query(
-      `INSERT INTO consents (person_id, booking_id, kind, text_version, given_at)
-       SELECT $1, $2, kind, $4, coalesce($5::timestamptz, now()) FROM unnest($3::text[]) AS kind`,
-      [consent.personId, consent.bookingId, kinds, consent.textVersion || CONSENT_TEXT_VERSION, consent.givenAt || null],
+      `INSERT INTO consents (person_id, booking_id, kind, text_version, given_at, given_by)
+       SELECT $1, $2, kind, $4, coalesce($5::timestamptz, now()), $6 FROM unnest($3::text[]) AS kind`,
+      [consent.personId, consent.bookingId, kinds, consent.textVersion || CONSENT_TEXT_VERSION, consent.givenAt || null,
+        byGuardian ? 'ouder_voogd' : 'deelnemer'],
     );
     return kinds;
   };
@@ -396,12 +410,14 @@ function createPersons(options) {
     await client.query(
       `UPDATE persons SET gender = $2, first_names = $3, call_name = $4, last_name = $5, email = $6, mobile = $7, phone = $8,
          street = $9, postal_code = $10, city = $11, occupation = $12, identity_data = $13, special_data = $14,
-         health_data = $15, emergency_data = $16, updated_at = now(), last_activity_at = GREATEST(last_activity_at, $17::timestamptz)
+         health_data = $15, emergency_data = $16, guardian_data = $18, updated_at = now(),
+         last_activity_at = GREATEST(last_activity_at, $17::timestamptz)
        WHERE id = $1`,
       [keep.id, plain.gender, plain.first_names, plain.call_name, plain.last_name, plain.email, plain.mobile, plain.phone,
         plain.street, plain.postal_code, plain.city, plain.occupation,
         sealBlock('identity_data', keep.id, blocks.identity_data), sealBlock('special_data', keep.id, blocks.special_data),
-        sealBlock('health_data', keep.id, blocks.health_data), sealBlock('emergency_data', keep.id, blocks.emergency_data), remove.last_activity_at],
+        sealBlock('health_data', keep.id, blocks.health_data), sealBlock('emergency_data', keep.id, blocks.emergency_data), remove.last_activity_at,
+        sealBlock('guardian_data', keep.id, blocks.guardian_data)],
     );
     await client.query('UPDATE bookings SET person_id = $1 WHERE person_id = $2', [keep.id, remove.id]);
     await client.query('UPDATE consents SET person_id = $1 WHERE person_id = $2', [keep.id, remove.id]);
@@ -413,4 +429,4 @@ function createPersons(options) {
   return { matchKey, openBlock, savePerson, recordConsents, backfillPersons, splitValues, writeBlock, refreshMatchKey, findPerson, mergePersons };
 }
 
-module.exports = { createPersons, PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION };
+module.exports = { createPersons, PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, GUARDIAN_CONSENT, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION };
