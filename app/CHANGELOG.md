@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.34.6 — 2026-11-24 — Servertaak schijf
+
+- Nieuwe servertaak `schijf`: laat zien waar de schijfruimte op de server zit en ruimt na bevestiging de Docker- buildcache van de server op die een week niet gebruikt is. Te vinden onder Beheer > Systeem > Servertaken.
+
+- `deploy/apps01/servertaken.sh schijf`: ruimte per onderdeel (schijf, Docker per soort, volumes van de eigen
+  containers, back-ups, foto's, journal, `/var/log`); na bevestiging `docker builder prune --filter until=168h` en
+  `docker image prune` op het label van de stack; de buildcache-opruiming geldt voor de hele server (geen labelfilter),
+  dat staat in de bevestigingstekst. Uitleg in Beheer > Servertaken en README.
+
 ## 0.34.5 — 2026-11-24 — Uitkomst van de hersteltest breekt niet meer af
 
 - In Beheer > Hersteltest staat de uitkomst ("Geslaagd", "Mislukt") weer op één regel.
