@@ -18,5 +18,6 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `icons.js` (eigen SVG-iconen, inline)
 - `homepage.js` (vaste homepage-inhoud uit `DATA_DIR/homepage.json`, gecontroleerd) en `home-view.js` (HTML van de homepage)
 - `trip-view.js` (reizen en reisleiders)
-- `site-content.js` (lijstkoppen en reisleidergegevens uit `DATA_DIR/site-content.json`)
+- `site-content.js` (vaste inhoud uit `DATA_DIR/site-content.json`: reisleidergegevens die nog niet in het CRM staan, tags, uitgelicht bericht en fotogalerijen; de lijstkoppen staan sinds migratie 34 in de database)
+- `content-transfer.js` (zet `site-content.json` eenmalig per deel over naar de database, `content_transfers`; draait bij de start van de app en na de import)
 - `json-store.js` (lezer voor die JSON-bestanden)

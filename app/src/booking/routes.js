@@ -18,8 +18,7 @@ const { createPersons } = require('../persons/persons');
 const { createFormGuard } = require('../security/form-guard');
 const { captchaField } = require('../security/captcha');
 const seo = require('../site/seo');
-const { createSiteContentStore } = require('../site/site-content');
-const { DATA_DIR } = require('../paths');
+const { createListHeaders } = require('../cms/list-headers');
 const { createBookingSaver } = require('./save-booking');
 
 /**
@@ -48,11 +47,11 @@ function renderFormControl(field, { id, value, error, common }) {
 
 /**
  * Bouwt de router voor aanmeldingen.
- * @param {{db: object, vault: object, formKey: Buffer, notifications?: object, captcha?: object, now?: () => number, siteContent?: {load: Function}, prefill?: Function, customerFor?: Function}} options
+ * @param {{db: object, vault: object, formKey: Buffer, notifications?: object, captcha?: object, now?: () => number, listHeaders?: {get: Function}, prefill?: Function, customerFor?: Function}} options
  *   Database, kluis, sleutel voor het formuliertoken, de meldingen aan kantoor, de captcha, een functie die bij een
  *   ingelogde reiziger de gewone gegevens van de vorige aanmelding geeft (`req => Promise<waarden>`, reizigersaccount
- *   J4), een functie die de ingelogde reiziger geeft (`req => Promise<{accountId, email}|null>`) en de vaste inhoud (kop van
- *   de pagina, standaard `DATA_DIR/site-content.json`). Het basisadres voor de canonical en de overige site-instellingen komen uit `res.locals.site`.
+ *   J4), een functie die de ingelogde reiziger geeft (`req => Promise<{accountId, email}|null>`) en de koppen van de
+ *   lijstpagina's (`cms/list-headers.js`, kop van de pagina). Het basisadres voor de canonical en de overige site-instellingen komen uit `res.locals.site`.
  * @returns {express.Router} De router.
  */
 function createBookingRouter(options) {
@@ -61,7 +60,7 @@ function createBookingRouter(options) {
   const persons = createPersons({ vault: options.vault });
   const saver = createBookingSaver({ db: options.db, persons, now: options.now });
   const now = options.now || Date.now;
-  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
+  const listHeaders = options.listHeaders || createListHeaders({ db: options.db });
   const guard = createFormGuard({
     purpose: 'aanmelden',
     formKey: options.formKey,
@@ -115,7 +114,7 @@ function createBookingRouter(options) {
    * @returns {object} HTML.
    */
   const header = () => {
-    const archive = siteContent.load().archives.aanmelden;
+    const archive = listHeaders.get('aanmelden');
     return renderPageHeader({ title: archive.title, pretitle: archive.pretitle, imageUrl: archive.image });
   };
 
@@ -164,7 +163,7 @@ function createBookingRouter(options) {
    */
   const renderForm = (trip, values, errors, notice = '') => {
     const hasErrors = Object.keys(errors).length > 0;
-    const archive = siteContent.load().archives.aanmelden;
+    const archive = listHeaders.get('aanmelden');
     return html`<div class="content-main">
       ${archive.introduction ? html`<div class="page-introduction">${archive.introduction}</div>` : ''}
       <section class="page-content"><div class="page-content__form apply__form">

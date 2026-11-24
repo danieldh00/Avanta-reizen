@@ -109,8 +109,8 @@ test('livegang: vaste inhoud uit het bestand of uit het CRM', () => {
   assert.match(fromFile.find((row) => row.label === 'Reisleiders').detail, /^2 van de 3/);
   assert.equal(stateOf(fromFile, 'Tags van het blog'), 'open');
   assert.equal(stateOf(fromFile, 'Uitgelicht bericht'), 'open');
-  assert.equal(stateOf(fromFile, 'Koppen'), 'later');
-  assert.equal(stateOf(fromFile, 'Volgorde en galerij'), 'later');
+  assert.equal(stateOf(fromFile, 'Koppen'), 'klaar', 'altijd in het CRM (W28)');
+  assert.equal(stateOf(fromFile, 'Volgorde en galerij'), 'open', 'nog niet overgezet');
   assert.equal(stateOf(fromFile, 'Fotogalerijen'), fixed.galleries.size ? 'later' : 'klaar');
 
   const inCrm = contentChecks(fixed, { homeInCrm: true, postTags: 4, featuredPosts: 1, guides: 3, guidesInFile: 0 });

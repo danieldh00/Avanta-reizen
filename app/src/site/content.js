@@ -34,7 +34,7 @@ function withSummary(row) {
 const VISIBLE_POST_SQL = '(published AND (published_at IS NULL OR published_at <= now()))';
 
 /** Gegevens van een reisleider die het CRM beheert (CMS-pakket I4); zie `guideExtra` in `site-content.js`. */
-const GUIDE_EXTRA_COLUMNS = 'surname, city, since, quote, image_url, managed_in_crm';
+const GUIDE_EXTRA_COLUMNS = 'surname, city, since, quote, image_url, managed_in_crm, gallery, gallery_title, gallery_subtitle';
 
 /** Kolommen voor een reis in een lijst (teaser). */
 const TRIP_CARD_COLUMNS = `t.id, t.slug, t.title, t.summary, t.trip_code, t.departure_date, t.duration_label, t.price_cents,
@@ -169,11 +169,11 @@ function createContent(db) {
     },
 
     /**
-     * Alle reisleiders.
+     * Alle reisleiders die online staan, op de volgorde uit het CRM (daarna op naam).
      * @returns {Promise<object[]>} Reisleiders.
      */
     async guides() {
-      return db.query(`SELECT slug, legacy_id, name, intro, photo_url, ${GUIDE_EXTRA_COLUMNS} FROM guides WHERE published ORDER BY name`);
+      return db.query(`SELECT slug, legacy_id, name, intro, photo_url, ${GUIDE_EXTRA_COLUMNS} FROM guides WHERE published ORDER BY sort_order, name, id`);
     },
 
     /**

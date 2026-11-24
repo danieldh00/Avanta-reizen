@@ -14,7 +14,8 @@ const homeViews = require('./home-view');
 const { createHomepageStore, YOUTUBE_ORIGIN } = require('./homepage');
 const { addCspSources } = require('../security/csp');
 const tripViews = require('./trip-view');
-const { createSiteContentStore, sortGuides, guideExtra } = require('./site-content');
+const { createSiteContentStore, guideExtra } = require('./site-content');
+const { createListHeaders } = require('../cms/list-headers');
 const { DATA_DIR } = require('../paths');
 const { isoDate, toDate, tripPath, categoryPath, guidePath, postPath } = require('./format');
 const seo = require('./seo');
@@ -50,10 +51,10 @@ function queryValue(value) {
 
 /**
  * Bouwt de router van de website.
- * @param {{db: object, contactForm?: object, homepage?: {load: Function}, siteContent?: {load: Function}}} options Database,
- *   het contactformulier en (voor tests) de vaste inhoud van de homepage (standaard `DATA_DIR/homepage.json`, zie
- *   `site/homepage.js`) en van lijstkoppen en reisleiders (standaard `DATA_DIR/site-content.json`, zie
- *   `site/site-content.js`). Indexeren, basisadres, naam en
+ * @param {{db: object, contactForm?: object, homepage?: {load: Function}, siteContent?: {load: Function}, listHeaders?: {get: Function}}} options Database,
+ *   het contactformulier, de koppen van de lijstpagina's (`cms/list-headers.js`) en (voor tests) de vaste inhoud van
+ *   de homepage (standaard `DATA_DIR/homepage.json`, zie `site/homepage.js`) en van reisleiders die nog niet in het
+ *   CRM worden beheerd (standaard `DATA_DIR/site-content.json`, zie `site/site-content.js`). Indexeren, basisadres, naam en
  *   de overige site-instellingen komen per verzoek uit `res.locals.site` (Beheer, zie `site/site-settings.js`).
  *   Zonder contactformulier (`contact/routes.js`) is `/contact/` een gewone pagina.
  * @returns {express.Router} De router.
@@ -63,6 +64,7 @@ function createSiteRouter(options) {
   const content = createContent(options.db);
   const homepage = options.homepage || createHomepageStore(DATA_DIR);
   const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
+  const listHeaders = options.listHeaders || createListHeaders({ db: options.db });
   let sitemapCache = null;
 
   /**
@@ -219,7 +221,7 @@ function createSiteRouter(options) {
       content.upcomingTrips({ destination: selected.bestemming, type: selected.type, departure, newFirst }),
       content.newTripCount(),
     ]);
-    const archive = siteContent.load().archives.reis;
+    const archive = listHeaders.get('reis');
     send(res, {
       title: 'Reizen',
       path: '/reis/',
@@ -282,9 +284,9 @@ function createSiteRouter(options) {
   }));
 
   router.get('/reisleider/', asyncRoute(async (req, res) => {
-    const extra = siteContent.load();
-    const archive = extra.archives.reisleider;
-    const guides = sortGuides(await content.guides(), extra.guideOrder).map((guide) => ({ ...guide, extra: guideExtra(guide, extra.guides) }));
+    const archive = listHeaders.get('reisleider');
+    const fixedGuides = siteContent.load().guides;
+    const guides = (await content.guides()).map((guide) => ({ ...guide, extra: guideExtra(guide, fixedGuides) }));
     send(res, {
       title: 'Reisleiders',
       path: '/reisleider/',
@@ -323,7 +325,7 @@ function createSiteRouter(options) {
   };
 
   router.get('/blog/', asyncRoute(async (req, res) => {
-    const archive = siteContent.load().archives.blog;
+    const archive = listHeaders.get('blog');
     const { posts } = await content.posts({ perPage: 500 });
     const { blogArchiveLink } = siteContent.load();
     const { tags, featuredSlug } = await content.blogHighlights(siteContent.load());
@@ -364,7 +366,7 @@ function createSiteRouter(options) {
   }));
 
   router.get('/faq/', asyncRoute(async (req, res) => {
-    const archive = siteContent.load().archives.faq;
+    const archive = listHeaders.get('faq');
     const faqs = await content.faqs();
     send(res, {
       title: archive.title,

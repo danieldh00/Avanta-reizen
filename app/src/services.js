@@ -17,6 +17,7 @@ const { createMonitor } = require('./system/monitor');
 const { createRedirects } = require('./site/redirects');
 const { createSiteContentStore } = require('./site/site-content');
 const { createHomepageStore } = require('./site/homepage');
+const { createListHeaders } = require('./cms/list-headers');
 const { createMenus } = require('./cms/menus');
 const { createMediaLibrary } = require('./media/library');
 const { createImageFormats } = require('./media/formats');
@@ -106,13 +107,15 @@ function createServices(options) {
   // Vaste inhoud van de homepage en lijstkoppen (DATA_DIR); ook het CRM gebruikt ze (homepage als blokpagina opzetten).
   const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
   const homepage = options.homepage || createHomepageStore(DATA_DIR);
+  // Koppen van de lijstpagina's (W28): uit de database, in het geheugen voor de site (`listHeaders.get`).
+  const listHeaders = createListHeaders({ db: options.db });
   // Reizigersaccounts onder /account/ (eigen sessies, los van het CRM).
   const accounts = createAccounts({ db: options.db });
 
   return {
     vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary, imageFormats,
     mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders,
-    infobriefSender, siteContent, homepage, accounts,
+    infobriefSender, siteContent, homepage, listHeaders, accounts,
   };
 }
 

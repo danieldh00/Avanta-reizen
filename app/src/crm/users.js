@@ -25,6 +25,7 @@ const { POST_ACTION_LABELS } = require('../cms/post-routes');
 const { TERM_ACTION_LABELS } = require('../cms/post-term-routes');
 const { FAQ_ACTION_LABELS } = require('../cms/faq-routes');
 const { GUIDE_ACTION_LABELS } = require('../trips/guide-routes');
+const { LIST_HEADER_ACTION_LABELS } = require('../cms/list-header-routes');
 const { MENU_ACTION_LABELS } = require('../cms/menu-routes');
 const { ACCOUNT_ACTION_LABELS } = require('../account/routes');
 const { RETENTION_ACTION_LABELS } = require('../beheer/retention-routes');
@@ -83,6 +84,7 @@ const ACTION_LABELS = {
   ...TERM_ACTION_LABELS,
   ...FAQ_ACTION_LABELS,
   ...GUIDE_ACTION_LABELS,
+  ...LIST_HEADER_ACTION_LABELS,
   ...MENU_ACTION_LABELS,
   ...ACCOUNT_ACTION_LABELS,
   ...RETENTION_ACTION_LABELS,

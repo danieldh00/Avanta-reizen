@@ -97,7 +97,6 @@ function settingsChecks(settings, counts) {
  * @returns {object[]} Regels.
  */
 function contentChecks(fixed, counts) {
-  const galleryGuides = [...fixed.guides.values()].filter((guide) => guide.gallery && guide.gallery.length).length;
   const rows = [
     checkRow('Homepage', counts.homeInCrm ? 'klaar' : 'open', counts.homeInCrm ? 'Gepubliceerd als blokpagina in het CRM.' : 'Komt nog uit homepage.json. Zet hem over met "Homepage in blokken" bij Pagina\'s en publiceer hem.', '/app/paginas/'),
     checkRow('Reisleiders', counts.guidesInFile === 0 ? 'klaar' : 'open', counts.guidesInFile === 0 ? `Alle ${counts.guides} reisleider(s) worden in het CRM beheerd.` : `${counts.guidesInFile} van de ${counts.guides} reisleider(s) tonen nog de gegevens uit site-content.json. Open ze in het CRM en sla ze op.`, '/app/reisleiders/'),
@@ -107,8 +106,8 @@ function contentChecks(fixed, counts) {
   if (counts.featuredPosts > 0) rows.push(checkRow('Uitgelicht bericht', 'klaar', 'Gekozen in het CRM.', '/app/blog/'));
   else rows.push(checkRow('Uitgelicht bericht', fixed.featuredPost ? 'open' : 'klaar', fixed.featuredPost ? 'Komt nog uit site-content.json. Kies een uitgelicht bericht in het blog.' : 'Geen uitgelicht bericht.', '/app/blog/'));
   rows.push(
-    checkRow('Koppen van de lijstpagina\'s', 'later', 'De koppen van Reizen, Reisleiders, Blog, FAQ en Aanmelden komen uit site-content.json (of de standaardteksten); er is nog geen plek in het CRM.', ''),
-    checkRow('Volgorde en galerij van reisleiders', fixed.guideOrder.length || galleryGuides ? 'later' : 'klaar', fixed.guideOrder.length || galleryGuides ? `Volgorde (${fixed.guideOrder.length} reisleider(s)) en galerij (${galleryGuides} reisleider(s)) komen uit site-content.json.` : 'Niets meer uit het bestand.', ''),
+    checkRow('Koppen van de lijstpagina\'s', 'klaar', 'Beheerd in het CRM bij Website > Lijstpagina\'s.', '/app/lijstpaginas/'),
+    checkRow('Volgorde en galerij van reisleiders', counts.guidesInFile === 0 ? 'klaar' : 'open', counts.guidesInFile === 0 ? 'Beheerd in het CRM bij elke reisleider (Profiel > Volgorde, Foto\'s > Galerij).' : 'Nog niet overgezet: de volgende start van de app zet ze over uit site-content.json.', '/app/reisleiders/'),
     checkRow('Fotogalerijen onder berichten en pagina\'s', fixed.galleries.size ? 'later' : 'klaar', fixed.galleries.size ? `${fixed.galleries.size} galerij(en) komen uit site-content.json.` : 'Niets meer uit het bestand.', ''),
   );
   return rows;

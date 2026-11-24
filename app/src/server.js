@@ -19,7 +19,9 @@ const { siteSettingsOf } = require('./site/site-settings');
 const { cspWith } = require('./site/analytics');
 const { cspWith: captchaCspWith, isFormPath } = require('./security/captcha');
 const crypto = require('node:crypto');
-const { PUBLIC_DIR, MEDIA_DIR } = require('./paths');
+const { PUBLIC_DIR, MEDIA_DIR, DATA_DIR } = require('./paths');
+const { SITE_CONTENT_FILE } = require('./site/site-content');
+const { transferFixedContent } = require('./site/content-transfer');
 const { createServices, startBackgroundTasks } = require('./services');
 const { roleHasRight } = require('./crm/rights');
 const { createPersons } = require('./persons/persons');
@@ -124,7 +126,7 @@ function createApp(options) {
   // Alle diensten (instellingen, logboek, mail, back-ups, bewaking, …) staan in `services.js`. `app.locals` geeft ze
   // door aan `start()` en aan de tests.
   const services = createServices(options);
-  const { vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary, imageFormats, mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, infobriefSender, siteContent, homepage, accounts } = services;
+  const { vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary, imageFormats, mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, infobriefSender, siteContent, homepage, listHeaders, accounts } = services;
   Object.assign(app.locals, { services, settings, appLog, captcha, passwordCheck, menus, systemUpdate, redirects, mediaLibrary, mailer, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, infobriefSender, accounts });
   app.disable('x-powered-by');
   const trustedProxy = parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY);
@@ -160,6 +162,7 @@ function createApp(options) {
   app.use(async (req, res, next) => {
     try {
       await settings.ready();
+      await listHeaders.load();
       res.locals.site = siteSettingsOf(settings);
       // HSTS-preload pas hier, met de geladen waarden uit Beheer (zie `hstsValue`).
       if (req.secure) res.set('Strict-Transport-Security', hstsValue(req, settings));
@@ -217,7 +220,7 @@ function createApp(options) {
   app.use('/media', express.static(mediaDir, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
 
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, vault, settings, passwordCheck, redirects, mailer, wanIp, notifications, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, infobriefSender, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, auditExportMax: options.auditExportMax, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, vault, settings, passwordCheck, redirects, mailer, wanIp, notifications, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, infobriefSender, mediaLibrary, menus, homepage, siteContent, listHeaders, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, auditExportMax: options.auditExportMax, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).
@@ -225,10 +228,10 @@ function createApp(options) {
   // vult bij een ingelogde reiziger de gewone gegevens van de vorige aanmelding alvast in (J4).
   const accountRouter = createAccountRouter({ db: options.db, masterKey: options.masterKey, formKey, mailer, settings, captcha, accounts, passwordCheck, secureCookies: options.secureCookies, now: options.now });
   app.use(createOnlinePaymentRoutes({ db: options.db, onlinePayments, settings, now: options.now }));
-  app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now, siteContent, prefill: accountRouter.prefillFor, customerFor: accountRouter.customerFor }));
+  app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now, listHeaders, prefill: accountRouter.prefillFor, customerFor: accountRouter.customerFor }));
   app.use(accountRouter);
   const contactForm = createContactForm({ db: options.db, formKey, notifications, captcha, now: options.now });
-  app.use(createSiteRouter({ db: options.db, contactForm, homepage, siteContent }));
+  app.use(createSiteRouter({ db: options.db, contactForm, homepage, siteContent, listHeaders }));
 
   // 404: telt mee in de 404-lijst van Beheer; altijd noindex (kop en renderPage zonder indexable), met een canonical
   // naar het gevraagde pad.
@@ -317,6 +320,10 @@ async function start() {
     setTimeout(() => process.exit(1), 3000);
     app.locals.appLog.flush().catch(() => {}).finally(() => process.exit(1));
   });
+  // Vaste inhoud uit site-content.json eenmalig naar de database (W28); wat al is overgezet, blijft zoals het is.
+  const siteContentFile = path.join(DATA_DIR, SITE_CONTENT_FILE);
+  const transferred = await transferFixedContent({ db, siteContent: fs.existsSync(siteContentFile) ? app.locals.services.siteContent.load() : null });
+  for (const part of transferred) console.log(`vaste inhoud: ${part.part} overgezet naar de database (${part.summary})`);
   startBackgroundTasks(app.locals.services, db);
   const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
   // Eenmalige installatiecode voor de eerste beheerder; alleen bruikbaar zolang er geen enkele CRM-gebruiker is.

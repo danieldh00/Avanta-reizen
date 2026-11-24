@@ -118,8 +118,9 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   prijsvak (filterbalk boven het overzicht), reisdetail met reisleider, kenmerken als iconen, inleiding, zijvak met
   prijs, gegevens, gegarandeerd vertrek en aanmeldknop, en een fotostrook met titel; reisleiders als raster met staande
   foto's en een detailpagina met stempel, citaat, woonplaats en galerij (`app/src/site/trip-view.js`). De koppen van de
-  lijstpagina's en de extra reisleidergegevens staan tot CMS-pakket G/H in `DATA_DIR/site-content.json`
-  (`app/src/site/site-content.js`); de import schrijft het, los met `--alleen-vaste-inhoud`.
+  lijstpagina's staan in de database (`list_headers`, migratie 34) en de reisleiders met volgorde en galerij ook; de
+  import schrijft `DATA_DIR/site-content.json` (los met `--alleen-vaste-inhoud`) en zet het meteen over naar de
+  database (`app/src/site/content-transfer.js`, per deel één keer, ook bij de start van de app).
   **Blog, pagina's, FAQ, contact en aanmelden** volgen de huidige site (`app/src/site/page-view.js`): het weblog met
   tagbalk, link naar het oude blogarchief en het uitgelichte bericht groot naast de eerste drie, tagpagina's op
   `/tag/<slug>/` (onbekende tag: 301 naar `/blog/`), berichten met datum en "Naar overzicht", inhoud in blokken (tekst,
@@ -326,9 +327,14 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     inleiding en tekst (veilige HTML), portret en tweede foto uit de fotobibliotheek, online/offline, nieuw (offline) en
     verwijderen (alleen offline, niet uit de import en zonder reizen; het adres verwijst daarna naar `/reisleider/`).
     Tot de eerste wijziging toont de site de gegevens uit `site-content.json`; het formulier staat dan al op die
-    gegevens en bij opslaan gaan ze mee (`managed_in_crm`). De galerij onderaan komt nog uit het bestand. Een
+    gegevens en bij opslaan gaan ze mee (`managed_in_crm`). Sinds migratie 34 ook de *Volgorde* op de site (lager
+    eerder, in het profiel) en de *Galerij* onderaan de pagina (tabblad Foto's: titel, subtitel, foto's uit de
+    bibliotheek toevoegen, volgnummers en weghalen; een formulier op een oude stand geeft 409). Een
     reisleider uit het CRM laat de WordPress-import staan (reizen koppelen nog wel aan hem, ook na een nieuw adres).
     Audit `reisleider.*`.
+  - **Lijstpagina's** op `/app/lijstpaginas/` (recht `content`, `app/src/cms/list-headers.js` en
+    `list-header-routes.js`, migratie 34): pretitel, titel, inleiding en foto uit de bibliotheek van de koppen van
+    Reizen, Reisleiders, Blog, Veelgestelde vragen en het aanmeldformulier. Audit `lijstkop.*`.
   - **Homepage als blokpagina** (CMS-pakket H4, geen migratie): *Homepage als blokpagina opzetten* op `/app/paginas/`
     maakt de pagina `/` aan met de huidige inhoud van de vaste homepage (`homepage.json`) als blokken: slider, zoekbalk
     "Vind jouw reis", last-minutes, reistypes, inspiratie-slider, bestemmingen, blog en "Over Avanta met stempel". Die
@@ -525,9 +531,9 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   controleren* of *Later* en een link naar waar je het regelt. Instellingen: mailserver, meldadres en heartbeat van de
   bewaking, captcha, tweestapsverificatie (aangezet door iedereen met bijzondere gegevens, en verplicht), venster van
   de reisleider, balk "in ontwikkeling", basisadres en indexeren. Vaste inhoud (F09): homepage als blokpagina,
-  reisleiders, tags en uitgelicht bericht van het blog in het CRM of nog uit `homepage.json`/`site-content.json`; de
-  koppen van de lijstpagina's, volgorde en galerij van reisleiders en de fotogalerijen hebben nog geen plek in het CRM
-  (*Later*). Alleen lezen, alleen aantallen.
+  reisleiders (met volgorde en galerij), tags en uitgelicht bericht van het blog in het CRM of nog uit
+  `homepage.json`/`site-content.json`; de koppen van de lijstpagina's staan altijd in het CRM; de fotogalerijen onder
+  berichten en pagina's hebben nog geen plek in het CRM (*Later*). Alleen lezen, alleen aantallen.
 - **Content-Security-Policy**: `style-src 'self'` zonder `'unsafe-inline'`, dus geen inline `<style>`-blokken. Alleen
   het `style`-attribuut mag nog (`style-src-attr 'unsafe-inline'`), omdat de publieke site daarmee achtergrondfoto's
   zet; het CRM en Beheer gebruiken geen inline stijlen. Op de formulierpagina's met reCAPTCHA mag het script van Google

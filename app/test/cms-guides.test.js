@@ -15,7 +15,7 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { validateGuideFields, GUIDE_LIMITS } = require('../src/trips/guides');
+const { validateGuideFields, arrangedPositions, galleryFingerprint, GUIDE_LIMITS } = require('../src/trips/guides');
 const { normalizeSiteContent, guideExtra } = require('../src/site/site-content');
 const { store } = require('../tools/import-wordpress');
 
@@ -59,7 +59,17 @@ test('reisleiders: velden en de gegevens voor de site (zonder database)', () => 
   const guides = normalizeSiteContent(FIXED).guides;
   assert.equal(guideExtra({ slug: 'martijn', managed_in_crm: false }, guides).city, 'Goes', 'nog uit het bestand');
   const managed = guideExtra({ slug: 'martijn', managed_in_crm: true, surname: 'Jansen', city: '', since: '', quote: '', image_url: null }, guides);
-  assert.deepEqual([managed.surname, managed.city, managed.portrait, managed.image, managed.gallery], ['Jansen', '', '', '', ['/media/martijn-galerij.jpg']], 'uit de database, galerij uit het bestand');
+  assert.deepEqual([managed.surname, managed.city, managed.portrait, managed.image, managed.gallery], ['Jansen', '', '', '', []], 'uit de database, ook de galerij');
+  const withGallery = guideExtra({ slug: 'martijn', managed_in_crm: true, gallery: [{ url: '/media/a.jpg', alt: 'A' }], gallery_title: 'T', gallery_subtitle: 'S' }, guides);
+  assert.deepEqual([withGallery.galleryTitle, withGallery.gallerySubtitle, withGallery.gallery], ['T', 'S', [{ url: '/media/a.jpg', alt: 'A' }]]);
+
+  assert.deepEqual(arrangedPositions({ volgorde_0: '3', volgorde_1: '1', volgorde_2: 'x', weg: '3' }, 4), [1, 0, 2], 'nummers, foute nummers houden hun plek, weghalen');
+  assert.deepEqual(arrangedPositions({ weg: ['0', '1'] }, 2), []);
+  assert.equal(galleryFingerprint([{ url: '/a' }]), galleryFingerprint([{ url: '/a', alt: 'x' }]), 'alleen de adressen tellen');
+  assert.notEqual(galleryFingerprint([{ url: '/a' }, { url: '/b' }]), galleryFingerprint([{ url: '/b' }, { url: '/a' }]));
+  assert.equal(validateGuideFields({ name: 'A', sort_order: '12' }).values.sortOrder, 12);
+  assert.equal(validateGuideFields({ name: 'A' }).values.sortOrder, null, 'leeg = ongewijzigd');
+  assert.ok(validateGuideFields({ name: 'A', sort_order: '1.5' }).errors.sort_order);
 });
 
 test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
@@ -194,6 +204,72 @@ test('reisleiders in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal((await post(`${url}verwijderen/`, { zeker: 'ja' })).status, 409, 'uit de import');
     assert.equal((await post(`${url}online/`, { stand: 'online' })).status, 303);
     assert.equal((await post(`${url}verwijderen/`, { zeker: 'ja' })).status, 409, 'online');
+  });
+
+  await testContext.test('galerij en volgorde: overgenomen uit het bestand, fotos toevoegen, ordenen, weghalen en tekst', async () => {
+    const edit = await request(url, { cookie: kantoor.cookie });
+    assert.match(edit.text, /martijn-galerij\.jpg/, 'galerij uit het bestand staat in het scherm');
+    const fingerprint = (edit.text.match(/name="galerij" value="([^"]+)"/) || [])[1];
+    assert.ok(fingerprint);
+    for (const session of [redactie, boekhouding]) {
+      assert.equal((await request(`${url}galerij/toevoegen/`, { cookie: session.cookie })).status, 403);
+      assert.equal((await post(`${url}galerij/toevoegen/`, { media_id: String(photo.id) }, session)).status, 403);
+      assert.equal((await post(`${url}galerij/`, { galerij: fingerprint }, session)).status, 403);
+      assert.equal((await post(`${url}galerij/tekst/`, { gallery_title: 'X' }, session)).status, 403);
+    }
+    assert.equal((await request('/app/reisleiders/999999/galerij/toevoegen/', { cookie: kantoor.cookie })).status, 404);
+    assert.equal((await post('/app/reisleiders/999999/galerij/', { galerij: fingerprint })).status, 404);
+    assert.equal((await post('/app/reisleiders/999999/galerij/tekst/', {})).status, 404);
+    assert.equal((await post('/app/reisleiders/999999/galerij/toevoegen/', { media_id: String(photo.id) })).status, 404);
+
+    assert.match((await request(`${url}galerij/toevoegen/`, { cookie: kantoor.cookie })).text, /type="checkbox" name="media_id"/);
+    assert.equal((await post(`${url}galerij/toevoegen/`, {})).status, 422);
+    assert.equal((await post(`${url}galerij/toevoegen/`, { media_id: '999999' })).status, 409);
+    assert.equal((await post(`${url}galerij/toevoegen/`, { media_id: String(photo.id) })).status, 303);
+    assert.equal((await post(`${url}galerij/toevoegen/`, { media_id: String(photo.id) })).status, 303, 'dezelfde foto niet dubbel');
+    let [row] = await db.query('SELECT gallery, gallery_title FROM guides WHERE id = $1', [martijn.id]);
+    assert.deepEqual(row.gallery.map((item) => item.url), ['/media/martijn-galerij.jpg', '/media/bib-00000000000000ee-1600.webp']);
+    assert.equal(row.gallery_title, 'Onderweg', 'titel uit het bestand');
+
+    assert.equal((await post(`${url}galerij/`, { galerij: fingerprint, volgorde_0: '2', volgorde_1: '1' })).status, 409, 'oude stand');
+    const current = (await request(url, { cookie: kantoor.cookie })).text.match(/name="galerij" value="([^"]+)"/)[1];
+    assert.equal((await post(`${url}galerij/`, { galerij: current, volgorde_0: '2', volgorde_1: '1' })).status, 303);
+    [row] = await db.query('SELECT gallery FROM guides WHERE id = $1', [martijn.id]);
+    assert.deepEqual(row.gallery.map((item) => item.url), ['/media/bib-00000000000000ee-1600.webp', '/media/martijn-galerij.jpg']);
+    assert.equal(row.gallery[0].alt, 'Martijn', 'alt-tekst uit de bibliotheek');
+    assert.equal((await post(`${url}galerij/tekst/`, { gallery_title: ' Op  pad ', gallery_subtitle: 'x'.repeat(300) })).status, 303);
+    [row] = await db.query('SELECT gallery_title, gallery_subtitle FROM guides WHERE id = $1', [martijn.id]);
+    assert.deepEqual([row.gallery_title, row.gallery_subtitle.length], ['Op pad', GUIDE_LIMITS.galleryText]);
+    const site = (await request('/reisleider/martijn-de-vries/')).text;
+    assert.match(site, /Op pad/);
+    assert.match(site, /bib-00000000000000ee-\d+\.webp/);
+    assert.ok(site.indexOf('bib-00000000000000ee') < site.indexOf('martijn-galerij.jpg'), 'nieuwe volgorde op de site');
+
+    const again = (await request(url, { cookie: kantoor.cookie })).text.match(/name="galerij" value="([^"]+)"/)[1];
+    assert.equal((await post(`${url}galerij/`, { galerij: again, weg: '1' })).status, 303);
+    [row] = await db.query('SELECT gallery FROM guides WHERE id = $1', [martijn.id]);
+    assert.equal(row.gallery.length, 1);
+    await db.query("UPDATE guides SET gallery = (SELECT jsonb_agg(jsonb_build_object('url', '/media/x' || n || '.jpg', 'alt', '')) FROM generate_series(1, $2) AS n) WHERE id = $1", [martijn.id, GUIDE_LIMITS.gallery]);
+    assert.equal((await post(`${url}galerij/toevoegen/`, { media_id: String(photo.id) })).status, 422, 'te veel');
+    assert.doesNotMatch((await request(url, { cookie: kantoor.cookie })).text, /galerij\/toevoegen\//, 'geen knop als de galerij vol is');
+    await db.query("UPDATE guides SET gallery = '[]'::jsonb WHERE id = $1", [martijn.id]);
+    assert.match((await request(url, { cookie: kantoor.cookie })).text, /Nog geen foto's in de galerij/);
+
+    // Volgorde: lager staat eerder op de site; in het CRM ook.
+    const [anna] = await db.query("INSERT INTO guides (slug, name, published, managed_in_crm, sort_order) VALUES ('anna-test', 'Anna', true, true, 5) RETURNING id");
+    assert.equal((await post(url, { ...profile, slug: 'martijn-de-vries', sort_order: 'x' })).status, 422);
+    assert.equal((await post(url, { ...profile, slug: 'martijn-de-vries', sort_order: '9' })).status, 303);
+    let list = (await request('/reisleider/')).text;
+    assert.ok(list.indexOf('Anna') < list.indexOf('Martijn'), 'Anna (5) voor Martijn (9)');
+    assert.equal((await post(url, { ...profile, slug: 'martijn-de-vries', sort_order: '1' })).status, 303);
+    list = (await request('/reisleider/')).text;
+    assert.ok(list.indexOf('Martijn') < list.indexOf('Anna'), 'Martijn (1) voor Anna (5)');
+    assert.equal((await post(url, { ...profile, slug: 'martijn-de-vries' })).status, 303, 'zonder veld blijft de volgorde');
+    assert.equal((await db.query('SELECT sort_order FROM guides WHERE id = $1', [martijn.id]))[0].sort_order, 1);
+    const crmList = (await request('/app/reisleiders/', { cookie: kantoor.cookie })).text;
+    assert.ok(crmList.indexOf('>Martijn') < crmList.indexOf('>Anna'), 'CRM-lijst op volgorde');
+    await db.query('DELETE FROM guides WHERE id = $1', [anna.id]);
+    assert.ok(await audits('reisleider.galerij') >= 3);
   });
 
   await testContext.test('nieuwe reisleider: offline, adres uniek, verwijderen alleen zonder reizen', async () => {
