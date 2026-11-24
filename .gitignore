@@ -7,3 +7,6 @@ data/
 # Screenshots en exports horen in de projectbestanden, niet in de repo.
 /*.png
 /*.xlsx
+
+# Kopie van .env die servertaken.sh sleutel-roteren maakt (bevat sleutels).
+.env.voor-sleutelrotatie-*

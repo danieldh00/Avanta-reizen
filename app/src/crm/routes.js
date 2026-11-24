@@ -33,7 +33,7 @@ const { createBeheerRoutes } = require('../beheer/routes');
 
 /**
  * Bouwt de CRM-router.
- * @param {{db: object, masterKey: Buffer, settings: object, passwordCheck?: object, mailer?: object, wanIp?: object, notifications?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, auditExportMax?: number, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
+ * @param {{db: object, masterKey: Buffer, vault?: object, settings: object, passwordCheck?: object, mailer?: object, wanIp?: object, notifications?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, auditExportMax?: number, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
  *   Database, hoofdsleutel, de instellingen (`beheer/settings.js`), de wachtwoordcontrole (`security/password-check.js`,
  *   anders een nieuwe), de mailer en WAN-IP-opzoeker (`mail/`), de captcha, de installatiecode voor de eerste beheerder (zonder code geen installatie), of de cookie
  *   `Secure` krijgt en (voor tests) de klok van de limieten.
@@ -42,7 +42,8 @@ const { createBeheerRoutes } = require('../beheer/routes');
 function createCrmRouter(options) {
   const { db } = options;
   const auth = createAuth(options);
-  const vault = createVault(options.masterKey);
+  // De kluis uit services.js (met de vorige sleutels na een rotatie); tests zonder kluis krijgen er een met de hoofdsleutel.
+  const vault = options.vault || createVault(options.masterKey);
   const twoFactor = createTwoFactor({ db, vault, now: options.now });
   const persons = createPersons({ vault });
   const passwordCheck = options.passwordCheck || createPasswordCheck({ settings: options.settings, appLog: options.appLog, now: options.now });

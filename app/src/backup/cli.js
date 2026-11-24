@@ -12,7 +12,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { DATA_DIR } = require('../paths');
-const { loadMasterKey, createVault } = require('../security/vault');
+const { loadMasterKey, loadPreviousKeys, createVault } = require('../security/vault');
 const backups = require('./backups');
 
 /** Map met de back-ups. */
@@ -72,13 +72,13 @@ async function create(beforeUpdate) {
 async function decrypt(source, target) {
   const file = fs.existsSync(source) ? source : path.join(BACKUP_DIR, path.basename(source));
   if (target === '-') {
-    await backups.decryptTo(file, existingMasterKey(), process.stdout);
+    await backups.decryptTo(file, [existingMasterKey(), ...loadPreviousKeys()], process.stdout);
     return;
   }
   if (fs.existsSync(target)) throw new Error(`${target} bestaat al; kies een ander doel.`);
   const partFile = `${target}.part`;
   try {
-    await backups.decryptTo(file, existingMasterKey(), fs.createWriteStream(partFile, { mode: 0o600 }));
+    await backups.decryptTo(file, [existingMasterKey(), ...loadPreviousKeys()], fs.createWriteStream(partFile, { mode: 0o600 }));
     fs.renameSync(partFile, target);
   } finally {
     fs.rmSync(partFile, { force: true });

@@ -122,3 +122,36 @@ Het auditlog krijgt de regel *Toegang van beheerder hersteld op de server*. Klop
 actieve beheerders gemaskeerd (`d***@voorbeeld.nl`) en verandert er niets. Op een andere server dan apps01: in de map
 met `docker-compose.yml` `docker compose exec -T app node src/crm/cli.js beheerder-herstel <e-mailadres>`.
 Is er nog helemaal geen gebruiker (lege tabel), dan geldt de installatiecode uit het log (`README.md`, *Eerste beheerder*).
+
+## 8. Hoofdsleutel roteren
+Wanneer: als de hoofdsleutel mogelijk is uitgelekt (verloren laptop met de kluis, oud-medewerker met toegang tot de
+server), en verder eens per jaar. De app leest tijdens en na de rotatie gewoon door; er is geen onderhoudsvenster.
+
+Op de **Proxmox-host als root**: het vaste commando uit Beheer > Systeem > Servertaken, met aan het eind
+`sleutel-roteren` in plaats van `openstaand`:
+
+```sh
+REF=$(curl -fsSL -H 'Accept: application/vnd.github.sha' https://api.github.com/repos/danieldh00/Avanta-reizen/commits/main) && T=$(mktemp) && trap 'rm -f "$T"' EXIT && curl -fsSL "https://raw.githubusercontent.com/danieldh00/Avanta-reizen/$REF/deploy/apps01/servertaken.sh" -o "$T" && TASKS_REF="$REF" bash "$T" sleutel-roteren
+```
+
+Na `ja`:
+1. een **back-up** met de huidige sleutel (mislukt die, dan verandert er niets);
+2. een kopie van `.env` (`.env.voor-sleutelrotatie-<datum>`, alleen leesbaar voor root);
+3. een **nieuwe** `AVANTA_MASTER_KEY` in `.env`; de oude gaat vooraan in `AVANTA_MASTER_KEY_PREVIOUS`;
+4. de app start opnieuw (start hij niet, dan komt de oude `.env` terug);
+5. alle versleutelde gegevens worden opnieuw versleuteld en de `match_key` van personen opnieuw berekend
+   (`app/src/security/key-rotation-cli.js`); het auditlog krijgt *Hoofdsleutel geroteerd* met het id van de nieuwe sleutel.
+
+Daarna zelf:
+- de **nieuwe sleutel in de wachtwoordkluis** zetten (zelfde regel als in §1) en het nieuwe sleutel-id in Beheer >
+  Back-ups noteren; de oude sleutel in de kluis laten staan met de datum erbij;
+- `AVANTA_MASTER_KEY_PREVIOUS` laten staan zolang er back-ups van vóór de rotatie bestaan (back-ups, hersteltests en
+  `restore-backup.sh` kiezen de sleutel op het id in de back-up). Een teruggezette oude back-up is meteen leesbaar;
+  draai daarna `sleutel-roteren` gerust nog eens, of in de container `node src/security/key-rotation-cli.js herversleutelen`.
+
+Gevolgen: CRM-gebruikers en reizigers moeten opnieuw inloggen als hun formulier openstond (CSRF-tokens zijn van de
+sleutel afgeleid); betaallinks in al verstuurde mails blijven werken. Meldt de opdracht waarden die met geen enkele
+bekende sleutel te openen zijn, dan blijven die staan en draait de app gewoon door: neem dan contact op met de
+ontwikkelaar voordat een vorige sleutel wordt weggehaald. Op een andere server dan apps01: dezelfde stappen met de hand
+(`.env` aanpassen, `docker compose up -d app`, `docker compose exec -T app node src/security/key-rotation-cli.js
+herversleutelen`).
