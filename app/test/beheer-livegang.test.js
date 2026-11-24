@@ -31,7 +31,7 @@ const ADMIN_PASSWORD = 'correct paard batterij';
 const BEFORE = {
   mfaRequiredFor: 'niemand', devBannerEnabled: true, seoIndexing: false, siteUrl: 'https://avanta.example.nl',
   guideWindowDaysBefore: 14, guideWindowDaysAfter: 0, monitorEmail: '', monitorHeartbeatUrl: '',
-  mailMode: 'smtp', mailHost: '', mailFromAddress: '', captchaEnabled: false, captchaSiteKey: '',
+  mailMode: 'smtp', mailHost: '', mailFromAddress: '', captchaEnabled: false, captchaSiteKey: '', hstsPreload: false,
 };
 /** Instellingen zoals na de overstap. */
 const AFTER = {
@@ -78,6 +78,8 @@ test('livegang: instellingen vóór en na de overstap', () => {
     assert.equal(stateOf(before, label), 'open', label);
   }
   assert.equal(stateOf(before, 'Venster voor de reisleider'), 'handmatig');
+  assert.equal(stateOf(before, 'HSTS-preload'), 'later', 'preload pas na een stabiele periode');
+  assert.equal(stateOf(settingsChecks(fakeSettings({ ...AFTER, hstsPreload: true }), { usersWithout2fa: 0 }), 'HSTS-preload'), 'klaar');
   assert.match(before.find((row) => row.label.startsWith('Venster')).detail, /14 dag\(en\) vóór vertrek tot 0 dag\(en\)/);
   assert.match(before.find((row) => row.label.startsWith('Iedereen')).detail, /^2 actieve gebruiker/);
 

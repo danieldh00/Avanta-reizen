@@ -14,6 +14,10 @@ const FIELDS = {
     type: 'bool', label: 'Nieuwe wachtwoorden controleren bij Have I Been Pwned', default: true, env: 'PASSWORD_BREACH_CHECK',
     help: 'Alleen de eerste 5 tekens van een hash van het wachtwoord gaan naar de dienst; het wachtwoord zelf nooit. Is de dienst niet bereikbaar, dan geldt alleen de lokale controle.',
   },
+  hstsPreload: {
+    type: 'bool', label: 'HSTS-preload aan (alle subdomeinen, twee jaar)', default: false, confirmOn: true,
+    help: 'Pas aanzetten na een stabiele periode in productie, als élk subdomein van het domein https heeft. Werkt alleen als de site live is (zoekmachines toegelaten) en op de host van het basisadres; de testomgeving stuurt het nooit. Daarna de opname aanvragen op hstspreload.org. Terugdraaien duurt maanden.',
+  },
   sessionIdleHours: { type: 'int', label: 'Uitloggen na inactiviteit (uren)', help: 'Een sessie zonder activiteit vervalt na zoveel uur. Geldt meteen, ook voor wie al is ingelogd. Advies: 1 uur, want het CRM toont bijzondere gegevens.', default: 1, min: 1, max: 24 },
   sessionMaxDays: { type: 'int', label: 'Maximale duur van een sessie (dagen)', help: 'Daarna moet iedereen opnieuw inloggen, ook bij activiteit. Korter geldt meteen, ook voor wie al is ingelogd; langer alleen voor nieuwe sessies. Advies: 1 dag.', default: 1, min: 1, max: 30 },
   auditRetentionMonths: { type: 'int', label: 'Bewaartermijn auditlog (maanden)', help: 'Oudere regels worden dagelijks verwijderd. Advies: 24 maanden.', default: 24, min: 6, max: 120 },
@@ -74,6 +78,13 @@ const GROUP = {
       fields: ['passwordBreachCheck'],
       extra: 'wachtwoordcontrole',
       words: 'wachtwoord password gelekt datalek have i been pwned hibp veelgebruikt sterk beveiliging inloggen reizigersaccount',
+    },
+    {
+      id: 'hsts',
+      label: 'HSTS-preload',
+      intro: 'De site stuurt altijd HSTS: browsers gebruiken een jaar lang alleen nog https voor deze host. Met preload geldt dat voor alle subdomeinen en kan het domein in de lijst die in de browsers is ingebouwd, zodat ook het allereerste bezoek over https gaat. Opname in die lijst is lastig terug te draaien (maanden); zet het pas aan na de livegang en een stabiele periode (stap 4.5 van het go-live-draaiboek).',
+      fields: ['hstsPreload'],
+      words: 'hsts preload https strict-transport-security subdomeinen includesubdomains tls beveiliging browser hstspreload',
     },
     {
       id: 'captcha',
