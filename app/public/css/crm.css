@@ -396,7 +396,34 @@
 .cms-type-help { margin: 1rem 0; padding-left: 1.25rem; font-size: .9rem; line-height: 1.5; }
 .cms-status .crm-actions { margin-bottom: 1rem; }
 .cms-status form { display: inline-block; }
-.cms-toolbar { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .4rem; }
+/* Teksteditor (public/js/rich-editor.js): knoppenbalk en bewerkvak dat de tekst toont zoals op de site. */
+.rich-editor { display: grid; gap: .4rem; min-width: 0; }
+.rich-editor__toolbar { display: flex; flex-wrap: wrap; gap: .4rem; }
+.crm .rich-editor__toolbar .btn[aria-pressed="true"] { background: var(--av-accent); color: var(--av-white); box-shadow: inset 0 0 0 1px var(--av-accent); }
+.crm .rich-editor__toolbar .btn:disabled { opacity: .45; cursor: default; }
+.rich-editor__source { margin-left: auto; }
+.rich-editor__content {
+  min-height: 14rem; max-height: 70vh; overflow-y: auto; padding: .75rem 1rem; background: var(--av-white);
+  border: 1px solid var(--av-line); border-radius: 6px; color: var(--av-text); font-size: 15px; line-height: 1.6; overflow-wrap: anywhere;
+}
+.rich-editor__content:focus-visible { outline: 2px solid var(--av-accent); outline-offset: 1px; }
+.rich-editor__content[aria-invalid="true"] { border-color: var(--av-accent); }
+.rich-editor__content > :first-child { margin-top: 0; }
+.rich-editor__content > :last-child { margin-bottom: 0; }
+.rich-editor__content :where(p, ul, ol, blockquote, table, figure) { margin: 0 0 .8rem; }
+.rich-editor__content :where(h2, h3, h4, h5) { margin: 1.2rem 0 .5rem; color: var(--av-heading); font-family: var(--av-serif); line-height: 1.25; }
+.rich-editor__content h2 { font-size: 1.5rem; }
+.rich-editor__content h3 { font-size: 1.2rem; }
+.rich-editor__content :where(h4, h5) { font-size: 1rem; }
+.rich-editor__content :where(ul, ol) { padding-left: 1.4rem; }
+.rich-editor__content blockquote { padding-left: 1rem; border-left: 3px solid var(--av-line); font-style: italic; }
+.rich-editor__content a { color: var(--av-accent); text-decoration: underline; }
+.rich-editor__content img { max-width: 100%; height: auto; }
+.rich-editor__content table { border-collapse: collapse; }
+.rich-editor__content :where(td, th) { padding: .25rem .5rem; border: 1px solid var(--av-line); }
+.rich-editor textarea { min-height: 14rem; }
+.rich-editor__count.is-over { color: var(--av-accent-dark); font-weight: 600; }
+.rich-editor__warning:empty { display: none; }
 .cms-photo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: .75rem; margin: 0; padding: 0; list-style: none; }
 .cms-photo-list__item { display: grid; gap: .3rem; font-size: .85rem; }
 .cms-photo-list__item img { width: 100%; height: auto; }
@@ -456,6 +483,8 @@
 .beheer-filter input { flex: 1 1 auto; min-width: 0; }
 .beheer-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
 .beheer-actions form { margin: 0; }
+/* Bevestigingsvinkje boven een rij knoppen (de knop hoort via `form=` bij het formulier van het vinkje). */
+.beheer-confirm { margin: 0; }
 .beheer-content { display: grid; gap: 1rem; min-width: 0; }
 .beheer-content h2 { margin: .5rem 0 0; }
 .beheer-content p { margin: 0; }

@@ -48,6 +48,7 @@ Avanta heeft besloten het veld te houden (21-11-2026), vrijwillig en met eigen t
 | Gegevens langer bewaard dan nodig | Hoog | Middel | Dagelijkse automatische opschoning met instelbare termijnen; rondes zichtbaar in Beheer | Laag |
 | Verlies van gegevens (storing, fout) | Middel | Hoog | Dagelijkse versleutelde back-up, kopie buiten de server (Drive), wekelijkse hersteltest, bewaking | Laag, mits de hoofdsleutel veilig buiten de server staat (audit A04) |
 | Verlies van de hoofdsleutel | Laag | Hoog (gegevens onleesbaar) | Sleutel in wachtwoordkluis (draaiboek §1) | **Open**: actie Daniël/Avanta |
+| Uitlekken van de hoofdsleutel | Laag | Hoog (versleutelde gegevens leesbaar voor wie ook de database heeft) | Sleutel buiten de database; rotatie met opnieuw versleutelen van alle gegevens (draaiboek §8, P7.5) | Laag, mits na een vermoedelijk lek direct geroteerd wordt |
 | Gegevens in mail of logboek | Middel | Middel | Mails zonder bijzondere gegevens; privacyfilter in het logboek; geen persoonsgegevens in audit | Laag |
 | Doorgifte buiten de EER (verwerkers, bestemmingen) | Middel | Middel | Alleen verwerkers met waarborgen; geen trackers zonder toestemming | Middel; **Open**: per verwerker vastleggen |
 | Valse aanmeldingen of misbruik van formulieren | Middel | Laag | Limiet, herkomstcontrole, honeypot, ondertekend tijdstempel, optionele captcha | Laag |

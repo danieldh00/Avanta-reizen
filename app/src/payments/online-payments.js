@@ -37,22 +37,39 @@ const ONLINE_STATES = {
 
 /**
  * Maakt de functies voor online betalen.
- * @param {{db: object, settings: object, mollie: object, masterKey: Buffer, appLog?: object, now?: () => number}} options
- *   Database, instellingen, Mollie-koppeling, hoofdsleutel, logboek en klok.
+ * @param {{db: object, settings: object, mollie: object, masterKey: Buffer, previousKeys?: Buffer[], appLog?: object, now?: () => number}} options
+ *   Database, instellingen, Mollie-koppeling, hoofdsleutel (plus vorige sleutels: betaallinks uit mails van vóór een
+ *   sleutelrotatie blijven geldig), logboek en klok.
  * @returns {object} Functies.
  */
 function createOnlinePayments(options) {
   const { db, settings, mollie } = options;
   const now = options.now || Date.now;
-  const linkKey = crypto.createHmac('sha256', options.masterKey).update('betaallink').digest();
+  /**
+   * Sleutel voor de betaallinks, afgeleid van een hoofdsleutel.
+   * @param {Buffer} masterKey Hoofdsleutel.
+   * @returns {Buffer} HMAC-sleutel.
+   */
+  const linkKeyOf = (masterKey) => crypto.createHmac('sha256', masterKey).update('betaallink').digest();
+  const linkKey = linkKeyOf(options.masterKey);
+  /** Sleutels van vóór een rotatie: alleen om oude links te herkennen, nieuwe links gebruiken `linkKey`. */
+  const previousLinkKeys = (options.previousKeys || []).map(linkKeyOf);
   const log = (message, details) => { if (options.appLog) options.appLog.warn('mollie', message, details); };
+
+  /**
+   * Het token van een betaallink met een bepaalde sleutel.
+   * @param {Buffer} key HMAC-sleutel.
+   * @param {number} bookingId Id.
+   * @returns {string} Token.
+   */
+  const tokenWith = (key, bookingId) => crypto.createHmac('sha256', key).update(`aanmelding:${bookingId}`).digest('base64url').slice(0, TOKEN_LENGTH);
 
   /**
    * Het token van de betaallink van een aanmelding.
    * @param {number} bookingId Id.
    * @returns {string} Token.
    */
-  const tokenFor = (bookingId) => crypto.createHmac('sha256', linkKey).update(`aanmelding:${bookingId}`).digest('base64url').slice(0, TOKEN_LENGTH);
+  const tokenFor = (bookingId) => tokenWith(linkKey, bookingId);
 
   /**
    * Het pad van de betaallink.
@@ -70,9 +87,14 @@ function createOnlinePayments(options) {
     const match = LINK_PATTERN.exec(String(value || ''));
     if (!match) return null;
     const bookingId = Number(match[1]);
-    const expected = Buffer.from(tokenFor(bookingId));
     const given = Buffer.from(match[2]);
-    return expected.length === given.length && crypto.timingSafeEqual(expected, given) ? bookingId : null;
+    // Alle sleutels nalopen (niet stoppen bij de eerste treffer), zodat de duur niet verraadt welke sleutel past.
+    let valid = false;
+    for (const key of [linkKey, ...previousLinkKeys]) {
+      const expected = Buffer.from(tokenWith(key, bookingId));
+      if (expected.length === given.length && crypto.timingSafeEqual(expected, given)) valid = true;
+    }
+    return valid ? bookingId : null;
   };
 
   /**

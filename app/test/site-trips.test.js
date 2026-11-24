@@ -45,6 +45,18 @@ test('prijs zoals de huidige site: geen punt voor duizendtallen, ",-" bij hele e
   assert.equal(views.themePrice(null), '€0,-');
 });
 
+test('citaat van een reisleider: alleen een paar aanhalingstekens eromheen gaat weg', () => {
+  assert.equal(views.quoteText('“Hoi”'), 'Hoi');
+  assert.equal(views.quoteText('"Hoi"'), 'Hoi');
+  assert.equal(views.quoteText("'Hoi'"), 'Hoi');
+  assert.equal(views.quoteText('„Hoi”'), 'Hoi');
+  assert.equal(views.quoteText('  “ Hoi ”  '), 'Hoi');
+  assert.equal(views.quoteText("Zo'n reis, da's mooi'"), "Zo'n reis, da's mooi'", 'een losse apostrof blijft staan');
+  assert.equal(views.quoteText('"Hoi'), '"Hoi', 'zonder sluitteken blijft het staan');
+  assert.equal(views.quoteText(''), '');
+  assert.equal(views.quoteText('"'), '"');
+});
+
 test('reis in een lijst: liggende box met foto, code, samenvatting en prijsvak; labels en aanbieding', () => {
   const item = toString(views.tripListItem(trip()));
   assert.match(item, /<a class="post-teaser post-teaser--landscape" href="\/reis\/namibie\/">/);
@@ -117,7 +129,7 @@ test('reisleiders: lijst met staande foto en voornaam, detail met citaat, woonpl
   assert.match(detail, /icon--badge stamp/);
   assert.match(detail, /<span class="guide__featured-image"><img src="\/media\/p.jpg" alt="Caroline"/);
   assert.match(detail, /<span class="guide__image"><img src="\/media\/i.jpg"/);
-  assert.match(detail, /<blockquote class="guide__quote">Antarctica!<\/blockquote>/);
+  assert.match(detail, /<blockquote class="guide__quote">“Antarctica!”<\/blockquote>/);
   assert.match(detail, /<h1 class="guide__name">Caroline<\/h1>\s*<p class="guide__surname">de Bruin<\/p>/);
   assert.match(detail, /<span class="guide__city">Gouda<\/span>[\s\S]*<span class="guide__year">2012<\/span>/);
   assert.match(detail, /<p>Over mij<\/p>/);

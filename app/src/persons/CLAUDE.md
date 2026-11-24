@@ -10,7 +10,7 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `person-merge-routes.js` (mogelijke dubbelen samenvoegen of markering weghalen)
 - `person-privacy-routes.js` (recht `avg`: inzage-export .xlsx en persoon wissen)
 - `participant-lists.js` + `participant-list-routes.js` (`/app/deelnemerslijsten/`: Excel-lijst per vertrek; venster en eigen vertrekken van de reisleider uit `trips/guide-window.js`)
-- `retention.js` (AVG-opschoning: bewaartermijnen uit Beheer, `anonymizePerson`, rondes in `retention_runs`; een nieuwe tabel met persoonsgegevens hoort hier een regel te krijgen)
+- `retention.js` (AVG-opschoning: bewaartermijnen uit Beheer, `anonymizePerson`, rondes in `retention_runs`; de planner (`tick`, elk uur) start hooguit één dagelijkse ronde per 23 uur, ook na een herstart; een nieuwe tabel met persoonsgegevens hoort hier een regel te krijgen)
 
 ## Regels
 - Een nieuw blok in `BLOCKS` krijgt ook een kolom (migratie), een recht in `BLOCK_RIGHTS`, een regel in `BLOCK_INFO`

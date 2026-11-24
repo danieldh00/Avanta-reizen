@@ -34,7 +34,7 @@ const { createBeheerRoutes } = require('../beheer/routes');
 
 /**
  * Bouwt de CRM-router.
- * @param {{db: object, masterKey: Buffer, settings: object, passwordCheck?: object, mailer?: object, wanIp?: object, notifications?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, auditExportMax?: number, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
+ * @param {{db: object, masterKey: Buffer, vault?: object, settings: object, passwordCheck?: object, mailer?: object, wanIp?: object, notifications?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, auditExportMax?: number, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
  *   Database, hoofdsleutel, de instellingen (`beheer/settings.js`), de wachtwoordcontrole (`security/password-check.js`,
  *   anders een nieuwe), de mailer en WAN-IP-opzoeker (`mail/`), de captcha, de installatiecode voor de eerste beheerder (zonder code geen installatie), of de cookie
  *   `Secure` krijgt en (voor tests) de klok van de limieten.
@@ -43,7 +43,8 @@ const { createBeheerRoutes } = require('../beheer/routes');
 function createCrmRouter(options) {
   const { db } = options;
   const auth = createAuth(options);
-  const vault = createVault(options.masterKey);
+  // De kluis uit services.js (met de vorige sleutels na een rotatie); tests zonder kluis krijgen er een met de hoofdsleutel.
+  const vault = options.vault || createVault(options.masterKey);
   const twoFactor = createTwoFactor({ db, vault, now: options.now });
   const persons = createPersons({ vault });
   const passwordCheck = options.passwordCheck || createPasswordCheck({ settings: options.settings, appLog: options.appLog, now: options.now });
@@ -65,6 +66,9 @@ function createCrmRouter(options) {
   const mediaForms = express.urlencoded({ extended: false, limit: '64kb', parameterLimit: 400 });
   // Pagina's, blogberichten, FAQ-antwoorden, reisleiders en infobrieven: een tekstblok mag lang zijn (100.000 tekens opgemaakte tekst); velden per blok blijven beperkt.
   const pageForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 100 });
+  // Reizen en reistypes/landen: een lange omschrijving uit de teksteditor, ruim 30 velden en een vinkje per land en
+  // reistype (zoals de keuzelijst van de fotobibliotheek).
+  const tripForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 400 });
   // Blog: als pagina's, plus een vinkje per categorie en tag (hoogstens 2 × 200).
   const blogForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 450 });
   // Aanmelding handmatig invoeren: alle velden van het aanmeldformulier (zoals `/aanmelden/`).
@@ -73,6 +77,7 @@ function createCrmRouter(options) {
     if (req.path.startsWith('/beheer/')) return beheerForms(req, res, next);
     if (req.path.startsWith('/paginas/') || req.path.startsWith('/faq/') || req.path.startsWith('/reisleiders/') || req.path.startsWith('/infobrieven/')) return pageForms(req, res, next);
     if (req.path.startsWith('/blog/')) return blogForms(req, res, next);
+    if (req.path.startsWith('/reizen/') || req.path.startsWith('/reistypes-en-landen/')) return tripForms(req, res, next);
     if (req.path === '/aanmeldingen/nieuw/') return bookingForms(req, res, next);
     if (req.path.startsWith('/fotobibliotheek/')) return mediaForms(req, res, next);
     return smallForms(req, res, next);

@@ -1,6 +1,6 @@
 /**
  * Zijbalk en kopbalk van het CRM en Beheer (`crm/layout.js`); verderop in dit bestand de tabbladen van bewerkschermen
- * en de opmaakknoppen boven tekstvakken. Staat direct na de kopbalk en de zijbalk in de pagina,
+ * (de teksteditor staat in `rich-editor.js`). Staat direct na de kopbalk en de zijbalk in de pagina,
  * zodat de ingeklapte stand vóór het tekenen bekend is (geen verspringen).
  * - Breed scherm: zijbalk in te klappen tot een iconenbalk; de keuze wordt per browser onthouden (localStorage).
  * - Hoofdzijbalk: vaste groepen, altijd open. Beheer heeft een tweede zijbalk (`#crm-sub`) met inklapbare groepen: één
@@ -220,52 +220,5 @@ document.addEventListener('DOMContentLoaded', function setupTabs() {
       const key = keyFromAddress();
       if (key) show(key);
     });
-  });
-});
-
-/**
- * Opmaakknoppen boven een tekstvak met HTML (`textarea.cms-richtext`, pagina's in het CMS): vet, cursief, kopjes, lijst,
- * link en alinea zetten de bijbehorende tags om de selectie. De server schoont de HTML bij het opslaan altijd op;
- * zonder JavaScript typ je de tags zelf. Het script staat vóór de inhoud, dus dit wacht tot de pagina geladen is.
- */
-document.addEventListener('DOMContentLoaded', function setupRichText() {
-  const TOOLS = [
-    { label: 'Vet', before: '<strong>', after: '</strong>' },
-    { label: 'Cursief', before: '<em>', after: '</em>' },
-    { label: 'Kop', before: '<h2>', after: '</h2>' },
-    { label: 'Tussenkop', before: '<h3>', after: '</h3>' },
-    { label: 'Alinea', before: '<p>', after: '</p>' },
-    { label: 'Lijst', before: '<ul>\n<li>', after: '</li>\n</ul>', lines: true },
-    { label: 'Link', link: true },
-  ];
-  Array.prototype.forEach.call(document.querySelectorAll('textarea.cms-richtext'), (area) => {
-    const bar = document.createElement('div');
-    bar.className = 'cms-toolbar';
-    bar.setAttribute('role', 'toolbar');
-    bar.setAttribute('aria-label', 'Opmaak');
-    TOOLS.forEach((tool) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'btn btn--small btn--outline';
-      button.textContent = tool.label;
-      button.addEventListener('click', () => {
-        const start = area.selectionStart;
-        const end = area.selectionEnd;
-        let selected = area.value.slice(start, end);
-        let before = tool.before;
-        let after = tool.after;
-        if (tool.link) {
-          const address = window.prompt('Adres van de link (bijv. /contact/ of https://…)', '/');
-          if (!address) return;
-          before = `<a href="${address.replace(/"/g, '&quot;')}">`;
-          after = '</a>';
-        }
-        if (tool.lines && selected.includes('\n')) selected = selected.split('\n').filter(Boolean).join('</li>\n<li>');
-        area.setRangeText(before + selected + after, start, end, 'select');
-        area.focus();
-      });
-      bar.appendChild(button);
-    });
-    area.parentNode.insertBefore(bar, area);
   });
 });

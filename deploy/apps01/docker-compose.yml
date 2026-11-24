@@ -14,10 +14,13 @@ services:
         nl.avantareizen.stack: avanta
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://avanta:${POSTGRES_PASSWORD:?zet POSTGRES_PASSWORD in .env}@db:5432/avanta
+      # Eigen rol zonder superuser-rechten (P7.4); install.sh maakt hem aan met app-rol.sql vóór de app start.
+      DATABASE_URL: postgres://avanta_app:${APP_DB_PASSWORD:?zet APP_DB_PASSWORD in .env (install.sh doet dat)}@db:5432/avanta
       SITE_URL: ${SITE_URL:?zet SITE_URL in .env}
       SITE_INDEXABLE: "${SITE_INDEXABLE:-false}"
       AVANTA_MASTER_KEY: ${AVANTA_MASTER_KEY:-}
+      # Na een sleutelrotatie (servertaken.sh sleutel-roteren) de vorige sleutels, kommagescheiden, nieuwste eerst.
+      AVANTA_MASTER_KEY_PREVIOUS: ${AVANTA_MASTER_KEY_PREVIOUS:-}
       TRUST_PROXY: ${TRUST_PROXY:?zet TRUST_PROXY (IP van de cloudflared-container) in .env}
       # Updaten vanuit de app (Beheer > Systeem > Updates en onderhoud), zie update.sh: de status alleen-lezen, alleen de
       # aanvraagmap is schrijfbaar (uid 1000). install.sh maakt beide mappen aan en zet UPDATE_DIR in .env.

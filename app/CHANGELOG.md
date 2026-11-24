@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.32.1 — 2026-11-24 — Hersteltest noemt de stap die echt mislukte
+
+- Mislukt de hersteltest, dan staat in Beheer nu de echte oorzaak: de fout van het terugzetten of de reden waarom het
+
+- `deploy/apps01/restore-test.sh`: stopt `pg_restore` bij een fout, dan eindigt het ontsleutelen met een gesloten pijp
+  (EPIPE) en werd dat als oorzaak gemeld. Nieuwe functie `restore_failure` kiest de echte oorzaak: het ontsleutelen
+  alleen bij een andere fout dan EPIPE, anders de foutregel van `pg_restore`. De melding van `cli.js decrypt` (eigen
+  tekst, geen gegevens uit de back-up) komt nu ook in de uitslag.
+- Test op de keuze van de oorzaak in `app/test/backup.test.js`.
+
+## 0.32.0 — 2026-11-24 — Teksteditor (WYSIWYG) voor blokken en reisomschrijving
+
+- Tekstblokken, de reisomschrijving, reistypes en landen, reisleiders en FAQ-antwoorden bewerk je nu in een teksteditor: je ziet de tekst zoals op de site, Enter begint een nieuwe alinea en kopjes, vet, cursief, lijsten, citaat en links zet je met de knoppen. Geen `<p>` of `<br>` meer typen; met de knop *HTML* kan het nog wel.
+- Een reis met een lange omschrijving of veel velden opslaan gaf soms een fout; dat is opgelost.
+
+- Nieuwe eigen teksteditor zonder externe bibliotheek: `public/js/rich-editor.js` (contenteditable met knoppenbalk, plakken opgeschoond, HTML-weergave) en `public/js/rich-text-clean.js` (opschoner met dezelfde allowlist als `sanitizeHtml`, ook in Node getest). Zet zich op elk `textarea.cms-richtext`; zonder JavaScript blijft het tekstvak. Vervangt de oude opmaakknoppen in `crm.js`.
+- Reisomschrijving (`/app/reizen/`) en tekst van reistypes en landen gebruiken de editor; nieuwe uitleg `RICHTEXT_HELP`.
+- Formulieren onder `/app/reizen/` en `/app/reistypes-en-landen/` krijgen een eigen limiet (512 kB, 400 velden); de algemene limiet van 20 velden liet het opslaan van een reis mislukken.
+- Bij velden met een maximum (reisleiders, FAQ) toont de editor een teller met de lengte van de HTML.
+- Server-side opschoning (`sanitizeHtml`) ongewijzigd.
+
+## 0.31.4 — 2026-11-24 — Mobiele site gelijk aan de huidige site, opschonen in Beheer netjes en één keer per dag
+
+- De zoekfilters op de homepage en het reisaanbod zien er op de telefoon weer uit als op de huidige site: geen kaders,
+- Reispagina: de kenmerken zijn weer vakjes met alleen het icoon, en de tekst springt op de telefoon in zoals op de
+- Reisleider: het citaat staat tussen aanhalingstekens en de afstanden rond naam, woonplaats en jaar zijn gelijk aan de
+- Beheer > AVG en bewaartermijnen: het bevestigingsvinkje staat boven de knoppen, en Voorbeeld berekenen en Nu
+- De automatische AVG-opschoning draait echt één keer per dag; eerder startte elke herstart van de app (bij elke update)
+
+- `site.css`: zoekfilter op ≤ 768 px zonder rand en zonder binnenmarge (label, icoon en schakelaar tegen de linkerrand,
+  pijltje tegen de rechterrand, geen witruimte onder het derde keuzevak, 22 px boven de zoekknop); `.filter__select-info`
+  19 px van de schakelaar; `.menutoggle__open` lijndikte 2,3.
+- Reisdetail: de tekstkolom-correctie uit de designcontrole teruggedraaid (op de huidige site springt de tekst in);
+  op mobiel `padding: 0 15px` voor `.page-content__text`. Kenmerken (`.trip-types--compact`): vakjes van 60 px met alleen
+  het icoon (30 px), die doorlopen op een volgende regel; de naam staat in `title` en voor schermlezers.
+- Reiskaart op mobiel: `Bijkomende kosten` en de actiedatum links uitgelijnd.
+- Reisleider: `quoteText` (`site/trip-view.js`) zet het citaat tussen “ en ” (zonder dubbele aanhalingstekens);
+  `.guide__name` regelhoogte 1, citaat op mobiel 15 px marge onder; correcties op naam, statistieken en jaar uit de
+  designcontrole teruggedraaid; stempel op ≤ 1024 px op `right: -40px` en 100 px, zoals de huidige site.
+- Beheer > AVG: bevestigingsvinkje in een eigen formulier (`.beheer-confirm`) boven de rij knoppen; *Nu opschonen*
+  hoort er via `form=` bij.
+- `persons/retention.js`: de planner controleert elk uur (`tick`) en start alleen een dagelijkse ronde als de vorige
+  dagelijkse ronde in `retention_runs` minstens 23 uur geleden begon, ook over een herstart heen.
+
+## 0.31.3 — 2026-11-24 — Eigen databaserol voor de app
+
+- apps01 en nieuwe servers: de app verbindt als `avanta_app` in plaats van als de superuser `avanta`. De rol is
+  eigenaar van de database en het schema (migraties blijven werken), maar mag geen rollen of databases maken en geen
+  bestanden of programma's op de databaseserver gebruiken (A08).
+- `install.sh` maakt `APP_DB_PASSWORD` aan in `.env` en richt de rol bij elke installatie en update in met
+  `deploy/apps01/app-rol.sql` (herhaalbaar; bestaande tabellen, reeksen, typen en functies gaan over naar de rol).
+  Er is geen handmatige stap op de server nodig. Back-ups en herstellen werken als `avanta_app`, ook met oude back-ups.
+
+## 0.31.2 — 2026-11-24 — Tabellen bij een betaling met het toetsenbord te scrollen
+
+- CRM > Betalingen > aanmelding: de tabellen *Bedragen* en *Ontvangen betalingen* krijgen de toetsenbordfocus en een
+  naam, zodat je ze op een smal scherm ook zonder muis kunt scrollen (axe `scrollable-region-focusable`, WCAG 2.1.1).
+
+## 0.31.1 — 2026-11-24 — Sleutelrotatie voor de hoofdsleutel
+
+- Kluis (`security/vault.js`): nieuw formaat `v2.<sleutel-id>.…`; leest ook met vorige sleutels
+  (`AVANTA_MASTER_KEY_PREVIOUS` of `DATA_DIR/master-key.previous`). Het oude formaat `v1` blijft leesbaar.
+- `security/key-rotation.js` en `key-rotation-cli.js` (`status`, `herversleutelen`): personen (blokken en `match_key`),
+  oude aanmeldingen, tweestapsgeheimen en geheime instellingen opnieuw versleuteld, in porties en zonder gelijktijdige
+  wijzigingen te overschrijven; auditregel *Hoofdsleutel geroteerd*.
+- Na een rotatie blijven werken: zoeken van dezelfde persoon (match_key met de vorige sleutel), back-ups en hersteltests
+  van vóór de rotatie (sleutel op id), betaallinks in verstuurde mails.
+- apps01: `servertaken.sh sleutel-roteren` (back-up, nieuwe sleutel in `.env`, herstart, opnieuw versleutelen); procedure
+  in `docs/DRAAIBOEK-VPS-VERHUIZING.md` §8 (A13).
+
 ## 0.31.0 — 2026-11-24 — Hersteltest zet de back-up weer terug
 
 - De wekelijkse hersteltest van de back-ups slaagt weer en toont bij een mislukking de echte foutmelding van het terugzetten.

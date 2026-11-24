@@ -26,11 +26,17 @@ const BATCH_SIZE = 200;
 /** Rondes in het overzicht van Beheer. */
 const VIEW_RUNS = 30;
 
-/** Eerste automatische ronde zoveel ms na het starten (na het omzetten van oude aanmeldingen). */
+/** Eerste controle zoveel ms na het starten (na het omzetten van oude aanmeldingen). */
 const FIRST_RUN_MS = 5 * 60 * 1000;
 
-/** Daarna elke dag. */
-const INTERVAL_MS = 24 * 60 * 60 * 1000;
+/** Daarna elk uur een controle of de dagelijkse ronde aan de beurt is. */
+const INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * Een dagelijkse ronde start pas als de vorige dagelijkse ronde zoveel uur geleden begon. Zo draait de opschoning één
+ * keer per dag, ook als de app vaak herstart (bij elke update): eerder startte elke herstart een eigen ronde.
+ */
+const DAILY_GAP_HOURS = 23;
 
 /** De onderdelen van een ronde, met de omschrijving voor het scherm. */
 const COUNT_LABELS = {
@@ -157,7 +163,7 @@ async function anonymizePerson(client, personId) {
  * Maakt de opschoning.
  * @param {{db: object, persons: object, settings: object, today?: () => string}} options Database, de personen
  *   (`persons/persons.js`, voor het openen van het identiteitsblok), de instellingen (termijnen) en (voor tests) de datum van vandaag.
- * @returns {object} `run`, `preview`, `view`, `refresh` en `start`.
+ * @returns {object} `run`, `preview`, `view`, `refresh`, `tick` en `start`.
  */
 function createRetention(options) {
   const { db, persons, settings } = options;
@@ -358,19 +364,38 @@ function createRetention(options) {
   const view = () => ({ runs, running, enabled: settings.get('retentionEnabled') });
 
   /**
-   * Start de dagelijkse ronde (de eerste na vijf minuten); met de schakelaar uit wordt de ronde overgeslagen.
+   * Eén controle van de planner: start de dagelijkse ronde als de schakelaar aan staat, er geen ronde loopt en de
+   * vorige geslaagde dagelijkse ronde minstens `DAILY_GAP_HOURS` uur geleden begon (uit `retention_runs`, dus ook over
+   * een herstart heen). Een mislukte ronde, of een die door een herstart nooit is afgerond (na een uur), telt niet:
+   * dan probeert de volgende controle het opnieuw.
+   * @returns {Promise<boolean>} Waar als er een ronde is gestart.
+   */
+  const tick = async () => {
+    if (!settings.get('retentionEnabled') || running) return false;
+    const [recent] = await db.query(
+      `SELECT EXISTS (SELECT 1 FROM retention_runs
+                       WHERE trigger = 'dagelijks' AND started_at > now() - make_interval(hours => $1)
+                         AND ((finished_at IS NOT NULL AND error = '') OR (finished_at IS NULL AND started_at > now() - interval '1 hour'))) AS done`,
+      [DAILY_GAP_HOURS],
+    );
+    if (recent.done) return false;
+    await run({ trigger: 'dagelijks' });
+    return true;
+  };
+
+  /**
+   * Start de planner: de eerste controle na vijf minuten, daarna elk uur; de ronde zelf draait hooguit één keer per dag.
    * @returns {NodeJS.Timeout[]} De timers (houden het proces niet open).
    */
   const start = () => {
     refresh().catch(() => {});
-    const tick = () => {
-      if (!settings.get('retentionEnabled')) return;
-      run({ trigger: 'dagelijks' }).catch((error) => console.error(`AVG-opschoning mislukt (${error.code || error.name})`));
+    const check = () => {
+      tick().catch((error) => console.error(`AVG-opschoning mislukt (${error.code || error.name})`));
     };
-    return [setTimeout(tick, FIRST_RUN_MS).unref(), setInterval(tick, INTERVAL_MS).unref()];
+    return [setTimeout(check, FIRST_RUN_MS).unref(), setInterval(check, INTERVAL_MS).unref()];
   };
 
-  return { run, preview, view, refresh, start };
+  return { run, preview, view, refresh, tick, start };
 }
 
 module.exports = { createRetention, anonymizePerson, anonymizeBookings, ANONYMIZED_NAME, COUNT_LABELS, CANDIDATES, BOOKING_END_SQL };

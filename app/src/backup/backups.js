@@ -154,15 +154,19 @@ function readHeader(file) {
  * Ontsleutelt een back-up als stroom naar `target`. Let op: de echtheid (tag) staat pas vast als de belofte slaagt;
  * schrijf daarom naar een tijdelijk bestand of een plek die bij een fout wordt weggegooid.
  * @param {string} file Pad van de back-up.
- * @param {Buffer} masterKey Hoofdsleutel.
+ * @param {Buffer|Buffer[]} masterKeys Hoofdsleutel, of de huidige plus de vorige (na een rotatie): de sleutel waarvan het
+ *   id in de kop staat wordt gebruikt.
  * @param {import('node:stream').Writable} target Waar de dump heen gaat.
  * @returns {Promise<void>}
  * @throws {Error} Bij een andere hoofdsleutel, een beschadigde of onbekende back-up.
  */
-async function decryptTo(file, masterKey, target) {
+async function decryptTo(file, masterKeys, target) {
   const parts = readHeader(file);
-  const { key, keyId } = backupKeys(masterKey);
-  if (!parts.keyId.equals(keyId)) throw new Error('Deze back-up is gemaakt met een andere hoofdsleutel.');
+  const match = (Array.isArray(masterKeys) ? masterKeys : [masterKeys])
+    .map((masterKey) => backupKeys(masterKey))
+    .find((candidate) => parts.keyId.equals(candidate.keyId));
+  if (!match) throw new Error('Deze back-up is gemaakt met een andere hoofdsleutel.');
+  const { key } = match;
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, parts.iv);
   decipher.setAAD(parts.header.subarray(0, MAGIC.length + 1 + KEY_ID_LENGTH));
   decipher.setAuthTag(parts.tag);
@@ -177,7 +181,7 @@ async function decryptTo(file, masterKey, target) {
  * Controleert een back-up volledig: ontsleutelen (met controle van de tag) en kijken of er een PostgreSQL-dump in zit.
  * Er komt niets op schijf.
  * @param {string} file Pad van de back-up.
- * @param {Buffer} masterKey Hoofdsleutel.
+ * @param {Buffer|Buffer[]} masterKey Hoofdsleutel (of de huidige plus de vorige, zie `decryptTo`).
  * @returns {Promise<{bytes: number}>} Grootte van de ontsleutelde dump.
  * @throws {Error} Als de back-up niet te ontsleutelen is of geen dump bevat.
  */
