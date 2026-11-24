@@ -13,7 +13,6 @@ const security = require('eslint-plugin-security');
 
 /** Mappen waar `complexity` en `max-lines` nog uit staan tot ze in P6a zijn nagelopen. */
 const P6A_NOG_NALOPEN = [
-  'src/site/**', 'src/booking/**', 'src/account/**', 'src/mail/**', 'src/contact/**', 'src/infobrief/**',
   'src/cms/**', 'src/trips/**', 'src/media/**', 'src/export/**', 'src/dev/**', 'src/services.js', 'src/server.js',
   'tools/**',
 ];

@@ -125,31 +125,68 @@ function normalizePageGallery(value) {
 }
 
 /**
+ * Het object zelf als het een gewoon object is (geen array), anders een leeg object.
+ * @param {*} value Waarde uit de JSON.
+ * @returns {object} Object.
+ */
+function plainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+/**
+ * De extra gegevens per reisleider, op een geldige slug, hoogstens `MAX_GUIDES`.
+ * @param {object} guideSource `guides` uit het bestand.
+ * @returns {Map<string, object>} Gegevens per slug.
+ */
+function normalizeGuides(guideSource) {
+  const guides = new Map();
+  for (const slug of Object.keys(guideSource).slice(0, MAX_GUIDES)) {
+    if (SLUG.test(slug)) guides.set(slug, normalizeGuide(guideSource[slug]));
+  }
+  return guides;
+}
+
+/**
+ * De tags van het blog, zonder dubbele slugs, hoogstens `MAX_TAGS`.
+ * @param {*} value `blogTags` uit het bestand.
+ * @returns {object[]} Tags.
+ */
+function normalizeTags(value) {
+  const blogTags = [];
+  for (const item of (Array.isArray(value) ? value : []).slice(0, MAX_TAGS)) {
+    const tag = normalizeTag(item);
+    if (tag && !blogTags.some((other) => other.slug === tag.slug)) blogTags.push(tag);
+  }
+  return blogTags;
+}
+
+/**
+ * De fotogalerijen per pagina-adres (geldig pad van hoogstens 300 tekens), hoogstens `MAX_PAGE_GALLERIES`.
+ * @param {object} gallerySource `galleries` uit het bestand.
+ * @returns {Map<string, object>} Galerij per pad.
+ */
+function normalizeGalleries(gallerySource) {
+  const galleries = new Map();
+  for (const pagePath of Object.keys(gallerySource).slice(0, MAX_PAGE_GALLERIES)) {
+    const gallery = pagePath.length <= 300 && PAGE_PATH.test(pagePath) ? normalizePageGallery(gallerySource[pagePath]) : null;
+    if (gallery) galleries.set(pagePath, gallery);
+  }
+  return galleries;
+}
+
+/**
  * Controleert de inhoud van het bestand en vult ontbrekende delen aan met de standaard.
  * @param {*} data Ingelezen JSON.
  * @returns {{archives: object, guides: Map<string, object>, guideOrder: string[], blogTags: object[], blogArchiveLink: object, featuredPost: string, galleries: Map<string, object>}} Inhoud.
  */
 function normalizeSiteContent(data) {
-  const source = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+  const source = plainObject(data);
   const archives = source.archives && typeof source.archives === 'object' ? source.archives : {};
-  const guides = new Map();
-  const guideSource = source.guides && typeof source.guides === 'object' && !Array.isArray(source.guides) ? source.guides : {};
-  for (const slug of Object.keys(guideSource).slice(0, MAX_GUIDES)) {
-    if (SLUG.test(slug)) guides.set(slug, normalizeGuide(guideSource[slug]));
-  }
   const guideOrder = [...new Set((Array.isArray(source.guideOrder) ? source.guideOrder : [])
     .map((slug) => cleanString(slug, 120)).filter((slug) => SLUG.test(slug)))].slice(0, MAX_GUIDES);
-  const blogTags = [];
-  for (const value of (Array.isArray(source.blogTags) ? source.blogTags : []).slice(0, MAX_TAGS)) {
-    const tag = normalizeTag(value);
-    if (tag && !blogTags.some((other) => other.slug === tag.slug)) blogTags.push(tag);
-  }
-  const galleries = new Map();
-  const gallerySource = source.galleries && typeof source.galleries === 'object' && !Array.isArray(source.galleries) ? source.galleries : {};
-  for (const pagePath of Object.keys(gallerySource).slice(0, MAX_PAGE_GALLERIES)) {
-    const gallery = pagePath.length <= 300 && PAGE_PATH.test(pagePath) ? normalizePageGallery(gallerySource[pagePath]) : null;
-    if (gallery) galleries.set(pagePath, gallery);
-  }
+  const guides = normalizeGuides(plainObject(source.guides));
+  const blogTags = normalizeTags(source.blogTags);
+  const galleries = normalizeGalleries(plainObject(source.galleries));
   return {
     archives: Object.fromEntries(Object.entries(DEFAULT_ARCHIVES).map(([key, fallback]) => [key, normalizeArchive(archives[key], fallback)])),
     guides,

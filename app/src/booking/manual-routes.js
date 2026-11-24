@@ -92,6 +92,26 @@ function noteField(value) {
 }
 
 /**
+ * Het invoerelement van een veld naar het type: keuzerondjes, vinkje, tekstvak of invoerveld.
+ * @param {object} field Veld uit `FIELD_GROUPS`.
+ * @param {{id: string, value: string, error?: string, common: object}} control Id, ingevulde waarde, foutmelding en de
+ *   gedeelde attributen (id, naam, verplicht, lengte, aria).
+ * @returns {object} HTML.
+ */
+function renderControl(field, { id, value, error, common }) {
+  if (field.type === 'radio') {
+    return html`<div class="choice" role="radiogroup" aria-labelledby="${id}-label">${field.options.map((option) => html`<label><input type="radio" name="${field.name}" value="${option.value}"${value === option.value ? raw(' checked') : ''}${field.required ? raw(' required') : ''}> ${option.label}</label>`)}</div>`;
+  }
+  if (field.type === 'checkbox') {
+    return html`<label class="choice"><input type="checkbox" id="${id}" name="${field.name}" value="ja"${value ? raw(' checked') : ''}${field.required ? raw(' required') : ''}${error ? html` aria-describedby="${id}-fout" aria-invalid="true"` : ''}> <span>${OFFICE_LABELS[field.name] || field.label}</span></label>`;
+  }
+  if (field.type === 'textarea') {
+    return html`<textarea rows="3"${common}>${value}</textarea>`;
+  }
+  return html`<input type="${field.type || 'text'}" value="${value}" autocomplete="off"${common}>`;
+}
+
+/**
  * Eén formulierveld met label, hulptekst en foutmelding (zelfde opbouw als het openbare formulier).
  * @param {object} field Veld uit `FIELD_GROUPS`.
  * @param {Record<string, string>} values Ingevulde waarden.
@@ -104,16 +124,7 @@ function renderField(field, values, errors) {
   const error = errors[field.name];
   const describedBy = [field.help ? `${id}-hulp` : '', error ? `${id}-fout` : ''].filter(Boolean).join(' ');
   const common = html` id="${id}" name="${field.name}"${field.required ? raw(' required') : ''}${field.max ? html` maxlength="${field.max}"` : ''}${describedBy ? html` aria-describedby="${describedBy}"` : ''}${error ? raw(' aria-invalid="true"') : ''}`;
-  let control;
-  if (field.type === 'radio') {
-    control = html`<div class="choice" role="radiogroup" aria-labelledby="${id}-label">${field.options.map((option) => html`<label><input type="radio" name="${field.name}" value="${option.value}"${value === option.value ? raw(' checked') : ''}${field.required ? raw(' required') : ''}> ${option.label}</label>`)}</div>`;
-  } else if (field.type === 'checkbox') {
-    control = html`<label class="choice"><input type="checkbox" id="${id}" name="${field.name}" value="ja"${value ? raw(' checked') : ''}${field.required ? raw(' required') : ''}${error ? html` aria-describedby="${id}-fout" aria-invalid="true"` : ''}> <span>${OFFICE_LABELS[field.name] || field.label}</span></label>`;
-  } else if (field.type === 'textarea') {
-    control = html`<textarea rows="3"${common}>${value}</textarea>`;
-  } else {
-    control = html`<input type="${field.type || 'text'}" value="${value}" autocomplete="off"${common}>`;
-  }
+  const control = renderControl(field, { id, value, error, common });
   const label = field.type === 'checkbox' ? '' : html`<span class="field__label" id="${id}-label">${field.type === 'radio' ? field.label : html`<label for="${id}">${field.label}</label>`}${field.required ? html` <span class="required" aria-hidden="true">*</span>` : ''}</span>`;
   return html`<div class="field${field.full || field.type === 'textarea' || field.type === 'checkbox' || field.type === 'radio' ? ' full' : ''}">
     ${label}${control}

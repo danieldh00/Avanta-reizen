@@ -138,19 +138,34 @@ function renderFooter(footer) {
 }
 
 /**
+ * De waarden van een pagina met de standaarden ingevuld: menupad, site-instellingen, contact, sitenaam, volledige
+ * titel (op de homepage de eigen titel uit Beheer), omschrijving, verificatiecodes en de meet-id van analytics.
+ * @param {{title: string, description?: string, path?: string, site?: object}} page Gegevens van de pagina (`renderPage`).
+ * @returns {{currentPath: string, site: object, contact: object, siteName: string, fullTitle: string, description: string, verification: object, measurementId: string}}
+ *   De waarden.
+ */
+function pageSettings(page) {
+  const site = page.site || {};
+  const siteName = site.siteName || 'Avanta reizen';
+  return {
+    currentPath: page.path || '/',
+    site,
+    contact: site.contact || CONTACT,
+    siteName,
+    fullTitle: page.title ? `${page.title} - ${siteName}` : (site.homeTitle || 'Avontuurlijke groepsreizen over heel de wereld - Avanta reizen'),
+    description: page.description || site.description || '',
+    verification: site.verification || {},
+    measurementId: (site.analytics && site.analytics.measurementId) || '',
+  };
+}
+
+/**
  * Maakt een volledige HTML-pagina.
  * @param {{title: string, description?: string, body: object, path?: string, header?: object, bodyClass?: string, indexable?: boolean, seo?: object, site?: object}} page Gegevens van de pagina; `path` is het menupad, `seo` de canonical-URL, afbeelding, type en JSON-LD (zie `seo.renderSeoHead`), `site` de site-instellingen uit Beheer (`site/site-settings.js`: naam, titels, omschrijving, contact, social media, verificatie, tekst van de balk "in ontwikkeling", de menu's uit het CRM in `menus`; zonder: de standaard).
  * @returns {string} De HTML.
  */
 function renderPage(page) {
-  const currentPath = page.path || '/';
-  const site = page.site || {};
-  const contact = site.contact || CONTACT;
-  const siteName = site.siteName || 'Avanta reizen';
-  const fullTitle = page.title ? `${page.title} - ${siteName}` : (site.homeTitle || 'Avontuurlijke groepsreizen over heel de wereld - Avanta reizen');
-  const description = page.description || site.description || '';
-  const verification = site.verification || {};
-  const measurementId = (site.analytics && site.analytics.measurementId) || '';
+  const { currentPath, site, contact, siteName, fullTitle, description, verification, measurementId } = pageSettings(page);
   return '<!doctype html>\n' + toString(html`<html lang="nl-NL">
 <head>
   <meta charset="utf-8">

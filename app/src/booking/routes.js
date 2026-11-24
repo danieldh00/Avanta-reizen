@@ -23,6 +23,30 @@ const { DATA_DIR } = require('../paths');
 const { createBookingSaver } = require('./save-booking');
 
 /**
+ * Het invoerelement van een veld op het openbare formulier, naar het type: keuzerondjes, vinkje (met links naar de
+ * voorwaarden, behalve bij een vrijwillige toestemming voor art. 9), tekstvak of invoerveld met `autocomplete`.
+ * @param {object} field Veld uit FIELDS.
+ * @param {{id: string, value: string, error?: string, common: object}} control Id, ingevulde waarde, foutmelding en de
+ *   gedeelde attributen (id, naam, verplicht, lengte, aria).
+ * @returns {object} HTML.
+ */
+function renderFormControl(field, { id, value, error, common }) {
+  if (field.type === 'radio') {
+    return html`<div class="choice" role="radiogroup" aria-labelledby="${id}-label">${field.options.map((option) => html`<label><input type="radio" name="${field.name}" value="${option.value}"${value === option.value ? raw(' checked') : ''}${field.required ? raw(' required') : ''}> ${option.label}</label>`)}</div>`;
+  }
+  if (field.type === 'checkbox') {
+    // Een toestemmingsvinkje voor art. 9 is vrijwillig; het vinkje voor de voorwaarden is verplicht en linkt naar de teksten.
+    const links = field.consentFor ? '' : html` <a href="/algemene-voorwaarden/" target="_blank" rel="noopener">Voorwaarden</a> · <a href="/privacy/" target="_blank" rel="noopener">Privacy</a>`;
+    return html`<label class="choice"><input type="checkbox" id="${id}" name="${field.name}" value="ja"${value ? raw(' checked') : ''}${field.required ? raw(' required') : ''}${error ? html` aria-describedby="${id}-fout" aria-invalid="true"` : ''}> ${field.label}${links}</label>`;
+  }
+  if (field.type === 'textarea') {
+    return html`<textarea rows="4"${common}>${value}</textarea>`;
+  }
+  const autocomplete = { first_names: 'given-name', last_name: 'family-name', email: 'email', email_confirm: 'email', mobile: 'tel', phone: 'tel', street: 'street-address', postal_code: 'postal-code', city: 'address-level2', birth_date: 'bday' }[field.name];
+  return html`<input type="${field.type || 'text'}" value="${value}"${common}${autocomplete ? html` autocomplete="${autocomplete}"` : ''}>`;
+}
+
+/**
  * Bouwt de router voor aanmeldingen.
  * @param {{db: object, vault: object, formKey: Buffer, notifications?: object, captcha?: object, now?: () => number, siteContent?: {load: Function}, prefill?: Function, customerFor?: Function}} options
  *   Database, kluis, sleutel voor het formuliertoken, de meldingen aan kantoor, de captcha, een functie die bij een
@@ -121,19 +145,7 @@ function createBookingRouter(options) {
     const error = errors[field.name];
     const describedBy = [field.help ? `${id}-hulp` : '', error ? `${id}-fout` : ''].filter(Boolean).join(' ');
     const common = html` id="${id}" name="${field.name}"${field.required ? raw(' required') : ''}${field.max ? html` maxlength="${field.max}"` : ''}${describedBy ? html` aria-describedby="${describedBy}"` : ''}${error ? raw(' aria-invalid="true"') : ''}`;
-    let control;
-    if (field.type === 'radio') {
-      control = html`<div class="choice" role="radiogroup" aria-labelledby="${id}-label">${field.options.map((option) => html`<label><input type="radio" name="${field.name}" value="${option.value}"${value === option.value ? raw(' checked') : ''}${field.required ? raw(' required') : ''}> ${option.label}</label>`)}</div>`;
-    } else if (field.type === 'checkbox') {
-      // Een toestemmingsvinkje voor art. 9 is vrijwillig; het vinkje voor de voorwaarden is verplicht en linkt naar de teksten.
-      const links = field.consentFor ? '' : html` <a href="/algemene-voorwaarden/" target="_blank" rel="noopener">Voorwaarden</a> · <a href="/privacy/" target="_blank" rel="noopener">Privacy</a>`;
-      control = html`<label class="choice"><input type="checkbox" id="${id}" name="${field.name}" value="ja"${value ? raw(' checked') : ''}${field.required ? raw(' required') : ''}${error ? html` aria-describedby="${id}-fout" aria-invalid="true"` : ''}> ${field.label}${links}</label>`;
-    } else if (field.type === 'textarea') {
-      control = html`<textarea rows="4"${common}>${value}</textarea>`;
-    } else {
-      const autocomplete = { first_names: 'given-name', last_name: 'family-name', email: 'email', email_confirm: 'email', mobile: 'tel', phone: 'tel', street: 'street-address', postal_code: 'postal-code', city: 'address-level2', birth_date: 'bday' }[field.name];
-      control = html`<input type="${field.type || 'text'}" value="${value}"${common}${autocomplete ? html` autocomplete="${autocomplete}"` : ''}>`;
-    }
+    const control = renderFormControl(field, { id, value, error, common });
     const label = field.type === 'checkbox' ? '' : html`<span class="field__label" id="${id}-label">${field.type === 'radio' ? field.label : html`<label for="${id}">${field.label}</label>`}${field.required ? html` <span class="required" aria-hidden="true">*</span>` : ''}</span>`;
     return html`<div class="field${field.full || field.type === 'textarea' || field.type === 'checkbox' || field.type === 'radio' ? ' full' : ''}">
       ${label}${control}
