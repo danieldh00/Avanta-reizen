@@ -222,7 +222,9 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     te maken. Onder 1 GB vrije schijfruimte stopt het omzetten (melding in het logboek); afgeleide bestanden van verwijderde
     foto's ruimt de taak op. De site gebruikt de versies via `srcset`/`sizes` (ook de varianten van de fotobibliotheek):
     reisleiders (lijst als `<img loading="lazy">` in plaats van een achtergrondfoto, detail, reisleider bij een reis),
-    reiskaarten, galerijen en de paginakop (versie van 1600 px).
+    reiskaarten, galerijen, de paginakop (versie van 1600 px), de homepage (slider en inspiratie 1600 px, bestemmingen
+    800 px, reiskaarten, blog en "over ons" met `srcset`), blokken (afbeelding, media en tekst, banner, bestemmingen)
+    en losse foto's in geïmporteerde teksten.
   - **Reizen** op `/app/reizen/` (recht `reizen`; `app/src/trips/`, migratie 15): lijst met filter (komend, vertrokken,
     concept, alle) en zoeken op titel, reiscode of slug; een reis aanmaken en wijzigen met alle velden van de huidige
     site (titel, slug, reiscode, vertrekdatum, reisduur, inleiding, samenvatting, tekst als opgeschoonde HTML, reissom,

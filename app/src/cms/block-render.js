@@ -13,6 +13,7 @@ const {
   tripBox, renderSlides, renderFilterBar, renderLastMinutes, renderTripTypes, renderInspiration, renderDestinations, renderBlog, renderAbout,
 } = require('../site/home-view');
 const { cssImageUrl } = require('../site/layout');
+const { imageAttributes, sizedImageUrl } = require('../media/formats');
 const { icon, categoryIconName } = require('../site/icons');
 const { categoryPath } = require('../site/format');
 const { YOUTUBE_ORIGIN } = require('../site/homepage');
@@ -41,7 +42,7 @@ const BLOCK_RENDERERS = {
     if (!data.foto) return { markup: '', hasVideo: false };
     const { foto } = data;
     return {
-      markup: html`<figure class="page-content__image cms-image"><img src="${foto.url}" alt="${foto.alt}"${foto.width ? html` width="${foto.width}" height="${foto.height}"` : ''} loading="lazy">${data.bijschrift ? html`<figcaption class="cms-image__caption">${data.bijschrift}</figcaption>` : ''}</figure>`,
+      markup: html`<figure class="page-content__image cms-image"><img${imageAttributes(foto.url, '(max-width: 768px) 100vw, 800px', 800)} alt="${foto.alt}"${foto.width ? html` width="${foto.width}" height="${foto.height}"` : ''} loading="lazy">${data.bijschrift ? html`<figcaption class="cms-image__caption">${data.bijschrift}</figcaption>` : ''}</figure>`,
       hasVideo: false,
     };
   },
@@ -71,7 +72,7 @@ const BLOCK_RENDERERS = {
     return {
       markup: html`<div class="page-content__block cms-media-text cms-media-text--${data.positie === 'links' ? 'links' : 'rechts'}">
         <div class="cms-media-text__text page-content__text">${raw(data.html)}</div>
-        ${data.foto ? html`<figure class="cms-media-text__image"><img src="${data.foto.url}" alt="${data.foto.alt}" loading="lazy"></figure>` : ''}
+        ${data.foto ? html`<figure class="cms-media-text__image"><img${imageAttributes(data.foto.url, '(max-width: 768px) 100vw, 600px', 800)} alt="${data.foto.alt}" loading="lazy"></figure>` : ''}
       </div>`,
       hasVideo: false,
     };
@@ -97,7 +98,7 @@ const BLOCK_RENDERERS = {
   'banner': (block, _context) => {
     const { data } = block;
     if (!data.titel) return { markup: '', hasVideo: false };
-    const image = data.foto ? cssImageUrl(data.foto.url) : '';
+    const image = data.foto ? cssImageUrl(sizedImageUrl(data.foto.url, 1600)) : '';
     return {
       markup: html`<div class="page-content__block cms-banner${image ? '' : ' cms-banner--plain'}"${image ? html` style="background-image: url('${image}')"` : ''}>
         <div class="cms-banner__inner">
@@ -163,7 +164,7 @@ const BLOCK_RENDERERS = {
     return {
       markup: html`<div class="page-content__block cms-embed"><div class="destinations" data-scroller>
         <ul class="destinations__track" data-scroller-track>${destinations.map((destination) => {
-          const image = cssImageUrl(destination.image_url);
+          const image = cssImageUrl(sizedImageUrl(destination.image_url, 800));
           return html`<li class="destinations__item"><a class="banner banner--fullimage" href="${categoryPath(destination.slug)}"${image ? html` style="background-image: url('${image}')"` : ''}>
             <span class="banner__title">${destination.name}</span>
           </a></li>`;

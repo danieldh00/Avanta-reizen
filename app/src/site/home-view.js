@@ -8,16 +8,25 @@
 const { html } = require('./html');
 const { icon, categoryIconName } = require('./icons');
 const { cssImageUrl } = require('./layout');
+const { imageAttributes, sizedImageUrl } = require('../media/formats');
 const { formatDate, tripPath, categoryPath, postPath } = require('./format');
 const { YOUTUBE_ORIGIN } = require('./homepage');
 
+/** Weergegeven breedte van de foto's per plek (attribuut `sizes`), zodat de browser een passende versie kiest. */
+const IMAGE_SIZES = {
+  tripCard: '(max-width: 768px) 100vw, 400px',
+  postTeaser: '(max-width: 768px) 100px, 450px',
+  about: '(max-width: 1024px) 100vw, 520px',
+};
+
 /**
- * Een achtergrondfoto als style-attribuut (leeg zonder veilige URL).
+ * Een achtergrondfoto als style-attribuut (leeg zonder veilige URL), in de lichtste versie die breed genoeg is.
  * @param {string} url Adres van de foto.
+ * @param {number} width Benodigde breedte in pixels (voor scherpe schermen al verdubbeld waar nodig).
  * @returns {object|string} Het attribuut.
  */
-function backgroundStyle(url) {
-  const safe = cssImageUrl(url);
+function backgroundStyle(url, width) {
+  const safe = cssImageUrl(sizedImageUrl(url, width));
   return safe ? html` style="background-image: url('${safe}')"` : '';
 }
 
@@ -62,7 +71,7 @@ function renderSlides(slides) {
   return html`<section class="homepage__slides" data-slider data-interval="7000" aria-roledescription="carousel" aria-label="Uitgelicht">
     <ul class="slides">${slides.map((slide, index) => html`
       <li class="slide${index === 0 ? ' is-active' : ''}" data-slide aria-roledescription="slide" aria-label="${index + 1} van ${slides.length}"${index === 0 ? '' : html` aria-hidden="true"`}>
-        <div class="slide__image"${backgroundStyle(slide.image || slide.fallbackImage)}></div>
+        <div class="slide__image"${backgroundStyle(slide.image || slide.fallbackImage, 1600)}></div>
         ${slide.videoId ? html`<div class="slide__video"><iframe src="${videoUrl(slide.videoId)}" title="Video: ${slide.title}" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" loading="lazy" tabindex="-1"></iframe></div>` : ''}
         <div class="slide__content">
           ${slide.pretitle ? html`<p class="slide__pretitle">${slide.pretitle}</p>` : ''}
@@ -130,7 +139,7 @@ function tripBox(trip) {
   return html`<a class="post-teaser post-teaser--trip" href="${tripPath(trip.slug)}">
     <div class="box">
       ${label}
-      <figure class="box__image">${trip.card_image_url ? html`<img src="${trip.card_image_url}" alt="" loading="lazy" width="800" height="700">` : ''}</figure>
+      <figure class="box__image">${trip.card_image_url ? html`<img${imageAttributes(trip.card_image_url, IMAGE_SIZES.tripCard, 800)} alt="" loading="lazy" width="800" height="700">` : ''}</figure>
       <div class="box__inner">
         <span class="box__pretitle">${formatDate(trip.departure_date)}${trip.trip_code ? html` <span class="trip__code">${trip.trip_code}</span>` : ''}</span>
         <span class="box__title">${trip.title}</span>
@@ -186,7 +195,7 @@ function renderInspiration(items) {
   return html`<section class="homepage__inspiration section" data-slider aria-roledescription="carousel" aria-label="De Avanta manier van reizen">
     <ul class="slides">${items.map((item, index) => html`
       <li class="slide${index === 0 ? ' is-active' : ''}" data-slide aria-roledescription="slide" aria-label="${index + 1} van ${items.length}"${index === 0 ? '' : html` aria-hidden="true"`}>
-        <figure class="slide__figure"${backgroundStyle(item.image || item.fallbackImage)}></figure>
+        <figure class="slide__figure"${backgroundStyle(item.image || item.fallbackImage, 1600)}></figure>
         <div class="slide__content">
           <p class="slide__title">${item.title}</p>
           <p class="slide__text">${item.text}</p>
@@ -211,7 +220,7 @@ function renderDestinations(section, destinations) {
     <p class="section__subtitle">${section.subtitle}</p>
     <div class="destinations" data-scroller>
       <ul class="destinations__track" data-scroller-track>${destinations.map((destination) => html`<li class="destinations__item">
-        <a class="banner banner--fullimage" href="${categoryPath(destination.slug)}"${backgroundStyle(destination.image_url)}>
+        <a class="banner banner--fullimage" href="${categoryPath(destination.slug)}"${backgroundStyle(destination.image_url, 800)}>
           <span class="banner__title">${destination.name}</span>
         </a>
       </li>`)}</ul>
@@ -237,7 +246,7 @@ function postTeaser(post, summaryLength, options = {}) {
   const summary = typeof post.summary === 'string' ? post.summary : truncate(post.excerpt, summaryLength);
   const title = options.heading === 'h2' ? html`<h2 class="post-teaser__title">${post.title}</h2>` : html`<h3 class="post-teaser__title">${post.title}</h3>`;
   return html`<a class="post-teaser${options.landscape ? ' post-teaser--landscape' : ''}" href="${postPath(post.slug)}">
-    <figure class="post-teaser__thumb">${post.image_url ? html`<img src="${post.image_url}" alt="" loading="lazy" width="800" height="700">` : ''}</figure>
+    <figure class="post-teaser__thumb">${post.image_url ? html`<img${imageAttributes(post.image_url, IMAGE_SIZES.postTeaser, 400)} alt="" loading="lazy" width="800" height="700">` : ''}</figure>
     <div class="post-teaser__inner">
       ${published ? html`<div class="post-teaser__meta"><time datetime="${published.toISOString()}">${slashDate(published)}</time></div>` : ''}
       ${title}
@@ -281,7 +290,7 @@ function renderAbout(about) {
       <div class="grid">
         <div class="grid__item homepage__about-images">
           ${icon('badge', { className: 'stamp' })}
-          ${image ? html`<span class="about__image"><img src="${image}" alt="" loading="lazy" width="1024" height="683"></span>` : ''}
+          ${image ? html`<span class="about__image"><img${imageAttributes(image, IMAGE_SIZES.about, 800)} alt="" loading="lazy" width="1024" height="683"></span>` : ''}
         </div>
         <div class="grid__item homepage__about-text">
           <h1 class="section__title">${about.title}</h1>

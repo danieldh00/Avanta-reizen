@@ -15,6 +15,8 @@ const { createApp } = require('../src/server');
 const { toString } = require('../src/site/html');
 const tripViews = require('../src/site/trip-view');
 const { renderPageHeader } = require('../src/site/layout');
+const homeViews = require('../src/site/home-view');
+const { BLOCK_RENDERERS } = require('../src/cms/block-render');
 const {
   createImageFormats, createImageIndex, useImageIndex, imageAttributes, sizedImageUrl, scanFormats, FORMAT_DIR,
 } = require('../src/media/formats');
@@ -76,6 +78,13 @@ test('index: srcset en sizes per soort foto, en zonder versies gewoon het adres'
   assert.match(teaser, new RegExp(`<img src="/media/${FORMAT_DIR}/${NAME_A}-400.webp" srcset="[^"]+ 1600w" sizes="[^"]+" alt="" loading="lazy"`));
   assert.doesNotMatch(teaser, /style=/);
   assert.match(toString(renderPageHeader({ title: 'Kop', imageUrl: `/media/${NAME_A}.jpg` })), new RegExp(`url\\('/media/${FORMAT_DIR}/${NAME_A}-1600.webp'\\)`));
+  // Homepage en blokken: achtergrondfoto's in de passende versie, foto's met srcset.
+  const slides = toString(homeViews.renderSlides([{ title: 'Dia', image: `/media/${NAME_A}.jpg` }]));
+  assert.match(slides, new RegExp(`url\\('/media/${FORMAT_DIR}/${NAME_A}-1600.webp'\\)`));
+  const destinations = toString(homeViews.renderDestinations({ title: 'T', subtitle: 'S' }, [{ slug: 'namibie', name: 'Namibië', image_url: `/media/${NAME_A}.jpg` }]));
+  assert.match(destinations, new RegExp(`url\\('/media/${FORMAT_DIR}/${NAME_A}-800.webp'\\)`));
+  const block = toString(BLOCK_RENDERERS.afbeelding({ data: { foto: { url: '/media/bib-0123456789abcdef-800.webp', alt: 'Foto' } } }, {}).markup);
+  assert.match(block, /srcset="\/media\/bib-0123456789abcdef-400\.webp 400w, \/media\/bib-0123456789abcdef-800\.webp 800w" sizes="\(max-width: 768px\) 100vw, 800px"/);
   useImageIndex(createImageIndex());
 });
 
