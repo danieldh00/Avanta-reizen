@@ -94,6 +94,8 @@ app_exec node src/backup/cli.js decrypt "$BACKUP" - \
 statuses=("${PIPESTATUS[@]}")
 [[ "${statuses[0]}" == 0 ]] || fail "Ontsleutelen mislukt (beschadigde back-up of andere hoofdsleutel)."
 if [[ "${statuses[1]}" != 0 ]]; then
+  # Volledige uitvoer alleen in het hostlog (journalctl, alleen root); de melding in Beheer krijgt de gesaneerde regel.
+  cat "$RESTORE_ERRORS" >&2
   detail="$(restore_error "$RESTORE_ERRORS")"
   fail "Terugzetten met pg_restore mislukt${detail:+: $detail}"
 fi
