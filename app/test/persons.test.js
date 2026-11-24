@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createDatabase } = require('../src/database/db');
 const { createVault } = require('../src/security/vault');
-const { createPersons, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION } = require('../src/persons/persons');
+const { createPersons, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION, LEGACY_ART9_PURGE_ACTION } = require('../src/persons/persons');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'persons_test';
@@ -219,5 +219,8 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     const open = await db.query('SELECT count(*)::int AS total FROM consents WHERE text_version = $1 AND withdrawn_at IS NULL', [LEGACY_ART9_TEXT_VERSION]);
     assert.equal(open[0].total, 0, 'oude regels ingetrokken, als bewijs bewaard');
     assert.deepEqual(await persons.purgeLegacyArt9(db), { purged: 0, failed: 0 }, 'daarna niets meer te doen');
+    const audit = await db.query('SELECT user_id, entity, entity_id FROM audit_log WHERE action = $1 ORDER BY entity_id::int', [LEGACY_ART9_PURGE_ACTION]);
+    assert.deepEqual(audit, [oldOnly, laterConsent].sort((a, b) => a - b).map((id) => ({ user_id: null, entity: 'persons', entity_id: String(id) })),
+      'per persoon één auditregel door het systeem, zonder gegevens; de mislukte poging laat geen regel achter');
   });
 });

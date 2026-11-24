@@ -11,7 +11,7 @@ const { formatDate } = require('../site/format');
 const { today } = require('../site/content');
 const { FIELDS, validateFields } = require('../booking/fields');
 const { roleHasRight } = require('../crm/rights');
-const { PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, LEGACY_ART9_TEXT_VERSION } = require('./persons');
+const { PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, LEGACY_ART9_TEXT_VERSION, LEGACY_ART9_PURGE_ACTION } = require('./persons');
 const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
 const ui = require('../crm/ui');
 
@@ -51,6 +51,7 @@ const PERSON_ACTION_LABELS = {
   ...Object.fromEntries(Object.keys(BLOCK_CONSENTS).map((block) => [
     `deelnemer.toestemming.ingetrokken.${BLOCK_INFO[block].slug}`, `Deelnemer: toestemming ${BLOCK_INFO[block].label.toLowerCase()} ingetrokken (gegevens gewist)`,
   ])),
+  [LEGACY_ART9_PURGE_ACTION]: 'Deelnemer: bijzondere gegevens van het oude formulier gewist (geen losse toestemming)',
 };
 
 /**

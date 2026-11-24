@@ -54,6 +54,9 @@ const LEGACY_TEXT_VERSION = 'oud-formulier';
  */
 const LEGACY_ART9_TEXT_VERSION = 'oud-formulier, geen losse art. 9-toestemming';
 
+/** Auditactie per persoon bij het wissen van art. 9-gegevens uit het oude formulier (`purgeLegacyArt9`, bevinding A10). */
+const LEGACY_ART9_PURGE_ACTION = 'deelnemer.art9-oud-formulier.gewist';
+
 /**
  * Normaliseert een waarde om twee invoeren te vergelijken: hoofdletterongevoelig, witruimte samengevoegd.
  * @param {*} value Waarde.
@@ -373,6 +376,11 @@ function createPersons(options) {
             'UPDATE consents SET withdrawn_at = now() WHERE person_id = $1 AND text_version = $2 AND withdrawn_at IS NULL',
             [personId, LEGACY_ART9_TEXT_VERSION],
           );
+          // Verantwoording (art. 5.2 AVG): welke persoon wanneer is opgeschoond, zonder gegevens; door het systeem.
+          await client.query(
+            'INSERT INTO audit_log (user_id, action, entity, entity_id) VALUES (NULL, $1, $2, $3)',
+            [LEGACY_ART9_PURGE_ACTION, 'persons', String(personId)],
+          );
         });
       } catch (error) {
         // Alleen het id en de foutcode in het log, nooit de melding zelf (die kan waarden bevatten).
@@ -471,4 +479,4 @@ function createPersons(options) {
   return { matchKey, openBlock, savePerson, recordConsents, backfillPersons, purgeLegacyArt9, splitValues, writeBlock, refreshMatchKey, findPerson, mergePersons };
 }
 
-module.exports = { createPersons, PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, GUARDIAN_CONSENT, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION };
+module.exports = { createPersons, PLAIN_FIELDS, BLOCKS, BLOCK_RIGHTS, BLOCK_CONSENTS, GUARDIAN_CONSENT, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION, LEGACY_ART9_PURGE_ACTION };
