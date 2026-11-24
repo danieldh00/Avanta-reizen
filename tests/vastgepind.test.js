@@ -15,8 +15,11 @@ const WORKFLOW_DIR = path.join(ROOT, '.github', 'workflows');
 const PINNED_ACTION = /^[\w.-]+\/[\w./-]+@[0-9a-f]{40}(\s+#.*)?$/;
 /** Een image-verwijzing met digest. */
 const PINNED_IMAGE = /@sha256:[0-9a-f]{64}\b/;
-/** Bekende images; een verwijzing hiernaar moet een digest hebben. */
-const IMAGE_NAMES = /\b(postgres|node|aquasec\/trivy|zricethezav\/gitleaks|ghcr\.io\/zaproxy\/zaproxy):[\w.-]+/g;
+/**
+ * Bekende images met een versietag; een verwijzing hiernaar moet een digest hebben. De tag moet op een versie lijken,
+ * zodat `postgres://postgres:wachtwoord@…` en `chown node:node` niet meetellen.
+ */
+const IMAGE_NAMES = /(?<![\w/:@.-])(postgres|node|aquasec\/trivy|zricethezav\/gitleaks|ghcr\.io\/zaproxy\/zaproxy):(?:v?\d[\w.-]*|stable|latest|lts[\w.-]*|alpine[\w.-]*)/g;
 
 /**
  * Leest een bestand als regels met hun nummer.
