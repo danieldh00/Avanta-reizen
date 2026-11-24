@@ -61,6 +61,7 @@ const CRM_MENU = [
       { label: 'Pagina\'s', href: '/app/paginas/', icon: 'list', right: 'content' },
       { label: 'Blog', href: '/app/blog/', icon: 'calendar', right: 'content' },
       { label: 'Veelgestelde vragen', href: '/app/faq/', icon: 'information', right: 'content' },
+      { label: 'Lijstpagina\'s', href: '/app/lijstpaginas/', icon: 'list', right: 'content' },
       { label: 'Menu\'s', href: '/app/menus/', icon: 'menu', right: 'content' },
       { label: 'Fotobibliotheek', href: '/app/fotobibliotheek/', icon: 'image', right: 'media' },
     ],

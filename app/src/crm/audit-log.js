@@ -27,6 +27,7 @@ const ENTITIES = {
   pages: { label: 'Pagina', href: (id) => `/app/paginas/${id}/` },
   posts: { label: 'Blogbericht', href: (id) => `/app/blog/${id}/` },
   faqs: { label: 'Veelgestelde vraag', href: (id) => `/app/faq/${id}/` },
+  list_headers: { label: 'Kop van een lijstpagina', href: (id) => `/app/lijstpaginas/${id}/` },
   users: { label: 'Gebruiker', href: (id) => `/app/gebruikers/${id}/` },
   media: { label: 'Foto', href: (id) => `/app/fotobibliotheek/${id}/` },
   trip_categories: { label: 'Reistype of land', href: (id) => `/app/reistypes-en-landen/${id}/` },

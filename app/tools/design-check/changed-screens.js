@@ -54,7 +54,7 @@ const SCREEN_RULES = [
   { pattern: /^app\/src\/payments\//, screens: ['/app/betalingen/*'] },
   { pattern: /^app\/src\/infobrief\//, screens: ['/app/infobrieven/*'] },
   { pattern: /^app\/src\/trips\//, screens: ['/app/reizen/*', '/app/reisleiders/*', '/app/reistypes-en-landen/*', '/reis/*'] },
-  { pattern: /^app\/src\/cms\//, screens: ['/app/paginas/*', '/app/blog/*', '/app/faq/*', '/app/menus/', '/'] },
+  { pattern: /^app\/src\/cms\//, screens: ['/app/paginas/*', '/app/blog/*', '/app/faq/*', '/app/lijstpaginas/*', '/app/menus/', '/'] },
   { pattern: /^app\/src\/media\//, screens: ['/app/fotobibliotheek/*'] },
   { pattern: /^app\/src\/(beheer|system|backup)\//, screens: ['/app/beheer/*'] },
   // De controle zelf en de CI-opzet: alleen nagaan dat het nog draait.

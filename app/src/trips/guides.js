@@ -4,14 +4,22 @@
  * fotobibliotheek, online/offline, nieuw en verwijderen. Een reisleider die hier is gewijzigd krijgt `managed_in_crm`:
  * de site toont dan de gegevens uit de database in plaats van die uit `site-content.json`, en de WordPress-import laat
  * hem staan. Bij de eerste wijziging gaan de gegevens uit `site-content.json` mee (`adopt`), zodat de site niets
- * verliest. Elke wijziging schrijft de audit in dezelfde transactie; alle vragen met gebonden parameters.
+ * verliest. Ook de volgorde in de lijst op de site (`sort_order`) en de fotogalerij onderaan de pagina (titel, subtitel en
+ * foto's uit de bibliotheek, migratie 34) worden hier beheerd. Elke wijziging schrijft de audit in dezelfde transactie; alle vragen met gebonden parameters.
  */
 const { cleanText, lockMediaForUse, mediaUrl } = require('../media/library');
 const { slugify, isValidSlug, recordMove } = require('./slugs');
+const crypto = require('node:crypto');
 const { sanitizeHtml } = require('../../tools/import/sanitize');
 
 /** Maximale lengtes. */
-const GUIDE_LIMITS = { name: 120, surname: 120, city: 120, quote: 400, intro: 1000, body: 50_000 };
+const GUIDE_LIMITS = { name: 120, surname: 120, city: 120, quote: 400, intro: 1000, body: 50_000, galleryText: 120, gallery: 40 };
+
+/** Grenzen van de volgorde in de lijst met reisleiders. */
+const SORT_ORDER_LIMIT = 100_000;
+
+/** Breedte van de foto's in de galerij (zoals de galerij van een reis). */
+const GALLERY_WIDTH = 1600;
 
 /** Breedte van de opgeslagen foto per soort: portret (staand, lijst en detail) en kopfoto (naast het portret). */
 const PHOTO_FIELDS = Object.freeze({
@@ -21,13 +29,13 @@ const PHOTO_FIELDS = Object.freeze({
 
 /** Kolommen van een reisleider (nooit `SELECT *`). */
 const GUIDE_COLUMNS = `g.id, g.slug, g.legacy_id, g.name, g.surname, g.intro, g.body_html, g.photo_url, g.image_url, g.city, g.since,
-  g.quote, g.published, g.sort_order, g.managed_in_crm, g.updated_at`;
+  g.quote, g.published, g.sort_order, g.managed_in_crm, g.updated_at, g.gallery, g.gallery_title, g.gallery_subtitle`;
 
 /**
  * Leest en controleert het profiel van een reisleider uit een formulier; de tekst gaat door `sanitizeHtml`.
  * @param {object} body Ingezonden velden.
  * @returns {{values: object, errors: object}} Waarden (`name`, `surname`, `slug`, `city`, `since`, `quote`, `intro`,
- *   `bodyHtml`, `bodyInput`) en fouten per veld.
+ *   `bodyHtml`, `bodyInput`, `sortOrder`: lager staat eerder in de lijst op de site, null = ongewijzigd) en fouten per veld.
  */
 function validateGuideFields(body) {
   const text = (name) => (typeof body[name] === 'string' ? body[name] : '');
@@ -51,6 +59,11 @@ function validateGuideFields(body) {
   if (since && !/^(19|20)\d\d$/.test(since)) errors.since = 'Vul een jaartal in (bijv. 2015).';
   const intro = text('intro').replace(/\r\n/g, '\n').trim();
   if (intro.length > GUIDE_LIMITS.intro) errors.intro = `Maximaal ${GUIDE_LIMITS.intro} tekens.`;
+  const sortInput = text('sort_order').trim();
+  /** @type {(number|null)} */
+  let sortOrder = null;
+  if (sortInput && (!/^-?\d{1,6}$/.test(sortInput) || Math.abs(Number(sortInput)) > SORT_ORDER_LIMIT)) errors.sort_order = 'Vul een heel getal in.';
+  else if (sortInput) sortOrder = Number(sortInput);
   const bodyInput = text('body');
   if (bodyInput.length > GUIDE_LIMITS.body) errors.body = `Maximaal ${GUIDE_LIMITS.body} tekens.`;
   return {
@@ -65,9 +78,66 @@ function validateGuideFields(body) {
       intro: intro.slice(0, GUIDE_LIMITS.intro).replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, ''),
       bodyHtml: errors.body ? '' : sanitizeHtml(bodyInput),
       bodyInput: bodyInput.slice(0, GUIDE_LIMITS.body),
+      sortOrder,
     },
     errors,
   };
+}
+
+/**
+ * Vingerafdruk van een galerij (de adressen op volgorde), zodat een formulier dat op een oudere stand is gemaakt geen
+ * verkeerde foto's verschuift of weghaalt.
+ * @param {*} gallery Galerij uit de database.
+ * @returns {string} Korte hash.
+ */
+function galleryFingerprint(gallery) {
+  const urls = (Array.isArray(gallery) ? gallery : []).map((item) => (item && typeof item.url === 'string' ? item.url : ''));
+  return crypto.createHash('sha256').update(JSON.stringify(urls)).digest('hex').slice(0, 16);
+}
+
+/**
+ * Leest de nieuwe volgorde van de galerij uit het formulier: per foto een volgnummer (`volgorde_<i>`) en vinkjes om weg
+ * te halen (`weg`). Ontbrekende of foute nummers houden hun plaats; bij gelijke nummers telt de oude volgorde.
+ * @param {Record<string, *>} body Ingezonden velden.
+ * @param {number} count Aantal foto's in de galerij.
+ * @returns {number[]} De oude posities in de nieuwe volgorde, zonder de weggehaalde.
+ */
+function arrangedPositions(body, count) {
+  const removed = new Set([].concat(body.weg || []).map(String));
+  const positions = [];
+  for (let index = 0; index < count; index += 1) {
+    if (removed.has(String(index))) continue;
+    const input = typeof body[`volgorde_${index}`] === 'string' ? body[`volgorde_${index}`].trim() : '';
+    const wanted = /^\d{1,3}$/.test(input) ? Number(input) : index + 1;
+    positions.push({ index, wanted });
+  }
+  positions.sort((first, second) => first.wanted - second.wanted || first.index - second.index);
+  return positions.map((position) => position.index);
+}
+
+/**
+ * Zet de gegevens uit `site-content.json` van één reisleider in de database en zet hem op beheerd in het CRM: profiel-
+ * velden, portret en tweede foto (alleen als het bestand er een heeft) en de galerij als die in de database nog leeg is.
+ * Gebruikt bij de eerste wijziging in het CRM en bij het overzetten van de vaste inhoud (`site/content-transfer.js`).
+ * @param {{query: Function}} client Transactie-client.
+ * @param {number} guideId Id.
+ * @param {object} [extra] Gegevens uit het bestand (`surname`, `city`, `since`, `quote`, `portrait`, `image`,
+ *   `galleryTitle`, `gallerySubtitle`, `gallery`).
+ * @returns {Promise<void>}
+ */
+async function adoptFixedGuide(client, guideId, extra) {
+  const fixed = extra || {};
+  const gallery = (Array.isArray(fixed.gallery) ? fixed.gallery : []).map((url) => ({ url, alt: '' }));
+  await client.query(
+    `UPDATE guides SET surname = $2, city = $3, since = $4, quote = $5, photo_url = COALESCE(NULLIF($6, ''), photo_url),
+       image_url = COALESCE(NULLIF($7, ''), image_url),
+       gallery = CASE WHEN gallery = '[]'::jsonb THEN $8::jsonb ELSE gallery END,
+       gallery_title = CASE WHEN gallery = '[]'::jsonb THEN $9 ELSE gallery_title END,
+       gallery_subtitle = CASE WHEN gallery = '[]'::jsonb THEN $10 ELSE gallery_subtitle END,
+       managed_in_crm = true WHERE id = $1`,
+    [guideId, fixed.surname || '', fixed.city || '', fixed.since || '', fixed.quote || '', fixed.portrait || '', fixed.image || '',
+      JSON.stringify(gallery), fixed.galleryTitle || '', fixed.gallerySubtitle || ''],
+  );
 }
 
 /**
@@ -86,18 +156,18 @@ function createGuides(options) {
   const { db } = options;
 
   /**
-   * Alle reisleiders met het aantal reizen, op naam; optioneel gefilterd op zoektermen (naam of achternaam).
+   * Alle reisleiders met het aantal reizen, op de volgorde van de site (daarna op naam); optioneel gefilterd op zoektermen (naam of achternaam).
    * @param {{patterns?: string[]}} [filter] LIKE-patronen.
    * @returns {Promise<object[]>} Rijen.
    */
   const list = (filter = {}) => {
     const patterns = filter.patterns || [];
     return db.query(
-      `SELECT g.id, g.slug, g.name, g.surname, g.published, g.photo_url, g.managed_in_crm,
+      `SELECT g.id, g.slug, g.name, g.surname, g.published, g.photo_url, g.managed_in_crm, g.sort_order,
               (SELECT count(*)::int FROM trip_guides tg WHERE tg.guide_id = g.id) AS trip_count
          FROM guides g
         WHERE cardinality($1::text[]) = 0 OR (SELECT bool_and(concat_ws(' ', g.name, g.surname) ILIKE pattern) FROM unnest($1::text[]) AS pattern)
-        ORDER BY g.name, g.surname, g.id LIMIT 500`,
+        ORDER BY g.sort_order, g.name, g.surname, g.id LIMIT 500`,
       [patterns],
     );
   };
@@ -118,20 +188,16 @@ function createGuides(options) {
 
   /**
    * Neemt bij de eerste wijziging de gegevens uit `site-content.json` over (achternaam, woonplaats, sinds, citaat,
-   * portret en tweede foto), zodat de site na `managed_in_crm` hetzelfde toont. Doet niets als hij al beheerd wordt.
+   * portret, tweede foto en de galerij als die in de database nog leeg is), zodat de site na `managed_in_crm` hetzelfde toont. Doet niets als hij al beheerd wordt.
    * @param {object} client Transactie-client.
    * @param {{id: number, managed_in_crm: boolean}} guide Rij (vergrendeld).
-   * @param {object} [extra] Gegevens uit `site-content.json` (`surname`, `city`, `since`, `quote`, `portrait`, `image`).
+   * @param {object} [extra] Gegevens uit `site-content.json` (`surname`, `city`, `since`, `quote`, `portrait`, `image`,
+   *   `galleryTitle`, `gallerySubtitle`, `gallery`).
    * @returns {Promise<void>}
    */
   const adopt = async (client, guide, extra) => {
     if (guide.managed_in_crm) return;
-    const fixed = extra || {};
-    await client.query(
-      `UPDATE guides SET surname = $2, city = $3, since = $4, quote = $5, photo_url = COALESCE(NULLIF($6, ''), photo_url),
-         image_url = COALESCE(NULLIF($7, ''), image_url), managed_in_crm = true WHERE id = $1`,
-      [guide.id, fixed.surname || '', fixed.city || '', fixed.since || '', fixed.quote || '', fixed.portrait || '', fixed.image || ''],
-    );
+    await adoptFixedGuide(client, guide.id, extra);
   };
 
   /**
@@ -184,8 +250,8 @@ function createGuides(options) {
     await adopt(client, guide, context.extra);
     await client.query(
       `UPDATE guides SET name = $2, surname = $3, slug = $4, city = $5, since = $6, quote = $7, intro = $8, body_html = $9,
-         managed_in_crm = true, updated_at = now(), updated_by = $10 WHERE id = $1`,
-      [guide.id, values.name, values.surname, values.slug, values.city, values.since, values.quote, values.intro, values.bodyHtml, context.userId],
+         sort_order = COALESCE($11, sort_order), managed_in_crm = true, updated_at = now(), updated_by = $10 WHERE id = $1`,
+      [guide.id, values.name, values.surname, values.slug, values.city, values.since, values.quote, values.intro, values.bodyHtml, context.userId, values.sortOrder],
     );
     const moved = values.slug !== guide.slug;
     if (moved) await recordMove(client, { fromPath: `/reisleider/${guide.slug}/`, toPath: `/reisleider/${values.slug}/`, userId: context.userId, note: 'Reisleider kreeg een ander adres' });
@@ -260,7 +326,94 @@ function createGuides(options) {
     return { status: 'ok' };
   });
 
-  return { list, get, create, update, setOnline, setPhoto, remove };
+
+  /**
+   * Vergrendelt een reisleider voor een wijziging aan de galerij en neemt zo nodig eerst de gegevens uit
+   * `site-content.json` over.
+   * @param {object} client Transactie-client.
+   * @param {(number|string)} id Id.
+   * @param {object} [extra] Gegevens uit `site-content.json`.
+   * @returns {Promise<(object|null)>} De rij met de (overgenomen) galerij, of null.
+   */
+  const lockForGallery = async (client, id, extra) => {
+    if (!validId(id)) return null;
+    const [guide] = await client.query('SELECT id, managed_in_crm FROM guides WHERE id = $1 FOR UPDATE', [Number(id)]);
+    if (!guide) return null;
+    await adopt(client, guide, extra);
+    const [row] = await client.query('SELECT id, gallery FROM guides WHERE id = $1', [guide.id]);
+    return { id: row.id, gallery: Array.isArray(row.gallery) ? row.gallery : [] };
+  };
+
+  /**
+   * Schrijft de galerij en zet de reisleider op beheerd in het CRM.
+   * @param {object} client Transactie-client.
+   * @param {number} guideId Id.
+   * @param {object[]} gallery Nieuwe galerij.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
+   * @returns {Promise<void>}
+   */
+  const saveGallery = async (client, guideId, gallery, context) => {
+    await client.query('UPDATE guides SET gallery = $2::jsonb, managed_in_crm = true, updated_at = now(), updated_by = $3 WHERE id = $1', [guideId, JSON.stringify(gallery), context.userId]);
+    await context.audit(client);
+  };
+
+  /**
+   * Voegt foto's uit de bibliotheek achter aan de galerij toe (een foto die er al in staat, slaat hij over).
+   * @param {(number|string)} id Id.
+   * @param {number[]} mediaIds Foto's.
+   * @param {{userId: number, audit: Function, extra?: object}} context Gebruiker, audit en `site-content.json`-gegevens.
+   * @returns {Promise<('ok'|'weg'|'foto-weg'|'te-veel')>} Uitkomst.
+   */
+  const addGalleryPhotos = (id, mediaIds, context) => db.transaction(async (client) => {
+    const guide = await lockForGallery(client, id, context.extra);
+    if (!guide) return 'weg';
+    const gallery = [...guide.gallery];
+    for (const mediaId of [...new Set(mediaIds)]) {
+      const photo = await lockMediaForUse(client, mediaId);
+      if (!photo) return 'foto-weg';
+      if (!gallery.some((item) => item.mediaId === photo.id)) gallery.push({ mediaId: photo.id, url: mediaUrl(photo, GALLERY_WIDTH), alt: photo.alt_text || '' });
+    }
+    if (gallery.length > GUIDE_LIMITS.gallery) return 'te-veel';
+    await saveGallery(client, guide.id, gallery, context);
+    return 'ok';
+  });
+
+  /**
+   * Zet de foto's van de galerij in een nieuwe volgorde en haalt aangevinkte foto's weg.
+   * @param {(number|string)} id Id.
+   * @param {{fingerprint: string, body: Record<string, *>}} form Vingerafdruk van de galerij waarop het formulier is
+   *   gemaakt en de ingezonden velden (zie `arrangedPositions`).
+   * @param {{userId: number, audit: Function, extra?: object}} context Gebruiker, audit en `site-content.json`-gegevens.
+   * @returns {Promise<('ok'|'weg'|'gewijzigd')>} Uitkomst; `gewijzigd` als de galerij intussen anders is.
+   */
+  const arrangeGallery = (id, form, context) => db.transaction(async (client) => {
+    const guide = await lockForGallery(client, id, context.extra);
+    if (!guide) return 'weg';
+    if (galleryFingerprint(guide.gallery) !== form.fingerprint) return 'gewijzigd';
+    const gallery = arrangedPositions(form.body, guide.gallery.length).map((index) => guide.gallery[index]);
+    await saveGallery(client, guide.id, gallery, context);
+    return 'ok';
+  });
+
+  /**
+   * Wijzigt de titel en subtitel van de galerij.
+   * @param {(number|string)} id Id.
+   * @param {{title: *, subtitle: *}} texts Ingezonden teksten (worden opgeschoond en ingekort).
+   * @param {{userId: number, audit: Function, extra?: object}} context Gebruiker, audit en `site-content.json`-gegevens.
+   * @returns {Promise<('ok'|'weg')>} Uitkomst.
+   */
+  const setGalleryText = (id, texts, context) => db.transaction(async (client) => {
+    const guide = await lockForGallery(client, id, context.extra);
+    if (!guide) return 'weg';
+    await client.query(
+      'UPDATE guides SET gallery_title = $2, gallery_subtitle = $3, managed_in_crm = true, updated_at = now(), updated_by = $4 WHERE id = $1',
+      [guide.id, cleanText(texts.title, GUIDE_LIMITS.galleryText), cleanText(texts.subtitle, GUIDE_LIMITS.galleryText), context.userId],
+    );
+    await context.audit(client);
+    return 'ok';
+  });
+
+  return { list, get, create, update, setOnline, setPhoto, addGalleryPhotos, arrangeGallery, setGalleryText, remove };
 }
 
-module.exports = { createGuides, validateGuideFields, GUIDE_LIMITS, PHOTO_FIELDS };
+module.exports = { createGuides, adoptFixedGuide, validateGuideFields, galleryFingerprint, arrangedPositions, GUIDE_LIMITS, PHOTO_FIELDS };

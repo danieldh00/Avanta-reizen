@@ -1,7 +1,7 @@
 /**
  * Reisleiders beheren in het CRM (`/app/reisleiders/`, recht `reizen`, CMS-pakket I4): lijst met zoeken, nieuwe
- * reisleider (offline), profiel wijzigen (adres met 301), portret en tweede foto uit de fotobibliotheek, online/offline
- * en verwijderen. Elke wijziging in de auditlog.
+ * reisleider (offline), profiel wijzigen (adres met 301, volgorde op de site), portret en tweede foto uit de
+ * fotobibliotheek, de galerij onderaan de pagina (W28), online/offline en verwijderen. Elke wijziging in de auditlog.
  */
 const express = require('express');
 const { routePath } = require('../route-path');
@@ -16,7 +16,7 @@ const { fieldRow, invalidAttributes, RICHTEXT_HELP } = require('../cms/block-edi
 const { createSiteContentStore, EMPTY_GUIDE } = require('../site/site-content');
 const { DATA_DIR } = require('../paths');
 const { MAX_SLUG_LENGTH, slugify, isValidSlug } = require('./slugs');
-const { createGuides, validateGuideFields, GUIDE_LIMITS, PHOTO_FIELDS } = require('./guides');
+const { createGuides, validateGuideFields, galleryFingerprint, GUIDE_LIMITS, PHOTO_FIELDS } = require('./guides');
 
 /** Basispad van het scherm. */
 const BASE = '/app/reisleiders/';
@@ -27,6 +27,7 @@ const GUIDE_ACTION_LABELS = {
   'reisleider.gewijzigd': 'Profiel van een reisleider gewijzigd',
   'reisleider.online': 'Reisleider online of offline gezet',
   'reisleider.foto': 'Foto van een reisleider gewijzigd',
+  'reisleider.galerij': 'Galerij van een reisleider gewijzigd',
   'reisleider.verwijderd': 'Reisleider verwijderd',
 };
 
@@ -38,6 +39,7 @@ const NOTICES = {
   4: 'De reisleider staat online.',
   5: 'De reisleider staat offline.',
   6: 'De reisleider is aangemaakt en staat offline. Vul het profiel in en zet hem online.',
+  7: 'De galerij is opgeslagen.',
 };
 
 /**
@@ -58,7 +60,21 @@ function guideFormValues(guide, fixed) {
     quote: own ? guide.quote : fixed.quote || '',
     intro: guide.intro,
     bodyInput: guide.body_html,
+    sortOrder: guide.sort_order,
   };
+}
+
+/**
+ * De galerij zoals de site hem nu toont: uit het CRM, of (zolang die leeg is en de reisleider nog niet beheerd wordt)
+ * uit het bestand. Gelijk aan wat `adopt` in `guides.js` bij de eerste wijziging overneemt.
+ * @param {object} guide Rij uit `guides`.
+ * @param {object} fixed Gegevens uit het bestand (`extraOf`).
+ * @returns {{title: string, subtitle: string, items: Array<{url: string, alt?: string}>}} Galerij.
+ */
+function guideGallery(guide, fixed) {
+  const own = Array.isArray(guide.gallery) ? guide.gallery : [];
+  if (guide.managed_in_crm || own.length) return { title: guide.gallery_title || '', subtitle: guide.gallery_subtitle || '', items: own };
+  return { title: fixed.galleryTitle || '', subtitle: fixed.gallerySubtitle || '', items: (fixed.gallery || []).map((url) => ({ url, alt: '' })) };
 }
 
 /**
@@ -87,6 +103,39 @@ function renderGuideStatus(guide, csrf) {
           <input type="hidden" name="stand" value="${guide.published ? 'offline' : 'online'}">
           <button class="btn btn--small${guide.published ? ' btn--outline' : ''}" type="submit">${guide.published ? 'Offline halen' : 'Online zetten'}</button>
         </form>
+      </section>`;
+}
+
+/**
+ * Het blok *Galerij* van een reisleider: titel en subtitel, de foto's met volgnummer en weghalen, en foto's toevoegen.
+ * @param {object} guide Rij uit `guides`.
+ * @param {{title: string, subtitle: string, items: Array<{url: string, alt?: string}>}} gallery Galerij zoals de site hem toont.
+ * @param {string} csrf CSRF-token.
+ * @returns {object} HTML.
+ */
+function renderGallerySection(guide, gallery, csrf) {
+  const action = `${BASE}${guide.id}/galerij/`;
+  return html`<section class="crm-block" id="galerij">
+        <h2>Galerij (${String(gallery.items.length)} van maximaal ${String(GUIDE_LIMITS.gallery)})</h2>
+        <p class="field__help">De strook met foto's onderaan de pagina van de reisleider.</p>
+        <form class="form crm-narrow" method="post" action="${action}tekst/">
+          <input type="hidden" name="_csrf" value="${csrf}">
+          ${fieldRow({ id: 'galerij-title', label: 'Titel van de galerij', control: html`<input id="galerij-title" name="gallery_title" type="text" value="${gallery.title}" maxlength="${GUIDE_LIMITS.galleryText}">` })}
+          ${fieldRow({ id: 'galerij-subtitle', label: 'Subtitel', control: html`<input id="galerij-subtitle" name="gallery_subtitle" type="text" value="${gallery.subtitle}" maxlength="${GUIDE_LIMITS.galleryText}">` })}
+          <div><button class="btn btn--small" type="submit">Tekst opslaan</button></div>
+        </form>
+        ${gallery.items.length ? html`<form method="post" action="${action}">
+          <input type="hidden" name="_csrf" value="${csrf}">
+          <input type="hidden" name="galerij" value="${galleryFingerprint(gallery.items)}">
+          <ul class="cms-photo-list">${gallery.items.map((item, index) => html`<li class="cms-photo-list__item">
+            <img src="${item.url}" alt="${item.alt || ''}" width="120" height="90" loading="lazy">
+            <label>Volgorde <input type="number" name="volgorde_${String(index)}" value="${String(index + 1)}" min="1" max="${String(GUIDE_LIMITS.gallery)}" step="1"></label>
+            <label><input type="checkbox" name="weg" value="${String(index)}"> Weghalen</label>
+          </li>`)}</ul>
+          <p class="field__help">Wijzig de volgorde met de nummers of vink foto's aan om weg te halen, en sla op.</p>
+          <div><button class="btn btn--small" type="submit">Galerij opslaan</button></div>
+        </form>` : html`<p>Nog geen foto's in de galerij.</p>`}
+        ${gallery.items.length < GUIDE_LIMITS.gallery ? html`<p><a class="btn btn--small btn--outline" href="${action}toevoegen/">Foto's toevoegen</a></p>` : ''}
       </section>`;
 }
 
@@ -190,11 +239,12 @@ function createGuideRoutes(options) {
         <button class="btn btn--small" type="submit">Zoeken</button>
       </form>
       ${rows.length ? html`<div class="crm-table-wrap"><table class="crm-table">
-        <thead><tr><th>Naam</th><th>Status</th><th>Reizen</th></tr></thead>
+        <thead><tr><th>Naam</th><th>Status</th><th>Reizen</th><th>Volgorde</th></tr></thead>
         <tbody>${rows.map((row) => html`<tr>
           <td><a href="${BASE}${row.id}/">${row.name}${row.surname ? ` ${row.surname}` : ''}</a></td>
           <td>${row.published ? 'Online' : 'Offline'}</td>
           <td>${String(row.trip_count)}</td>
+          <td>${String(row.sort_order)}</td>
         </tr>`)}</tbody>
       </table></div>` : html`<p>Geen reisleiders gevonden.</p>`}
       <section class="crm-block">
@@ -246,6 +296,7 @@ function createGuideRoutes(options) {
         ${input('city', 'Woonplaats', GUIDE_LIMITS.city)}
         ${fieldRow({ id: 'reisleider-since', label: 'Bij Avanta sinds', error: errors.since, control: html`<input id="reisleider-since" name="since" type="text" inputmode="numeric" value="${values.since}" maxlength="4" pattern="(19|20)[0-9]{2}"${invalidAttributes('reisleider-since', errors.since)}>` })}
         ${input('quote', 'Citaat', GUIDE_LIMITS.quote)}
+        ${fieldRow({ id: 'reisleider-sort_order', label: 'Volgorde', error: errors.sort_order, help: 'Lager staat eerder in de lijst met reisleiders op de site; bij gelijke nummers op naam.', control: html`<input id="reisleider-sort_order" name="sort_order" type="number" step="1" value="${values.sortOrder === null || values.sortOrder === undefined ? '' : String(values.sortOrder)}"${invalidAttributes('reisleider-sort_order', errors.sort_order)}>` })}
         ${fieldRow({ id: 'reisleider-intro', label: 'Korte inleiding (zoekmachines en delen)', error: errors.intro, control: html`<textarea id="reisleider-intro" name="intro" rows="3" maxlength="${GUIDE_LIMITS.intro}"${invalidAttributes('reisleider-intro', errors.intro)}>${values.intro}</textarea>` })}
         ${fieldRow({ id: 'reisleider-body', label: 'Over deze reisleider', error: errors.body, help: RICHTEXT_HELP, control: html`<textarea id="reisleider-body" name="body" rows="14" class="cms-richtext" maxlength="${GUIDE_LIMITS.body}"${invalidAttributes('reisleider-body', errors.body)}>${values.bodyInput}</textarea>` })}
         ${ui.renderSaveBar({ label: 'Opslaan', note: guide.managed_in_crm ? '' : 'Na opslaan toont de site de gegevens uit het CRM.' })}
@@ -260,8 +311,9 @@ function createGuideRoutes(options) {
             <p><a href="${BASE}${guide.id}/foto/${kind}/">${url ? 'Andere foto kiezen' : 'Foto kiezen'}</a></p>
           </div>`;
         })}
-        <p class="field__help">Het portret staat in de lijst met reisleiders en op de eigen pagina; de tweede foto staat op de pagina naast het portret. De galerij onderaan komt nog van de huidige site.</p>
-      </section>`)}
+        <p class="field__help">Het portret staat in de lijst met reisleiders en op de eigen pagina; de tweede foto staat op de pagina naast het portret.</p>
+      </section>
+      ${renderGallerySection(guide, guideGallery(guide, fixed), req.session.csrf)}`)}
         ${ui.renderTabPanel('verwijderen', html`<form class="crm-block crm-actions" method="post" action="${BASE}${guide.id}/verwijderen/">
         <input type="hidden" name="_csrf" value="${req.session.csrf}">
         <p class="field__help">Verwijderen kan alleen bij een reisleider die offline staat, niet van de huidige site komt en aan geen reis hangt. Anders: offline halen.</p>
@@ -351,6 +403,61 @@ function createGuideRoutes(options) {
     if (outcome === 'weg') return notFound(req, res);
     if (outcome === 'foto-weg') return res.status(409).send(await renderPhoto(req, guide, req.params.kind, { error: 'Deze foto bestaat niet meer. Kies een andere.' }));
     return res.redirect(303, `${BASE}${guide.id}/?opgeslagen=3#fotos`);
+  }));
+
+  /**
+   * De fotokiezer om foto's aan de galerij toe te voegen (meerdere tegelijk).
+   * @param {object} req Express-verzoek.
+   * @param {object} guide Rij.
+   * @param {{error?: string}} [state] Fout.
+   * @returns {Promise<string>} HTML.
+   */
+  const renderGalleryPicker = async (req, guide, state = {}) => {
+    const countries = await library.countries();
+    const filter = pickerFilter(req.query, countries);
+    const { photos, hasMore } = await pickerPhotos(library, filter);
+    const pageUrl = `${BASE}${guide.id}/galerij/toevoegen/`;
+    return page(req, `Galerij: ${guide.name}`, html`<p><a href="${BASE}${guide.id}/#galerij">Terug naar ${guide.name}</a></p>
+      ${renderAlert(state.error)}
+      <section class="crm-block" id="foto">
+        ${renderPhotoPicker({ pageUrl, action: pageUrl, csrf: req.session.csrf, countries, filter, photos, hasMore, multiple: true, button: 'Toevoegen aan de galerij' })}
+      </section>`);
+  };
+
+  router.get(routePath('/reisleiders/:id(\\d{1,9})/galerij/toevoegen/'), guard, handle(async (req, res) => {
+    const guide = await loadOr404(req, res);
+    return guide ? res.send(await renderGalleryPicker(req, guide)) : undefined;
+  }));
+
+  router.post(routePath('/reisleiders/:id(\\d{1,9})/galerij/toevoegen/'), guard, auth.checkCsrf, handle(async (req, res) => {
+    const guide = await loadOr404(req, res);
+    if (!guide) return undefined;
+    const ids = [].concat(req.body.media_id || []);
+    const valid = ids.length > 0 && ids.length <= GUIDE_LIMITS.gallery && ids.every((id) => typeof id === 'string' && /^\d{1,9}$/.test(id));
+    if (!valid) return res.status(422).send(await renderGalleryPicker(req, guide, { error: 'Kies een of meer foto\'s.' }));
+    const outcome = await guides.addGalleryPhotos(guide.id, ids.map(Number), contextFor(req, guide, 'reisleider.galerij'));
+    if (outcome === 'weg') return notFound(req, res);
+    if (outcome === 'foto-weg') return res.status(409).send(await renderGalleryPicker(req, guide, { error: 'Een van deze foto\'s bestaat niet meer. Kies opnieuw.' }));
+    if (outcome === 'te-veel') return res.status(422).send(await renderGalleryPicker(req, guide, { error: `De galerij heeft hoogstens ${GUIDE_LIMITS.gallery} foto's.` }));
+    return res.redirect(303, `${BASE}${guide.id}/?opgeslagen=7#galerij`);
+  }));
+
+  router.post(routePath('/reisleiders/:id(\\d{1,9})/galerij/'), guard, auth.checkCsrf, handle(async (req, res) => {
+    const guide = await loadOr404(req, res);
+    if (!guide) return undefined;
+    const fingerprint = typeof req.body.galerij === 'string' ? req.body.galerij : '';
+    const outcome = await guides.arrangeGallery(guide.id, { fingerprint, body: req.body }, contextFor(req, guide, 'reisleider.galerij'));
+    if (outcome === 'weg') return notFound(req, res);
+    if (outcome === 'gewijzigd') return res.status(409).send(renderEdit(req, await guides.get(guide.id), { error: 'De galerij is intussen gewijzigd. Controleer de foto\'s en probeer het opnieuw.' }));
+    return res.redirect(303, `${BASE}${guide.id}/?opgeslagen=7#galerij`);
+  }));
+
+  router.post(routePath('/reisleiders/:id(\\d{1,9})/galerij/tekst/'), guard, auth.checkCsrf, handle(async (req, res) => {
+    const guide = await loadOr404(req, res);
+    if (!guide) return undefined;
+    const outcome = await guides.setGalleryText(guide.id, { title: req.body.gallery_title, subtitle: req.body.gallery_subtitle }, contextFor(req, guide, 'reisleider.galerij'));
+    if (outcome === 'weg') return notFound(req, res);
+    return res.redirect(303, `${BASE}${guide.id}/?opgeslagen=7#galerij`);
   }));
 
   router.post(routePath('/reisleiders/:id(\\d{1,9})/verwijderen/'), guard, auth.checkCsrf, handle(async (req, res) => {
