@@ -260,6 +260,11 @@ test('hersteltest: de melding zegt waarom de wegwerp-app niet bruikbaar was, zon
     'Avanta Reizen\nStarten mislukt: invalid input syntax for type integer: "jan@example.com" in "users"\u001b\n');
   assert.equal(crashed, "de app stopte (code 1): Starten mislukt: invalid input syntax for type integer: … in 'users'");
   assert.doesNotMatch(crashed, /example\.com/, 'geen waarden uit de database in de melding');
+  // Waarden zonder aanhalingstekens (sleutel en waarde van PostgreSQL, getallen, paden) vallen ook weg.
+  const unquoted = failure(['exited', 'false', '1', '0'],
+    'Onverwerkte fout: error: duplicate key value violates unique constraint: Key (email)=(jan@example.com), id 4711 in /data/media/x\n');
+  assert.equal(unquoted, 'de app stopte (code 1): Onverwerkte fout: error: duplicate key value violates unique constraint: Key … id … in …');
+  assert.doesNotMatch(unquoted, /jan|example|4711|data/);
   assert.doesNotThrow(() => JSON.parse(`{"message":"${crashed}"}`), 'geldige JSON voor record()');
   assert.equal(failure(['running', 'false', '0', '0'], ''), 'geen antwoord van /api/health binnen 120 s');
   assert.equal(failure(['running', 'false', '0', '0'], 'Onverwerkte fout: Error: kapot\n'),

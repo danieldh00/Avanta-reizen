@@ -118,11 +118,13 @@ restore_failure() {
 }
 
 # app_error <bestand met de uitvoer van de app>: de eigen foutmelding van de app bij het starten ("Starten mislukt: …" of
-# "Onverwerkte fout: …"), met dezelfde maskering als restore_lines: namen blijven staan, andere waarden tussen
-# aanhalingstekens worden "…". Geen tekens die de JSON van record() kunnen breken.
+# "Onverwerkte fout: …"). De tekst na de soort fout kan waarden bevatten (een melding van PostgreSQL, een pad), dus
+# alleen woorden blijven staan: namen tussen aanhalingstekens blijven, andere tekst tussen aanhalingstekens of haakjes en
+# elk woord met een cijfer, @, / of = wordt "…". Geen tekens die de JSON van record() kunnen breken.
 app_error() {
   grep -m 1 -E '^(Starten mislukt|Onverwerkte fout): ' "$1" \
-    | sed -E 's/"([a-z_][a-z0-9_]{0,62})"/\x27\1\x27/g; s/"[^"]*"/…/g' \
+    | sed -E 's/"([a-z_][a-z0-9_]{0,62})"/\x27\1\x27/g; s/"[^"]*"/…/g; s/\([^)]*\)/(…)/g' \
+    | sed -E 's/[^[:space:]]*[0-9@\/=][^[:space:]]*/…/g' \
     | tr -d '"\\' | sed -E 's/[[:cntrl:]]+/ /g; s/  +/ /g; s/ *$//' | cut -c 1-240
 }
 
