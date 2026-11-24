@@ -174,6 +174,24 @@ test('validateBooking: art. 9-velden zijn vrijwillig, maar ingevuld alleen met e
   assert.deepEqual(validateBooking({ ...validBooking(), particulars: 'Astma' }, day).errors, {});
 });
 
+test('form-guard: isCrossSite, ook met Origin null (Chrome bij Referrer-Policy no-referrer)', () => {
+  const { isCrossSite } = require('../src/security/form-guard');
+  /**
+   * Bootst een Express-verzoek na met de opgegeven koppen.
+   * @param {object} headers Koppen in kleine letters.
+   * @returns {object} Verzoek met `get`, `protocol` en host.
+   */
+  const fakeRequest = (headers) => ({ protocol: 'https', get: (name) => ({ host: 'avanta.test', ...headers })[name.toLowerCase()] });
+  assert.equal(isCrossSite(fakeRequest({})), false, 'geen koppen: geen andere site');
+  assert.equal(isCrossSite(fakeRequest({ origin: 'https://avanta.test' })), false);
+  assert.equal(isCrossSite(fakeRequest({ origin: 'https://evil.example' })), true);
+  assert.equal(isCrossSite(fakeRequest({ origin: 'null', 'sec-fetch-site': 'same-origin' })), false, 'Chrome op een eigen pagina');
+  assert.equal(isCrossSite(fakeRequest({ origin: 'null' })), true, 'null zonder Sec-Fetch-Site blijft verdacht');
+  assert.equal(isCrossSite(fakeRequest({ origin: 'null', 'sec-fetch-site': 'cross-site' })), true);
+  assert.equal(isCrossSite(fakeRequest({ origin: 'null', 'sec-fetch-site': 'none' })), true, 'none telt niet als eigen site bij null');
+  assert.equal(isCrossSite(fakeRequest({ 'sec-fetch-site': 'same-site' })), true);
+});
+
 test('form-guard: token per formulier, minimale en maximale invultijd, honeypot', () => {
   const { createFormGuard, MIN_FILL_MS, MAX_FILL_MS } = require('../src/security/form-guard');
   let clock = 1_000_000;

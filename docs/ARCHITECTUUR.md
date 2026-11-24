@@ -50,7 +50,7 @@ aan de coördinator vóór hij begint; twee threads werken nooit tegelijk in het
 | `beheer/settings.js`, `beheer/indeling.js` | elke nieuwe instelling | **opgesplitst**: instellingen en secties per groep in `beheer/instellingen/<groep>.js`, zie §3b |
 | `server.js`, `services.js` | Express-app en volgorde van de middleware; alle diensten en achtergrondtaken | **opgesplitst**: `server.js` koppelt, `services.js` maakt de diensten per module aan en start de timers; een nieuwe dienst is een paar regels bij zijn module in `services.js` |
 | `crm/layout.js` | menu van het CRM (`CRM_MENU`) | blijft gedeeld: één regel per nieuw scherm |
-| `public/css/site.css`, `public/css/crm.css` | alle opmaak | blijft gedeeld tot het minificeren (plan PR 6.6) |
+| `public/css/site.css`, `public/css/crm.css` | alle opmaak | blijft gedeeld: één bestand per soort pagina; in het image verkleind door `tools/minify-public.js`, de bron blijft leesbaar |
 | `CLAUDE.md` | werkgeheugen | **opgesplitst**: per map een eigen `app/src/<map>/CLAUDE.md` met de bestanden van die map; de root bevat de algemene regels en één regel per map |
 | `README.md` | beschrijving van elke feature | blijft gedeeld: voeg een feature toe bij haar eigen onderdeel, niet onderaan |
 

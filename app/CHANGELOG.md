@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.29.4 — 2026-11-24 — Controle voor de livegang in Beheer
+
+- Nieuw in Beheer > Systeem: **Livegang**. Eén pagina die laat zien wat er nog moet gebeuren voor de overstap naar de
+
+- `beheer/go-live-check.js` (alleen lezen, één query met aantallen) en `beheer/go-live-routes.js`
+  (`/app/beheer/livegang/`, recht `systeem`, limiet 60 per minuut); sectie `livegang` in `beheer/instellingen/systeem.js`.
+- Plan P6.3/P6.5, bevinding F09: homepage, reisleiders, blogtags en uitgelicht bericht: *Klaar* als ze in het CRM
+  staan, anders *Open*; koppen van lijstpagina's, volgorde/galerij van reisleiders en fotogalerijen: *Later* (nog geen
+  plek in het CRM, opruimen in P7).
+- Tests: `test/beheer-livegang.test.js` (beoordeling zonder database, route: 303 zonder sessie, 403 zonder recht,
+  standen, geen e-mailadressen op de pagina).
+
+## 0.29.3 — 2026-11-23 — Afbeeldingen uit de import in de back-up
+
+- De afbeeldingen die van de oude website zijn overgenomen zitten nu ook in elke back-up en worden na het terugzetten
+
+- Bevinding A14 (plan PR 6.2): `backfillImportFiles` in `media/library.js` zet elk importbestand (JPEG, PNG, WebP,
+  GIF, tot 15 MB, alleen namen zoals de import ze maakt) byte voor byte in `media_files`, één tegelijk, bij het starten
+  en daarna dagelijks. `restoreMissingFiles` zet ook importbestanden ongewijzigd terug (SHA-256-controle).
+- Nieuw in `media/images.js`: `importImageWidth` (breedte lezen zonder omzetten). Geen migratie.
+- Logboek (bron *fotobibliotheek*): aantal importfoto's in de database gezet en aantal zonder bruikbaar bestand.
+- De back-up groeit met de grootte van de import (circa 250 MB). README en draaiboek bijgewerkt.
+
+## 0.29.2 — 2026-11-23 — Publieke CSS en JavaScript verkleind uitgeleverd
+
+- De website laadt sneller: de opmaak en scripts worden verkleind uitgeleverd (samen ongeveer 30% kleiner, de scripts
+
+- Nieuwe bouwstap `minify` in `app/Dockerfile`: `app/tools/minify-public.js` verkleint `public/css/*.css` en
+  `public/js/*.js` met esbuild (alleen een ontwikkelafhankelijkheid, vastgepind op 0.28.2) en het image krijgt die
+  bestanden over de bron heen. Geen bundelen of omzetten: `url()`-verwijzingen, volgorde en syntaxis blijven gelijk,
+  commentaar verdwijnt. Een fout in een bestand laat het bouwen mislukken.
+- De bron in `app/public/` blijft leesbaar; lokaal en in de tests draait de app op de bron.
+- Meting: 144,7 KB naar 102,4 KB (-29%); site.css -17%, crm.css -20%, scripts -57 tot -65%.
+- Tests: `test/minify-public.test.js` (geldige uitkomst, zelfde verwijzingen en CSS-variabelen, bron nooit overschreven).
+
+## 0.29.1 — 2026-11-23 — Inloggen op het reizigersaccount werkt weer in Chrome
+
+- Inloggen, registreren en wachtwoord herstellen op het reizigersaccount werken weer in Chrome, net als de knop
+
+- `/account/` en de betaalpagina `/betalen/` sturen `Referrer-Policy: same-origin` in plaats van `no-referrer`. Bij
+  `no-referrer` stuurt Chrome bij een formulier `Origin: null`, waardoor de herkomstcontrole elke POST weigerde (403).
+  Links met een token lekken nog steeds niet als Referer naar een andere site.
+- `isCrossSite` (`security/form-guard.js`) accepteert `Origin: null` alleen als de browser `Sec-Fetch-Site: same-origin`
+  meldt; zonder die kop blijft het een verzoek van een andere site.
+- Tests bootsen het verzoek van Chrome na (`Origin: null` met en zonder `Sec-Fetch-Site`).
+
+## 0.29.0 — 2026-11-23 — Eigen overzicht voor de reisleider en instelbaar venster
+
+- De reisleider ziet op het overzicht van het CRM zijn eigen vertrekken: datums, aantal deelnemers, of het venster
+- Het venster waarin de reisleider identiteits- en gezondheidsgegevens mag exporteren is instelbaar in
+
+- Nieuw `crm/guide-dashboard.js`: overzicht `/app/` voor rollen in `TRIP_SCOPED_ROLES`, alleen reizen van het
+  gekoppelde reisleidersprofiel, alleen aantallen (geen persoonsgegevens); vertrekken verdwijnen als het venster na
+  de terugkomst dicht is. `crm/dashboard-routes.js` kiest per rol.
+- Nieuw `trips/guide-window.js`: venster uit de instellingen `guideWindowDaysBefore` en `guideWindowDaysAfter`
+  (groep CRM, sectie Reisleider, 0 tot 60) en de gedeelde SQL voor venster en eigen vertrekken, met gebonden
+  parameters. De vaste `GUIDE_WINDOW_DAYS` in de deelnemerslijsten is vervangen.
+- Tests: `test/guide-dashboard.test.js` (eigen reizen, andere reisleider, aantallen, venster uit Beheer in overzicht
+  en export, 403 buiten het venster).
+
 ## 0.28.5 — 2026-11-23 — Geen verwijzingen naar andere projecten
 
 - Alle verwijzingen naar een ander project zijn uit code, commentaar en documentatie gehaald; de app zelf

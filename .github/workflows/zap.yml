@@ -1,0 +1,137 @@
+name: Beveiligingsscan (ZAP)
+
+# Passieve beveiligingsscan met OWASP ZAP (baseline: spideren en de antwoorden beoordelen, niets aanvallen), bevinding
+# A21 / plan PR 6.4. Standaard tegen het image van deze commit met een wegwerp-PostgreSQL en verzonnen testdata, zodat
+# er niets van de testomgeving of van echte personen geraakt wordt. Met de invoer `adres` kan de beheerder ook de
+# testomgeving scannen (alleen https, nooit het productiedomein vóór de go-live).
+#
+# Draait wekelijks en met de hand (Actions > Beveiligingsscan (ZAP) > Run workflow); niet bij elke PR, omdat een scan
+# enkele minuten duurt. Uitkomst: samenvatting per risico in de run en het volledige rapport (HTML en JSON) als
+# artefact. De job faalt bij een bevinding met risico Hoog; Middel en lager staan in de samenvatting en worden met de
+# hand opgevolgd. Uitzonderingen (met reden) staan in `.github/zap/regels.tsv`.
+on:
+  workflow_dispatch:
+    inputs:
+      adres:
+        description: "Optioneel: https-adres van de testomgeving. Leeg = het image van deze commit lokaal scannen."
+        required: false
+        default: ""
+  schedule:
+    - cron: "41 3 * * 1"
+
+concurrency:
+  group: zap-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  zap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:stable
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Doel bepalen
+        id: doel
+        env:
+          ADRES: ${{ github.event.inputs.adres }}
+        run: |
+          if [ -z "$ADRES" ]; then
+            echo "lokaal=true" >> "$GITHUB_OUTPUT"
+            echo "basis=http://app:3400" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Alleen een kaal https-adres (host en eventueel pad), nooit het productiedomein.
+          if ! printf '%s' "$ADRES" | grep -Eq '^https://[a-z0-9.-]+(/[A-Za-z0-9._/-]*)?$'; then
+            echo "Ongeldig adres: gebruik https://<host> zonder poort, query of andere tekens." >&2
+            exit 2
+          fi
+          if printf '%s' "$ADRES" | grep -Eiq '^https://(www\.)?avantareizen\.nl(/|$)'; then
+            echo "Het productiedomein wordt niet gescand vanuit deze workflow." >&2
+            exit 2
+          fi
+          echo "lokaal=false" >> "$GITHUB_OUTPUT"
+          echo "basis=${ADRES%/}" >> "$GITHUB_OUTPUT"
+
+      - name: App met testdata starten (lokaal doel)
+        if: steps.doel.outputs.lokaal == 'true'
+        run: |
+          docker build -t avanta:zap app
+          docker network create zapnet
+          docker run -d --name zapdb --network zapnet -e POSTGRES_PASSWORD=zap postgres:17
+          for i in $(seq 1 30); do docker exec zapdb pg_isready -U postgres && break; sleep 2; done
+          # Wegwerpsleutel en testadres: de testdata weigert zonder herkenbaar testadres en zonder sleutel.
+          docker run -d --name app --network zapnet \
+            -e DATABASE_URL="postgres://postgres:zap@zapdb:5432/postgres" \
+            -e AVANTA_MASTER_KEY="$(openssl rand -hex 32)" \
+            -e SITE_URL="http://app:3400" \
+            avanta:zap
+          for i in $(seq 1 30); do docker exec app wget -qO- http://127.0.0.1:3400/api/health >/dev/null 2>&1 && break; sleep 2; done
+          # De uitvoer bevat een wachtwoord voor de testgebruikers; die hoort niet in het logboek van de run.
+          docker exec app node src/dev/seed/cli.js vullen --testomgeving >/dev/null
+          echo "App draait met testdata."
+
+      - name: Scannen
+        id: scan
+        env:
+          BASIS: ${{ steps.doel.outputs.basis }}
+          LOKAAL: ${{ steps.doel.outputs.lokaal }}
+        run: |
+          mkdir -p zap-rapport
+          chmod 777 zap-rapport
+          cp .github/zap/regels.tsv zap-rapport/regels.tsv
+          network=""
+          [ "$LOKAAL" = "true" ] && network="--network zapnet"
+          # Publieke site, inloggen in het CRM en het reizigersaccount: elk een eigen baseline-scan.
+          for doel in "/" "/app/inloggen/" "/account/inloggen/"; do
+            naam=$(printf '%s' "$doel" | tr -c 'a-z0-9' '-' | sed 's/^-*//; s/-*$//')
+            naam=${naam:-site}
+            # -I: waarschuwingen laten de stap niet falen; de beoordeling volgt hieronder op de JSON.
+            docker run --rm $network -v "$PWD/zap-rapport:/zap/wrk:rw" "$ZAP_IMAGE" \
+              zap-baseline.py -t "$BASIS$doel" -c regels.tsv -m 2 -I \
+              -r "$naam.html" -J "$naam.json" || echo "ZAP gaf een foutcode voor $doel (zie de uitvoer)."
+          done
+          ls -l zap-rapport
+
+      - name: Samenvatting en beoordeling
+        run: |
+          shopt -s nullglob
+          files=(zap-rapport/*.json)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "Geen rapport gevonden: de scan is mislukt." >&2
+            exit 1
+          fi
+          {
+            echo "## Beveiligingsscan (ZAP)"
+            echo
+            echo "| Risico | Bevinding | Aantal | Scan |"
+            echo "|---|---|---|---|"
+            for f in "${files[@]}"; do
+              jq -r --arg scan "$(basename "$f" .json)" '
+                [.site[]?.alerts[]?] | sort_by(-(.riskcode|tonumber)) | .[] |
+                "| \(["Info","Laag","Middel","Hoog"][(.riskcode|tonumber)]) | \(.name) (\(.pluginid)) | \(.count) | \($scan) |"' "$f"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+          high=$(jq -s '[.[].site[]?.alerts[]? | select((.riskcode|tonumber) >= 3)] | length' "${files[@]}")
+          medium=$(jq -s '[.[].site[]?.alerts[]? | select((.riskcode|tonumber) == 2)] | length' "${files[@]}")
+          echo "Hoog: $high, Middel: $medium"
+          if [ "$high" -gt 0 ]; then
+            echo "Er is minstens één bevinding met risico Hoog." >&2
+            exit 1
+          fi
+
+      - name: Rapport bewaren
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-rapport
+          path: zap-rapport/
+          retention-days: 30
+
+      - name: Logboek van de app bij een fout
+        if: failure() && steps.doel.outputs.lokaal == 'true'
+        run: docker logs app 2>&1 | tail -n 100

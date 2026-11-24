@@ -25,6 +25,7 @@ const { createHostTaskRoutes } = require('./host-task-routes');
 const { createLogRoutes } = require('./log-routes');
 const { createRetentionRoutes } = require('./retention-routes');
 const { createPasswordCheckPanel } = require('./password-check-panel');
+const { createGoLiveRoutes } = require('./go-live-routes');
 
 /** Versie van de app (voor het systeemoverzicht). */
 const APP_VERSION = require('../../package.json').version;
@@ -72,11 +73,11 @@ function formatUptime(seconds) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, passwordCheck?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, now?: () => number}} options
+ * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, passwordCheck?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, retention?: object, siteContent?: {load: Function}, now?: () => number}} options
  *   Database, sessie- en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`), de mailer en
  *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de wachtwoordcontrole (`security/password-check.js`), de back-updienst (`backup/backups.js`), de Drive-koppeling (`backup/drive.js`), de hersteltests
  *   (`backup/restore-test.js`), de koppeling met het updatescript (`system/system-update.js`), de servertaken
- *   (`system/host-tasks.js`), het logboek (`system/app-log.js`), de bewaking (`system/monitor.js`) en (voor tests) de klok van de limieten.
+ *   (`system/host-tasks.js`), het logboek (`system/app-log.js`), de bewaking (`system/monitor.js`), de AVG-opschoning, de lezer van `site-content.json` (Livegang; zonder lezer geen Livegang-pagina) en (voor tests) de klok van de limieten.
  * @returns {express.Router} Router, te koppelen binnen de CRM-router.
  */
 function createBeheerRoutes(options) {
@@ -347,6 +348,8 @@ function createBeheerRoutes(options) {
 
   if (options.systemUpdate) router.use(createUpdateRoutes({ db, auth, guard, settings, systemUpdate: options.systemUpdate, renderBeheerPage, now: options.now }).router);
   if (options.hostTasks) router.use(createHostTaskRoutes({ auth, guard, settings, hostTasks: options.hostTasks, renderBeheerPage, notFound, now: options.now }));
+  // De lezer van site-content.json is dezelfde als die van de publieke site (`services.js`), zodat de controle toont wat de site uitlevert.
+  if (options.siteContent) router.use(createGoLiveRoutes({ db, guard, settings, siteContent: options.siteContent, renderBeheerPage, now: options.now }));
   router.use(createLogRoutes({ db, guard, settings, appLog: options.appLog, renderBeheerPage, now: options.now }));
   if (options.restoreTests) router.use(createRestoreTestRoutes({ auth, guard, settings, restoreTests: options.restoreTests, renderBeheerPage, now: options.now }));
   // Doorverwijzingen en de 404-lijst hebben eigen routes (vóór de algemene secties).

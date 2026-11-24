@@ -43,14 +43,15 @@ function createOnlinePaymentRoutes(options) {
   const form = express.urlencoded({ extended: false, limit: '2kb', parameterLimit: 5 });
 
   /**
-   * Stuurt een betaalpagina (noindex, geen cache, geen referrer naar Mollie).
+   * Stuurt een betaalpagina (noindex, geen cache, geen referrer naar Mollie). 'same-origin' en niet 'no-referrer',
+   * omdat Chrome anders bij het betaalformulier `Origin: null` stuurt en de herkomstcontrole het weigert.
    * @param {object} res Express-antwoord.
    * @param {object} body Inhoud.
    * @param {number} [status] HTTP-status.
    * @returns {void}
    */
   const send = (res, body, status = 200) => {
-    res.status(status).set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }).type('html').send(renderPage({
+    res.status(status).set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'same-origin' }).type('html').send(renderPage({
       title: 'Betalen', path: '/betalen/', site: res.locals.site, indexable: false,
       header: renderPageHeader({ title: 'Betalen', pretitle: 'Avanta reizen' }),
       body: html`<div class="content-main"><section class="page-content"><div class="page-content__form account">${body}</div></section></div>`,

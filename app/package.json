@@ -1,6 +1,6 @@
 {
   "name": "avanta-reizen",
-  "version": "0.28.5",
+  "version": "0.29.4",
   "private": true,
   "description": "Avanta Reizen: website en (later) CRM",
   "main": "src/server.js",
@@ -20,5 +20,8 @@
     "nodemailer": "^10.6.1",
     "pg": "^8.23.1",
     "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }

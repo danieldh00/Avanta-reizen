@@ -107,7 +107,7 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
   await t.test('registreren: onbevestigd account, mail met link; opnieuw registreren maakt de oude link ongeldig', async () => {
     const form = await request('/account/registreren/');
     assert.equal(form.status, 200);
-    assert.equal(form.headers.get('referrer-policy'), 'no-referrer');
+    assert.equal(form.headers.get('referrer-policy'), 'same-origin');
     assert.equal(form.headers.get('cache-control'), 'no-store');
     assert.match(form.text, /noindex/);
     const weak = await submitPublic('/account/registreren/', { email: 'anna@example.nl', password: 'kort', password2: 'kort' });
@@ -229,6 +229,13 @@ test('reizigersaccount', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' 
     assert.equal(out.location, '/account/inloggen/?uitgelogd=1');
     assert.equal((await request('/account/', { cookie })).status, 303, 'sessie is weg');
     assert.equal((await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: PASSWORD }, headers: { origin: 'https://evil.example' } })).status, 403);
+  });
+
+  await t.test('inloggen zoals Chrome: Origin null met Sec-Fetch-Site same-origin werkt, zonder die kop niet', async () => {
+    const chrome = { origin: 'null', 'sec-fetch-site': 'same-origin' };
+    assert.equal((await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: PASSWORD }, headers: chrome })).status, 303);
+    assert.equal((await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: PASSWORD }, headers: { origin: 'null' } })).status, 403);
+    assert.equal((await request('/account/inloggen/', { form: { email: 'anna@example.nl', password: PASSWORD }, headers: { origin: 'null', 'sec-fetch-site': 'cross-site' } })).status, 403);
   });
 
   await t.test('wachtwoord vergeten en herstellen: andere sessies vervallen, oude wachtwoord werkt niet meer', async () => {

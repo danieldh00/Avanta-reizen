@@ -86,7 +86,7 @@ de HTML verbergt alleen. Reisleider-rechten gelden altijd alleen voor vertrekken
 | `reizen` (aanmaken, wijzigen, publiceren) | ✔ | ✔ | – | – |
 | `aanmeldingen` (inzien, status wijzigen) | ✔ | ✔ | eigen vertrek, alleen lezen | – |
 | `deelnemers` (NAW, contact, samenvoegen) | ✔ | ✔ | eigen vertrek: naam, mobiel, e-mail | naam + adres |
-| `gegevens.identiteit` | ✔ | ✔ | eigen vertrek, ≤ 14 dagen vóór vertrek t/m terugkomst | – |
+| `gegevens.identiteit` | ✔ | ✔ | eigen vertrek, binnen het venster (standaard 14 dagen vóór vertrek t/m terugkomst, instelbaar in Beheer > CRM > Reisleider) | – |
 | `gegevens.gezondheid` + noodnummer | ✔ | ✔ | eigen vertrek, idem venster | – |
 | `gegevens.religie` | ✔ | – | – | – |
 | `betalingen` (afboeken) | ✔ | ✔ | – | ✔ |

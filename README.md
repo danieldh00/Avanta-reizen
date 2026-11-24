@@ -74,6 +74,11 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   adres niet. Bijzondere en paspoortgegevens worden nooit vooraf ingevuld. Daarvoor staat de cookie op pad `/`; alleen
   `/account/` en `/aanmelden/` lezen hem.
 - Afbeeldingen staan in het volume `/data/media` (circa 250 MB na de import).
+- **Verkleinde CSS en JavaScript**: het image levert `public/css/*.css` en `public/js/*.js` verkleind uit (circa 145 KB
+  naar 102 KB, JavaScript ruim de helft kleiner). Dat gebeurt in de bouwstap `minify` van `app/Dockerfile` met
+  `app/tools/minify-public.js` (esbuild, alleen een ontwikkelafhankelijkheid); de bron in `app/public/` blijft leesbaar
+  en lokaal en in de tests draait de app op die bron. Zelf meten: `cd app && node tools/minify-public.js public /tmp/min`.
+  Na een update laadt de browser de nieuwe bestanden via `?v=<versie>`.
 - **Ontwerp** gelijk aan www.avantareizen.nl (CMS-pakket E, voorstel in de projectbestanden
   `cms/voorstel-cms-reizen-boekingen.md`): kleuren, maten en breekpunten (1024 en 768 px, container 1280 px) uit het
   thema van de huidige site in `app/public/css/site.css`; texturen (papierrand, korrel) en de achtergrondfoto van de
@@ -169,7 +174,9 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     **Back-up**: van elke geüploade foto staat de grootste variant ook in de database (`media_files`, migratie 13, met
     SHA-256), dus in elke back-up, de kopie op Google Drive en de hersteltest. Bij het starten en daarna dagelijks zet de
     app ontbrekende bestanden terug uit de database (kleinere varianten opnieuw gemaakt) en zet uploads van vóór migratie
-    13 alsnog in de database. Afbeeldingen uit de import zitten niet in de back-up (die haalt de import opnieuw op).
+    13 alsnog in de database. Ook de **afbeeldingen uit de import** gaan in de back-up (bevinding A14): het onderhoud zet
+    elk importbestand (JPEG, PNG, WebP, GIF, tot 15 MB) byte voor byte in `media_files` en zet het ongewijzigd terug als
+    het ontbreekt. De back-up groeit daarmee met de grootte van de import (circa 250 MB).
   - **Reizen** op `/app/reizen/` (recht `reizen`; `app/src/trips/`, migratie 15): lijst met filter (komend, vertrokken,
     concept, alle) en zoeken op titel, reiscode of slug; een reis aanmaken en wijzigen met alle velden van de huidige
     site (titel, slug, reiscode, vertrekdatum, reisduur, inleiding, samenvatting, tekst als opgeschoonde HTML, reissom,
@@ -341,7 +348,9 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     per categorie), hoogstens 30 per gebruiker per 10 minuten. Blad *Over deze lijst* noemt reis, maker en moment.
     De **reisleider** ziet alleen de vertrekken van het reisleidersprofiel dat bij *Gebruikers* aan zijn account hangt
     (`users.guide_id` naar `trip_guides`; andere reis geeft 404), met naam, mobiel en e-mail. Identiteit en gezondheid
-    alleen van 14 dagen vóór vertrek tot en met de terugkomst (vertrek + duur - 1).
+    alleen binnen het venster rond het vertrek (`app/src/trips/guide-window.js`): standaard van 14 dagen vóór vertrek
+    tot en met de terugkomst (vertrek + duur - 1), instelbaar in **Beheer > CRM > Reisleider** (dagen vóór vertrek en
+    dagen na de terugkomst, elk 0 tot 60).
   - **Deelnemers** op `/app/deelnemers/` (recht `deelnemers`; `app/src/persons/person-routes.js`): lijst met zoeken op
     naam, e-mailadres of woonplaats (elk woord moet voorkomen) en een filter *mogelijk dubbel*; per persoon NAW,
     aanmeldingen, toestemmingen en de bijzondere gegevens per blok. Een blok staat nooit in de lijst en op de pagina pas
@@ -389,6 +398,11 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   bezetting en openstaand bedrag, de laatste wijzigingen aan aanmeldingen en voor de beheerder de stand van het systeem
   (bewaking, laatste back-up, versie). Elk onderdeel hoort bij een recht (`dashboardAccess`): wat een rol niet mag
   zien wordt niet opgehaald en niet getekend. *Te laat* gebruikt dezelfde berekening als het betaaloverzicht.
+  De **reisleider** krijgt een eigen overzicht (`app/src/crm/guide-dashboard.js`): tegels met zijn vertrekken, het
+  aantal deelnemers (zonder geannuleerden), vertrekken met het venster open en vertrekken binnen 30 dagen, en per
+  vertrek de datums, het aantal deelnemers, de stand van het venster (open tot en met, of opent op) en een link naar
+  de deelnemerslijst. Alleen reizen van het gekoppelde reisleidersprofiel; een vertrek verdwijnt als het venster na de
+  terugkomst dicht is. Zonder gekoppeld profiel staat er een uitleg. Er staan geen persoonsgegevens op, alleen aantallen.
 - **Eén opzet voor lijsten** (`app/src/crm/ui.js`): paginakop met de acties rechts (bijvoorbeeld *Nieuwe reis* of
   *Excel (.xlsx)*), filterknoppen met aantallen, een zoek- en filterregel, een tabel met statuslabels in kleur en
   bladeren onderaan. Aanmeldingen, Deelnemers, Betalingen en Reizen gebruiken deze bouwstenen; een nieuwe lijst bouw
@@ -405,6 +419,14 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   (bewaking, laatste back-up, versie, open servertaken) en elk onderwerp als kaart met zijn onderdelen; het zoekveld
   beperkt ook de kaarten. Het systeemoverzicht staat op `/app/beheer/overzicht/` en de tabel met alle instellingen en
   hun bron op `/app/beheer/instellingen/`.
+- **Livegang** (`/app/beheer/livegang/`, `beheer/go-live-check.js` en `go-live-routes.js`, plan P6.3 en P6.5): wat de
+  app zelf kan nagaan van het go-live-draaiboek (`docs/GO-LIVE.md`), per onderdeel met stand *Klaar*, *Open*, *Zelf
+  controleren* of *Later* en een link naar waar je het regelt. Instellingen: mailserver, meldadres en heartbeat van de
+  bewaking, captcha, tweestapsverificatie (aangezet door iedereen met bijzondere gegevens, en verplicht), venster van
+  de reisleider, balk "in ontwikkeling", basisadres en indexeren. Vaste inhoud (F09): homepage als blokpagina,
+  reisleiders, tags en uitgelicht bericht van het blog in het CRM of nog uit `homepage.json`/`site-content.json`; de
+  koppen van de lijstpagina's, volgorde en galerij van reisleiders en de fotogalerijen hebben nog geen plek in het CRM
+  (*Later*). Alleen lezen, alleen aantallen.
 - **Content-Security-Policy**: `style-src 'self'` zonder `'unsafe-inline'`, dus geen inline `<style>`-blokken. Alleen
   het `style`-attribuut mag nog (`style-src-attr 'unsafe-inline'`), omdat de publieke site daarmee achtergrondfoto's
   zet; het CRM en Beheer gebruiken geen inline stijlen. Op de formulierpagina's met reCAPTCHA mag het script van Google
@@ -554,11 +576,12 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `AGENTS.md` | korte kaart voor agents, sectie *Zuinig werken* |
 | `docs/WERKWIJZE.md` | projectonafhankelijke werkwijze |
 | `docs/AVANTA-CONTEXT.md` | productcontext, bedrijfsregels, AVG en omgeving |
+| `docs/GO-LIVE.md` | go-live-draaiboek: checklist met eigenaar per stap, rooktest, Cloudflare-regels, mailauthenticatie, externe bewaking, terugvalplan |
 | `docs/ARCHITECTUUR.md` | indeling in modules, gedeelde kernbestanden, migraties per bestand en regels voor parallel werken |
 | `docs/CLAUDE-sjabloon.md` | sjabloon voor `CLAUDE.md` in een volgend project |
 | `.claude/agents/` | verkenners `map`, `callers`, `tests` |
-| `app/` | de applicatie (`src/`, `public/`, `tools/import-wordpress.js`, `test/`); versie in `app/package.json` |
-| `app/src/beheer/` | Beheer: `instellingen/<groep>.js` (instellingen en secties per groep), `settings.js` (opslag en controle), `indeling.js` (zijbalk en zoeken), `routes.js` (`/app/beheer/`), `mail-routes.js` (testmail, WAN-IP), `backup-routes.js` (back-ups), `drive-routes.js` (Google Drive), `restore-test-routes.js` (hersteltest), `update-routes.js` (updates en onderhoud), `host-task-routes.js` (servertaken), `log-routes.js` (logboek), `monitor-routes.js` (bewaking) |
+| `app/` | de applicatie (`src/`, `public/`, `tools/import-wordpress.js`, `tools/minify-public.js` (alleen bij het bouwen van het image), `test/`); versie in `app/package.json` |
+| `app/src/beheer/` | Beheer: `instellingen/<groep>.js` (instellingen en secties per groep), `settings.js` (opslag en controle), `indeling.js` (zijbalk en zoeken), `routes.js` (`/app/beheer/`), `mail-routes.js` (testmail, WAN-IP), `backup-routes.js` (back-ups), `drive-routes.js` (Google Drive), `restore-test-routes.js` (hersteltest), `update-routes.js` (updates en onderhoud), `host-task-routes.js` (servertaken), `log-routes.js` (logboek), `monitor-routes.js` (bewaking), `go-live-check.js` + `go-live-routes.js` (livegang) |
 | `app/src/crm/` | schil van `/app/` (`routes.js`), toegang (`login-routes.js`, `auth.js`, `two-factor.js`), gebruikers, rechten, opmaak en het overzicht |
 | `app/src/persons/` | personen en deelnemers, samenvoegen, inzage en wissen, deelnemerslijsten, AVG-opschoning (`retention.js`) |
 | `app/src/payments/` | betalingen per aanmelding, betalingsoverzicht, herinneringen, online betalen via Mollie |
@@ -573,7 +596,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `docs/OPZET-WEBSITE.md` | opzet, inventaris van de huidige site, fasering en open vragen |
 | `changes/` | releasenotes-fragmenten, zie `changes/README.md` |
 | `tools/release-notes.js` | verwerkt fragmenten; controleert PR's |
-| `.github/workflows/` | `ci`, `version`, `release`, `claude-review`, `security` |
+| `.github/workflows/` | `ci`, `version`, `release`, `claude-review`, `security`, `zap` (passieve beveiligingsscan met OWASP ZAP: wekelijks en met de hand tegen het image met testdata, of tegen de testomgeving; rapport als artefact, faalt bij risico Hoog; uitzonderingen in `.github/zap/regels.tsv`) |
 
 ## Werkwijze per wijziging
 1. Branch vers vanaf `origin/main` (`feature/<naam>` of `claude/<naam>`).

@@ -37,7 +37,7 @@ koppen Playfair Display, tekst Open Sans.
 ## Keuzes (aanbeveling)
 | Onderwerp | Keuze | Waarom |
 |---|---|---|
-| Backend | Node 22 + Express, server-gerenderde HTML | geen build-stap, snel, SEO-vriendelijk; CRM in dezelfde app |
+| Backend | Node 22 + Express, server-gerenderde HTML | geen build-stap buiten het image (daar alleen verkleinen van CSS/JS), snel, SEO-vriendelijk; CRM in dezelfde app |
 | Database | PostgreSQL 17 | CRM-gegevens en content in één database |
 | Frontend | gewone HTML/CSS/JS, geen CDN, fonts lokaal | AVG (geen Google Fonts/trackers) |
 | Content-overzetting | eenmalig importscript (`tools/import-wordpress.js`) → PostgreSQL; afbeeldingen naar de dataopslag | herhaalbaar tot go-live |
