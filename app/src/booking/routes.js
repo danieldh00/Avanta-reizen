@@ -1,27 +1,26 @@
 /**
  * Aanmelden voor een reis (`/aanmelden/?id=<oud reis-id>`, zoals op de huidige site). De aanmelding komt in de tabel
  * bookings, de persoon in persons (`persons/persons.js`, ontdubbeld). Bijzondere en paspoortgegevens worden per categorie
- * versleuteld bij de persoon opgeslagen; art. 9-gegevens alleen met een eigen toestemmingsvinkje (tabel consents). Daarna gaat er een
- * melding naar kantoor en een bevestiging naar de reiziger (`mail/notifications.js`, als die aan staan), beide zonder de
- * bijzondere gegevens.
+ * versleuteld bij de persoon opgeslagen; art. 9-gegevens alleen met een eigen toestemmingsvinkje (tabel consents). Is de
+ * deelnemer jonger dan 16, dan geeft een ouder of voogd de toestemming (`booking/fields.js`, migratie 29). Daarna gaat er
+ * een melding naar kantoor en een bevestiging naar de reiziger en, onder de 16, naar de ouder (`mail/notifications.js`,
+ * als die aan staan), alle zonder de bijzondere gegevens.
  * Bescherming via `security/form-guard.js`: limiet per bezoeker, herkomst, honeypot en ondertekend tijdstempel; met
  * een actieve captcha (`security/captcha.js`) ook een onzichtbare controle door Google.
  */
-const crypto = require('node:crypto');
 const express = require('express');
 const { html, raw } = require('../site/html');
 const { renderPage, renderPageHeader } = require('../site/layout');
 const { createContent, today } = require('../site/content');
 const { formatPrice, formatDate, isoDate, tripPath } = require('../site/format');
-const { FIELD_GROUPS, validateBooking, SGR_CENTS, BOOKING_FEE_CENTS } = require('./fields');
-const { addInitialCharges } = require('../payments/payments');
+const { FIELD_GROUPS, validateBooking, GUARDIAN_AGE, SGR_CENTS, BOOKING_FEE_CENTS } = require('./fields');
 const { createPersons } = require('../persons/persons');
 const { createFormGuard } = require('../security/form-guard');
 const { captchaField } = require('../security/captcha');
 const seo = require('../site/seo');
 const { createSiteContentStore } = require('../site/site-content');
 const { DATA_DIR } = require('../paths');
-const { fullyBookedSql } = require('../trips/seats');
+const { createBookingSaver } = require('./save-booking');
 
 /**
  * Bouwt de router voor aanmeldingen.
@@ -36,6 +35,7 @@ function createBookingRouter(options) {
   const router = express.Router({ strict: true });
   const content = createContent(options.db);
   const persons = createPersons({ vault: options.vault });
+  const saver = createBookingSaver({ db: options.db, persons, now: options.now });
   const now = options.now || Date.now;
   const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
   const guard = createFormGuard({
@@ -175,7 +175,7 @@ function createBookingRouter(options) {
             <dt>Boekingskosten</dt><dd>${formatPrice(BOOKING_FEE_CENTS)} (vervalt bij betaling van het totaalbedrag)</dd>
           </dl>
         </section>
-        ${FIELD_GROUPS.map((group) => html`<fieldset>
+        ${FIELD_GROUPS.map((group) => html`<fieldset${group.guardian ? html` data-guardian="${GUARDIAN_AGE}"` : ''}>
           <legend class="form__section-title">${group.title}</legend>
           ${group.intro ? html`<p class="field__help">${group.intro}</p>` : ''}
           <div class="form-grid">${group.fields.map((field) => renderField(field, values, errors))}</div>
@@ -232,66 +232,20 @@ function createBookingRouter(options) {
       // Ingelogd met hetzelfde e-mailadres als het account: de aanmelding hoort bij dat account (J4, opnieuw boeken).
       const customer = options.customerFor ? await options.customerFor(req) : null;
       const accountId = customer && customer.email === values.email.toLowerCase() ? customer.accountId : null;
-      // Referentiejaar volgens de Nederlandse datum, niet de tijdzone van de server (rond de jaarwisseling verschilt dat).
-      const year = new Date(now()).toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' }).slice(0, 4);
-      // De referentie is uniek; bij de (kleine) kans op een botsing opnieuw proberen met een nieuwe referentie.
-      for (let attempt = 1; ; attempt++) {
-        const reference = `AV-${year}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-        try {
-          const saved = await saveBooking(reference, trip, values, accountId);
-          if (!saved) return send(res, { title: 'Aanmelden', header: header(), body: notice('Deze reis is volgeboekt.'), trip }, 409);
-          // De melding aan kantoor en de bevestiging aan de reiziger wachten niet op de mailserver en gooien nooit.
-          if (options.notifications) {
-            void options.notifications.booking({ reference, trip, values });
-            void options.notifications.bookingConfirmation({ reference, trip, values, depositCents: saved.depositCents });
-          }
-          break;
-        } catch (error) {
-          if (error.code !== '23505' || error.constraint !== 'bookings_reference_key' || attempt >= 3) throw error;
-        }
+      const saved = await saver.saveBooking({ trip, values, accountId });
+      if (!saved) return send(res, { title: 'Aanmelden', header: header(), body: notice('Deze reis is volgeboekt.'), trip }, 409);
+      // De melding aan kantoor en de bevestiging aan de reiziger wachten niet op de mailserver en gooien nooit.
+      if (options.notifications) {
+        const { reference } = saved;
+        void options.notifications.booking({ reference, trip, values });
+        void options.notifications.bookingConfirmation({ reference, trip, values, depositCents: saved.depositCents });
+        // Deelnemer onder de 16: de ouder of voogd krijgt een eigen bevestiging, zodat een valse opgave opvalt.
+        if (values.consent_guardian === 'ja') void options.notifications.guardianConfirmation({ reference, trip, values });
       }
       return res.redirect(303, '/bedankt-voor-je-aanmelding/');
     } catch (error) {
       return next(error);
     }
-  });
-
-  /**
-   * Slaat een aanmelding op, in één transactie: de persoon zoeken of aanmaken (`persons/persons.js`, met de bijzondere
-   * gegevens versleuteld per blok), de aanmelding zelf (NAW als momentopname, zonder bijzondere gegevens) en de
-   * toestemmingen.
-   * @param {string} reference Referentie (AV-jjjj-XXXXXXXX).
-   * @param {object} trip De reis.
-   * @param {object} values Gecontroleerde velden.
-   * @param {(number|null)} accountId Reizigersaccount van de ingelogde reiziger met hetzelfde e-mailadres, anders null.
-   * @returns {Promise<({depositCents: (number|null)}|null)>} De aanbetaling van de reis als de aanmelding is opgeslagen;
-   *   null als de reis intussen volgeboekt of weg is.
-   */
-  const saveBooking = (reference, trip, values, accountId) => options.db.transaction(async (client) => {
-    const yes = (name) => values[name] === 'ja';
-    // Eerst de reis vergrendelen, dan in een nieuw statement (met een nieuwe snapshot) tellen: twee gelijktijdige
-    // aanmeldingen voor de laatste plaats gaan zo na elkaar en de tweede ziet de eerste.
-    const [locked] = await client.query('SELECT id, deposit_cents FROM trips WHERE id = $1 FOR UPDATE', [trip.id]);
-    if (!locked) return null;
-    const [current] = await client.query(`SELECT ${fullyBookedSql('t')} AS full FROM trips t WHERE t.id = $1`, [trip.id]);
-    if (current.full) return null;
-    const { personId } = await persons.savePerson(client, values);
-    const [booking] = await client.query(
-      `INSERT INTO bookings (reference, trip_id, trip_code, trip_title, departure_date, gender, first_names, call_name, last_name,
-         email, mobile, phone, street, postal_code, city, occupation, travel_with, earlier_trip, credit_card, driver_interest,
-         driver_before, driver_when, payment_method, payment_choice, price_cents, person_id, customer_account_id, deposit_cents, consent_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28, now())
-       RETURNING id`,
-      [reference, trip.id, trip.trip_code, trip.title, isoDate(trip.departure_date), values.gender, values.first_names, values.call_name,
-        values.last_name, values.email.toLowerCase(), values.mobile, values.phone, values.street, values.postal_code.toUpperCase(),
-        values.city, values.occupation, values.travel_with, yes('earlier_trip'), yes('credit_card'), yes('driver_interest'),
-        yes('driver_before'), values.driver_when, 'handmatig', values.payment_choice, trip.price_cents, personId, accountId,
-        locked.deposit_cents >= 0 ? locked.deposit_cents : null],
-    );
-    // De verwachte bedragen (reissom, SGR, boekingskosten) voor de betalingen in het CRM.
-    await addInitialCharges(client, booking.id, { priceCents: trip.price_cents, paymentChoice: values.payment_choice });
-    await persons.recordConsents(client, { personId, bookingId: booking.id, values });
-    return { depositCents: locked.deposit_cents };
   });
 
   return router;

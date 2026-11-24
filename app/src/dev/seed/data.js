@@ -212,8 +212,19 @@ const STATUS_NOTES = {
   betaald: ['Volledig betaald.', ''],
 };
 
+/**
+ * Berichten via het contactformulier (CRM > Berichten): naam, onderwerp, tekst, de sleutel van een testreis of null,
+ * hoeveel dagen geleden en of kantoor het al heeft afgehandeld (met notitie).
+ */
+const MESSAGES = [
+  { name: 'Ilse de Vries', subject: 'Vraag over de bagage', message: 'Hallo,\n\nMag ik op de reis een grote rugzak meenemen, of alleen een koffer?\n\nGroet, Ilse', trip: 0, daysAgo: 1, handled: false },
+  { name: 'Ruben Smit', subject: '', message: 'Is er nog plek voor twee personen? We willen graag samen mee.', trip: 1, daysAgo: 2, handled: false },
+  { name: 'Hanneke Bos', subject: 'Brochure', message: 'Kunnen jullie mij de brochure van volgend jaar mailen?', trip: null, daysAgo: 6, handled: true, note: 'Brochure gemaild.' },
+];
+
 module.exports = {
   SEED_SLUG_PREFIX,
+  MESSAGES,
   SEED_EMAIL_DOMAIN,
   TRIP_TYPES,
   COUNTRIES,

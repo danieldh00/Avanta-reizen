@@ -22,6 +22,10 @@
 const { createPersons } = require('../../persons/persons');
 const { addInitialCharges, addDays, localDay, summarize, termsFrom } = require('../../payments/payments');
 const data = require('./data');
+const { needsGuardian, FIELDS } = require('../../booking/fields');
+
+/** Namen van de velden van de ouder of voogd (`booking/fields.js`). */
+const GUARDIAN_FIELDS = FIELDS.filter((field) => field.guardian).map((field) => field.name);
 
 /** Startwaarde van de toevalsgenerator: dezelfde testdata bij elke run. */
 const RANDOM_SEED = 20261123;
@@ -165,6 +169,7 @@ async function removeSeed(client) {
   };
   await remove('aanmeldingen', `DELETE FROM bookings WHERE email LIKE $1 OR person_id IN (SELECT id FROM persons WHERE email LIKE $1) RETURNING id`, [EMAIL_PATTERN]);
   await remove('personen', 'DELETE FROM persons WHERE email LIKE $1 RETURNING id', [EMAIL_PATTERN]);
+  await remove('berichten', 'DELETE FROM contact_messages WHERE email LIKE $1 RETURNING id', [EMAIL_PATTERN]);
   await remove('gebruikers', 'DELETE FROM users WHERE email LIKE $1 RETURNING id', [EMAIL_PATTERN]);
   await remove('reizen', 'DELETE FROM trips WHERE slug LIKE $1 RETURNING id', [SLUG_PATTERN]);
   await remove('reisleiders', 'DELETE FROM guides WHERE slug LIKE $1 RETURNING id', [SLUG_PATTERN]);
@@ -327,6 +332,28 @@ function createSeeder({ vault, today, terms }) {
   };
 
   /**
+   * Vult bij een deelnemer onder de 16 (op de dag van aanmelden) een verzonnen ouder in die toestemming geeft, zoals
+   * het formulier eist; bij een oudere deelnemer gaan de oudervelden eruit.
+   * @param {Record<string, string>} values Formulierwaarden van de reiziger.
+   * @param {string} bookedOn Dag van aanmelden (jjjj-mm-dd).
+   * @returns {Record<string, string>} Nieuwe waarden (het origineel blijft ongewijzigd).
+   */
+  const withGuardian = (values, bookedOn) => {
+    const result = { ...values };
+    for (const name of GUARDIAN_FIELDS) delete result[name];
+    if (!needsGuardian(result, { today: bookedOn })) return result;
+    const parentName = random.pick(data.FIRST_NAMES[random.chance(0.6) ? 'vrouw' : 'man']);
+    return {
+      ...result,
+      guardian_name: `${parentName} ${values.last_name}`,
+      guardian_relation: random.chance(0.95) ? 'ouder' : 'voogd',
+      guardian_email: email(`${emailPart(parentName)}.${emailPart(values.last_name)}.ouder`),
+      guardian_phone: `06-98${String(random.int(0, 999999)).padStart(6, '0')}`,
+      consent_guardian: 'ja',
+    };
+  };
+
+  /**
    * Kiest het verloop van een aanmelding: wanneer ze binnenkwam en welke status ze nu heeft.
    * @param {object} trip De reis (met `departure`).
    * @param {boolean} cancelled Of het een geannuleerde aanmelding is.
@@ -457,6 +484,7 @@ function createSeeder({ vault, today, terms }) {
         // Wie het totaalbedrag kiest, betaalt in één keer: aanbetaald bestaat dan niet.
         if (paymentChoice === 'totaal' && plot.status === 'aanbetaald') plot.status = 'betaald';
         values.earlier_trip = travellers.filter((traveller) => traveller.email === values.email).length > 1 || random.chance(0.3) ? 'ja' : 'nee';
+        values = withGuardian(values, plot.createdOn);
         const { personId } = await persons.savePerson(client, values);
         const createdAt = momentOn(plot.createdOn, random);
         const driver = Number(trip.departure.slice(0, 4)) - Number(values.birth_date.slice(0, 4)) >= 21 && random.chance(0.25);
@@ -554,6 +582,27 @@ function createSeeder({ vault, today, terms }) {
   };
 
   /**
+   * Schrijft de berichten via het contactformulier; een afgehandeld bericht staat op naam van kantoor.
+   * @param {{query: Function}} client Transactie-client.
+   * @param {object[]} trips De testreizen (met sleutel).
+   * @param {number} officeUserId Gebruiker met de rol kantoor.
+   * @returns {Promise<number>} Aantal berichten.
+   */
+  const insertMessages = async (client, trips, officeUserId) => {
+    for (const message of data.MESSAGES) {
+      const createdAt = `${addDays(today, -message.daysAgo)}T09:30:00+01:00`;
+      await client.query(
+        `INSERT INTO contact_messages (name, email, phone, subject, message, trip_slug, consent_at, created_at, status, handled_at, handled_by, note)
+         VALUES ($1, $2, '', $3, $4, $5, $6, $6, $7, $8, $9, $10)`,
+        [message.name, `${emailPart(message.name)}@${data.SEED_EMAIL_DOMAIN}`, message.subject, message.message,
+          message.trip === null ? null : slug(trips[message.trip % trips.length].key), createdAt,
+          message.handled ? 'afgehandeld' : 'nieuw', message.handled ? createdAt : null, message.handled ? officeUserId : null, message.note || ''],
+      );
+    }
+    return data.MESSAGES.length;
+  };
+
+  /**
    * Schrijft alle testdata (in de transactie van de aanroeper).
    * @param {{query: Function}} client Transactie-client.
    * @param {{passwordHash: string}} input Hash van het wachtwoord van de testgebruikers.
@@ -577,6 +626,7 @@ function createSeeder({ vault, today, terms }) {
       blogberichten: await insertPosts(client, userIds.get('redacteur')),
       'veelgestelde vragen': await insertFaqs(client, userIds.get('redacteur')),
       "pagina's": await insertPages(client, userIds.get('redacteur')),
+      berichten: await insertMessages(client, trips, userIds.get('kantoor')),
     };
   };
 

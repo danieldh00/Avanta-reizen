@@ -11,3 +11,10 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `person-privacy-routes.js` (recht `avg`: inzage-export .xlsx en persoon wissen)
 - `participant-lists.js` + `participant-list-routes.js` (`/app/deelnemerslijsten/`: Excel-lijst per vertrek; venster en eigen vertrekken van de reisleider uit `trips/guide-window.js`)
 - `retention.js` (AVG-opschoning: bewaartermijnen uit Beheer, `anonymizePerson`, rondes in `retention_runs`; een nieuwe tabel met persoonsgegevens hoort hier een regel te krijgen)
+
+## Regels
+- Een nieuw blok in `BLOCKS` krijgt ook een kolom (migratie), een recht in `BLOCK_RIGHTS`, een regel in `BLOCK_INFO`
+  (`person-routes.js`) en hoort mee in `insertPerson`/`updatePerson`/`mergePersons`, de regel `blokken` en
+  `anonymizePerson` in `retention.js`.
+- `consents.given_by` zegt wie tekende (`deelnemer` of `ouder_voogd`). Alleen art. 9-toestemmingen zijn in het CRM los
+  in te trekken (`isWithdrawable`); de voorwaarden en `ouder_voogd` horen bij de aanmelding.

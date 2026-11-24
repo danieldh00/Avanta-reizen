@@ -150,7 +150,9 @@ async function main() {
     const [{ count }] = await db.query('SELECT count(*)::int AS count FROM users');
     if (count === 0) await installAdmin(page, ADMIN);
     const hash = await hashPassword(ADMIN.password);
-    for (const user of ROLE_USERS) {
+    // Staan er al gebruikers (bijv. na de testdata van `src/dev/seed/`, zoals in CI), dan maakt het installatiescherm
+    // geen beheerder aan; de testbeheerder komt dan hier rechtstreeks in de database.
+    for (const user of [{ ...ADMIN, role: 'beheerder' }, ...ROLE_USERS]) {
       await db.query(`INSERT INTO users (email, name, role, password_hash) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`, [user.email, user.name, user.role, hash]);
     }
     // Bestaan de testaccounts al (eerdere run, wachtwoordbestand intussen opnieuw aangemaakt), dan krijgen ze het

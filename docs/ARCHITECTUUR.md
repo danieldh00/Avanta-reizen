@@ -13,7 +13,7 @@ Alle code van de app staat in `app/src/`. Een map is een module met één onderw
 
 | Module | Map | Onderwerp |
 |---|---|---|
-| Site | `site/`, `contact/` | publieke website: routes, queries, weergave, SEO, doorverwijzingen |
+| Site | `site/`, `contact/` | publieke website: routes, queries, weergave, SEO, doorverwijzingen; `contact/` ook de berichten in het CRM |
 | Boeken | `booking/` | aanmeldformulier en de aanmeldingen in het CRM |
 | Reizigersaccount | `account/` | `/account/`: registreren, inloggen, Mijn reizen |
 | CRM (schil) | `crm/` | `/app/`: inloggen, gebruikers, rechten, 2FA, opmaak en bouwstenen, overzicht |
@@ -61,7 +61,7 @@ aan de coördinator vóór hij begint; twee threads werken nooit tegelijk in het
   `crm/dashboard-routes.js` voor het overzicht).
 - Een module met schermen in het CRM heeft een ingang `<module>/index.js` met één functie
   `create<Module>ModuleRoutes(context)` die de routebestanden van die module koppelt (`persons/`, `booking/`,
-  `payments/`, `trips/`, `cms/`, `media/`).
+  `payments/`, `trips/`, `cms/`, `media/`, `contact/`).
   `context` is wat de schil meegeeft: `db`, `auth` en de gedeelde diensten uit `server.js`.
 - Een nieuw scherm in een bestaande module: een nieuw `<onderwerp>-routes.js` en één regel in de ingang van die
   module. `crm/routes.js` verandert alleen bij een nieuwe module.

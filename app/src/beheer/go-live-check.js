@@ -72,6 +72,7 @@ function settingsChecks(settings, counts) {
     checkRow('Venster voor de reisleider', 'handmatig', `Nu ${settings.get('guideWindowDaysBefore')} dag(en) vóór vertrek tot ${settings.get('guideWindowDaysAfter')} dag(en) na terugkomst; controleer of dit de afspraak met Avanta is.`, '/app/beheer/reisleider/'),
     checkRow('Balk "in ontwikkeling" uit', settings.get('devBannerEnabled') ? 'open' : 'klaar', settings.get('devBannerEnabled') ? 'De balk staat nog bovenaan de publieke site.' : 'Uit.', '/app/beheer/ontwikkeling/'),
     checkRow('Basisadres is het productiedomein', siteHost === PRODUCTION_HOST ? 'klaar' : 'open', siteHost === PRODUCTION_HOST ? `https://${PRODUCTION_HOST}` : `Nu ${siteHost || 'ongeldig'}; zet het op de dag van de overstap op https://${PRODUCTION_HOST}.`, '/app/beheer/zoekmachines/'),
+    checkRow('HSTS-preload (na een stabiele periode)', settings.get('hstsPreload') ? 'klaar' : 'later', settings.get('hstsPreload') ? 'Aan; vraag de opname aan op hstspreload.org (stap 4.5).' : 'Uit; pas aanzetten na een stabiele periode in productie, als elk subdomein https heeft (stap 4.5).', '/app/beheer/hsts/'),
     checkRow('Zoekmachines toegelaten (als laatste stap)', settings.get('seoIndexing') ? 'klaar' : 'open', settings.get('seoIndexing') ? 'Aan.' : 'Uit (noindex). Pas aanzetten als de DNS om is en de rooktest goed is.', '/app/beheer/zoekmachines/'),
   ];
 }

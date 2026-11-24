@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createDatabase } = require('../src/database/db');
 const { createVault } = require('../src/security/vault');
-const { createPersons, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION } = require('../src/persons/persons');
+const { createPersons, LEGACY_TEXT_VERSION, LEGACY_ART9_TEXT_VERSION, LEGACY_ART9_PURGE_ACTION } = require('../src/persons/persons');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'persons_test';
@@ -171,7 +171,7 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     // De eerste transactie (die van AV-OUD-0) mislukt; de rest gaat gewoon door.
     let calls = 0;
     const flakyDb = { ...db, transaction: (work) => (calls++ === 0 ? Promise.reject(new Error('slot verlopen')) : db.transaction(work)) };
-    assert.deepEqual(await persons.backfillPersons(flakyDb, { batchSize: 1 }), { converted: 1, failed: 2 });
+    assert.deepEqual(await persons.backfillPersons(flakyDb, { batchSize: 1 }), { converted: 1, failed: 2, purged: 0, purgeFailed: 0 });
     assert.equal((await db.query('SELECT person_id FROM bookings WHERE id = $1', [broken.id]))[0].person_id, null, 'mislukte blijft staan');
     const [row] = await db.query('SELECT person_id, sensitive_data FROM bookings WHERE id = $1', [good.id]);
     assert.equal(row.sensitive_data, null);
@@ -179,20 +179,55 @@ test('personen in PostgreSQL', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbr
     assert.equal(person.email, 'oud@example.nl');
     assert.equal(persons.openBlock('emergency_data', person).emergency_phone, '0644444444');
     assert.equal(persons.openBlock('identity_data', person).birth_date, '1970-01-01');
-    assert.equal(persons.openBlock('health_data', person).particulars, 'Diabetes', 'art. 9 gaat mee (besluit Daniël)');
-    assert.equal(persons.openBlock('special_data', person).church, 'GKV');
+    assert.equal(person.health_data, null, 'art. 9 gaat niet mee: geen losse toestemming (A10)');
+    assert.equal(person.special_data, null);
     const consents = await db.query('SELECT kind, text_version, given_at FROM consents WHERE booking_id = $1 ORDER BY kind', [good.id]);
-    assert.deepEqual(consents.map((consent) => [consent.kind, consent.text_version]), [
-      ['art9_gezondheid', LEGACY_ART9_TEXT_VERSION],
-      ['art9_religie', LEGACY_ART9_TEXT_VERSION],
-      ['voorwaarden', LEGACY_TEXT_VERSION],
-    ]);
+    assert.deepEqual(consents.map((consent) => [consent.kind, consent.text_version]), [['voorwaarden', LEGACY_TEXT_VERSION]]);
     assert.ok(consents.every((consent) => consent.given_at.toISOString() === '2026-01-02T10:00:00.000Z'));
     assert.equal((await db.query('SELECT person_id FROM bookings WHERE id = $1', [bad.id]))[0].person_id, null);
-    assert.deepEqual(await persons.backfillPersons(db), { converted: 1, failed: 1 }, 'volgende start: de eerder mislukte lukt nu, de kapotte blijft');
+    assert.deepEqual(await persons.backfillPersons(db), { converted: 1, failed: 1, purged: 0, purgeFailed: 0 }, 'volgende start: de eerder mislukte lukt nu, de kapotte blijft');
     const [plain] = await insertOld('AV-OUD-3', 'zonder-art9@example.nl', vault.seal({ ...sensitive, church: '', particulars: '' }));
-    assert.deepEqual(await persons.backfillPersons(db), { converted: 1, failed: 1 });
+    assert.deepEqual(await persons.backfillPersons(db), { converted: 1, failed: 1, purged: 0, purgeFailed: 0 });
     const plainConsents = await db.query('SELECT kind FROM consents WHERE booking_id = $1', [plain.id]);
     assert.deepEqual(plainConsents.map((consent) => consent.kind), ['voorwaarden'], 'lege art. 9-velden: geen art. 9-toestemming');
+  });
+
+  await t.test('eerder overgenomen art. 9-gegevens worden gewist, tenzij er later echte toestemming is (A10)', async () => {
+    const legacy = async (email, values) => {
+      const personId = await db.transaction(async (client) => (await persons.savePerson(client, bookingValues({ email, ...values }))).personId);
+      await db.query(
+        `INSERT INTO consents (person_id, kind, text_version) VALUES ($1, 'art9_religie', $2), ($1, 'art9_gezondheid', $2)`,
+        [personId, LEGACY_ART9_TEXT_VERSION],
+      );
+      return personId;
+    };
+    const oldOnly = await legacy('oud-art9@example.nl', { church: 'GKV', particulars: 'Diabetes' });
+    const laterConsent = await legacy('later@example.nl', { church: 'PKN', particulars: 'Astma' });
+    await db.query("INSERT INTO consents (person_id, kind, text_version) VALUES ($1, 'art9_religie', '2026-11-21')", [laterConsent]);
+    // Alleen een oude regel voor religie, en later echte toestemming daarvoor: niets te wissen, dus niet geteld en geen audit.
+    const nothingToClear = await db.transaction(async (client) => (await persons.savePerson(client, bookingValues({ email: 'niets@example.nl', church: 'NGK' }))).personId);
+    await db.query(
+      "INSERT INTO consents (person_id, kind, text_version) VALUES ($1, 'art9_religie', $2), ($1, 'art9_religie', '2026-11-21')",
+      [nothingToClear, LEGACY_ART9_TEXT_VERSION],
+    );
+    // Eén mislukte persoon houdt de rest niet tegen; die komt bij de volgende ronde opnieuw aan bod.
+    let purgeCalls = 0;
+    const flakyDb = { ...db, transaction: (work) => (purgeCalls++ === 0 ? Promise.reject(new Error('slot verlopen')) : db.transaction(work)) };
+    assert.deepEqual(await persons.purgeLegacyArt9(flakyDb), { purged: 1, failed: 1 });
+    assert.deepEqual(await persons.purgeLegacyArt9(db), { purged: 1, failed: 0 }, 'volgende ronde: de mislukte lukt nu');
+    const cleaned = await personById(oldOnly);
+    assert.equal(cleaned.special_data, null);
+    assert.equal(cleaned.health_data, null);
+    assert.ok(cleaned.identity_data, 'andere blokken blijven');
+    const kept = await personById(laterConsent);
+    assert.equal(persons.openBlock('special_data', kept).church, 'PKN', 'later zelf toestemming gegeven: blijft');
+    assert.equal(kept.health_data, null, 'gezondheid had geen echte toestemming');
+    assert.equal(persons.openBlock('special_data', await personById(nothingToClear)).church, 'NGK');
+    const open = await db.query('SELECT count(*)::int AS total FROM consents WHERE text_version = $1 AND withdrawn_at IS NULL', [LEGACY_ART9_TEXT_VERSION]);
+    assert.equal(open[0].total, 0, 'oude regels ingetrokken, als bewijs bewaard');
+    assert.deepEqual(await persons.purgeLegacyArt9(db), { purged: 0, failed: 0 }, 'daarna niets meer te doen');
+    const audit = await db.query('SELECT user_id, entity, entity_id FROM audit_log WHERE action = $1 ORDER BY entity_id::int', [LEGACY_ART9_PURGE_ACTION]);
+    assert.deepEqual(audit, [oldOnly, laterConsent].sort((a, b) => a - b).map((id) => ({ user_id: null, entity: 'persons', entity_id: String(id) })),
+      'per persoon één auditregel door het systeem, zonder gegevens; de mislukte poging laat geen regel achter');
   });
 });

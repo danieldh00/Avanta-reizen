@@ -139,7 +139,7 @@ test('testdata in de database', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
   await t.test('vullen: alle soorten, met realistische samenhang', async () => {
     const result = await seed('vullen');
     assert.equal(result.ok, true);
-    for (const label of ['reistypes en landen', 'reisleiders', 'reizen', 'gebruikers', 'personen', 'aanmeldingen', 'betalingen', 'blogberichten', 'veelgestelde vragen', "pagina's"]) {
+    for (const label of ['reistypes en landen', 'reisleiders', 'reizen', 'gebruikers', 'personen', 'aanmeldingen', 'betalingen', 'blogberichten', 'veelgestelde vragen', "pagina's", 'berichten']) {
       assert.ok(result.added[label] > 0, label);
     }
 

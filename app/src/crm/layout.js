@@ -16,13 +16,15 @@ const { icon } = require('../site/icons');
 const { roleHasRight, roleHasGlobalRight, roleLabel } = require('./rights');
 const { renderMaintenanceBanner } = require('../site/layout');
 const { GROUPS: BEHEER_GROUPS, normalizeSearch } = require('../beheer/indeling');
+const { canSearch } = require('./search');
 
 /** Versie van de statische bestanden, tegen verouderde caches. */
 const ASSET_VERSION = require('../../package.json').version;
 
 /**
  * Menu van het CRM in groepen; een item verschijnt alleen als de gebruiker het recht heeft (de server controleert
- * opnieuw), een groep zonder zichtbare items verdwijnt. `global`: niet voor rollen die tot eigen vertrekken beperkt
+ * opnieuw), een groep zonder zichtbare items verdwijnt. `counter`: sleutel van een teller uit `crm/menu-counters.js`
+ * (bijvoorbeeld het aantal nieuwe berichten), getoond naast het item als hij groter is dan nul. `global`: niet voor rollen die tot eigen vertrekken beperkt
  * zijn. Groep `top` staat los bovenaan, zonder kop; de andere groepen staan altijd open onder hun titel. Beheer staat
  * hier niet in: dat is één ingang onderaan (`renderBeheerEntry`) met een eigen zijbalk.
  */
@@ -34,6 +36,7 @@ const CRM_MENU = [
     icon: 'users',
     items: [
       { label: 'Aanmeldingen', href: '/app/aanmeldingen/', icon: 'clipboard', right: 'aanmeldingen', global: true },
+      { label: 'Berichten', href: '/app/berichten/', icon: 'mail', right: 'berichten', global: true, counter: 'berichten' },
       { label: 'Deelnemers', href: '/app/deelnemers/', icon: 'users', right: 'deelnemers', global: true },
       { label: 'Deelnemerslijsten', href: '/app/deelnemerslijsten/', icon: 'list', right: 'export.deelnemers' },
       { label: 'Betalingen', href: '/app/betalingen/', icon: 'euro', right: 'betalingen', global: true },
@@ -179,10 +182,14 @@ function visibleBeheerMenu(user, settingGroups, query) {
  * Eén link in een zijbalk.
  * @param {{label: string, href: string, icon: string}} item Het menu-item.
  * @param {string} activeHref De href van het huidige item.
+ * @param {Record<string, number>} [counters] Aantallen per teller (`req.user.counters`).
  * @returns {object} HTML.
  */
-function renderNavItem(item, activeHref) {
-  return html`<a class="crm-nav-item" href="${item.href}"${item.href === activeHref ? html` aria-current="page"` : ''} title="${item.label}"><span class="crm-nav-ico">${icon(item.icon)}</span><span class="crm-nav-label">${item.label}</span></a>`;
+function renderNavItem(item, activeHref, counters = {}) {
+  const count = item.counter && Number.isInteger(counters[item.counter]) && counters[item.counter] > 0 ? counters[item.counter] : 0;
+  const shown = count > 99 ? '99+' : String(count);
+  const title = count ? `${item.label} (${count} nieuw)` : item.label;
+  return html`<a class="crm-nav-item" href="${item.href}"${item.href === activeHref ? html` aria-current="page"` : ''} title="${title}"><span class="crm-nav-ico">${icon(item.icon)}</span><span class="crm-nav-label">${item.label}</span>${count ? html`<span class="crm-nav-count"><span aria-hidden="true">${shown}</span><span class="visually-hidden">, ${count} nieuw</span></span>` : ''}</a>`;
 }
 
 /**
@@ -208,14 +215,15 @@ function renderNavGroup(group, activeHref, forceOpen, idPrefix = 'crm-nav') {
  * Eén vaste groep in de hoofdzijbalk: de titel met de onderdelen eronder, altijd zichtbaar.
  * @param {object} group De groep (key, title, items).
  * @param {string} activeHref De href van het huidige item.
+ * @param {Record<string, number>} [counters] Aantallen per teller (`req.user.counters`).
  * @returns {object} HTML.
  */
-function renderMainGroup(group, activeHref) {
-  if (group.key === 'top') return html`<div class="crm-nav-list crm-nav-top">${group.items.map((item) => renderNavItem(item, activeHref))}</div>`;
+function renderMainGroup(group, activeHref, counters) {
+  if (group.key === 'top') return html`<div class="crm-nav-list crm-nav-top">${group.items.map((item) => renderNavItem(item, activeHref, counters))}</div>`;
   const titleId = `crm-nav-${group.key}`;
   return html`<div class="crm-nav-group${group.items.some((item) => item.href === activeHref) ? ' has-active' : ''}" data-group="${group.key}" role="group" aria-labelledby="${titleId}">
     <p class="crm-nav-group-title" id="${titleId}"><span class="crm-nav-label">${group.title}</span></p>
-    <div class="crm-nav-list">${group.items.map((item) => renderNavItem(item, activeHref))}</div>
+    <div class="crm-nav-list">${group.items.map((item) => renderNavItem(item, activeHref, counters))}</div>
   </div>`;
 }
 
@@ -246,7 +254,7 @@ function renderSidebar(page) {
       <a class="crm-nav-brand" href="/app/"><img class="crm-nav-logo" src="/images/logo-light.png" alt="Avanta reizen" width="68" height="40"><span class="crm-nav-label crm-nav-app">CRM</span></a>
       <button class="crm-nav-close" type="button" data-nav-close aria-label="Menu sluiten">${icon('close')}</button>
     </div>
-    ${menu.map((group) => renderMainGroup(group, activeHref))}
+    ${menu.map((group) => renderMainGroup(group, activeHref, user.counters || {}))}
     <div class="crm-nav-spacer"></div>
     ${renderBeheerEntry(user, page.path)}
     <button class="crm-nav-collapse" type="button" data-nav-compact aria-pressed="false" title="Zijbalk inklappen"><span class="crm-nav-ico">${icon('chevron-left')}</span><span class="crm-nav-label">Inklappen</span></button>
@@ -312,11 +320,12 @@ function breadcrumbsFor(user, currentPath, title) {
 }
 
 /**
- * De kopbalk van het CRM: menuknop en logo (smal scherm), het kruimelpad, een link naar de site en het gebruikersmenu.
+ * De kopbalk van het CRM: menuknop en logo (smal scherm), het kruimelpad, het zoekveld voor het hele CRM (`crm/search.js`;
+ * op een smal scherm een knop naar de zoekpagina), een link naar de site en het gebruikersmenu.
  * Het gebruikersmenu is een `<details>` en werkt dus zonder JavaScript; `public/js/crm.js` sluit het bij een klik
  * ernaast of Esc. Zonder gebruiker (inloggen, installatie) alleen het logo.
- * @param {{user: (object|null), csrf?: string, path: string, title: string}} page De gebruiker, het CSRF-token voor
- *   de uitlogknop, het huidige pad en de titel.
+ * @param {{user: (object|null), csrf?: string, path: string, title: string, search?: string}} page De gebruiker, het
+ *   CSRF-token voor de uitlogknop, het huidige pad, de titel en de zoekterm (op de zoekpagina).
  * @returns {object} HTML.
  */
 function renderHeader(page) {
@@ -332,6 +341,12 @@ function renderHeader(page) {
       <button class="crm-nav-toggle" type="button" data-nav-toggle aria-controls="crm-nav" aria-expanded="false" aria-label="Menu openen">${icon('menu')}</button>
       <a class="crm-brand" href="/app/"><img src="/images/logo.png" alt="Avanta reizen" width="68" height="40"> <span>CRM</span></a>
       <nav class="crm-crumbs" aria-label="Kruimelpad"><ol>${crumbs.map((crumb, index) => html`<li${index === crumbs.length - 1 ? html` aria-current="location"` : ''}>${crumb.href ? html`<a href="${crumb.href}">${crumb.label}</a>` : crumb.label}</li>`)}</ol></nav>
+      ${canSearch(user.role) ? html`<form class="crm-header-search" method="get" action="/app/zoeken/" role="search">
+        ${icon('search')}
+        <label class="visually-hidden" for="crm-zoek">Zoeken in het CRM</label>
+        <input id="crm-zoek" class="crm-header-search-input" type="search" name="q" value="${page.search || ''}" maxlength="100" placeholder="Zoeken in het CRM">
+      </form>
+      <a class="crm-header-search-link" href="/app/zoeken/" aria-label="Zoeken in het CRM">${icon('search')}</a>` : ''}
       <a class="crm-header-site" href="/">Bekijk de site</a>
       <details class="crm-user">
         <summary class="crm-user-button"><span class="crm-user-ico">${icon('user')}</span><span class="crm-user-name">${user.name} <span class="crm-user-role">${roleLabel(user.role)}</span></span>${icon('chevron-down', { className: 'crm-user-chevron' })}</summary>
@@ -356,10 +371,11 @@ function renderPageHead(page) {
 
 /**
  * Maakt een volledige CRM-pagina.
- * @param {{title: string, body: object, user?: (object|null), csrf?: string, path?: string, beheer?: object, actions?: object}} page
+ * @param {{title: string, body: object, user?: (object|null), csrf?: string, path?: string, beheer?: object, actions?: object, search?: string}} page
  *   Titel, inhoud, de ingelogde gebruiker (zonder: geen zijbalk), het CSRF-token voor de uitlogknop, het huidige pad
  *   (een menu-item is actief op zijn eigen pad en alles eronder; het langste item wint; een pad van Beheer krijgt de
- *   tweede zijbalk) en op instellingenpagina's de gefilterde groepen en zoekterm (`{groups, query}`).
+ *   tweede zijbalk), op instellingenpagina's de gefilterde groepen en zoekterm (`{groups, query}`) en op de zoekpagina
+ *   de zoekterm voor het zoekveld in de kopbalk.
  * @returns {string} De HTML.
  */
 function renderCrmPage(page) {
@@ -380,7 +396,7 @@ function renderCrmPage(page) {
   <a class="skip-link" href="#inhoud">Naar de inhoud</a>
   <div class="crm-page">
     ${renderMaintenanceBanner()}
-    ${renderHeader({ user, csrf: page.csrf, path, title: page.title })}
+    ${renderHeader({ user, csrf: page.csrf, path, title: page.title, search: page.search })}
     ${user ? html`${renderSidebar({ user, path })}
     <script src="/js/crm.js?v=${ASSET_VERSION}"></script>` : ''}
     <main id="inhoud" class="crm-main${inBeheer ? ' crm-main--beheer' : ''}">

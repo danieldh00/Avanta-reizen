@@ -79,3 +79,19 @@ test('evaluatePullRequest: nieuw toegevoegd package.json en CHANGELOG.md zijn he
   });
   assert.deepEqual(problems, []);
 });
+
+test('changelog-correctie: met het label mag bestaande tekst in de changelog wijzigen, zonder label niet', () => {
+  const files = [{ status: 'M', name: 'app/CHANGELOG.md' }];
+  assert.equal(notes.evaluatePullRequest({ files, versionLineChanged: false, labels: [] }).length, 1);
+  assert.deepEqual(notes.evaluatePullRequest({ files, versionLineChanged: false, labels: ['changelog-correctie'] }), []);
+  // Het label staat geen eigen versieverhoging toe.
+  assert.equal(notes.evaluatePullRequest({ files, versionLineChanged: true, labels: ['changelog-correctie'] }).length, 1);
+});
+
+test('checkChangelogCorrection: alleen tekst verbeteren; geen regels erbij of eraf en geen andere versie of datum', () => {
+  const before = '# Changelog\n\n## 1.2.3 — 2026-11-21 — Oude titel\n\n- regel met een fout\n';
+  assert.deepEqual(notes.checkChangelogCorrection(before, before.replace('Oude titel', 'Nieuwe titel').replace('een fout', 'verbetering')), []);
+  assert.equal(notes.checkChangelogCorrection(before, `${before}- extra regel\n`).length, 1);
+  assert.equal(notes.checkChangelogCorrection(before, before.replace('1.2.3', '1.2.4')).length, 1);
+  assert.equal(notes.checkChangelogCorrection(before, before.replace('2026-11-21', '2026-11-22')).length, 1);
+});

@@ -13,7 +13,7 @@ const parsers = require('../tools/import/parse');
 const { formatPrice, formatDate, isoDate } = require('../src/site/format');
 const { createVault, loadMasterKey } = require('../src/security/vault');
 const { createRateLimiter, clientKey } = require('../src/security/rate-limit');
-const { validateBooking } = require('../src/booking/fields');
+const { validateBooking, ageOn, needsGuardian } = require('../src/booking/fields');
 const { rewriteLink, cacheName, withoutLeftoverCategories } = require('../tools/import-wordpress');
 const { parseTrustProxy } = require('../src/server');
 const { isInternalRequest, isInternalAddress } = require('../src/system/health');
@@ -192,6 +192,32 @@ test('form-guard: isCrossSite, ook met Origin null (Chrome bij Referrer-Policy n
   assert.equal(isCrossSite(fakeRequest({ 'sec-fetch-site': 'same-site' })), true);
 });
 
+test('ageOn en needsGuardian: leeftijd op de dag van aanmelden, ook rond 29 februari', () => {
+  assert.equal(ageOn('2010-11-19', '2026-11-19'), 16, 'op de verjaardag een jaar ouder');
+  assert.equal(ageOn('2010-11-20', '2026-11-19'), 15, 'de dag ervoor nog niet');
+  assert.equal(ageOn('2008-02-29', '2025-02-28'), 16, 'jarig op 29 februari: op 28 februari nog niet');
+  assert.equal(ageOn('2008-02-29', '2025-03-01'), 17);
+  assert.equal(needsGuardian({ birth_date: '2010-11-20' }, { today: '2026-11-19' }), true);
+  assert.equal(needsGuardian({ birth_date: '2010-11-19' }, { today: '2026-11-19' }), false);
+  assert.equal(needsGuardian({ birth_date: '' }, { today: '2026-11-19' }), false);
+  assert.equal(needsGuardian({ birth_date: '2010-02-31' }, { today: '2026-11-19' }), false, 'ongeldige datum: de datumcontrole meldt de fout');
+});
+
+test('validateBooking: onder de 16 verplicht een ouder of voogd, daarboven worden de oudervelden leeggemaakt', () => {
+  const day = { today: '2026-11-19' };
+  const minor = { ...validBooking(), birth_date: '2012-05-04' };
+  const { errors } = validateBooking(minor, day);
+  assert.deepEqual(Object.keys(errors).sort(), ['consent_guardian', 'guardian_email', 'guardian_name', 'guardian_relation']);
+  const guardian = { guardian_name: 'Petra Jansen', guardian_relation: 'ouder', guardian_email: 'petra@example.nl', guardian_phone: '', consent_guardian: 'ja' };
+  assert.deepEqual(validateBooking({ ...minor, ...guardian }, day).errors, {}, 'telefoon is vrijwillig');
+  assert.ok(validateBooking({ ...minor, ...guardian, guardian_relation: 'oom' }, day).errors.guardian_relation, 'alleen ouder of voogd');
+  assert.ok(validateBooking({ ...minor, ...guardian, guardian_email: 'geen-adres' }, day).errors.guardian_email);
+  assert.ok(validateBooking({ ...minor, ...guardian, consent_guardian: 'nee' }, day).errors.consent_guardian, 'alleen ja telt');
+  const adult = validateBooking({ ...validBooking(), ...guardian, guardian_email: 'geen-adres' }, day);
+  assert.deepEqual(adult.errors, {});
+  for (const name of Object.keys(guardian)) assert.equal(adult.values[name], '', `${name} leeg bij een volwassene`);
+});
+
 test('form-guard: token per formulier, minimale en maximale invultijd, honeypot', () => {
   const { createFormGuard, MIN_FILL_MS, MAX_FILL_MS } = require('../src/security/form-guard');
   let clock = 1_000_000;
@@ -364,4 +390,23 @@ test('import slaat restcategorieën over: plaatshouders, namen zonder hoofdlette
   assert.deepEqual(skipped.map((category) => category.slug), ['bestemming', 'nan', 'type', 'nederland', 'saudi-arabie-2']);
   // Een echte, ongebruikte categorie en alles wat een reis gebruikt (ook zonder hoofdletter) blijven staan.
   assert.deepEqual(kept.map((category) => category.slug), ['saudi-arabie', 'wandelreizen', 'jongeren']);
+});
+
+test('HSTS-preload (W10): alleen aan, live en op de host van het basisadres', () => {
+  const { hstsValue, HSTS_VALUE, HSTS_PRELOAD_VALUE } = require('../src/server');
+  /**
+   * Nepinstellingen met vaste waarden.
+   * @param {object} values Waarden per sleutel.
+   * @returns {{get: (key: string) => *}} Instellingen.
+   */
+  const settingsWith = (values) => ({ get: (key) => ({ hstsPreload: true, seoIndexing: true, siteUrl: 'https://www.avantareizen.nl', ...values })[key] });
+  const production = { hostname: 'www.avantareizen.nl' };
+  assert.equal(HSTS_PRELOAD_VALUE, 'max-age=63072000; includeSubDomains; preload');
+  assert.equal(hstsValue(production, settingsWith({})), HSTS_PRELOAD_VALUE);
+  assert.equal(hstsValue({ hostname: 'WWW.AvantaReizen.nl' }, settingsWith({})), HSTS_PRELOAD_VALUE, 'hoofdletters maken niet uit');
+  assert.equal(hstsValue(production, settingsWith({ hstsPreload: false })), HSTS_VALUE, 'standaard uit');
+  assert.equal(hstsValue(production, settingsWith({ seoIndexing: false })), HSTS_VALUE, 'niet live (testomgeving): nooit preload');
+  assert.equal(hstsValue({ hostname: 'test.example.nl' }, settingsWith({})), HSTS_VALUE, 'andere host dan het basisadres');
+  assert.equal(hstsValue(production, settingsWith({ siteUrl: 'geen adres' })), HSTS_VALUE, 'ongeldig basisadres');
+  assert.equal(hstsValue(production, undefined), HSTS_VALUE, 'zonder instellingen');
 });

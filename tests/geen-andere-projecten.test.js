@@ -13,12 +13,6 @@ const ROOT = path.join(__dirname, '..');
 /** Verboden projectnamen, in stukken geschreven; hoofdletters, spaties en streepjes ertussen tellen niet. */
 const FORBIDDEN_NAMES = [['aqua', 'tech']];
 const PATTERNS = FORBIDDEN_NAMES.map((parts) => new RegExp(parts.join('[\\s_-]?'), 'i'));
-/**
- * Bekende oude vindplaatsen per bestand. `app/CHANGELOG.md` mag een PR niet wijzigen (controle
- * `version-must-increase`); de vier oude regels daarin wachten op een besluit over hoe ze worden gecorrigeerd.
- * Meer treffers dan dit aantal laat de test falen, zodat er geen nieuwe bij kan komen; na de correctie gaat het naar 0.
- */
-const KNOWN_OLD_HITS = { 'app/CHANGELOG.md': 4 };
 /** Bestanden zonder tekst (afbeeldingen, fonts) worden overgeslagen. */
 const BINARY_FILE = /\.(png|jpe?g|webp|gif|ico|woff2?|ttf|otf|pdf|xlsx|zip)$/i;
 
@@ -38,11 +32,9 @@ function findReferences() {
     } catch {
       continue;
     }
-    const fileHits = [];
     text.split('\n').forEach((line, index) => {
-      if (PATTERNS.some((pattern) => pattern.test(line))) fileHits.push(`${file}:${index + 1}`);
+      if (PATTERNS.some((pattern) => pattern.test(line))) hits.push(`${file}:${index + 1}`);
     });
-    if (fileHits.length > (KNOWN_OLD_HITS[file] || 0)) hits.push(...fileHits);
   }
   return hits;
 }

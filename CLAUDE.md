@@ -52,7 +52,7 @@ niet deze tabel (alleen een nieuwe map krijgt hier een regel).
 | `app/src/services.js` | `createServices` (alle gedeelde diensten per module: instellingen, logboek, mail, back-ups, bewaking, betalingen, …; ook op `app.locals`) en `startBackgroundTasks` (timers en planners; een nieuwe achtergrondtaak komt hier) |
 | `app/src/database/` | pool, transacties en migraties (één bestand per migratie); details per bestand: `app/src/database/CLAUDE.md` |
 | `app/src/site/` | publieke website: routes, queries, weergave, SEO, doorverwijzingen; details per bestand: `app/src/site/CLAUDE.md` |
-| `app/src/contact/` | contactformulier op `/contact/`; details per bestand: `app/src/contact/CLAUDE.md` |
+| `app/src/contact/` | contactformulier op `/contact/` en de berichten in het CRM (`/app/berichten/`); details per bestand: `app/src/contact/CLAUDE.md` |
 | `app/src/booking/` | aanmeldformulier en de aanmeldingen in het CRM; details per bestand: `app/src/booking/CLAUDE.md` |
 | `app/src/account/` | `/account/`: registreren, inloggen, Mijn reizen; details per bestand: `app/src/account/CLAUDE.md` |
 | `app/src/export/` | eigen .xlsx-schrijver; gebruik hem voor elke Excel-export; details per bestand: `app/src/export/CLAUDE.md` |
@@ -70,7 +70,7 @@ niet deze tabel (alleen een nieuwe map krijgt hier een regel).
 | `app/src/dev/seed/` | testdata voor de testomgeving (alleen via `servertaken.sh testdata`); details per bestand: `app/src/dev/seed/CLAUDE.md` |
 | `app/public/` | `css/site.css` (huisstijl van de huidige site via `--av-*`-variabelen, breekpunten 1024/768), `css/crm.css` (opmaak van het CRM en Beheer, bouwstenen voor lijsten uit `crm/ui.js`, alleen daar geladen na `site.css`; breekpunt 800), `js/site.js` (kop, mobiel menu, zoekvenster), `images/theme/` (texturen uit het oude thema), fonts en logo lokaal |
 | `app/tools/import-wordpress.js` | import van de huidige site (`tools/import/parse.js`, `sanitize.js`) |
-| `app/tools/design-check/` | design-controle met Playwright op 1440/375: `seed.js` (testgegevens), `check.js` (`--full` of `--paths=`), `page-checks.js` (metingen in de browser), `report.js` (.xlsx), `overview.js` (schermafbeeldingen per soort scherm), `login.js`, `credentials.js` (alleen lokaal), `guards.js` (alleen lokale database en app) |
+| `app/tools/design-check/` | design-controle met Playwright op 1440/375: `seed.js` (testgegevens), `check.js` (`--full` of `--paths=`), `changed-screens.js` (gewijzigde bestanden → schermen voor de CI-job `design`; nieuwe module met schermen = regel in `SCREEN_RULES`), `ci-summary.js` (samenvatting bij de job), `page-checks.js` (metingen in de browser), `report.js` (.xlsx), `overview.js` (schermafbeeldingen per soort scherm), `login.js`, `credentials.js` (alleen lokaal), `guards.js` (alleen lokale database en app) |
 | `app/tools/minify-public.js` | verkleint `public/css` en `public/js` bij het bouwen van het image (Dockerfile, stap `minify`); niet in de draaiende app |
 | `app/tools/layout-compare.js` | DOM-meting nieuw tegen live op 1440/375 (referentie `test/fixtures/layout-live.json`, test met `LAYOUT_BASE_URL`) |
 | `app/test/` | `units.test.js` (zonder database), `server.test.js` (PostgreSQL, `TEST_DATABASE_URL`) |
@@ -86,7 +86,7 @@ Regels:
   `captchaField`/`captcha.check` (`security/captcha.js`, actie per formulier) als laatste controle.
 - Nieuwe migratie: een nieuw bestand `app/src/database/migrations/NNN-korte-naam.js` met het eerstvolgende nummer, en de bestandsnaam ervan in `migrations/laatste-migratie.txt` (geeft met opzet een git-conflict als twee takken hetzelfde nummer nemen; dan rebasen en je eigen bestand hernummeren; `migrations.js` zelf niet wijzigen); een migratie op `main` verandert nooit meer.
   Volgorde (besluit 20-11-2026): M5 instellingen, M6 doorverwijzingen/404, M7 logboek, M8 bewaking, 2FA M9 (alle gebouwd),
-  persons M10, aanmeldingen M11, fotobibliotheek M12, foto's in de back-up M13, reistypes en landen M14, reizen M15, foto's bij reizen M16 (CMS-pakket G, gebouwd), pagina's in blokken M17 (H1), nieuwe pagina's/SEO/menu's M18 (H3), blog M19 (I1), categorieën en tags M20 (I2), FAQ M21 (I3), reisleiders M22 (I4), reizigersaccounts M23 (J2), aanmelding bij account M24 (J4), AVG-opschoning M25, betalingen M26, betaalherinneringen M27, online betalen M28; volgende vrije migratie M29. Eén migratie-PR tegelijk.
+  persons M10, aanmeldingen M11, fotobibliotheek M12, foto's in de back-up M13, reistypes en landen M14, reizen M15, foto's bij reizen M16 (CMS-pakket G, gebouwd), pagina's in blokken M17 (H1), nieuwe pagina's/SEO/menu's M18 (H3), blog M19 (I1), categorieën en tags M20 (I2), FAQ M21 (I3), reisleiders M22 (I4), reizigersaccounts M23 (J2), aanmelding bij account M24 (J4), AVG-opschoning M25, betalingen M26, betaalherinneringen M27, online betalen M28, ouder of voogd M29 (P3), berichten M30 (P4); auditlog filteren M31 (P4.4); volgende vrije migratie M32. Eén migratie-PR tegelijk.
 - **Instellingen** altijd in `FIELDS` van hun groep (`beheer/instellingen/<groep>.js`, samen `SETTING_FIELDS`) met een sectie in `GROUP` van hetzelfde bestand, nooit een
   eigen tabel of losse env-variabele; geheimen als `type: 'secret'`. Waarden synchroon via `settings.get(key)` (geladen
   door de middleware in `server.js`); wijzigen alleen via `settings.update` met audit in dezelfde transactie.
@@ -105,8 +105,12 @@ Regels:
   samen met eigenaar/tenant opzoeken, parameters in SQL altijd gebonden, invoer server-side saneren, elk openbaar of
   duur endpoint een limiet, uploads op inhoud controleren. Tests per nieuwe route: andere eigenaar → 404, ontbrekend
   recht → 403. Nooit tokens of persoonsgegevens in logs, audit of frontend.
+- **AVG-documenten**: verandert een PR iets aan persoonsgegevens (veld, koppeling, bewaartermijn), werk dan ook
+  `docs/avg/` bij (verwerkingsregister, verwerkers, DPIA, tekstvoorstel privacyverklaring).
 - **Queries**: geen `SELECT *`, geen N+1, index op nieuwe filters van groeiende tabellen.
-- **UI**: netjes uitgelijnd op 1440 en 375 px; controleer via DOM/CSS-meting, geen schermafbeeldingen.
+- **UI**: netjes uitgelijnd op 1440 en 375 px. CI controleert dat met Playwright op de schermen die de PR raakt (job
+  `design`, faalt bij ernst hoog; uitsneden en .xlsx in het artefact `design-controle`). Lokaal: `tools/design-check/`
+  met `--paths=` voor de geraakte schermen; schermafbeeldingen alleen als uitsnede van een bevinding.
 - **Externe koppeling**: instelling in de app, status en logboek zichtbaar, nooit tokens in de uitvoer.
 - Noem in de PR-beschrijving kort hoe aan de checklist is voldaan.
 
@@ -141,4 +145,4 @@ kill $(lsof -ti tcp:3400)                                                       
 ```
 In de cloud-sandbox: lokale PostgreSQL 16 in `/usr/lib/postgresql/16/bin` (poort 5433); Node's `fetch` door de proxy met
 `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt`. Docker is daar niet beschikbaar; CI bouwt en
-smoketest het image. Layout controleren met een DOM-meting op 1440 en 375 px (geen screenshots).
+smoketest het image. Layout controleren met `tools/design-check/check.js --paths=…` op 1440 en 375 px (zie README, design-controle).

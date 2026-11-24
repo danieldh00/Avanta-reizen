@@ -11,7 +11,7 @@ const zlib = require('node:zlib');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { createVault } = require('../src/security/vault');
-const { createPersons } = require('../src/persons/persons');
+const { createPersons, LEGACY_ART9_TEXT_VERSION } = require('../src/persons/persons');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
 const { buildParticipantWorkbook, participantFileName, NO_CONSENT, UNREADABLE } = require('../src/persons/participant-lists');
@@ -231,7 +231,7 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.deepEqual(actions, ['export.deelnemers.gezondheid', 'export.deelnemers.identiteit', 'export.deelnemers']);
     assert.match((await download(beheer, { religie: 'ja' })).sheet, />PKN</);
     // Het auditlog toont een leesbare naam voor de nieuwe acties.
-    assert.match((await request('/app/auditlog/', { cookie: beheer.cookie })).text, /Deelnemerslijst met medische bijzonderheden en noodnummer geëxporteerd/);
+    assert.match((await request('/app/auditlog/', { cookie: beheer.cookie })).text, /Deelnemerslijst met medische bijzonderheden, noodnummer en ouder of voogd \(onder 16\) geëxporteerd/);
   });
 
   await t.test('ingetrokken art. 9-toestemming: geen gegevens', async () => {
@@ -240,6 +240,21 @@ test('deelnemerslijsten in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL
     assert.doesNotMatch(sheet, /Astma/);
     assert.ok(sheet.includes(NO_CONSENT));
     assert.match(sheet, />0687654321</, 'noodnummer is geen art. 9 en blijft');
+  });
+
+  await t.test('toestemmingsregel van het oude formulier telt nooit als toestemming (A10)', async () => {
+    // Echte toestemming is ingetrokken (vorige test); alleen een oude regel: geen gegevens.
+    await db.query('INSERT INTO consents (person_id, kind, text_version) VALUES ($1, $2, $3)', [personId, 'art9_gezondheid', LEGACY_ART9_TEXT_VERSION]);
+    let { sheet } = await download(kantoor, { gezondheid: 'ja' });
+    assert.doesNotMatch(sheet, /Astma/);
+    assert.ok(sheet.includes(NO_CONSENT));
+    // Met daarnaast een echte, niet ingetrokken toestemming: de gegevens komen mee.
+    await db.query("UPDATE consents SET withdrawn_at = NULL WHERE person_id = $1 AND kind = 'art9_gezondheid' AND text_version <> $2", [personId, LEGACY_ART9_TEXT_VERSION]);
+    ({ sheet } = await download(kantoor, { gezondheid: 'ja' }));
+    assert.match(sheet, />Astma</);
+    // Terug naar de stand van de vorige test.
+    await db.query('DELETE FROM consents WHERE person_id = $1 AND text_version = $2', [personId, LEGACY_ART9_TEXT_VERSION]);
+    await db.query("UPDATE consents SET withdrawn_at = now() WHERE person_id = $1 AND kind = 'art9_gezondheid'", [personId]);
   });
 
   await t.test('reisleider: alleen eigen vertrekken, beperkt, bijzondere gegevens alleen in het venster', async () => {

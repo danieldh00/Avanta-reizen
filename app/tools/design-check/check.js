@@ -6,8 +6,9 @@
  * Twee standen:
  * - volledig (`--full`): alle URL's uit de sitemap, de vaste schermen van account en formulieren, en alles wat onder
  *   `/app/` bereikbaar is via links (GET, maximaal twee per soort scherm). Voor de eenmalige volledige run.
- * - gericht (`--paths=/reis/,/app/beheer/`): alleen de genoemde paden (en bij een pad dat op `*` eindigt alle URL's die
- *   ermee beginnen). Bedoeld voor de lichte run die alleen gewijzigde schermen controleert.
+ * - gericht (`--paths=/reis/,/app/beheer/*`): alleen de genoemde paden; bij een pad dat op `*` eindigt ook de links op
+ *   die pagina's die met dat pad beginnen (maximaal twee per soort scherm, ook op de publieke site). Bedoeld voor de
+ *   lichte run in CI die alleen gewijzigde schermen controleert (`changed-screens.js` bepaalt de paden).
  *
  * Gebruik (app draait lokaal met testgegevens uit `seed.js`):
  *   DESIGN_BASE_URL=http://localhost:3400 node tools/design-check/check.js --full --out=/tmp/design
@@ -257,7 +258,11 @@ async function checkArea(browser, area, options) {
   const seen = new Set();
   const perType = new Map();
   const pages = [];
-  const crawl = area.login === 'crm' && (options.full || options.paths.some((entry) => entry.endsWith('*')));
+  // Gericht: alleen links volgen onder de paden met `*` van dit onderdeel. Volledig: alles onder /app/ (CRM).
+  const crawlPrefixes = options.full ? [] : options.paths
+    .filter((entry) => entry.endsWith('*') && areaOf(entry) === area.area)
+    .map((entry) => entry.slice(0, -1));
+  const crawl = (options.full && area.login === 'crm') || crawlPrefixes.length > 0;
   /**
    * Zet een pad in de wachtrij als het nieuw is en zijn soort scherm nog geen twee keer is gezien.
    * @param {string} url Pad.
@@ -266,7 +271,8 @@ async function checkArea(browser, area, options) {
   const enqueue = (url) => {
     if (seen.has(url)) return;
     const type = screenType(url);
-    if ((perType.get(type) || 0) >= 2 && area.area !== 'Publieke site') return;
+    // De volledige run opent elke pagina van de publieke site (sitemap); de rest maximaal twee per soort scherm.
+    if ((perType.get(type) || 0) >= 2 && (area.area !== 'Publieke site' || !options.full)) return;
     seen.add(url);
     perType.set(type, (perType.get(type) || 0) + 1);
     pending.push(url);
@@ -283,8 +289,8 @@ async function checkArea(browser, area, options) {
       for (const href of result.links) {
         if (!href || href.startsWith('#') || /^(mailto|tel|javascript):/.test(href)) continue;
         const target = new URL(href, `${BASE_URL}${result.url}`);
-        if (target.origin !== new URL(BASE_URL).origin || !target.pathname.startsWith('/app/') || SKIP_LINK.test(target.pathname)) continue;
-        if (!options.full && !options.paths.some((entry) => entry.endsWith('*') && target.pathname.startsWith(entry.slice(0, -1)))) continue;
+        if (target.origin !== new URL(BASE_URL).origin || SKIP_LINK.test(target.pathname)) continue;
+        if (options.full ? !target.pathname.startsWith('/app/') : !crawlPrefixes.some((prefix) => target.pathname.startsWith(prefix))) continue;
         enqueue(target.pathname + target.search);
       }
     }

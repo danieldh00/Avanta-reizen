@@ -39,18 +39,44 @@ const { createHealthRoute } = require('./system/health');
 const BASE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self'; style-src-attr 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 
 /**
- * HSTS (audit A06): de browser gebruikt een jaar lang alleen nog https voor deze host. Zonder `includeSubDomains`: de
- * kop staat op de host van de site, en andere subdomeinen van het domein van Avanta (mail, oude diensten) mogen er
- * niet door breken. `includeSubDomains` en `preload` horen bij de domeininstellingen in Cloudflare, en pas na een
- * stabiele periode.
+ * HSTS (audit A06): de browser gebruikt een jaar lang alleen nog https voor deze host. Standaard zonder
+ * `includeSubDomains`: andere subdomeinen van het domein van Avanta (mail, oude diensten) mogen er niet door breken.
  */
 const HSTS_VALUE = 'max-age=31536000';
+
+/**
+ * HSTS-preload (wachtlijst W10, akkoord Daniël 24-11-2026): twee jaar, alle subdomeinen en `preload`, de eisen van de
+ * preloadlijst van de browsers. Alleen als de beheerder het aanzet (Beheer > Toegang en beveiliging > HSTS-preload),
+ * de site live is (indexeren aan) en het verzoek op de host van het basisadres binnenkomt; zo zet de testomgeving
+ * (altijd noindex, eigen host) nooit een domein vast. Opnemen in de lijst vraagt Daniël daarna zelf aan
+ * (`docs/GO-LIVE.md` §4.5); terugdraaien duurt maanden.
+ */
+const HSTS_PRELOAD_VALUE = 'max-age=63072000; includeSubDomains; preload';
+
+/**
+ * De HSTS-kop voor dit verzoek: met preload alleen onder de voorwaarden bij `HSTS_PRELOAD_VALUE`.
+ * @param {object} req Express-verzoek (`hostname` volgt de vertrouwde proxy).
+ * @param {{get: (key: string) => *}} [settings] Instellingen (synchroon); zonder instellingen nooit preload.
+ * @returns {string} Waarde voor `Strict-Transport-Security`.
+ */
+function hstsValue(req, settings) {
+  if (!settings || settings.get('hstsPreload') !== true || settings.get('seoIndexing') !== true) return HSTS_VALUE;
+  let siteHost = '';
+  try {
+    siteHost = new URL(String(settings.get('siteUrl') || '')).hostname.toLowerCase();
+  } catch {
+    return HSTS_VALUE;
+  }
+  return siteHost && String(req.hostname || '').toLowerCase() === siteHost ? HSTS_PRELOAD_VALUE : HSTS_VALUE;
+}
 
 /**
  * Zet de beveiligingskoppen op elk antwoord, met standaard `noindex`: de middleware met de site-instellingen haalt die
  * kop pas weg als indexeren in Beheer aan staat. Zo is een antwoord van vóór die middleware (of bij een fout) nooit
  * indexeerbaar. HSTS alleen bij https (`req.secure`, achter de vertrouwde proxy via `X-Forwarded-Proto`): over http
- * negeert de browser de kop, en lokaal of in de tests draait de app zonder https.
+ * negeert de browser de kop, en lokaal of in de tests draait de app zonder https. Hier altijd de gewone HSTS-waarde;
+ * de middleware met de site-instellingen zet de preloadwaarde pas na `settings.ready()`, zodat nooit een startwaarde
+ * in plaats van de waarde uit Beheer telt.
  * @returns {Function} Express-middleware.
  */
 function securityHeaders() {
@@ -122,11 +148,13 @@ function createApp(options) {
   // Gezondheid voor Docker en het updatescript; de versie alleen voor verzoeken van binnen de server (`system/health.js`).
   app.get('/api/health', createHealthRoute({ db: options.db, version: require('../package.json').version, trustedProxy }));
 
-  // Site-instellingen per verzoek (`res.locals.site`), de noindex-kop en de CSP voor Analytics en de captcha.
+  // Site-instellingen per verzoek (`res.locals.site`), HSTS-preload, de noindex-kop en de CSP voor Analytics en de captcha.
   app.use(async (req, res, next) => {
     try {
       await settings.ready();
       res.locals.site = siteSettingsOf(settings);
+      // HSTS-preload pas hier, met de geladen waarden uit Beheer (zie `hstsValue`).
+      if (req.secure) res.set('Strict-Transport-Security', hstsValue(req, settings));
       // Express routeert hoofdletterongevoelig, dus ook `/APP/…` is het CRM: dat blijft altijd noindex.
       const lowerPath = req.path.toLowerCase();
       const inCrm = lowerPath.startsWith('/app/') || lowerPath === '/app';
@@ -178,7 +206,7 @@ function createApp(options) {
   app.use('/media', express.static(mediaDir, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
 
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, passwordCheck, redirects, mailer, wanIp, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, passwordCheck, redirects, mailer, wanIp, notifications, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, auditExportMax: options.auditExportMax, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).
@@ -254,10 +282,13 @@ async function start() {
   // Logboek: wegschrijven en opschonen, fouten van achtergrondtaken (console) en onverwerkte fouten van het proces.
   app.locals.appLog.start();
   app.locals.appLog.captureConsole();
-  // Aanmeldingen van vóór de personen-tabel (migratie 10) omzetten naar personen; alleen aantallen in het log.
+  // Aanmeldingen van vóór de personen-tabel (migratie 10) omzetten naar personen, zonder art. 9-gegevens, en eerder
+  // overgenomen art. 9-gegevens wissen (A10); alleen aantallen in het log.
   createPersons({ vault: createVault(masterKey) }).backfillPersons(db)
-    .then(({ converted, failed }) => {
+    .then(({ converted, failed, purged, purgeFailed }) => {
       if (converted) console.log(`personen: ${converted} oude aanmelding(en) omgezet`);
+      if (purged) console.log(`personen: bij ${purged} persoon/personen art. 9-gegevens van het oude formulier gewist`);
+      if (purgeFailed) console.error(`personen: bij ${purgeFailed} persoon/personen art. 9-gegevens van het oude formulier niet gewist (volgende start opnieuw)`);
       if (failed) console.error(`personen: ${failed} oude aanmelding(en) niet te ontsleutelen (andere hoofdsleutel?)`);
     })
     .catch((error) => console.error(`personen: omzetten mislukt (${error.code || error.name})`));
@@ -297,4 +328,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createApp, start, parseTrustProxy, BASE_CSP };
+module.exports = { createApp, start, parseTrustProxy, hstsValue, BASE_CSP, HSTS_VALUE, HSTS_PRELOAD_VALUE };

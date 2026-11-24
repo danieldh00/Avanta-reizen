@@ -18,12 +18,12 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
 - `SITE_URL` is het openbare basisadres (standaard `https://www.avantareizen.nl`, zonder slash aan het eind) voor de
   canonical-URL's, Open Graph-tags, de sitemap en de `Sitemap:`-regel in `robots.txt`.
 - Berichten via het **contactformulier** op `/contact/` komen in de tabel `contact_messages` (status `nieuw`, met de
-  reis als de bezoeker via `/contact/?reis=<slug>` komt). Er wordt nog geen mail verstuurd. Het formulier heeft dezelfde
+  reis als de bezoeker via `/contact/?reis=<slug>` komt); kantoor leest en handelt ze af in het CRM onder *Berichten*. Het formulier heeft dezelfde
   bescherming als aanmelden (`app/src/security/form-guard.js`): herkomstcontrole, 5 per 10 minuten per bezoeker,
   honeypot en ondertekend tijdstempel. Een ingevulde honeypot wordt stil genegeerd; een ongeldig, verlopen (na 3 uur)
   of te snel (binnen 3 seconden) verstuurd formulier komt terug (422) met de ingevulde waarden en een nieuw token.
-- **Beveiligingskoppen**: CSP, `nosniff`, Referrer- en Permissions-Policy op elk antwoord; via https ook HSTS
-  (`max-age=31536000`, zonder `includeSubDomains`; dat en preload horen bij de domeininstellingen in Cloudflare).
+- **Beveiligingskoppen**: CSP, `nosniff`, Referrer- en Permissions-Policy op elk antwoord; via https ook HSTS (met `preload` en `includeSubDomains` alleen na de livegang, als Beheer > Toegang en beveiliging > HSTS-preload aan staat en het verzoek op de host van het basisadres binnenkomt; dan `max-age=63072000; includeSubDomains; preload`). Standaard `max-age=31536000` zonder `includeSubDomains`,
+  dus de testomgeving wordt nooit vastgezet. Het kale domein en de doorverwijzing naar https regelt Cloudflare.
 - **`/api/health`** geeft `{"ok":true}` (503 bij een databasefout). Het versienummer staat er alleen bij voor een
   verzoek van binnen de server (loopback of het Docker-netwerk, niet van de proxy uit `TRUST_PROXY`, zonder
   doorstuurkop); `update.sh` en `servertaken.sh` lezen het zo via `127.0.0.1`. `docker-compose.yml` publiceert de
@@ -43,9 +43,18 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   een nieuwe persoon met de markering *mogelijk dubbel* (`duplicate_of`) en beslist kantoor. Een volgende aanmelding
   met dezelfde afwijking komt bij dat dubbel uit, niet bij weer een nieuwe persoon. Kerkgenootschap en
   bijzonderheden (AVG art. 9) zijn vrijwillig en worden alleen opgeslagen met een eigen toestemmingsvinkje; elke
-  toestemming staat met de versie van de tekst in `consents`. Aanmeldingen van vóór migratie 10 zet de app bij het
-  starten zelf om (alleen aantallen in het logboek); hun art. 9-gegevens gaan mee, met een toestemmingsregel met tekstversie
-  `oud-formulier, geen losse art. 9-toestemming` (het oude formulier vroeg die niet los). **Bewaar de hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
+  toestemming staat met de versie van de tekst in `consents`. **Deelnemer jonger dan 16** (op de dag van aanmelden,
+  art. 8 AVG en art. 5 UAVG, migratie 29): dan zijn naam, relatie (ouder of voogd), e-mailadres en een eigen
+  toestemmingsvinkje van de ouder verplicht; telefoon is vrijwillig. De gegevens van de ouder staan versleuteld in het
+  blok `guardian_data` (in te zien met `gegevens.gezondheid`, net als het noodnummer; ook in de deelnemerslijst), alle
+  toestemmingen van die aanmelding krijgen `given_by = 'ouder_voogd'` plus een regel `ouder_voogd`, en de ouder krijgt
+  een eigen bevestiging per mail. Bij 16 of ouder worden de oudervelden leeggemaakt en niet bewaard. Op het formulier
+  toont `site.js` het blok alleen onder de 16; zonder JavaScript staat het open en controleert de server. Aanmeldingen
+  van vóór migratie 10 zet de app bij het starten zelf om (alleen aantallen in het logboek), **zonder** hun
+  art. 9-gegevens: het oude formulier vroeg daar geen losse toestemming voor (audit A10). Wat een eerdere versie wel
+  overnam (toestemmingsregel `oud-formulier, geen losse art. 9-toestemming`), wist `purgeLegacyArt9` bij het starten,
+  tenzij de deelnemer later zelf toestemming gaf; de oude regels blijven ingetrokken staan als bewijs. **Bewaar de
+  hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.
 - **Reizigersaccount** onder `/account/` (CMS-pakket J2, `app/src/account/`, migratie 23): een reiziger maakt een
   account met e-mailadres en wachtwoord (minimaal 12 tekens, scrypt zoals het CRM) en bevestigt het via de link in de
@@ -126,6 +135,12 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   `overview.js` (volledige schermafbeelding per soort scherm). Basisadres via `DESIGN_BASE_URL` (standaard
   http://localhost:3400); externe verzoeken (YouTube e.d.) worden afgebroken. Exitcode 1 bij bevindingen met ernst
   hoog (behalve met `--no-fail`).
+  **In CI** (job `design` in `ci.yml`) draait dezelfde controle bij elke PR, maar alleen op de schermen die de PR raakt:
+  `changed-screens.js` koppelt de gewijzigde bestanden aan schermen (tabel `SCREEN_RULES`; een PR zonder scherm slaat de
+  job over). De job start een wegwerpdatabase en de app, vult testdata (`src/dev/seed/` plus `seed.js`, wachtwoord per
+  run nieuw), controleert op 1440 en 375 px en faalt bij ernst hoog. De samenvatting staat bij de job, het rapport
+  (.xlsx met uitsneden) in het artefact `design-controle` (7 dagen). Een nieuwe module met eigen schermen krijgt een
+  regel in `SCREEN_RULES`.
 - **CRM** op `/app/` (in opbouw, zie `docs/OPZET-CRM.md`): inloggen met e-mail en wachtwoord (scrypt, minimaal 12
   tekens), rollen `beheerder`, `kantoor`, `reisleider` en `boekhouding` met vaste rechten (`app/src/crm/rights.js`,
   per route gecontroleerd met `requireRight`), gebruikersbeheer en een auditlog op `/app/auditlog/`.
@@ -156,6 +171,12 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     en een ingekort IP-adres (/24 of /48), nooit e-mailadressen, wachtwoorden of andere waarden; regels ouder dan de
     bewaartermijn (standaard 2 jaar) en IP-voorvoegsels ouder dan hun termijn (standaard 90 dagen) worden bij het starten
     en daarna dagelijks opgeruimd, net als verlopen sessies (instelbaar in Beheer).
+    Op `/app/auditlog/` (`app/src/crm/audit-routes.js`, logica in `audit-log.js`) filter je op gebruiker (ook
+    *Systeem of onbekend*), actie, soort record, recordnummer en periode (hele dagen in Nederlandse tijd); de filters
+    blijven staan bij *Oudere regels*. **Excel (.xlsx)** exporteert dezelfde selectie (blad *Auditlog* plus *Over deze
+    export* met de filters, wie en wanneer), hoogstens 50.000 regels (daarboven een melding in plaats van een onvolledig
+    bestand) en 10 exports per 10 minuten per gebruiker; elke export staat zelf in het auditlog (`export.auditlog`).
+    Indexen op `(user_id, id)`, `(action, id)` en `(entity_id, id)` (migratie 31) houden de filters snel.
   - **Fotobibliotheek** op `/app/fotobibliotheek/` (recht `media`: beheerder, kantoor en de nieuwe rol *Redacteur*;
     `app/src/media/`, migratie 12): foto's per land bekijken, filteren (land, *zonder land*) en zoeken; meerdere foto's
     tegelijk uploaden (JPEG, PNG of WebP, maximaal 10 per keer, 15 MB per foto, 200 per gebruiker per uur, 60
@@ -294,12 +315,37 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     wijzigen kan niet): reizen en foto's gaan naar de gekozen categorie, de dubbeling
     verdwijnt en zijn adres verwijst door. Verwijderen kan alleen als er geen reizen en foto's aan hangen. Alles in de
     auditlog.
+  - **Zoeken over het hele CRM**: het zoekveld in de kopbalk (op een telefoon een zoekknop) gaat naar `/app/zoeken/`
+    (`app/src/crm/search.js` en `search-routes.js`). Eén zoekterm (minstens 2 tekens, alle woorden moeten voorkomen,
+    `%` en `_` gewone tekst) in aanmeldingen, deelnemers (niet geanonimiseerd), berichten, reizen, reisleiders,
+    pagina's, blog, veelgestelde vragen en gebruikers. Een bron doet alleen mee met het recht van het scherm zelf
+    (reisleider: geen zoekveld, want zijn rechten gelden alleen voor eigen vertrekken). Per bron hoogstens 5 treffers met
+    een link naar de lijst met dezelfde zoekterm. Een nieuwe bron is één regel in `SEARCH_SOURCES`.
   - **Aanmeldingen** op `/app/aanmeldingen/` (recht `aanmeldingen`; `app/src/booking/crm-routes.js`, migratie 11):
     lijst met filter op status en reis en zoeken op referentie, naam, e-mailadres of reiscode; per aanmelding de
     gegevens zoals ingevuld (zonder bijzondere gegevens, die staan bij de deelnemer), de status met vaste overgangen
     (`nieuw → bevestigd → aanbetaald → betaald`, en `geannuleerd` met verplichte reden; daarna niet meer te wijzigen),
     notities en de historie (`booking_events`). Een formulier met een verouderde status geeft 409. Geen wachtlijst
     (komt later, met automatisch doorschuiven).
+  - **Aanmelding invoeren** op `/app/aanmeldingen/nieuw/` (knop op de lijst Aanmeldingen; recht `aanmeldingen` plus
+    `deelnemers.wijzigen`, `gegevens.identiteit` en `gegevens.gezondheid`: beheerder en kantoor;
+    `app/src/booking/manual-routes.js`): voor een aanmelding per telefoon, mail of op papier. Eerst de reis (alleen
+    reizen die nog vertrekken, ook concepten; volgeboekt kan niet), dan dezelfde velden en dezelfde controle als het
+    formulier (`validateBooking`, met de toestemmingen per bijzonder gegeven en de ouder of voogd onder de 16), met
+    teksten die zeggen dat kantoor alleen aanvinkt wat de deelnemer zelf gaf. Het kerkgenootschap staat er alleen met
+    `gegevens.religie`; zonder dat recht negeert de server het veld. Opslaan via dezelfde functie als het formulier
+    (`app/src/booking/save-booking.js`: persoon, aanmelding, bedragen en toestemmingen in één transactie, met slot op
+    de reis), plus een regel in de historie (hoe binnengekomen, toelichting) en het auditlog. De bevestiging aan de
+    deelnemer (en ouder) gaat alleen als kantoor dat aanvinkt; kantoor krijgt geen melding van zijn eigen invoer. Staat
+    er al een niet-geannuleerde aanmelding voor die reis met hetzelfde e-mailadres, dezelfde achternaam en voornamen (dubbelklik,
+    opnieuw verzenden), dan slaat het niets op (409, met een link) tot kantoor *Toch opslaan* aanvinkt.
+  - **Berichten** op `/app/berichten/` (recht `berichten`: beheerder en kantoor; `app/src/contact/messages.js` en
+    `message-routes.js`, migratie 30): de berichten van het contactformulier met filter (nieuw, afgehandeld, alle) en
+    zoeken op naam, e-mailadres, telefoon of tekst; per bericht de tekst met regeleinden, de afzender met mail- en
+    belknop en de reis waar het over gaat. *Afhandelen* (met een optionele notitie) legt vast wie en wanneer; een
+    afgehandeld bericht kan weer op nieuw, spam kan weg (met bevestiging). Twee keer afhandelen geeft 409. Alles in het
+    auditlog, zonder de inhoud. Het menu toont naast *Berichten* het aantal nieuwe berichten (`app/src/crm/menu-counters.js`:
+    alleen bij een pagina en met het recht; een nieuwe teller is één regel daar en `counter` bij het menu-item).
   - **Betalingen** op `/app/betalingen/<aanmelding>/` (recht `betalingen`: beheerder, kantoor, boekhouding;
     `app/src/payments/payments.js` en `payment-routes.js`, migratie 26): per aanmelding de verwachte bedragen
     (`booking_charges`: reissom, SGR-garantie € 5 en boekingskosten € 15 bij aanmelden, plus korting,
@@ -618,7 +664,7 @@ Alleen docs/CI zonder effect op de app: label `geen-releasenotes`.
 | idem, *Require status checks* | `Claude code review`, `Claude security review`, `version-must-increase`, `test`, `image` |
 | Settings > General | *Allow auto-merge* aan, *Automatically delete head branches* aan |
 | Settings > Code security | Secret scanning + push protection aan |
-| Issues > Labels | label `geen-releasenotes` aanmaken |
+| Issues > Labels | labels `geen-releasenotes` en `changelog-correctie` aanmaken |
 | Packages (na de eerste release) | package `avanta-reizen` aan deze repo koppelen (*Connect repository*) en de zichtbaarheid kiezen (privé: de server logt in op GHCR met een token met *read:packages*) |
 | GitHub Apps | Claude GitHub App installeren op deze repo (voor de reviews) |
 | Renovate (optioneel) | Renovate-app activeren; config staat in `renovate.json` |

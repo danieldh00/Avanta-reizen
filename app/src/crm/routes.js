@@ -2,7 +2,7 @@
  * Router van het CRM onder `/app/`: de gedeelde schil (limiet, formuliergrootte per onderdeel, sessie laden) en de
  * routes van alle modules. De routes zelf staan per onderwerp in een eigen bestand: toegang in `crm/login-routes.js`,
  * het overzicht in `crm/dashboard-routes.js`, en per module een ingang `index.js` (`persons/`, `booking/`,
- * `payments/`, `trips/`, `cms/`, `media/`) die
+ * `payments/`, `trips/`, `cms/`, `media/`, `contact/`) die
  * de routes van die module koppelt. Een nieuw scherm in een module komt in de ingang van die module, niet hier.
  * Alles onder `/app/` krijgt `Cache-Control: no-store` en `noindex`.
  */
@@ -14,8 +14,10 @@ const { createPasswordCheck } = require('../security/password-check');
 const { renderCrmPage } = require('./layout');
 const { createLoginRoutes, generateSetupCode, normalizeSetupCode, MAX_FAILED_LOGINS, LOCK_MINUTES, MAX_FAILED_LOGINS_PER_ACCOUNT } = require('./login-routes');
 const { createDashboardRoutes } = require('./dashboard-routes');
+const { createSearchRoutes } = require('./search-routes');
 const { normalizeEmail, textField } = require('./input');
 const { createUserRoutes } = require('./users');
+const { createAuditRoutes } = require('./audit-routes');
 const { createPersonsModuleRoutes } = require('../persons');
 const { createBookingModuleRoutes } = require('../booking');
 const { createPaymentsModuleRoutes } = require('../payments');
@@ -25,11 +27,13 @@ const { createVault } = require('../security/vault');
 const { createMediaModuleRoutes } = require('../media');
 const { createTripsModuleRoutes } = require('../trips');
 const { createCmsModuleRoutes } = require('../cms');
+const { createContactModuleRoutes } = require('../contact');
+const { createMenuCounters } = require('./menu-counters');
 const { createBeheerRoutes } = require('../beheer/routes');
 
 /**
  * Bouwt de CRM-router.
- * @param {{db: object, masterKey: Buffer, settings: object, passwordCheck?: object, mailer?: object, wanIp?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
+ * @param {{db: object, masterKey: Buffer, settings: object, passwordCheck?: object, mailer?: object, wanIp?: object, notifications?: object, captcha?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, auditExportMax?: number, setupCode?: string, secureCookies?: boolean, now?: () => number}} options
  *   Database, hoofdsleutel, de instellingen (`beheer/settings.js`), de wachtwoordcontrole (`security/password-check.js`,
  *   anders een nieuwe), de mailer en WAN-IP-opzoeker (`mail/`), de captcha, de installatiecode voor de eerste beheerder (zonder code geen installatie), of de cookie
  *   `Secure` krijgt en (voor tests) de klok van de limieten.
@@ -62,20 +66,27 @@ function createCrmRouter(options) {
   const pageForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 100 });
   // Blog: als pagina's, plus een vinkje per categorie en tag (hoogstens 2 × 200).
   const blogForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 450 });
+  // Aanmelding handmatig invoeren: alle velden van het aanmeldformulier (zoals `/aanmelden/`).
+  const bookingForms = express.urlencoded({ extended: false, limit: '32kb', parameterLimit: 80 });
   router.use((req, res, next) => {
     if (req.path.startsWith('/beheer/')) return beheerForms(req, res, next);
     if (req.path.startsWith('/paginas/') || req.path.startsWith('/faq/') || req.path.startsWith('/reisleiders/')) return pageForms(req, res, next);
     if (req.path.startsWith('/blog/')) return blogForms(req, res, next);
+    if (req.path === '/aanmeldingen/nieuw/') return bookingForms(req, res, next);
     if (req.path.startsWith('/fotobibliotheek/')) return mediaForms(req, res, next);
     return smallForms(req, res, next);
   });
   router.use(auth.loadSession);
+  // Tellers naast menu-items (nieuwe berichten), alleen voor pagina's en met het recht (`crm/menu-counters.js`).
+  router.use(createMenuCounters({ db }));
 
   // Toegang en overzicht.
   router.use(createLoginRoutes({ db, auth, twoFactor, passwordCheck, setupCode: options.setupCode, now: options.now }));
   router.use(createDashboardRoutes({ db, auth, twoFactor, settings: options.settings, monitor: options.monitor, backups: options.backups, systemUpdate: options.systemUpdate, appLog: options.appLog, now: options.now }));
+  router.use(createSearchRoutes({ db, auth }));
   router.use(createTwoFactorRoutes({ db, auth, twoFactor, now: options.now }));
   router.use(createUserRoutes({ db, auth, twoFactor, passwordCheck, normalizeEmail, textField }));
+  router.use(createAuditRoutes({ db, auth, now: options.now, exportMax: options.auditExportMax }));
   // De modules met een eigen ingang: elk koppelt zijn eigen routes (`<module>/index.js`). Elke module heeft eigen
   // adressen (`/deelnemers/`, `/aanmeldingen/`, `/betalingen/`, …), dus de volgorde tussen modules maakt niet uit.
   const moduleContext = { ...options, db, auth, persons };
@@ -85,6 +96,7 @@ function createCrmRouter(options) {
   router.use(createMediaModuleRoutes(moduleContext));
   router.use(createTripsModuleRoutes(moduleContext));
   router.use(createCmsModuleRoutes(moduleContext));
+  router.use(createContactModuleRoutes(moduleContext));
   router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, passwordCheck, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, retention: options.retention, siteContent: options.siteContent, now: options.now }));
 
   router.use((req, res) => {

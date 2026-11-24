@@ -1,8 +1,8 @@
 /**
- * Gebruikersbeheer en auditlog van het CRM (recht `gebruikers`): lijst, nieuwe gebruiker, rol/naam/e-mail wijzigen,
+ * Gebruikersbeheer van het CRM (recht `gebruikers`): lijst, nieuwe gebruiker, rol/naam/e-mail wijzigen,
  * blokkeren, een nieuw wachtwoord instellen, de tweestapsverificatie uitzetten (toestel kwijt) en een activatiecode
  * maken waarmee de gebruiker 2FA kan instellen. De laatste actieve beheerder kan niet worden gedegradeerd of
- * geblokkeerd. Elke wijziging komt in het auditlog, zonder de waarden zelf.
+ * geblokkeerd. Elke wijziging komt in het auditlog (scherm in `audit-routes.js`), zonder de waarden zelf.
  */
 const express = require('express');
 const { html, raw } = require('../site/html');
@@ -12,6 +12,7 @@ const { renderCrmPage, renderInput, renderAlert, formatDateTime } = require('./l
 const { PERSON_ACTION_LABELS } = require('../persons/person-routes');
 const { MERGE_ACTION_LABELS } = require('../persons/person-merge-routes');
 const { BOOKING_ACTION_LABELS } = require('../booking/crm-routes');
+const { MANUAL_ACTION_LABELS } = require('../booking/manual-routes');
 const { PAYMENT_ACTION_LABELS } = require('../payments/payment-routes');
 const { PAYMENT_OVERVIEW_ACTION_LABELS } = require('../payments/payment-overview-routes');
 const { PARTICIPANT_LIST_ACTION_LABELS } = require('../persons/participant-list-routes');
@@ -27,9 +28,7 @@ const { MENU_ACTION_LABELS } = require('../cms/menu-routes');
 const { ACCOUNT_ACTION_LABELS } = require('../account/routes');
 const { RETENTION_ACTION_LABELS } = require('../beheer/retention-routes');
 const { PRIVACY_ACTION_LABELS } = require('../persons/person-privacy-routes');
-
-/** Aantal regels per pagina van het auditlog. */
-const AUDIT_PAGE_SIZE = 100;
+const { MESSAGE_ACTION_LABELS } = require('../contact/message-routes');
 
 /** Omschrijving van de acties in het auditlog. */
 const ACTION_LABELS = {
@@ -69,6 +68,7 @@ const ACTION_LABELS = {
   ...PERSON_ACTION_LABELS,
   ...MERGE_ACTION_LABELS,
   ...BOOKING_ACTION_LABELS,
+  ...MANUAL_ACTION_LABELS,
   ...PAYMENT_ACTION_LABELS,
   ...PAYMENT_OVERVIEW_ACTION_LABELS,
   ...PARTICIPANT_LIST_ACTION_LABELS,
@@ -84,10 +84,11 @@ const ACTION_LABELS = {
   ...ACCOUNT_ACTION_LABELS,
   ...RETENTION_ACTION_LABELS,
   ...PRIVACY_ACTION_LABELS,
+  ...MESSAGE_ACTION_LABELS,
 };
 
 /**
- * Maakt de routes voor gebruikersbeheer en het auditlog.
+ * Maakt de routes voor gebruikersbeheer (het auditlog staat in `audit-routes.js`).
  * @param {{db: object, auth: object, twoFactor: object, passwordCheck: {problem: Function}, normalizeEmail: Function, textField: Function}} options
  *   Database, sessie- en rechtenlaag, de 2FA-opslag (`crm/two-factor.js`), de wachtwoordcontrole
  *   (`security/password-check.js`) en de invoerhulpen uit `crm/routes.js`.
@@ -467,43 +468,7 @@ function createUserRoutes(options) {
     }
   });
 
-  router.get('/auditlog/', guard, async (req, res, next) => {
-    try {
-      const before = /^\d{1,18}$/.test(String(req.query.voor || '')) ? String(req.query.voor) : null;
-      const rows = await db.query(
-        `SELECT a.id, a.created_at, a.action, a.entity, a.entity_id, a.ip_prefix, u.name AS user_name
-           FROM audit_log a LEFT JOIN users u ON u.id = a.user_id
-          WHERE ($1::bigint IS NULL OR a.id < $1::bigint)
-          ORDER BY a.id DESC
-          LIMIT $2`,
-        [before, AUDIT_PAGE_SIZE + 1],
-      );
-      const page = rows.slice(0, AUDIT_PAGE_SIZE);
-      const older = rows.length > AUDIT_PAGE_SIZE ? page[page.length - 1].id : null;
-      return res.send(renderCrmPage({
-        title: 'Auditlog',
-        user: req.user,
-        csrf: req.session.csrf,
-        path: '/app/auditlog/',
-        body: html`<p>Wie wat deed en wanneer. Waarden en persoonsgegevens worden nooit gelogd; het IP-adres alleen ingekort.</p>
-          <div class="crm-table-wrap"><table class="crm-table">
-            <thead><tr><th scope="col">Tijdstip</th><th scope="col">Gebruiker</th><th scope="col">Actie</th><th scope="col">Record</th><th scope="col">IP-reeks</th></tr></thead>
-            <tbody>${page.map((row) => html`<tr>
-              <td>${formatDateTime(row.created_at)}</td>
-              <td>${row.user_name || '–'}</td>
-              <td>${ACTION_LABELS[row.action] || row.action}</td>
-              <td>${row.entity ? `${row.entity} #${row.entity_id}` : '–'}</td>
-              <td>${row.ip_prefix || '–'}</td>
-            </tr>`)}</tbody>
-          </table></div>
-          ${older ? html`<p><a href="/app/auditlog/?voor=${older}">Oudere regels</a></p>` : ''}`,
-      }));
-    } catch (error) {
-      return next(error);
-    }
-  });
-
   return router;
 }
 
-module.exports = { createUserRoutes, ACTION_LABELS, AUDIT_PAGE_SIZE };
+module.exports = { createUserRoutes, ACTION_LABELS };

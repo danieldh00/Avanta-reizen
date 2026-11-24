@@ -1,5 +1,100 @@
 # Changelog
 
+## 0.30.3 — 2026-11-24 — Auditlog filteren en exporteren naar Excel
+
+- Het auditlog in Beheer heeft nu filters: op gebruiker (ook systeem of onbekend), actie, soort record, recordnummer en
+- Met **Excel (.xlsx)** exporteer je dezelfde selectie, met een tweede blad dat vermeldt welke filters zijn gebruikt,
+
+Pakket P4.4 (bevinding F06).
+- `crm/audit-log.js` (filters, `auditWhere` met parameters en hele dagen in Europe/Amsterdam, pagina's op id, export met
+  maximum van 50.000 regels, werkboek) en `crm/audit-routes.js` (`/app/auditlog/` en `/app/auditlog/export.xlsx`,
+  recht `gebruikers`, 10 exports per 10 minuten per gebruiker, 422 boven het maximum); de oude route uit `crm/users.js`
+  is vervallen.
+- Migratie 31: indexen `audit_log (user_id, id)`, `(action, id)` en `(entity_id, id)`; de keuzelijst *Soort record* komt uit `ENTITIES` in plaats van uit het log.
+- Opmaak `.crm-audit-filter` in `crm.css`; design-controle koppelt `crm/audit-*` aan `/app/auditlog/`.
+
+## 0.30.2 — 2026-11-24 — Zoeken over het hele CRM vanuit de kopbalk
+
+- Bovenin het CRM staat nu een zoekveld (op de telefoon een zoekknop). Je zoekt in één keer in aanmeldingen,
+
+Pakket P4.3 (bevinding B03).
+- `crm/search.js` (`SEARCH_SOURCES`: per bron het recht, vaste SQL, link en toelichting; `searchCrm` met
+  `searchPatterns`) en `crm/search-routes.js` (`/app/zoeken/`, 403 zonder doorzoekbare bron).
+- Kopbalk (`crm/layout.js`): zoekveld met de zoekterm, op ≤ 800 px een knop naar de zoekpagina; opmaak in `crm.css`.
+- Design-controle: `crm/search*` koppelt aan `/app/zoeken/?q=test`.
+
+## 0.30.1 — 2026-11-24 — Aanmelding handmatig invoeren in het CRM
+
+- Kantoor kan een aanmelding die per telefoon, mail of op papier binnenkomt zelf invoeren: knop **Aanmelding
+- Je kiest hoe de aanmelding binnenkwam; dat staat daarna in de historie. De bevestiging aan de deelnemer gaat alleen
+
+Pakket P4.2 (bevinding F02).
+- `booking/manual-routes.js`: `/app/aanmeldingen/nieuw/` (recht `aanmeldingen` plus `deelnemers.wijzigen`,
+  `gegevens.identiteit`, `gegevens.gezondheid`); velden uit `FIELD_GROUPS` met `validateBooking`, kerkgenootschap alleen
+  met `gegevens.religie` (anders genegeerd), bron en toelichting naar `booking_events`, audit `aanmelding.handmatig`,
+  bevestiging naar keuze; een bestaande aanmelding voor dezelfde reis, e-mail, achternaam en voornamen houdt het opslaan tegen
+  (409, onder het slot op de reis) tot *Toch opslaan* is aangevinkt. Formuliergrootte voor dit pad in `crm/routes.js` gelijk aan `/aanmelden/`.
+- `booking/save-booking.js`: het opslaan (slot op de reis, persoon, aanmelding, bedragen, toestemmingen, nieuwe
+  referentie bij een botsing) uit `booking/routes.js` gehaald en gedeeld; gedrag van het formulier ongewijzigd.
+- `server.js` geeft `notifications` door aan het CRM.
+
+## 0.30.0 — 2026-11-24 — Berichten van het contactformulier afhandelen in het CRM
+
+- Nieuw in het CRM onder Boekingen: **Berichten**. Hier staan de vragen die via het contactformulier binnenkomen, met
+- Per bericht zie je de tekst, de afzender (met knop om te mailen of te bellen) en de reis waar de vraag over gaat.
+
+Pakket P4.1 (bevinding F01).
+- Migratie 30: `contact_messages` krijgt `handled_at`, `handled_by` (gebruiker, `ON DELETE SET NULL`), `note` en een
+  controle op de status (`nieuw`, `afgehandeld`).
+- Nieuw recht `berichten` (beheerder, kantoor) en schermen `/app/berichten/` in `contact/messages.js` en
+  `contact/message-routes.js` (ingang `contact/index.js`): lijst met filter en zoeken, afhandelen met notitie,
+  weer openen en verwijderen met bevestiging, met audit (`bericht.afgehandeld`, `bericht.heropend`,
+  `bericht.verwijderd`) en 409 bij een verouderde stand.
+- `crm/menu-counters.js`: tellers naast menu-items (`counter` in `CRM_MENU`), alleen bij een GET en met het recht.
+
+## 0.29.9 — 2026-11-24 — HSTS-preload als instelling voor na de livegang
+
+- Beheer > Toegang en beveiliging heeft een schakelaar *HSTS-preload*. Zet hem pas aan na een stabiele periode na de livegang; de controle voor de livegang toont hem als stap voor later.
+
+- `server.js`: `hstsValue()` stuurt `max-age=63072000; includeSubDomains; preload` alleen als `hstsPreload` aan staat, de site live is (`seoIndexing`) en het verzoek op de host van het basisadres (`siteUrl`) binnenkomt; anders blijft het `max-age=31536000`. De testomgeving (altijd noindex, eigen host) krijgt nooit `preload`. De kop wordt pas gezet na `settings.ready()`, dus ook het eerste verzoek na een start volgt Beheer; de instelling heeft geen omgevingsvariabele.
+- Nieuwe instelling `hstsPreload` (sectie *HSTS-preload* in Toegang en beveiliging, bevestiging bij aanzetten) en een regel in de controle voor de livegang (`later` tot hij aan staat).
+- Tests voor alle voorwaarden, de livegangregel en een integratietest via de echte app (`test/hsts-preload.test.js`); `docs/GO-LIVE.md` §4.5 beschrijft de stappen (subdomeinen, kale domein, hstspreload.org).
+
+## 0.29.8 — 2026-11-24 — Art. 9-gegevens van het oude formulier opruimen
+
+- Kerkgenootschap en medische bijzonderheden uit aanmeldingen van het oude formulier worden niet meer overgenomen en, waar dat eerder wel gebeurde, gewist: het oude formulier vroeg daar geen losse toestemming voor.
+
+- `persons/persons.js`: `backfillPersons` neemt `church` en `particulars` niet meer over en legt geen regel `oud-formulier, geen losse art. 9-toestemming` meer vast; nieuwe `purgeLegacyArt9` wist bij het starten de blokken met zo'n regel (behalve bij een latere echte toestemming van dezelfde soort) en trekt die regels in (bevinding A10). `backfillPersons` geeft nu ook `purged` en `purgeFailed` terug, alleen als aantallen in het log; een fout bij één persoon houdt de opschoning van de anderen niet tegen; per opgeschoonde persoon een auditregel `deelnemer.art9-oud-formulier.gewist` (door het systeem, zonder gegevens).
+- `persons/participant-lists.js`: een toestemming uit het oude formulier telt ook in de deelnemerslijst nooit als toestemming.
+
+## 0.29.7 — 2026-11-24 — Toestemming van ouder of voogd bij deelnemers onder de 16
+
+- Is een deelnemer op de dag van aanmelden jonger dan 16, dan vraagt het aanmeldformulier de gegevens en de toestemming van een ouder of voogd. De ouder krijgt een eigen bevestiging per mail.
+- In het CRM staat bij de deelnemer een blok *Ouder of voogd* en bij elke toestemming wie hem gaf. De deelnemerslijst neemt de ouder mee bij de categorie gezondheid.
+
+- Migratie 29: `persons.guardian_data` (versleuteld blok, AAD `persons:guardian_data:<id>`), `consents.given_by` (`deelnemer` of `ouder_voogd`) en soort `ouder_voogd` (A02 uit de audit).
+- `booking/fields.js`: groep *Ouder of voogd* (`guardian: true`), `ageOn`, `needsGuardian`, `GUARDIAN_AGE = 16`; boven de grens worden de velden leeggemaakt. Tekstversie toestemmingen naar `2026-11-23`.
+- `persons/persons.js`: blok `guardian_data` (recht `gegevens.gezondheid`), `recordConsents` legt vast wie de toestemming gaf. De toestemming `ouder_voogd` is niet los in te trekken in het CRM.
+- `mail/notifications.js`: `guardianConfirmation` (soort `bevestiging-ouder`, nooit bijzondere gegevens, vaste aanhef zonder vrije tekst in de lopende tekst, hoogstens 10 per ontvangend adres per etmaal, overslaan zichtbaar in het logboek zonder persoonsgegevens), onder dezelfde instelling als de bevestiging aan de reiziger.
+- AVG-opschoning, anonimiseren, samenvoegen, inzage-export en deelnemerslijst nemen het nieuwe blok mee. Testdata: deelnemers onder de 16 krijgen een verzonnen ouder.
+
+## 0.29.6 — 2026-11-24 — Design-controle in CI op de gewijzigde schermen
+
+- Nieuwe CI-job `design` (`ci.yml`): draait de design-controle met Playwright alleen op de schermen die een PR raakt, op
+  1440 en 375 px, en faalt bij bevindingen met ernst hoog. Een PR zonder geraakt scherm (docs, migraties, beveiliging,
+  tests) slaat de job over; op `main` draait hij niet.
+- `tools/design-check/changed-screens.js`: koppelt gewijzigde bestanden aan schermen (`SCREEN_RULES`); gedeelde opmaak
+  (`site.css`, `crm.css`, `crm/ui.js`, layout) geeft een vaste set kernschermen van dat deel.
+- `tools/design-check/ci-summary.js`: korte samenvatting bij de job; het rapport (.xlsx met uitsneden) staat in het
+  artefact `design-controle` (7 dagen).
+- `check.js`: een pad met `*` volgt in de gerichte run ook op de publieke site links onder dat pad (maximaal twee per
+  soort scherm), bijvoorbeeld `/reis/*` voor de reislijst en twee reispagina's.
+- `seed.js`: maakt de testbeheerder ook aan als er al gebruikers zijn (bijvoorbeeld na de testdata uit `src/dev/seed/`).
+- `page-checks.js`: "afgekapt" telt geen tekst meer mee die in een eigen scroll- of afknipvak ligt (schuifbalk met
+  reizen) of verborgen is (inactieve dia's); dat gaf op de homepage een valse melding met ernst hoog.
+- Documentatie (`.md`) in een map met schermen start de job niet; mislukt het ophalen van de gewijzigde bestanden, dan
+  draait de job op een kleine vaste set (`/` en `/app/`).
+
 ## 0.29.5 — 2026-11-24 — Design-controle met Playwright
 
 - Nieuw hulpmiddel `app/tools/design-check/`: Playwright-controle van alle schermen (site, reizigersaccount, CRM,
@@ -272,7 +367,7 @@ opnieuw wordt opgeslagen; daarna blijft alleen de gekozen reisleider over.
 
 ## 0.26.4 — 2026-11-21 — Beheer als eigen omgeving met een tweede zijbalk
 
-- Beheer staat nu in een eigen omgeving, zoals in AquaTech: in de hoofdzijbalk staat één knop *Beheer*, en daarin
+- Beheer staat nu in een eigen omgeving: in de hoofdzijbalk staat één knop *Beheer*, en daarin
 
 - `crm/layout.js`: de groepen van Beheer en het zoekveld zijn uit de hoofdzijbalk; daar staat één ingang *Beheer*
   (`/app/beheer/` met recht `systeem`, anders `/app/gebruikers/` met recht `gebruikers`). Op paden onder
@@ -582,9 +677,9 @@ opnieuw wordt opgeslagen; daarna blijft alleen de gekozen reisleider over.
   kleinere varianten via `resizeWebp`, hash gecontroleerd); bij het starten en dagelijks, met meldingen in het logboek.
 - `docs/DRAAIBOEK-VPS-VERHUIZING.md` bijgewerkt.
 
-## 0.13.0 — 2026-11-21 — Zijbalk voor CRM en Beheer zoals in AquaTech
+## 0.13.0 — 2026-11-21 — Zijbalk voor CRM en Beheer
 
-- Het CRM en Beheer hebben een vaste zijbalk links, zoals in AquaTech: alle onderdelen in groepen, de huidige pagina
+- Het CRM en Beheer hebben een vaste zijbalk links: alle onderdelen in groepen, de huidige pagina
 
 - `crm/layout.js`: de menubalk bovenin is vervangen door een vaste zijbalk met logo, zoekveld voor Beheer (recht
   `systeem`), groepen Reizigers, Website, Gebruikers en de groepen van Beheer (`beheer/indeling.js`), en een voet met
@@ -797,7 +892,7 @@ Het CRM houdt zijn rustige knoppen en koppen.
   sessies vervallen. Verkeerde codes per account in `users.totp_failures` (5 per kwartier, overleeft een herstart).
 - Activatiecode (eenmalig, 7 dagen, SHA-256) nodig voor elk aanzetten van 2FA; bij gebruik meteen gewist, daarna mag alleen die sessie instellen
   (`POST /app/tweestaps/activeren/`, `POST /app/gebruikers/:id/activatiecode/`).
-- `crm/totp.js` (TOTP volgens RFC 6238, herstelcodes) en `crm/qr-code.js` overgenomen uit AquaTech; `crm/two-factor.js`
+- `crm/totp.js` (TOTP volgens RFC 6238, herstelcodes) en `crm/qr-code.js` als eigen code zonder bibliotheek; `crm/two-factor.js`
   met de opslag, de codestap `/app/inloggen/code/` en het scherm `/app/tweestaps/` (instellen, nieuwe herstelcodes,
   uitzetten als het niet verplicht is).
 - Halve sessie na het wachtwoord (`mfa_ok` onwaar, 15 minuten, alleen de tweede stap bereikbaar); na de code een nieuwe

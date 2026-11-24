@@ -211,6 +211,13 @@ test('deelnemers in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbre
     assert.equal((await request(`${path}toestemming/${consent.id}/intrekken/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } })).status, 404, 'tweede keer');
     const [terms] = await db.query("SELECT id FROM consents WHERE person_id = $1 AND kind = 'voorwaarden'", [personId]);
     assert.equal((await request(`${path}toestemming/${terms.id}/intrekken/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } })).status, 404, 'voorwaarden niet via dit scherm');
+    // De toestemming van een ouder of voogd hoort bij de aanmelding: niet los in te trekken, wel zichtbaar met wie hem gaf.
+    const [guardian] = await db.query("INSERT INTO consents (person_id, kind, text_version, given_by) VALUES ($1, 'ouder_voogd', 'test', 'ouder_voogd') RETURNING id", [personId]);
+    assert.equal((await request(`${path}toestemming/${guardian.id}/intrekken/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf } })).status, 404, 'ouder of voogd niet via dit scherm');
+    const page = await request(path, { cookie: sessions.kantoor.cookie });
+    assert.match(page.text, /<td>Aanmelding door ouder of voogd \(deelnemer onder 16\)<\/td><td>Ouder of voogd<\/td>/);
+    assert.doesNotMatch(page.text, new RegExp(`toestemming/${guardian.id}/intrekken/`), 'geen knop');
+    await db.query('DELETE FROM consents WHERE id = $1', [guardian.id]);
     const again = await request(`${path}blok/`, { cookie: sessions.kantoor.cookie, form: { _csrf: sessions.kantoor.csrf, block: 'health_data', particulars: 'Astma' } });
     assert.equal(again.status, 422, 'na intrekken geen nieuwe gezondheidsgegevens');
     // Gelijktijdig opslaan en intrekken (religie): welke volgorde ook, er blijft nooit een blok zonder toestemming staan.

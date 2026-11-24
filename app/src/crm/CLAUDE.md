@@ -5,11 +5,12 @@ Indeling in modules en parallel werken: `docs/ARCHITECTUUR.md`. Wie in deze map 
 een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de root).
 
 ## Bestanden
-- CRM onder `/app/`: `routes.js` (schil: limiet, formuliergrootte, sessie, en de modules via hun ingang `<module>/index.js` in `persons/`, `booking/`, `payments/`, `trips/`, `cms/`, `media/`; een nieuw scherm komt in de ingang van zijn module)
+- CRM onder `/app/`: `routes.js` (schil: limiet, formuliergrootte, sessie, en de modules via hun ingang `<module>/index.js` in `persons/`, `booking/`, `payments/`, `trips/`, `cms/`, `media/`, `contact/`; een nieuw scherm komt in de ingang van zijn module)
 - `login-routes.js` (inloggen, uitloggen, installatie, wachtwoord wijzigen)
 - `dashboard-routes.js` (route van het overzicht; de reisleider krijgt `guide-dashboard.js`)
 - `input.js` (`normalizeEmail`, `textField`)
-- `users.js` (gebruikers, auditlog, 2FA uitzetten)
+- `users.js` (gebruikers, 2FA uitzetten, `ACTION_LABELS`: omschrijving van elke actie in het auditlog)
+- `audit-log.js` (auditlog lezen: filters, pagina's op id, regels en Excel-bestand voor de export) en `audit-routes.js` (`/app/auditlog/` met filters en `/app/auditlog/export.xlsx`)
 - `auth.js` (sessies, halve sessie tot de tweede stap, CSRF, `requireRight`, audit)
 - `two-factor.js` (2FA: opslag, codestap `/app/inloggen/code/`, scherm `/app/tweestaps/`)
 - `totp.js` (TOTP + herstelcodes)
@@ -17,6 +18,8 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `rights.js`
 - `passwords.js`
 - `layout.js`
+- `menu-counters.js` (tellers naast menu-items, bijv. nieuwe berichten; `counter` in `CRM_MENU`)
+- `search.js` (zoeken over het hele CRM: bronnen met hun recht en vaste SQL) en `search-routes.js` (`/app/zoeken/`; zoekveld in de kopbalk in `layout.js`)
 - `ui.js` (bouwstenen voor lijsten; `renderTable` wordt op mobiel kaarten via `data-label`)
 - `dashboard.js` (overzicht `/app/`: per recht ophalen en tekenen)
 - `guide-dashboard.js` (overzicht `/app/` voor de reisleider: eigen vertrekken, aantallen, stand van het venster, link naar de deelnemerslijst)
