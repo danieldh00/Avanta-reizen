@@ -189,6 +189,18 @@ test('aanmelding handmatig invoeren', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.match((await request('/app/auditlog/', { cookie: beheerder.cookie })).text, /Aanmelding handmatig ingevoerd/);
   });
 
+  await t.test('dubbel verzenden: 409 met de bestaande aanmelding, niets opgeslagen; bewust toch opslaan kan', async () => {
+    const [first] = await db.query("SELECT id, reference FROM bookings WHERE last_name = 'Jansen'");
+    const again = await submit(adultForm({ email: 'anna@example.nl', last_name: 'JANSEN' }));
+    assert.equal(again.status, 409);
+    assert.match(again.text, new RegExp(`href="/app/aanmeldingen/${first.id}/">${first.reference}</a>`));
+    assert.match(again.text, /name="toch_opslaan"/);
+    assert.equal((await db.query("SELECT count(*)::int AS total FROM bookings WHERE lower(last_name) = 'jansen'"))[0].total, 1);
+    const second = await submit(adultForm({ toch_opslaan: 'ja' }));
+    assert.equal(second.status, 303);
+    assert.equal((await db.query("SELECT count(*)::int AS total FROM bookings WHERE lower(last_name) = 'jansen'"))[0].total, 2);
+  });
+
   await t.test('zonder vinkje geen mail; ouder onder de 16 met toestemming van de ouder', async () => {
     sent.length = 0;
     const child = await submit(adultForm({

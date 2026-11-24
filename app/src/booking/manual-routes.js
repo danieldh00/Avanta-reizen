@@ -208,7 +208,8 @@ function createManualBookingRoutes(options) {
    * Het formulier voor één reis.
    * @param {object} req Express-verzoek.
    * @param {object} trip De reis.
-   * @param {{values?: object, errors?: object}} [state] Ingevulde waarden en fouten.
+   * @param {{values?: object, errors?: object, existing?: {id: number, reference: string}}} [state] Ingevulde waarden,
+   *   fouten en een bestaande aanmelding voor dezelfde reis en persoon (dan staat het vinkje *Toch opslaan* erbij).
    * @returns {string} HTML-pagina.
    */
   const renderForm = (req, trip, state = {}) => {
@@ -223,6 +224,8 @@ function createManualBookingRoutes(options) {
       path: '/app/aanmeldingen/',
       body: html`<p><a href="${BASE}">Andere reis kiezen</a></p>
         ${hasErrors ? renderAlert(errors._form || 'Controleer de gemarkeerde velden.') : ''}
+        ${state.existing ? html`<div class="form-alert" role="alert">Er staat al een aanmelding voor deze reis met dit e-mailadres en deze achternaam:
+          <a href="/app/aanmeldingen/${state.existing.id}/">${state.existing.reference}</a>. Er is niets opgeslagen. Is dit echt een tweede aanmelding, vink dan onderaan <em>Toch opslaan</em> aan.</div>` : ''}
         <form class="form crm-narrow crm-narrow--wide crm-manual" method="post" action="${BASE}" novalidate aria-label="Aanmelding invoeren voor ${trip.title}">
           <input type="hidden" name="_csrf" value="${req.session.csrf}">
           <input type="hidden" name="reis" value="${trip.id}">
@@ -252,6 +255,7 @@ function createManualBookingRoutes(options) {
               <div class="field full"><span class="field__label"><label for="veld-toelichting">Toelichting (niet verplicht)</label></span>
                 <textarea id="veld-toelichting" name="toelichting" rows="2" maxlength="${NOTE_MAX}">${values.toelichting || ''}</textarea></div>
               <div class="field full"><label class="choice"><input type="checkbox" name="mail_confirmation" value="ja"${values.mail_confirmation === 'ja' ? raw(' checked') : ''}> <span>Bevestiging mailen naar de deelnemer (en bij een deelnemer onder de ${GUARDIAN_AGE} ook naar de ouder of voogd)</span></label></div>
+              ${state.existing ? html`<div class="field full"><label class="choice"><input type="checkbox" name="toch_opslaan" value="ja"> <span>Toch opslaan: dit is een tweede aanmelding naast ${state.existing.reference}</span></label></div>` : ''}
             </div>
           </fieldset>
           <div class="crm-actions"><button class="btn" type="submit">Aanmelding opslaan</button> <a class="btn btn--outline" href="/app/aanmeldingen/">Annuleren</a></div>
@@ -290,6 +294,8 @@ function createManualBookingRoutes(options) {
       const saved = await saver.saveBooking({
         trip,
         values,
+        // Dubbelklik of opnieuw verzenden: niet nog een keer, tenzij kantoor bewust een tweede aanmelding wil.
+        refuseExisting: body.toch_opslaan !== 'ja',
         afterSave: async (client, result) => {
           const historyNote = [`Handmatig ingevoerd (${SOURCES[source].toLowerCase()})`, note].filter(Boolean).join(': ');
           await client.query('INSERT INTO booking_events (booking_id, from_status, to_status, user_id, note) VALUES ($1, NULL, $2, $3, $4)', [result.bookingId, 'nieuw', req.user.id, historyNote]);
@@ -297,6 +303,7 @@ function createManualBookingRoutes(options) {
         },
       });
       if (!saved) return res.status(409).send(renderForm(req, trip, { values: shown, errors: { _form: 'Deze reis is intussen volgeboekt.' } }));
+      if (saved.existing) return res.status(409).send(renderForm(req, trip, { values: shown, errors: {}, existing: saved.existing }));
       // De bevestiging wacht niet op de mailserver en gooit nooit.
       if (notifications && mailConfirmation) {
         void notifications.bookingConfirmation({ reference: saved.reference, trip, values, depositCents: saved.depositCents });

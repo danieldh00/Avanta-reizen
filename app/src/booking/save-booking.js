@@ -38,7 +38,7 @@ function createBookingSaver(options) {
    * Slaat één poging op met een vaste referentie.
    * @param {string} reference Referentie.
    * @param {object} booking Zie `saveBooking`.
-   * @returns {Promise<(object|null)>} Zie `saveBooking`; null als de reis vol of weg is.
+   * @returns {Promise<(object|null)>} Zie `saveBooking`.
    */
   const saveOnce = (reference, booking) => db.transaction(async (client) => {
     const { trip, values } = booking;
@@ -49,6 +49,17 @@ function createBookingSaver(options) {
     if (!locked) return null;
     const [current] = await client.query(`SELECT ${fullyBookedSql('t')} AS full FROM trips t WHERE t.id = $1`, [trip.id]);
     if (current.full) return null;
+    // Kantoor: een tweede klik of opnieuw verzenden maakt geen tweede aanmelding. Onder het slot op de reis, dus een
+    // gelijktijdige tweede inzending ziet de eerste.
+    if (booking.refuseExisting) {
+      const [existing] = await client.query(
+        `SELECT id, reference FROM bookings
+          WHERE trip_id = $1 AND lower(email) = lower($2) AND lower(last_name) = lower($3) AND status <> 'geannuleerd'
+          ORDER BY id DESC LIMIT 1`,
+        [trip.id, values.email, values.last_name],
+      );
+      if (existing) return { existing };
+    }
     const { personId } = await persons.savePerson(client, values);
     const [saved] = await client.query(
       `INSERT INTO bookings (reference, trip_id, trip_code, trip_title, departure_date, gender, first_names, call_name, last_name,
@@ -72,12 +83,14 @@ function createBookingSaver(options) {
 
   /**
    * Slaat een aanmelding op.
-   * @param {{trip: object, values: Record<string, string>, accountId?: (number|null),
+   * @param {{trip: object, values: Record<string, string>, accountId?: (number|null), refuseExisting?: boolean,
    *   afterSave?: (client: object, saved: {bookingId: number, personId: number, reference: string}) => Promise<void>}} booking
    *   De reis (id, trip_code, title, departure_date, price_cents), de gecontroleerde formulierwaarden, het
-   *   reizigersaccount (of null) en eventueel extra stappen in dezelfde transactie.
-   * @returns {Promise<({reference: string, bookingId: number, personId: number, depositCents: (number|null)}|null)>}
-   *   De opgeslagen aanmelding, of null als de reis intussen volgeboekt of weg is.
+   *   reizigersaccount (of null), of een bestaande niet-geannuleerde aanmelding voor dezelfde reis met hetzelfde
+   *   e-mailadres en dezelfde achternaam het opslaan tegenhoudt, en eventueel extra stappen in dezelfde transactie.
+   * @returns {Promise<({reference: string, bookingId: number, personId: number, depositCents: (number|null)}|{existing: {id: number, reference: string}}|null)>}
+   *   De opgeslagen aanmelding; `{existing}` als `refuseExisting` een bestaande aanmelding vond; null als de reis
+   *   intussen volgeboekt of weg is.
    */
   const saveBooking = async (booking) => {
     for (let attempt = 1; ; attempt++) {

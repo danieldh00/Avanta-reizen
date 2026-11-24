@@ -324,7 +324,9 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     `gegevens.religie`; zonder dat recht negeert de server het veld. Opslaan via dezelfde functie als het formulier
     (`app/src/booking/save-booking.js`: persoon, aanmelding, bedragen en toestemmingen in één transactie, met slot op
     de reis), plus een regel in de historie (hoe binnengekomen, toelichting) en het auditlog. De bevestiging aan de
-    deelnemer (en ouder) gaat alleen als kantoor dat aanvinkt; kantoor krijgt geen melding van zijn eigen invoer.
+    deelnemer (en ouder) gaat alleen als kantoor dat aanvinkt; kantoor krijgt geen melding van zijn eigen invoer. Staat
+    er al een niet-geannuleerde aanmelding voor die reis met hetzelfde e-mailadres en dezelfde achternaam (dubbelklik,
+    opnieuw verzenden), dan slaat het niets op (409, met een link) tot kantoor *Toch opslaan* aanvinkt.
   - **Berichten** op `/app/berichten/` (recht `berichten`: beheerder en kantoor; `app/src/contact/messages.js` en
     `message-routes.js`, migratie 30): de berichten van het contactformulier met filter (nieuw, afgehandeld, alle) en
     zoeken op naam, e-mailadres, telefoon of tekst; per bericht de tekst met regeleinden, de afzender met mail- en
