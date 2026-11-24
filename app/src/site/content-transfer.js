@@ -12,7 +12,8 @@
  *   de blokken (ook in een openstaand concept), zodat de pagina er hetzelfde uitziet; het bericht of de pagina wordt
  *   daarmee beheerd in het CRM.
  * - `blog`: de tags en het uitgelichte bericht (alleen als er nog geen tags zijn, `copySiteTags`) en de link naar het
- *   oude blogarchief (als instelling, alleen als die afwijkt van de standaard en nog niet is ingesteld).
+ *   oude blogarchief (als instelling, alleen als die afwijkt van de standaard, nog niet is ingesteld en voldoet aan de
+ *   regels van het veld; met een regel in de auditlog zonder gebruiker).
  * - `homepage`: bestaat er nog geen pagina `/`, dan wordt de homepage uit `homepage.json` een gepubliceerde blokpagina
  *   (`homepageBlocks`, met dezelfde teksten en foto's).
  *
@@ -134,6 +135,19 @@ async function transferGalleries(client, fixed) {
 }
 
 /**
+ * Of een waarde uit het bestand voldoet aan de regels van het veld in Beheer (lengte, verplicht en eigen controle).
+ * @param {'blogArchiveLabel'|'blogArchiveUrl'} key Naam van de instelling.
+ * @param {*} value Waarde.
+ * @returns {boolean} Geldig.
+ */
+function validSetting(key, value) {
+  /** @type {any} */
+  const field = ORGANISATION_FIELDS[key];
+  if (typeof value !== 'string' || value.length > field.max || (field.required && !value)) return false;
+  return !field.validate || !field.validate(value);
+}
+
+/**
  * Zet de tags, het uitgelichte bericht en de link naar het oude blogarchief over.
  * @param {{query: Function}} client Transactie-client.
  * @param {{blogTags: object[], featuredPost: string, blogArchiveLink: {label: string, href: string}}} fixed Inhoud uit het bestand.
@@ -143,10 +157,15 @@ async function transferBlog(client, fixed) {
   const tags = await copySiteTags(client, fixed, null);
   const link = fixed.blogArchiveLink;
   let linkChanged = false;
-  for (const [key, value] of [['blogArchiveLabel', link.label], ['blogArchiveUrl', link.href]]) {
-    if (value === ORGANISATION_FIELDS[/** @type {'blogArchiveLabel'|'blogArchiveUrl'} */ (key)].default) continue;
-    const rows = await client.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING RETURNING key', [key, JSON.stringify(value)]);
-    linkChanged = linkChanged || rows.length > 0;
+  // Alleen een link die ook in Beheer geldig zou zijn (zelfde regels als het veld); anders blijft de standaard.
+  if (validSetting('blogArchiveLabel', link.label) && validSetting('blogArchiveUrl', link.href)) {
+    for (const [key, value] of [['blogArchiveLabel', link.label], ['blogArchiveUrl', link.href]]) {
+      if (value === ORGANISATION_FIELDS[/** @type {'blogArchiveLabel'|'blogArchiveUrl'} */ (key)].default) continue;
+      const rows = await client.query('INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, now()) ON CONFLICT (key) DO NOTHING RETURNING key', [key, JSON.stringify(value)]);
+      if (!rows.length) continue;
+      linkChanged = true;
+      await client.query("INSERT INTO audit_log (user_id, action, entity, entity_id) VALUES (NULL, 'instelling.gewijzigd', 'settings', $1)", [key]);
+    }
   }
   return `${tags.status === 'ok' ? `${tags.tags} tag(s)` : 'tags stonden er al'}, link naar het blogarchief ${linkChanged ? 'overgenomen' : 'standaard'}`;
 }

@@ -245,6 +245,8 @@ test('lijstkoppen en overzetten', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.deepEqual(tag, { name: 'Kamperen', image_url: '/media/tag-kamperen.jpg', posts: 1 });
     const archiveSettings = await db.query("SELECT key, value FROM settings WHERE key IN ('blogArchiveLabel', 'blogArchiveUrl') ORDER BY key");
     assert.deepEqual(archiveSettings.map((row) => [row.key, JSON.parse(row.value)]), [['blogArchiveLabel', 'Ons oude blog'], ['blogArchiveUrl', 'https://oud-blog.example.nl/']]);
+    const settingAudits = await db.query("SELECT entity_id FROM audit_log WHERE action = 'instelling.gewijzigd' AND user_id IS NULL ORDER BY entity_id");
+    assert.deepEqual(settingAudits.map((row) => row.entity_id), ['blogArchiveLabel', 'blogArchiveUrl'], 'met audit');
 
     // Homepage: gepubliceerde blokpagina met de teksten uit het bestand en een eerste versie.
     const [home] = await db.query("SELECT id, published, managed_in_crm, blocks FROM pages WHERE path = '/'");
@@ -268,6 +270,14 @@ test('lijstkoppen en overzetten', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.equal((await db.query("SELECT sort_order FROM guides WHERE slug = 'carla'"))[0].sort_order, 50);
     assert.ok(!parts.some((part) => part.part === 'homepage'), 'zonder homepage.json wacht dat deel');
     assert.match(parts.find((part) => part.part === 'blog').summary, /tags stonden er al, link naar het blogarchief standaard/);
+    // Een link die in Beheer niet geldig zou zijn (geen https-adres) wordt niet overgenomen.
+    await db.query("DELETE FROM content_transfers WHERE part = 'blog'");
+    await db.query("DELETE FROM settings WHERE key IN ('blogArchiveLabel', 'blogArchiveUrl')");
+    const relative = normalizeSiteContent({ blogArchiveLink: { label: 'Archief', href: '/oud-archief/' } });
+    assert.equal(relative.blogArchiveLink.href, '/oud-archief/', 'het bestand staat een eigen pad toe');
+    const [blogPart] = await transferFixedContent({ db, siteContent: relative });
+    assert.match(blogPart.summary, /link naar het blogarchief standaard/);
+    assert.equal((await db.query("SELECT count(*)::int AS count FROM settings WHERE key IN ('blogArchiveLabel', 'blogArchiveUrl')"))[0].count, 0);
     await db.query("DELETE FROM content_transfers WHERE part = 'homepage'");
     const again = await transferFixedContent({ db, siteContent: null, homepage: normalizeHomepage(null) });
     assert.deepEqual(again, [{ part: 'homepage', summary: 'pagina / bestond al' }], 'alleen homepage.json: dat deel gaat toch door');
