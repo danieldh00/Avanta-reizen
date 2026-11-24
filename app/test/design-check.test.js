@@ -99,6 +99,8 @@ test('gewijzigde schermen (CI): bestanden zonder scherm leveren niets op', () =>
 test('gewijzigde schermen (CI): module en gedeelde opmaak naar hun schermen', () => {
   assert.deepEqual(screensFor(['app/src/payments/payments.js']), ['/app/betalingen/*']);
   assert.deepEqual(screensFor(['app/src/booking/crm-routes.js']), ['/app/aanmeldingen/*']);
+  assert.deepEqual(screensFor(['app/src/booking/manual-routes.js']), ['/app/aanmeldingen/*']);
+  assert.deepEqual(screensFor(['app/src/booking/save-booking.js']), ['/aanmelden/']);
   assert.deepEqual(screensFor(['app/src/booking/fields.js']), ['/aanmelden/']);
   assert.deepEqual(screensFor(['app/src/contact/routes.js']), ['/contact/']);
   assert.deepEqual(screensFor(['app/src/contact/message-routes.js']), ['/app/berichten/*']);

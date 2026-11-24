@@ -39,8 +39,8 @@ const SCREEN_RULES = [
   { pattern: /^app\/src\/contact\/(fields|routes)\.js$/, screens: ['/contact/'] },
   { pattern: /^app\/src\/contact\/(index|message|messages)/, screens: ['/app/berichten/*'] },
   // Aanmelden en reizigersaccount.
-  { pattern: /^app\/src\/booking\/(fields|routes|views|form)/, screens: ['/aanmelden/'] },
-  { pattern: /^app\/src\/booking\/crm-/, screens: ['/app/aanmeldingen/*'] },
+  { pattern: /^app\/src\/booking\/(fields|routes|views|form|save-booking)/, screens: ['/aanmelden/'] },
+  { pattern: /^app\/src\/booking\/(crm-|manual-)/, screens: ['/app/aanmeldingen/*'] },
   { pattern: /^app\/src\/account\//, screens: ['/account/inloggen/', '/account/registreren/', '/account/wachtwoord-vergeten/', '/account/', '/account/gegevens/'] },
   // CRM.
   { pattern: /^app\/src\/crm\/dashboard\.js$/, screens: ['/app/'] },
