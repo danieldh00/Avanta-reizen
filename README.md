@@ -663,7 +663,7 @@ Alleen docs/CI zonder effect op de app: label `geen-releasenotes`.
 | idem, *Require status checks* | `Claude code review`, `Claude security review`, `version-must-increase`, `test`, `image` |
 | Settings > General | *Allow auto-merge* aan, *Automatically delete head branches* aan |
 | Settings > Code security | Secret scanning + push protection aan |
-| Issues > Labels | label `geen-releasenotes` aanmaken |
+| Issues > Labels | labels `geen-releasenotes` en `changelog-correctie` aanmaken |
 | Packages (na de eerste release) | package `avanta-reizen` aan deze repo koppelen (*Connect repository*) en de zichtbaarheid kiezen (privé: de server logt in op GHCR met een token met *read:packages*) |
 | GitHub Apps | Claude GitHub App installeren op deze repo (voor de reviews) |
 | Renovate (optioneel) | Renovate-app activeren; config staat in `renovate.json` |
