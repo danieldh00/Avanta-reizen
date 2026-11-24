@@ -58,12 +58,12 @@ koppen Playfair Display, tekst Open Sans.
 2. ✅ App-skelet: Express, PostgreSQL-migraties, layout/huisstijl, header/footer/menu, health-check, tests.
 3. ✅ Importscript: reizen, reisleiders, categorieën, blog, pagina's, FAQ, media (1776 afbeeldingen).
 4. ✅ Pagina's: home, reisoverzicht met zoeker/filters, reisdetail, categorie, reisleiders, blog, FAQ, zoeken, losse pagina's.
-5. ✅ Aanmeldformulier → opslag in database (basis voor CRM). ⏳ Bevestigingsmail (wacht op mailkeuze).
-6. ⏳ Contactformulier, nieuwsbrief, sitemap.xml bij go-live, iDEAL (wacht op providerkeuze).
-7. ⏳ CRM fase 2: aparte opzet in `docs/OPZET-CRM.md`.
+5. ✅ Aanmeldformulier → opslag in database (basis voor CRM), bevestigingsmail aan reiziger (en ouder onder de 16).
+6. ✅ Contactformulier, sitemap.xml (actief zodra indexeren aan staat), online betalen via Mollie (optioneel). ⏳ Nieuwsbrief.
+7. ✅ CRM fase 2: aparte opzet in `docs/OPZET-CRM.md`; AVG-documenten in `docs/avg/`.
 
 ## Open vragen
-1. Hosting: de eigen server (Docker + tunnel) of elders?
-2. Betaalprovider: Mollie, Buckaroo of OmniKassa (alle drie staan in de huidige site)?
+1. Hosting voor productie: nog open (audit A01). De testomgeving draait in Docker achter een tunnel.
+2. Betaalprovider: Mollie gebouwd (optioneel, Beheer > CRM > Online betalen).
 3. Uiterlijk: zelfde ontwerp als nu, of meteen een opgefriste versie in dezelfde huisstijl?
-4. Kerkgenootschap in het formulier houden?
+4. Kerkgenootschap: blijft, vrijwillig met eigen toestemming (besluit 21-11-2026).

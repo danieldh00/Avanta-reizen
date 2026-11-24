@@ -20,13 +20,22 @@ de opzet van website en CRM in `docs/OPZET-WEBSITE.md`.
 
 ## AVG
 - Het aanmeldformulier vraagt bijzondere persoonsgegevens: kerkgenootschap (religie) en medische bijzonderheden
-  (gezondheid), plus geboortedatum en paspoortgegevens. Die worden versleuteld opgeslagen en zijn in het CRM alleen
-  zichtbaar voor rollen die ze nodig hebben. Bewaartermijn en opschonen worden in fase 2 vastgelegd.
-- Geen trackingscripts of externe fonts/captcha's (de huidige site laadt een tracker en Google reCAPTCHA; de nieuwe niet).
+  (gezondheid), beide vrijwillig en alleen met een eigen toestemmingsvinkje, plus geboortedatum, paspoortgegevens en
+  een noodnummer. Die staan per categorie versleuteld bij de persoon en zijn in het CRM alleen zichtbaar voor rollen
+  die ze nodig hebben (inzien met auditregel).
+- Deelnemers jonger dan 16 (op de dag van aanmelden): een ouder of voogd geeft de toestemming; diens gegevens staan
+  versleuteld bij de persoon en de ouder krijgt een bevestiging (migratie 29).
+- Bewaartermijnen en opschonen zijn gebouwd (Beheer > Toegang en beveiliging > AVG en bewaartermijnen, dagelijks
+  automatisch); de termijnen zijn voorstellen die Avanta nog moet bevestigen.
+- Externe diensten: Google Analytics (GA4) en de onzichtbare captcha (reCAPTCHA v3) zijn gebouwd maar staan **standaard
+  uit**; Analytics laadt alleen na toestemming van de bezoeker, YouTube pas na een klik. Online betalen via Mollie en
+  back-ups naar Google Drive zijn optioneel. Fonts en scripts staan lokaal, er zijn geen andere trackers.
+- Documenten (opzet, door Avanta vast te stellen): `docs/avg/` met verwerkingsregister, verwerkers, DPIA en een
+  tekstvoorstel voor de privacyverklaring. Wie iets aan persoonsgegevens verandert, werkt die documenten bij.
 
 ## Omgeving
 - Repo `danieldh00/Avanta-reizen`, hoofdbranch `main`, applicatie in `app/` (poort 3400).
-- Hosting: nog te kiezen (voorstel: Docker op de eigen server). Database PostgreSQL 17.
+- Hosting voor productie: nog te kiezen (audit A01; de testomgeving draait in Docker achter een tunnel). Database PostgreSQL 17.
 - Huisstijl: tekst `#434248`, accent terracotta `#c47362`, groen `#81986a`; koppen Playfair Display, tekst Open Sans;
   logo `app/public/images/logo.png`.
 - Contact: T 0118 638427, E info@avantareizen.nl.

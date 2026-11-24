@@ -105,6 +105,8 @@ Regels:
   samen met eigenaar/tenant opzoeken, parameters in SQL altijd gebonden, invoer server-side saneren, elk openbaar of
   duur endpoint een limiet, uploads op inhoud controleren. Tests per nieuwe route: andere eigenaar → 404, ontbrekend
   recht → 403. Nooit tokens of persoonsgegevens in logs, audit of frontend.
+- **AVG-documenten**: verandert een PR iets aan persoonsgegevens (veld, koppeling, bewaartermijn), werk dan ook
+  `docs/avg/` bij (verwerkingsregister, verwerkers, DPIA, tekstvoorstel privacyverklaring).
 - **Queries**: geen `SELECT *`, geen N+1, index op nieuwe filters van groeiende tabellen.
 - **UI**: netjes uitgelijnd op 1440 en 375 px. CI controleert dat met Playwright op de schermen die de PR raakt (job
   `design`, faalt bij ernst hoog; uitsneden en .xlsx in het artefact `design-controle`). Lokaal: `tools/design-check/`
