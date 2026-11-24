@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.1 — 2026-11-24 — Typecontrole op bijna alle bestanden (B08, deel 1)
+
+- `// @ts-check` (JSDoc-typecontrole) in 138 bestanden van `src/` en `tools/` die het nog niet hadden; `tools/` valt
+  nu ook onder `npm run typecheck`. Geen gedragswijziging: alleen JSDoc-typen rechtgezet (`object` → `any` of de echte
+  vorm, ontbrekende opties en uitkomsten aangevuld) en een paar typeaanwijzingen.
+- `crm/ui.js`: `renderTable` is generiek over het soort rij, zodat de cellen de velden van hun rij kennen.
+- Nieuwe test `test/ts-check.test.js`: elk bestand in `src/` en `tools/` begint met `// @ts-check` en `@ts-nocheck` is
+  niet toegestaan. De bestanden die tegelijk in W28 veranderen (28) volgen in deel 2.
+
 ## 0.35.0 — 2026-11-24 — Koppen van de lijstpagina's en galerij en volgorde van reisleiders in het CRM
 
 - Nieuw scherm **Website > Lijstpagina's**: pas de kop (pretitel, titel, inleiding en foto) aan van Reizen, Reisleiders, Blog, Veelgestelde vragen en het aanmeldformulier.
