@@ -516,6 +516,8 @@
   .beheer-content .beheer-log .beheer-log__source { grid-column: 1 / -1; font-weight: 600; }
   .beheer-content .beheer-log .beheer-log__message { grid-column: 1 / -1; min-width: 0; }
 }
+/* Hersteltest: uitkomst en aantallen nooit midden in een woord afbreken ("Geslaa-gd"); de toelichting krijgt de rest. */
+.beheer-content .beheer-restore-runs .beheer-restore-runs__fixed { width: 1%; white-space: nowrap; overflow-wrap: normal; }
 .beheer-log pre { margin: .25rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8rem; }
 .beheer-log-filter { flex-wrap: wrap; max-width: 48rem; }
 .beheer-log-filter select { flex: 1 1 9rem; min-width: 0; }
