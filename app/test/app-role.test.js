@@ -66,7 +66,7 @@ test('databaserol avanta_app: overdracht, herhaalbaar en beperkte rechten', { sk
   const admin = urlFor(new URL(DATABASE_URL).pathname.slice(1));
   // Opruimen eerst registreren, zodat het ook gebeurt als het aanmaken halverwege mislukt.
   t.after(() => withClient(admin, async (client) => {
-    await client.query(`DROP DATABASE IF EXISTS ${DATABASE}`);
+    await client.query(`DROP DATABASE IF EXISTS ${DATABASE} WITH (FORCE)`);
     await client.query(`DROP ROLE IF EXISTS ${ROLE}`);
   }));
   await withClient(admin, (client) => client.query(`CREATE DATABASE ${DATABASE}`));
