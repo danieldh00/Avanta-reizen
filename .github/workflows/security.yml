@@ -3,7 +3,8 @@ name: Security scans
 # Vindt lekken vóór productie: geheimen in de code en de git-historie (gitleaks). Draait bij code-wijzigingen in een
 # PR, op main en wekelijks. CodeQL is bewust verwijderd (te veel false positives, geen verplichte check).
 # Secret scanning en push protection van GitHub zelf staan in de repo-instellingen (Settings > Code security), niet hier.
-# Een image-scan (Trivy) komt erbij zodra er een Dockerfile is.
+# De image-scan (Trivy) en de SBOM draaien in ci.yml (job image) en release.yml, waar het image gebouwd wordt.
+# De job `secrets` is een verplichte controle op main (ruleset); een overgeslagen job telt als geslaagd.
 on:
   push:
     branches: [main]
@@ -55,10 +56,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - name: gitleaks
         run: >-
-          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.21.2
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.21.2@sha256:0e99e8821643ea5b235718642b93bb32486af9c8162c8b8731f7cbdc951a7f46
           detect --source /repo --config /repo/.gitleaks.toml --redact --verbose --exit-code 1

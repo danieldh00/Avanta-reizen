@@ -1,0 +1,2 @@
+# Uitzonderingen voor de image-scan (Trivy, ci.yml en release.yml). Eén CVE per regel, met erboven de reden en de
+# datum waarop opnieuw bekeken wordt. Leeg = geen uitzonderingen.

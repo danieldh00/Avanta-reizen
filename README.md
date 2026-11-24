@@ -141,6 +141,11 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   run nieuw), controleert op 1440 en 375 px en faalt bij ernst hoog. De samenvatting staat bij de job, het rapport
   (.xlsx met uitsneden) in het artefact `design-controle` (7 dagen). Een nieuwe module met eigen schermen krijgt een
   regel in `SCREEN_RULES`.
+  **Toegankelijkheid** (`--axe`, `tools/design-check/accessibility.js`; axe-core ernaast installeren met
+  `npm install --no-save axe-core`): op dezelfde schermen en breedtes controleert axe op WCAG 2.1 A en AA. Impact
+  *critical*/*serious* = ernst hoog (laat CI falen), *moderate*/*minor* = laag. Regels die op een punt van de wachtlijst
+  wachten staan in `PENDING_RULES` en tellen als midden: nu kleurcontrast van de huisstijl en links in lopende tekst in
+  het CRM (W26). In CI draait de controle altijd met `--axe`.
 - **CRM** op `/app/` (in opbouw, zie `docs/OPZET-CRM.md`): inloggen met e-mail en wachtwoord (scrypt, minimaal 12
   tekens), rollen `beheerder`, `kantoor`, `reisleider` en `boekhouding` met vaste rechten (`app/src/crm/rights.js`,
   per route gecontroleerd met `requireRight`), gebruikersbeheer en een auditlog op `/app/auditlog/`.
@@ -661,6 +666,16 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 
 Alleen docs/CI zonder effect op de app: label `geen-releasenotes`.
 
+### Toeleveringsketen (P7.2)
+- Elke GitHub Action staat op een volledige commit-SHA (`uses: owner/actie@<sha> # vX.Y.Z`) en elk container-image op
+  een digest (`postgres:17@sha256:…`), in workflows, `app/Dockerfile`, beide `docker-compose.yml` en de deploy-scripts.
+  `tests/vastgepind.test.js` bewaakt dat; Renovate (`renovate.json`) werkt SHA's en digests bij.
+- De job `image` in CI scant het gebouwde image met Trivy (faalt bij HIGH/CRITICAL waarvoor een oplossing bestaat;
+  uitzonderingen met reden in `app/.trivyignore`) en bewaart een SBOM (CycloneDX) als artefact `sbom`. `release.yml`
+  scant opnieuw vóór het pushen en hangt SBOM en herkomst als attestatie aan het image in GHCR.
+- `claude-review.yml` wijzig je alleen in een PR die verder geen code raakt: de action controleert dat het
+  workflowbestand gelijk is aan dat op `main`, anders faalt de review.
+
 ## Eenmalige instellingen in GitHub
 | Waar | Wat |
 |---|---|
@@ -668,7 +683,7 @@ Alleen docs/CI zonder effect op de app: label `geen-releasenotes`.
 | idem | `RELEASE_PUSH_TOKEN` (fine-grained PAT van de beheerder, *Contents: read and write* op deze repo) |
 | Settings > Secrets and variables > Actions > *Variables* | `CLAUDE_REVIEW_MODEL` (eerste review) en `CLAUDE_REVIEW_MODEL_PUSH` (lichtere review per push); leeg = standaard |
 | Settings > Rules > Rulesets (branch `main`) | PR verplicht, geen force-push, bypass: *Repository admin* |
-| idem, *Require status checks* | `Claude code review`, `Claude security review`, `version-must-increase`, `test`, `image` |
+| idem, *Require status checks* | `Claude code review`, `Claude security review`, `version-must-increase`, `test`, `image`, `secrets` (geheimenscan, sinds P7.2) |
 | Settings > General | *Allow auto-merge* aan, *Automatically delete head branches* aan |
 | Settings > Code security | Secret scanning + push protection aan |
 | Issues > Labels | labels `geen-releasenotes` en `changelog-correctie` aanmaken |

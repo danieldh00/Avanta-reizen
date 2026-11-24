@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.31.0 — 2026-11-24 — Hersteltest zet de back-up weer terug
+
+- De wekelijkse hersteltest van de back-ups slaagt weer en toont bij een mislukking de echte foutmelding van het terugzetten.
+
+- `deploy/apps01/restore-test.sh`: `pg_restore` met `--clean --if-exists`, net als bij een echt herstel
+  (`restore-backup.sh`). De dump van één schema bevat `CREATE SCHEMA public`, wat botste met het lege schema `public`
+  van de wegwerpdatabase ("schema public already exists") en de hele transactie afbrak.
+- Een mislukt terugzetten zet de eerste foutregel van `pg_restore` in de uitslag en de melding van de bewaking; waarden
+  tussen aanhalingstekens die geen tabel-, kolom- of schemanaam zijn worden weggelaten en DETAIL/CONTEXT-regels niet
+  overgenomen (geen persoonsgegevens in meldingen). Het hostlog krijgt alle fout- en waarschuwingsregels, op dezelfde
+  manier geschoond.
+- Test: de back-up wordt teruggezet met de opties uit het hostscript in een nieuwe database waarin het schema al bestaat.
+
+## 0.30.9 — 2026-11-24 — Actions en images vastgepind, image-scan en SBOM
+
+- Alle GitHub Actions op een volledige commit-SHA en alle container-images (workflows, `app/Dockerfile`,
+  `docker-compose.yml`, `deploy/apps01`) op een digest; `tests/vastgepind.test.js` bewaakt dat, Renovate houdt ze bij
+  (`helpers:pinGitHubActionDigests`, `docker:pinDigests` en een eigen regel voor images in `docker run`).
+- CI (job `image`) scant het image met Trivy (HIGH/CRITICAL met oplossing laat de job falen; uitzonderingen in
+  `app/.trivyignore`) en bewaart een SBOM (CycloneDX). `release.yml` scant vóór het pushen en zet SBOM en herkomst als
+  attestatie bij het image in GHCR.
+- De geheimenscan (`secrets`) wordt een verplichte controle in de ruleset (A12, A26).
+
+## 0.30.8 — 2026-11-24 — Toegankelijkheidscontrole met axe in de design-controle
+
+- `tools/design-check/accessibility.js`: axe-core (WCAG 2.1 A en AA) per pagina en breedte, aan te zetten met
+  `check.js --axe`. Impact critical/serious is ernst hoog en laat de CI-job `design` falen; moderate/minor staat als
+  laag in het rapport. axe wordt via `page.evaluate` geladen, de CSP van de app blijft streng.
+- CI (job `design`) draait de controle altijd met `--axe` op de gewijzigde schermen; axe-core wordt daar naast
+  Playwright geïnstalleerd, geen dependency van de app.
+- Nulmeting 24-11-2026 op 70 schermen (site, account, CRM, Beheer): alleen kleurcontrast van de huisstijl en links in
+  lopende tekst in het CRM; die tellen tot de oplossing (wachtlijst W26) als midden (A20).
+
 ## 0.30.7 — 2026-11-24 — Lijsten in het CRM blijven tabellen voor schermlezers
 
 `crm/ui.js` `renderTable`: expliciete rollen (`table`, `rowgroup`, `row`, `columnheader`, `cell`), zodat de

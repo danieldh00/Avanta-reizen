@@ -18,7 +18,7 @@ services:
       db:
         condition: service_healthy
   db:
-    image: postgres:17
+    image: postgres:17@sha256:223efeb196329b55b3b9a13db144956411dbc18e727e59f681c3e0aede6475cf
     restart: unless-stopped
     environment:
       POSTGRES_USER: avanta

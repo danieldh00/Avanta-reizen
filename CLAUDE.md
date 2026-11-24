@@ -70,7 +70,7 @@ niet deze tabel (alleen een nieuwe map krijgt hier een regel).
 | `app/src/dev/seed/` | testdata voor de testomgeving (alleen via `servertaken.sh testdata`); details per bestand: `app/src/dev/seed/CLAUDE.md` |
 | `app/public/` | `css/site.css` (huisstijl van de huidige site via `--av-*`-variabelen, breekpunten 1024/768), `css/crm.css` (opmaak van het CRM en Beheer, bouwstenen voor lijsten uit `crm/ui.js`, alleen daar geladen na `site.css`; breekpunt 800), `js/site.js` (kop, mobiel menu, zoekvenster), `js/rich-editor.js` + `js/rich-text-clean.js` (teksteditor van het CRM op elk `textarea.cms-richtext`), `images/theme/` (texturen uit het oude thema), fonts en logo lokaal |
 | `app/tools/import-wordpress.js` | import van de huidige site (`tools/import/parse.js`, `sanitize.js`) |
-| `app/tools/design-check/` | design-controle met Playwright op 1440/375: `seed.js` (testgegevens), `check.js` (`--full` of `--paths=`), `changed-screens.js` (gewijzigde bestanden → schermen voor de CI-job `design`; nieuwe module met schermen = regel in `SCREEN_RULES`), `ci-summary.js` (samenvatting bij de job), `page-checks.js` (metingen in de browser), `report.js` (.xlsx), `overview.js` (schermafbeeldingen per soort scherm), `login.js`, `credentials.js` (alleen lokaal), `guards.js` (alleen lokale database en app) |
+| `app/tools/design-check/` | design-controle met Playwright op 1440/375: `seed.js` (testgegevens), `check.js` (`--full` of `--paths=`), `changed-screens.js` (gewijzigde bestanden → schermen voor de CI-job `design`; nieuwe module met schermen = regel in `SCREEN_RULES`), `ci-summary.js` (samenvatting bij de job), `page-checks.js` (metingen in de browser), `accessibility.js` (axe, `--axe`), `report.js` (.xlsx), `overview.js` (schermafbeeldingen per soort scherm), `login.js`, `credentials.js` (alleen lokaal), `guards.js` (alleen lokale database en app) |
 | `app/tools/minify-public.js` | verkleint `public/css` en `public/js` bij het bouwen van het image (Dockerfile, stap `minify`); niet in de draaiende app |
 | `app/tools/layout-compare.js` | DOM-meting nieuw tegen live op 1440/375 (referentie `test/fixtures/layout-live.json`, test met `LAYOUT_BASE_URL`) |
 | `app/test/` | `units.test.js` (zonder database), `server.test.js` (PostgreSQL, `TEST_DATABASE_URL`) |
@@ -109,8 +109,9 @@ Regels:
   `docs/avg/` bij (verwerkingsregister, verwerkers, DPIA, tekstvoorstel privacyverklaring).
 - **Queries**: geen `SELECT *`, geen N+1, index op nieuwe filters van groeiende tabellen.
 - **UI**: netjes uitgelijnd op 1440 en 375 px. CI controleert dat met Playwright op de schermen die de PR raakt (job
-  `design`, faalt bij ernst hoog; uitsneden en .xlsx in het artefact `design-controle`). Lokaal: `tools/design-check/`
-  met `--paths=` voor de geraakte schermen; schermafbeeldingen alleen als uitsnede van een bevinding.
+  `design`, faalt bij ernst hoog; uitsneden en .xlsx in het artefact `design-controle`), met toegankelijkheid via axe
+  (WCAG 2.1 AA, `--axe`). Lokaal: `tools/design-check/` met `--paths=` (en `--axe`) voor de geraakte schermen;
+  schermafbeeldingen alleen als uitsnede van een bevinding.
 - **Externe koppeling**: instelling in de app, status en logboek zichtbaar, nooit tokens in de uitvoer.
 - Noem in de PR-beschrijving kort hoe aan de checklist is voldaan.
 

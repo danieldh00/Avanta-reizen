@@ -31,9 +31,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:stable
+      ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:stable@sha256:9624669db72f54d86c4b46a7064518bd9bf79d8c61a4c31befa9923489f328af
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Doel bepalen
         id: doel
@@ -62,7 +62,7 @@ jobs:
         run: |
           docker build -t avanta:zap app
           docker network create zapnet
-          docker run -d --name zapdb --network zapnet -e POSTGRES_PASSWORD=zap postgres:17
+          docker run -d --name zapdb --network zapnet -e POSTGRES_PASSWORD=zap postgres:17@sha256:223efeb196329b55b3b9a13db144956411dbc18e727e59f681c3e0aede6475cf
           for i in $(seq 1 30); do docker exec zapdb pg_isready -U postgres && break; sleep 2; done
           # Wegwerpsleutel en testadres: de testdata weigert zonder herkenbaar testadres en zonder sleutel.
           docker run -d --name app --network zapnet \
@@ -126,7 +126,7 @@ jobs:
 
       - name: Rapport bewaren
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zap-rapport
           path: zap-rapport/
