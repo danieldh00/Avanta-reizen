@@ -84,6 +84,36 @@ test('Mollie-koppeling: bedragen, uit zonder sleutel, fouten zonder sleutel', as
   assert.equal(fake.calls.at(-1).headers.authorization, `Bearer ${API_KEY}`);
 });
 
+test('Mollie-koppeling: netwerkfout, onleesbaar antwoord en ongeldig betaalscherm', async () => {
+  assert.equal(isMollieUrl('geen adres'), false);
+  assert.equal(isMollieUrl('https://user:geheim@www.mollie.com/'), false);
+  assert.equal(isMollieUrl('https://www.mollie.com:8443/'), false);
+  const settings = { get: (key) => ({ mollieEnabled: true, mollieApiKey: API_KEY })[key] };
+  const input = { amountCents: 500, description: 'x', redirectUrl: 'https://a.example/', webhookUrl: 'https://a.example/w', metadata: {} };
+  /**
+   * Een koppeling waarvan fetch altijd hetzelfde doet.
+   * @param {Function} fetchImpl Nep-fetch.
+   * @returns {object} Mollie-koppeling.
+   */
+  const withFetch = (fetchImpl) => createMollie({ settings, fetchImpl });
+  const offline = withFetch(async () => { throw new Error(`ECONNREFUSED ${API_KEY}`); });
+  await assert.rejects(offline.getPayment('tr_test1ab'), (error) => error.code === 'network' && !error.message.includes(API_KEY));
+  await assert.rejects(offline.createPayment(input), (error) => error.code === 'network');
+  const garbled = withFetch(async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected token <'); } }));
+  await assert.rejects(garbled.getPayment('tr_test1ab'), (error) => error.code === 'invalid_response');
+  for (const body of [
+    { id: 'tr_test1ab', _links: { checkout: { href: 'https://evil.example/betalen' } } },
+    { id: '../payments', _links: { checkout: { href: 'https://www.mollie.com/checkout/x' } } },
+    { id: 'tr_test1ab' },
+    null,
+  ]) {
+    const odd = withFetch(async () => ({ ok: true, status: 201, json: async () => body }));
+    await assert.rejects(odd.createPayment(input), (error) => error instanceof MollieError && error.code === 'invalid_response', JSON.stringify(body));
+  }
+  const serverError = withFetch(async () => ({ ok: false, status: 503, json: async () => ({}) }));
+  await assert.rejects(serverError.createPayment(input), (error) => error.code === 'http_503');
+});
+
 test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (t) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
@@ -261,6 +291,53 @@ test('online betalen', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.match(crm.text, /Online betalen/);
     assert.match(crm.text, new RegExp(`https://avanta\\.example${path}`));
     assert.match(crm.text, /Betaald op/);
+  });
+
+  await t.test('foutpaden starten: Mollie weigert (502) en opslaan mislukt na het aanmaken (500, gelogd)', async () => {
+    const failId = await booking('AV-2027-FOUT0003');
+    const failPath = onlinePayments.pathFor(failId);
+    fake.failNext = true;
+    const refused = await request(failPath, { form: {} });
+    assert.equal(refused.status, 502);
+    assert.match(refused.text, /Het betaalscherm kon niet worden geopend/);
+    assert.equal((await db.query('SELECT 1 FROM online_payments WHERE booking_id = $1', [failId])).length, 0);
+
+    // Mollie geeft een id terug dat al bestaat: de regel kan niet worden opgeslagen. Dat moet in het logboek staan
+    // (met het Mollie-id, om de betaling met de hand terug te vinden) en de bezoeker krijgt een foutpagina.
+    const counter = fake.counter;
+    fake.counter = 0;
+    const unsaved = await request(failPath, { form: {} });
+    fake.counter = counter + 100;
+    assert.equal(unsaved.status, 500);
+    assert.match(unsaved.text, /foutcode/);
+    assert.equal((await db.query('SELECT 1 FROM online_payments WHERE booking_id = $1', [failId])).length, 0);
+    await app.locals.appLog.flush();
+    const log = await db.query("SELECT message FROM app_logs WHERE source = 'mollie' ORDER BY id");
+    assert.ok(log.some((row) => /Betaling starten mislukt \(http_401\)/.test(row.message)));
+    assert.ok(log.some((row) => /Betaling tr_test1ab aangemaakt maar niet opgeslagen/.test(row.message)));
+    assert.ok(log.every((row) => !/Jansen|jan@example/.test(row.message)), 'geen persoonsgegevens in het logboek');
+  });
+
+  await t.test('terugkeerpagina: nog open, Mollie onbereikbaar, mislukt of afgebroken', async () => {
+    const [row] = await db.query("SELECT id FROM bookings WHERE reference = 'AV-2027-FOUT0003'");
+    const failPath = onlinePayments.pathFor(row.id);
+    assert.equal((await request(`${failPath}klaar/`)).text.includes('Zodra de betaling bij ons binnen is'), true, 'nog geen betaling');
+    assert.equal((await request(failPath, { form: {} })).status, 200);
+    const [{ provider_ref: ref }] = await db.query('SELECT provider_ref FROM online_payments WHERE booking_id = $1', [row.id]);
+    assert.match((await request(`${failPath}klaar/`)).text, /Zodra de betaling bij ons binnen is/, 'nog open bij Mollie');
+    fake.remote.get(ref).status = 'failed';
+    fake.failNext = true;
+    assert.match((await request(`${failPath}klaar/`)).text, /Zodra de betaling bij ons binnen is/, 'Mollie onbereikbaar: geen foute stand tonen');
+    const failed = await request(`${failPath}klaar/`);
+    assert.equal(failed.status, 200);
+    assert.match(failed.text, /niet gelukt of afgebroken; er is niets afgeschreven/);
+    assert.match(failed.text, new RegExp(`href="${failPath}">Opnieuw proberen`));
+    assert.equal((await db.query('SELECT status FROM online_payments WHERE provider_ref = $1', [ref]))[0].status, 'failed');
+    assert.equal((await db.query('SELECT 1 FROM payments WHERE booking_id = $1', [row.id])).length, 0, 'niets geregistreerd');
+    // Daarna zonder nieuwe vraag aan Mollie: de eindstand staat al in de database.
+    const calls = fake.calls.length;
+    assert.match((await request(`${failPath}klaar/`)).text, /niet gelukt of afgebroken/);
+    assert.equal(fake.calls.length, calls);
   });
 
   await t.test('limiet op starten per aanmelding', async () => {

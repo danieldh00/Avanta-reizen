@@ -10,7 +10,7 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { reminderKind, reminderContent } = require('../src/payments/payment-reminders');
+const { reminderKind, reminderContent, createPaymentReminders } = require('../src/payments/payment-reminders');
 const { REMINDER_LIMIT } = require('../src/payments/payment-routes');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -28,6 +28,33 @@ function withSchema(url) {
   parsed.searchParams.set('options', `-c search_path=${SCHEMA}`);
   return parsed.toString();
 }
+
+test('dagelijkse ronde: databasefout wordt gemeld met alleen de foutcode, de timers lopen door', async (t) => {
+  const errors = [];
+  // Alleen de meldingen van de ronde; Node meldt via console.error ook dat MockTimers experimenteel is.
+  t.mock.method(console, 'error', (message) => { if (String(message).startsWith('betaalherinneringen')) errors.push(message); });
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  let calls = 0;
+  const db = {
+    query: async () => {
+      calls += 1;
+      throw Object.assign(new Error('verbinding met jan@example.nl verbroken'), { code: '57P01' });
+    },
+  };
+  const settings = { get: () => true };
+  const reminders = createPaymentReminders({ db, mailer: { configured: () => true }, settings });
+  const timers = reminders.start();
+  assert.equal(timers.length, 2);
+  t.mock.timers.tick(10 * 60 * 1000);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls, 1, 'eerste ronde na tien minuten');
+  assert.deepEqual(errors, ['betaalherinneringen mislukt (57P01)'], 'geen foutmelding met persoonsgegevens');
+  t.mock.timers.tick(24 * 60 * 60 * 1000);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls, 2, 'volgende dag opnieuw, ook na een fout');
+  assert.equal(errors[1], 'betaalherinneringen mislukt (57P01)');
+  for (const timer of timers) clearTimeout(timer);
+});
 
 test('termijn en inhoud van een herinnering', () => {
   assert.equal(reminderKind({ overdue: 'restant', depositOpenCents: 0, balanceCents: 100 }), 'restant');
