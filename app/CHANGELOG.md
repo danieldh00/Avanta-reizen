@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.34.4 — 2026-11-24 — Lichtere foto's op de homepage, het blog en in blokken
+
+- Ook de homepage, het blog en pagina's in blokken laden nu kleinere versies van de foto's.
+
+- Homepage: slider en inspiratie als achtergrond in de versie van 1600 px, bestemmingen 800 px; reiskaarten, blogberichten
+  en "over ons" met `srcset`/`sizes` (`media/formats.js`).
+- Blokken: afbeelding en media-met-tekst met `srcset`, banner (1600 px) en bestemmingen (800 px) als lichtere
+  achtergrond.
+- Losse foto's in opgeschoonde teksten worden opnieuw opgebouwd met `srcset` en `loading="lazy"` (alleen `src`, `alt` en
+  numerieke `width`/`height` uit de opgeschoonde HTML).
+
 ## 0.34.3 — 2026-11-24 — Lichtere foto's op de site (WebP, srcset, lazy loading)
 
 - Pagina's met veel foto's laden veel sneller, vooral de reisleiderspagina: de site laadt nu een passende, kleinere versie van elke foto en pas als die in beeld komt. De originele foto's blijven bewaard.
