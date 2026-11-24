@@ -12,6 +12,8 @@ const { buildSheets } = require('../tools/design-check/report');
 const { runPageChecks } = require('../tools/design-check/page-checks');
 const { assertLocalDatabase, assertLocalBaseUrl } = require('../tools/design-check/guards');
 const { accounts, designPassword } = require('../tools/design-check/credentials');
+const { screensFor, SITE_CORE, CRM_CORE, SMOKE } = require('../tools/design-check/changed-screens');
+const { summaryMarkdown, cell, MAX_ROWS } = require('../tools/design-check/ci-summary');
 
 /** Omgevingsvariabelen die de seed-controle lezen; per test leeg begonnen en daarna teruggezet. */
 const SEED_ENV = ['NODE_ENV', 'DESIGN_SEED_TOEGESTAAN', 'PGHOST', 'PGHOSTADDR'];
@@ -85,6 +87,55 @@ test('bevindingen: dezelfde fout op meerdere pagina\'s wordt één regel, ernsti
   assert.equal(sheets[0].rows[1][0], 'A01');
   assert.equal(sheets[0].rows.length, 3);
   assert.deepEqual(sheets[2].rows[1], ['CRM en Beheer', 'NEE', 403]);
+});
+
+test('gewijzigde schermen (CI): bestanden zonder scherm leveren niets op', () => {
+  assert.deepEqual(screensFor([]), []);
+  assert.deepEqual(screensFor(['README.md', 'docs/WERKWIJZE.md', 'changes/iets.md', 'app/src/database/migrations/029-x.js', 'app/test/units.test.js', 'app/src/security/vault.js', '']), []);
+  // Documentatie in een map met schermen start de zware job niet.
+  assert.deepEqual(screensFor(['app/src/site/CLAUDE.md', 'app/src/payments/CLAUDE.md', 'app/tools/design-check/README.md']), []);
+});
+
+test('gewijzigde schermen (CI): module en gedeelde opmaak naar hun schermen', () => {
+  assert.deepEqual(screensFor(['app/src/payments/payments.js']), ['/app/betalingen/*']);
+  assert.deepEqual(screensFor(['app/src/booking/crm-routes.js']), ['/app/aanmeldingen/*']);
+  assert.deepEqual(screensFor(['app/src/booking/fields.js']), ['/aanmelden/']);
+  assert.deepEqual(screensFor(['app/src/contact/routes.js']), ['/contact/']);
+  // Gedeelde opmaak: de kernschermen van dat deel, niets van het andere deel.
+  assert.deepEqual(new Set(screensFor(['app/public/css/crm.css'])), new Set(CRM_CORE));
+  assert.ok(screensFor(['app/public/css/site.css']).every((screen) => !screen.startsWith('/app/')));
+  assert.deepEqual(new Set(screensFor(['app/public/css/site.css'])), new Set(SITE_CORE));
+  // De controle zelf of de CI-opzet: alleen een rooktest.
+  assert.deepEqual(new Set(screensFor(['app/tools/design-check/page-checks.js'])), new Set(SMOKE));
+  assert.deepEqual(new Set(screensFor(['.github/workflows/ci.yml'])), new Set(SMOKE));
+});
+
+test('gewijzigde schermen (CI): samengevoegd, zonder dubbelen, exact pad onder een * vervalt, vaste volgorde', () => {
+  const screens = screensFor(['app/src/trips/trips.js', 'app/public/css/crm.css', 'app/src/trips/guides.js']);
+  assert.equal(new Set(screens).size, screens.length, 'geen dubbelen');
+  assert.ok(screens.includes('/app/reizen/*'));
+  assert.ok(!screens.includes('/app/reizen/'), '/app/reizen/ komt al mee met /app/reizen/*');
+  assert.ok(screens.includes('/app/aanmeldingen/'), 'kernscherm zonder * blijft');
+  const firstCrm = screens.findIndex((screen) => screen.startsWith('/app/'));
+  assert.ok(screens.slice(firstCrm).every((screen) => screen.startsWith('/app/')), 'eerst de site, dan het CRM');
+  assert.ok(screens.every((screen) => /^\/[a-z0-9/?=*_-]*$/.test(screen)), 'alleen veilige tekens in de paden');
+  // Elk pad hoort bij een onderdeel dat check.js kent.
+  for (const screen of screens) assert.ok(areaOf(screen));
+});
+
+test('samenvatting design-controle (CI): aantallen, ernstigste eerst, ingekort en veilig voor een tabel', () => {
+  assert.match(summaryMarkdown({ pages: [{}, {}], findings: [] }), /2 pagina's gecontroleerd.*Geen bevindingen/s);
+  const findings = [
+    { severity: 'laag', check: 'klikdoel', viewport: 'mobiel', example: '/a/', message: 'klein' },
+    { severity: 'hoog', check: 'overloop', viewport: 'mobiel', example: '/b/', message: 'breder | dan <scherm>\nregel' },
+  ];
+  const markdown = summaryMarkdown({ pages: [{}], findings });
+  assert.match(markdown, /1 hoog, 0 midden, 1 laag/);
+  assert.ok(markdown.indexOf('overloop') < markdown.indexOf('klikdoel'), 'hoog eerst');
+  assert.equal(cell('a | b\nc <x>'), 'a   b c x');
+  assert.ok(!/<scherm>/.test(markdown) && !/breder \| dan/.test(markdown), 'geen | of html in een cel');
+  const many = summaryMarkdown({ pages: [], findings: Array.from({ length: MAX_ROWS + 5 }, () => findings[0]) });
+  assert.match(many, /En nog 5 bevindingen/);
 });
 
 test('testgegevens alleen in een lokale test- of ontwerpdatabase', (t) => {
@@ -172,4 +223,27 @@ test('metingen in de browser: overlap, knophoogte, scheve rand en overloop', { s
     <form style="display:flex;gap:8px;align-items:stretch"><input style="height:40px;box-sizing:border-box"><button style="height:40px">Zoeken</button></form>
   </main></body>`);
   assert.deepEqual(await page.evaluate(runPageChecks, { mobile: true }), [], 'een nette pagina geeft geen bevindingen');
+});
+
+test('metingen in de browser: afgekapt telt geen schuifbalk of verborgen dia, wel tekst die eruit loopt', { skip: !playwright && 'Playwright niet beschikbaar' }, async (t) => {
+  const browser = await playwright.chromium.launch();
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 375, height: 800 } });
+  // Schuifbalk met kaarten binnen het afknipvak, plus een verborgen dia die buiten het vak staat: geen melding.
+  await page.setContent(`<!doctype html><body style="margin:0;font:16px sans-serif">
+    <div id="vak" style="overflow:hidden;width:375px">
+      <ul style="display:flex;overflow-x:auto;margin:0;padding:0;list-style:none">
+        <li style="flex:0 0 300px">Kaart een</li><li style="flex:0 0 300px">Kaart twee</li>
+      </ul>
+      <p style="visibility:hidden;margin:0;position:relative;left:400px;white-space:nowrap">Verborgen dia</p>
+    </div>
+  </body>`);
+  const clean = await page.evaluate(runPageChecks, { mobile: true });
+  assert.ok(!clean.some((finding) => finding.check === 'afgekapt'), 'schuifbalk en verborgen dia geven geen afgekapt');
+  // Tekst die zelf buiten het vak loopt: wel een melding.
+  await page.setContent(`<!doctype html><body style="margin:0;font:16px sans-serif">
+    <div style="overflow:hidden;width:200px"><p style="white-space:nowrap;width:max-content;margin:0">Deze tekst is veel te lang voor het vak en valt weg</p></div>
+  </body>`);
+  const clipped = await page.evaluate(runPageChecks, { mobile: true });
+  assert.ok(clipped.some((finding) => finding.check === 'afgekapt'), 'echte afkapping blijft een melding');
 });

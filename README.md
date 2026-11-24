@@ -126,6 +126,12 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   `overview.js` (volledige schermafbeelding per soort scherm). Basisadres via `DESIGN_BASE_URL` (standaard
   http://localhost:3400); externe verzoeken (YouTube e.d.) worden afgebroken. Exitcode 1 bij bevindingen met ernst
   hoog (behalve met `--no-fail`).
+  **In CI** (job `design` in `ci.yml`) draait dezelfde controle bij elke PR, maar alleen op de schermen die de PR raakt:
+  `changed-screens.js` koppelt de gewijzigde bestanden aan schermen (tabel `SCREEN_RULES`; een PR zonder scherm slaat de
+  job over). De job start een wegwerpdatabase en de app, vult testdata (`src/dev/seed/` plus `seed.js`, wachtwoord per
+  run nieuw), controleert op 1440 en 375 px en faalt bij ernst hoog. De samenvatting staat bij de job, het rapport
+  (.xlsx met uitsneden) in het artefact `design-controle` (7 dagen). Een nieuwe module met eigen schermen krijgt een
+  regel in `SCREEN_RULES`.
 - **CRM** op `/app/` (in opbouw, zie `docs/OPZET-CRM.md`): inloggen met e-mail en wachtwoord (scrypt, minimaal 12
   tekens), rollen `beheerder`, `kantoor`, `reisleider` en `boekhouding` met vaste rechten (`app/src/crm/rights.js`,
   per route gecontroleerd met `requireRight`), gebruikersbeheer en een auditlog op `/app/auditlog/`.
