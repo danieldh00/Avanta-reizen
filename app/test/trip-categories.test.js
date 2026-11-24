@@ -162,6 +162,8 @@ test('reistypes en landen in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_U
   });
 
   await t.test('aanmaken: slug uit de naam, dubbele slug geweigerd, audit', async () => {
+    const form = await request('/app/reistypes-en-landen/', { cookie: kantoor.cookie });
+    assert.match(form.text, /<textarea id="veld-body_html" name="body_html" rows="10" class="cms-richtext">/, 'teksteditor');
     const created = await request('/app/reistypes-en-landen/nieuw/', { cookie: kantoor.cookie, form: fields({ name: 'Wintersport', slug: '', icon: 'wintersport' }) });
     assert.equal(created.status, 303);
     const [row] = await db.query("SELECT id, slug, icon FROM trip_categories WHERE name = 'Wintersport'");

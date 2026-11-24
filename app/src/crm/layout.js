@@ -398,7 +398,9 @@ function renderCrmPage(page) {
     ${renderMaintenanceBanner()}
     ${renderHeader({ user, csrf: page.csrf, path, title: page.title, search: page.search })}
     ${user ? html`${renderSidebar({ user, path })}
-    <script src="/js/crm.js?v=${ASSET_VERSION}"></script>` : ''}
+    <script src="/js/crm.js?v=${ASSET_VERSION}"></script>
+    <script src="/js/rich-text-clean.js?v=${ASSET_VERSION}" defer></script>
+    <script src="/js/rich-editor.js?v=${ASSET_VERSION}" defer></script>` : ''}
     <main id="inhoud" class="crm-main${inBeheer ? ' crm-main--beheer' : ''}">
       ${inBeheer ? html`<div class="crm-beheer">
         ${renderBeheerSidebar({ user, path, beheer: page.beheer })}

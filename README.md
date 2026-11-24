@@ -240,9 +240,16 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     *Kopiëren naar nieuw vertrek* maakt een concept met dezelfde teksten, prijs, landen, reistypes, reisleiders en
     foto's (slug `<slug>-kopie`, `-kopie-2`, …), zonder vertrekdatum, aanbieding, statustekst, *gegarandeerd*,
     *volgeboekt* en aanmeldingen (audit `reis.gekopieerd`).
+  - **Teksteditor** (WYSIWYG) voor alle opgemaakte tekst in het CRM: tekstblokken van pagina's en blog, de
+    reisomschrijving, reistypes en landen, reisleiders en FAQ-antwoorden (`textarea.cms-richtext`). Je ziet de tekst
+    zoals op de site; Enter begint een alinea, Shift+Enter een nieuwe regel; knoppen voor alinea, kop, tussenkop, vet,
+    cursief, opsomming, nummering, citaat en links, en *HTML* voor de code zelf. Geplakte tekst uit een tekstverwerker of
+    website wordt opgeschoond. Eigen scripts zonder externe bibliotheek (`public/js/rich-editor.js` en de opschoner
+    `rich-text-clean.js`, die ook in de tests draait); zonder JavaScript blijft het tekstvak met HTML. De server schoont
+    de HTML bij het opslaan altijd op met `sanitizeHtml` (allowlist); bestaande tekst blijft gewoon werken.
   - **Pagina's** op `/app/paginas/` (recht `content`: beheerder, kantoor en *Redacteur*; `app/src/cms/`, migratie 17):
     een pagina bestaat uit **blokken** met vaste velden en vaste stijlopties uit de huisstijl, geen vrije HTML of CSS.
-    Bloktypes: *tekst* (opgemaakte tekst, door `sanitizeHtml`, met opmaakknoppen boven het vak), *kop met subtitel*,
+    Bloktypes: *tekst* (opgemaakte tekst in de teksteditor, door `sanitizeHtml`), *kop met subtitel*,
     *afbeelding* (uit de fotobibliotheek, met bijschrift), *knoppen* (1–3, terracotta of omlijnd; alleen adressen op de
     eigen site, https, mailto of tel), *citaat*, *tekst met foto* (links of rechts), *fotogalerij* (schuifstrook met
     titel en subtitel, tot 40 foto's; meer tegelijk kiezen, weghalen en volgorde), *kolommen* (2–3 korte teksten met
