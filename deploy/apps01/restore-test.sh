@@ -127,6 +127,8 @@ failure="$(restore_failure "${statuses[0]}" "${statuses[1]}" "$DECRYPT_ERRORS" "
 if [[ -n "$failure" ]]; then
   # Alle fout- en waarschuwingsregels van pg_restore in het hostlog (journalctl), net als de melding zonder rijgegevens.
   restore_lines "$RESTORE_ERRORS" >&2
+  # De stderr van het ontsleutelen volledig: alleen meldingen van cli.js en Docker, de dump zelf gaat naar stdout.
+  cat "$DECRYPT_ERRORS" >&2
   fail "$failure"
 fi
 
