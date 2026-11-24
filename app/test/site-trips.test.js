@@ -61,7 +61,7 @@ test('reis in een lijst: liggende box met foto, code, samenvatting en prijsvak; 
   const item = toString(views.tripListItem(trip()));
   assert.match(item, /<a class="post-teaser post-teaser--landscape" href="\/reis\/namibie\/">/);
   assert.match(item, /<div class="box box--landscape box--additional">/);
-  assert.match(item, /<figure class="box__image" style="background-image: url\('\/media\/kaart.jpg'\)">/);
+  assert.match(item, /<figure class="box__image"><img src="\/media\/kaart.jpg" alt="" loading="lazy" width="800" height="700"><\/figure>/);
   assert.match(item, /<span class="box__pretitle">03-12-2026 <span class="trip__code">26-NAM-293<\/span><\/span>/);
   assert.match(item, /<div class="box__content">Safari<\/div>/);
   assert.match(item, /<span class="trip__price">€1849,-<\/span>/);
@@ -105,7 +105,8 @@ test('reisdetail: tekst uit de database wordt ge-escaped (behalve de opgeschoond
   assert.doesNotMatch(page, /<img src=x|<script>/);
   assert.match(page, /&lt;img src=x onerror=alert\(1\)&gt;/);
   const list = toString(views.tripListItem(trip({ card_image_url: "/media/a.jpg'); background: url(https://evil.example/" })));
-  assert.match(list, /url\('\/media\/a\.jpg%27%29;%20background:%20url%28https:\/\/evil\.example\/'\)/);
+  assert.doesNotMatch(list, /style=|"\);|'\)/);
+  assert.match(list, /<img src="\/media\/a\.jpg&#39;\); background: url\(https:\/\/evil\.example\/"/);
 });
 
 test('galerij: losse adressen of objecten, lege galerij niets, één foto zonder knoppen', () => {
@@ -121,9 +122,9 @@ test('reisleiders: lijst met staande foto en voornaam, detail met citaat, woonpl
   const guide = { slug: 'caroline-de-bruin', name: 'Caroline', photo_url: '/media/foto.jpg', body_html: '<p>Over mij</p>', extra };
   const list = toString(views.guideList([guide, { ...guide, slug: 'jan', name: 'Jan', extra: EMPTY_GUIDE }], 'Ontmoet alvast onze reisleiders!'));
   assert.match(list, /<div class="page-introduction">Ontmoet alvast onze reisleiders!<\/div>/);
-  assert.match(list, /<a class="post-teaser post-teaser--guide" href="\/reisleider\/caroline-de-bruin\/">\s*<figure class="post-teaser__thumb" style="background-image: url\('\/media\/p.jpg'\)">/);
+  assert.match(list, /<a class="post-teaser post-teaser--guide" href="\/reisleider\/caroline-de-bruin\/">\s*<figure class="post-teaser__thumb"><img src="\/media\/p.jpg" alt="" loading="lazy" width="300" height="340"><\/figure>/);
   assert.match(list, /<h2 class="post-teaser__title">Caroline<\/h2>\s*<span class="post-teaser__subtitle">de Bruin<\/span>/);
-  assert.match(list, /url\('\/media\/foto.jpg'\)/, 'zonder portret de gewone foto');
+  assert.match(list, /<img src="\/media\/foto.jpg"/, 'zonder portret de gewone foto');
   assert.match(toString(views.guideList([], '')), /class="alert"/);
   const detail = toString(views.guideDetail(guide));
   assert.match(detail, /icon--badge stamp/);

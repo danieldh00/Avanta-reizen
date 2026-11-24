@@ -29,6 +29,7 @@ const { maintenanceState, maintenanceGuard } = require('./system/maintenance');
 const { runWithContext, currentContext } = require('./system/request-context');
 const { normalizePath, describeError, newErrorCode, newRequestId } = require('./system/app-log');
 const { html } = require('./site/html');
+const { useImageIndex } = require('./media/formats');
 const { createHealthRoute } = require('./system/health');
 
 /**
@@ -123,7 +124,7 @@ function createApp(options) {
   // Alle diensten (instellingen, logboek, mail, back-ups, bewaking, …) staan in `services.js`. `app.locals` geeft ze
   // door aan `start()` en aan de tests.
   const services = createServices(options);
-  const { vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary, mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, infobriefSender, siteContent, homepage, accounts } = services;
+  const { vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary, imageFormats, mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, infobriefSender, siteContent, homepage, accounts } = services;
   Object.assign(app.locals, { services, settings, appLog, captcha, passwordCheck, menus, systemUpdate, redirects, mediaLibrary, mailer, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, infobriefSender, accounts });
   app.disable('x-powered-by');
   const trustedProxy = parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY);
@@ -210,6 +211,9 @@ function createApp(options) {
 
   app.use(express.static(PUBLIC_DIR, { maxAge: '7d', index: false, redirect: false }));
   // Afbeeldingen: import en fotobibliotheek (tests geven een eigen map mee).
+  // Importfoto's: de lichtere JPEG onder hetzelfde adres, als die er al is; `srcset` op de site via dezelfde index.
+  useImageIndex(imageFormats.index);
+  app.use('/media', imageFormats.middleware);
   app.use('/media', express.static(mediaDir, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
 
 

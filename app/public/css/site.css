@@ -536,7 +536,7 @@ h4, h5, h6 { font-size: 16px; }
 .box--landscape { display: flex; }
 .box--landscape > * { flex: 0 0 50%; }
 .box--landscape .box__image { min-height: 245px; }
-.box--landscape .box__image img { visibility: hidden; position: absolute; inset: 0; height: 100%; }
+.box--landscape .box__image img { position: absolute; inset: 0; height: 100%; aspect-ratio: auto; }
 .box--landscape .box__image::after { display: none; }
 .box--additional .box__image, .box--additional .box__additional { flex: 0 0 280px; }
 .box--additional .box__inner { flex: 1 1 auto; min-width: 0; }

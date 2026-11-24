@@ -214,6 +214,15 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     13 alsnog in de database. Ook de **afbeeldingen uit de import** gaan in de back-up (bevinding A14): het onderhoud zet
     elk importbestand (JPEG, PNG, WebP, GIF, tot 15 MB) byte voor byte in `media_files` en zet het ongewijzigd terug als
     het ontbreekt. De back-up groeit daarmee met de grootte van de import (circa 250 MB).
+    **Lichtere formaten** (`media/formats.js`): een achtergrondtaak (een minuut na het starten en daarna dagelijks, één
+    foto tegelijk) maakt van elke importfoto WebP-versies van 400, 800 en 1600 px (nooit vergroot) in
+    `DATA_DIR/media/formaten/` en van een JPEG een opnieuw gecomprimeerde JPEG van maximaal 2000 px breed, die de app
+    onder het oude adres uitserveert als hij minstens 15% kleiner is (ook foto's in geïmporteerde teksten laden dus
+    sneller). Het origineel blijft ongewijzigd en alleen dat zit in de back-up; de afgeleide bestanden zijn altijd opnieuw
+    te maken. Onder 1 GB vrije schijfruimte stopt het omzetten (melding in het logboek); afgeleide bestanden van verwijderde
+    foto's ruimt de taak op. De site gebruikt de versies via `srcset`/`sizes` (ook de varianten van de fotobibliotheek):
+    reisleiders (lijst als `<img loading="lazy">` in plaats van een achtergrondfoto, detail, reisleider bij een reis),
+    reiskaarten, galerijen en de paginakop (versie van 1600 px).
   - **Reizen** op `/app/reizen/` (recht `reizen`; `app/src/trips/`, migratie 15): lijst met filter (komend, vertrokken,
     concept, alle) en zoeken op titel, reiscode of slug; een reis aanmaken en wijzigen met alle velden van de huidige
     site (titel, slug, reiscode, vertrekdatum, reisduur, inleiding, samenvatting, tekst als opgeschoonde HTML, reissom,

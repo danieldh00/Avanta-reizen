@@ -19,6 +19,7 @@ const { createSiteContentStore } = require('./site/site-content');
 const { createHomepageStore } = require('./site/homepage');
 const { createMenus } = require('./cms/menus');
 const { createMediaLibrary } = require('./media/library');
+const { createImageFormats } = require('./media/formats');
 const { createMailer } = require('./mail/mailer');
 const { createWanIp } = require('./mail/wan-ip');
 const { createNotifications } = require('./mail/notifications');
@@ -79,6 +80,8 @@ function createServices(options) {
   // Afbeeldingen: import en fotobibliotheek (tests geven een eigen map mee).
   const mediaDir = options.mediaDir || MEDIA_DIR;
   const mediaLibrary = createMediaLibrary({ db: options.db, mediaDir, appLog });
+  // Lichtere formaten (WebP in vaste breedtes, kleinere JPEG) van importfoto's, en de index voor `srcset`.
+  const imageFormats = createImageFormats({ db: options.db, mediaDir, appLog });
 
   // E-mail via de mailserver uit Beheer (tests geven een eigen mailer en WAN-IP-opzoeker mee).
   const mailer = options.mailer || createMailer({ settings });
@@ -107,7 +110,7 @@ function createServices(options) {
   const accounts = createAccounts({ db: options.db });
 
   return {
-    vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary,
+    vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary, imageFormats,
     mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders,
     infobriefSender, siteContent, homepage, accounts,
   };
@@ -159,6 +162,7 @@ function startBackgroundTasks(services, db) {
   services.paymentReminders.start();
   services.infobriefSender.start();
   services.mediaLibrary.startCleanupTimer();
+  services.imageFormats.startTimer();
   // Updates: de stand van "automatisch bijwerken" naar het hostscript en een afgeronde uitrol in het auditlog (elke minuut).
   startUpdateSync({ db, settings: services.settings, systemUpdate: services.systemUpdate });
 }

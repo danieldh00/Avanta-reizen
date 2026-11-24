@@ -7,7 +7,7 @@
 const { html, raw } = require('./html');
 const { formatDate, tripPath, categoryPath, guidePath } = require('./format');
 const { icon, categoryIconName } = require('./icons');
-const { cssImageUrl } = require('./layout');
+const { imageAttributes } = require('../media/formats');
 
 /**
  * Bedrag zoals de huidige site het toont: euroteken, geen scheiding voor duizendtallen, ",-" bij hele euro's.
@@ -21,15 +21,15 @@ function themePrice(cents) {
   return `€${euros},${rest ? String(rest).padStart(2, '0') : '-'}`;
 }
 
-/**
- * Achtergrondfoto als style-attribuut (alleen veilige adressen, zie `cssImageUrl`).
- * @param {string} url Adres.
- * @returns {object|string} Attribuut of leeg.
- */
-function backgroundStyle(url) {
-  const safe = cssImageUrl(url);
-  return safe ? html` style="background-image: url('${safe}')"` : '';
-}
+/** Weergegeven breedte van de foto's per soort plek (attribuut `sizes`), zodat de browser een passende versie kiest. */
+const IMAGE_SIZES = {
+  tripCard: '(max-width: 768px) 100px, 280px',
+  gallery: '(max-width: 768px) 450px, 750px',
+  guideWidget: '70px',
+  guideTeaser: '(max-width: 768px) 100px, (max-width: 1024px) 50vw, 300px',
+  guidePortrait: '(max-width: 768px) 100vw, 600px',
+  guideImage: '(max-width: 768px) 100vw, 640px',
+};
 
 /**
  * Het prijsvak: prijs (met oude prijs en sterretje bij een aanbieding), bijkomende kosten en aanbiedingsdatum.
@@ -66,7 +66,7 @@ function tripListItem(trip) {
     <a class="post-teaser post-teaser--landscape" href="${tripPath(trip.slug)}">
       <div class="box box--landscape box--additional">
         ${tripLabel(trip)}
-        <figure class="box__image"${backgroundStyle(trip.card_image_url)}>${trip.card_image_url ? html`<img src="${trip.card_image_url}" alt="" loading="lazy" width="800" height="700">` : ''}</figure>
+        <figure class="box__image">${trip.card_image_url ? html`<img${imageAttributes(trip.card_image_url, IMAGE_SIZES.tripCard, 400)} alt="" loading="lazy" width="800" height="700">` : ''}</figure>
         <div class="box__inner">
           <span class="box__pretitle">${formatDate(trip.departure_date)}${trip.trip_code ? html` <span class="trip__code">${trip.trip_code}</span>` : ''}</span>
           <span class="box__title">${trip.title}</span>
@@ -129,7 +129,7 @@ function renderGallery(gallery) {
     ${gallery.title ? html`<h2 class="section__title">${gallery.title}</h2>` : ''}
     ${gallery.subtitle ? html`<p class="section__subtitle">${gallery.subtitle}</p>` : ''}
     <div class="gallery-strip" data-scroller>
-      <ul class="gallery-strip__track" data-scroller-track>${images.map((image) => html`<li class="gallery-strip__item"><img src="${image.url}" alt="${image.alt || ''}" loading="lazy" height="500"></li>`)}</ul>
+      <ul class="gallery-strip__track" data-scroller-track>${images.map((image) => html`<li class="gallery-strip__item"><img${imageAttributes(image.url, IMAGE_SIZES.gallery, 800)} alt="${image.alt || ''}" loading="lazy" height="500"></li>`)}</ul>
       ${images.length > 1 ? html`<div class="gallery-strip__nav">
         <button class="slider-button" type="button" data-scroller-prev>${icon('chevron-left')}<span class="visually-hidden">Vorige foto</span></button>
         <button class="slider-button" type="button" data-scroller-next>${icon('chevron-right')}<span class="visually-hidden">Volgende foto</span></button>
@@ -154,7 +154,7 @@ function tripDetail(trip, state) {
   const guides = Array.isArray(trip.guides) ? trip.guides : [];
   const guide = guides.map((item) => html`<div class="block-ghost block-ghost--guide">
     <div class="guide-widget">
-      <figure class="guide-widget__thumb">${item.photo_url ? html`<img src="${item.photo_url}" alt="" width="70" height="70">` : ''}</figure>
+      <figure class="guide-widget__thumb">${item.photo_url ? html`<img${imageAttributes(item.photo_url, IMAGE_SIZES.guideWidget, 400)} alt="" width="70" height="70">` : ''}</figure>
       <div class="guide-widget__inner">
         <span class="block-ghost__label">Reisleider</span>
         <h2 class="guide-widget__title"><a href="${guidePath(item.slug)}">${item.name}</a></h2>
@@ -211,9 +211,10 @@ function pageIntroduction(text) {
  * @returns {object} HTML.
  */
 function guideTeaser(guide) {
+  const portrait = guide.extra.portrait || guide.photo_url;
   return html`<div class="grid__item">
     <a class="post-teaser post-teaser--guide" href="${guidePath(guide.slug)}">
-      <figure class="post-teaser__thumb"${backgroundStyle(guide.extra.portrait || guide.photo_url)}></figure>
+      <figure class="post-teaser__thumb">${portrait ? html`<img${imageAttributes(portrait, IMAGE_SIZES.guideTeaser, 400)} alt="" loading="lazy" width="300" height="340">` : ''}</figure>
       <div class="post-teaser__inner">
         <h2 class="post-teaser__title">${guide.name}</h2>
         ${guide.extra.surname ? html`<span class="post-teaser__subtitle">${guide.extra.surname}</span>` : ''}
@@ -252,8 +253,8 @@ function guideDetail(guide) {
         <div class="grid__item">
           ${icon('badge', { className: 'stamp' })}
           <div class="guide__personal">
-            ${portrait ? html`<span class="guide__featured-image"><img src="${portrait}" alt="${guide.name}" width="600" height="700"></span>` : ''}
-            ${extra.image ? html`<span class="guide__image"><img src="${extra.image}" alt="" loading="lazy" width="1280" height="960"></span>` : ''}
+            ${portrait ? html`<span class="guide__featured-image"><img${imageAttributes(portrait, IMAGE_SIZES.guidePortrait, 800)} alt="${guide.name}" width="600" height="700"></span>` : ''}
+            ${extra.image ? html`<span class="guide__image"><img${imageAttributes(extra.image, IMAGE_SIZES.guideImage, 800)} alt="" loading="lazy" width="1280" height="960"></span>` : ''}
             ${extra.quote ? html`<blockquote class="guide__quote">“${quoteText(extra.quote)}”</blockquote>` : ''}
           </div>
         </div>

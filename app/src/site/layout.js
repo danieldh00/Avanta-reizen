@@ -7,6 +7,7 @@ const { renderSeoHead } = require('./seo');
 const { currentContext } = require('../system/request-context');
 const { icon } = require('./icons');
 const { formatDate } = require('./format');
+const { sizedImageUrl } = require('../media/formats');
 
 /** Hoofdmenu, gelijk aan de huidige site. */
 const MENU = [
@@ -225,7 +226,8 @@ function cssImageUrl(url) {
  * @returns {object} HTML van de kop.
  */
 function renderPageHeader(header) {
-  const imageUrl = cssImageUrl(header.imageUrl);
+  // Volle breedte: de versie van 1600 pixels is scherp genoeg en veel lichter dan een groot origineel.
+  const imageUrl = cssImageUrl(sizedImageUrl(header.imageUrl, 1600));
   const back = header.backLink ? html`<a class="to-archive" href="${header.backLink}">${icon('chevron-left')}<span class="to-archive__label">Naar overzicht</span></a>` : '';
   // Zonder titel en foto (reisleider): alleen de knop "Naar overzicht", zoals op de huidige site.
   if (header.bare) return html`<section class="page-header page-header--bare"><div class="layout-container">${back}</div></section>`;
