@@ -365,14 +365,17 @@ function createRetention(options) {
 
   /**
    * Eén controle van de planner: start de dagelijkse ronde als de schakelaar aan staat, er geen ronde loopt en de
-   * vorige dagelijkse ronde minstens `DAILY_GAP_HOURS` uur geleden begon (uit `retention_runs`, dus ook over een
-   * herstart heen).
+   * vorige geslaagde dagelijkse ronde minstens `DAILY_GAP_HOURS` uur geleden begon (uit `retention_runs`, dus ook over
+   * een herstart heen). Een mislukte ronde, of een die door een herstart nooit is afgerond (na een uur), telt niet:
+   * dan probeert de volgende controle het opnieuw.
    * @returns {Promise<boolean>} Waar als er een ronde is gestart.
    */
   const tick = async () => {
     if (!settings.get('retentionEnabled') || running) return false;
     const [recent] = await db.query(
-      "SELECT EXISTS (SELECT 1 FROM retention_runs WHERE trigger = 'dagelijks' AND started_at > now() - make_interval(hours => $1)) AS done",
+      `SELECT EXISTS (SELECT 1 FROM retention_runs
+                       WHERE trigger = 'dagelijks' AND started_at > now() - make_interval(hours => $1)
+                         AND ((finished_at IS NOT NULL AND error = '') OR (finished_at IS NULL AND started_at > now() - interval '1 hour'))) AS done`,
       [DAILY_GAP_HOURS],
     );
     if (recent.done) return false;

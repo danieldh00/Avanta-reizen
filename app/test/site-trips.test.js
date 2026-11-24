@@ -45,6 +45,18 @@ test('prijs zoals de huidige site: geen punt voor duizendtallen, ",-" bij hele e
   assert.equal(views.themePrice(null), '€0,-');
 });
 
+test('citaat van een reisleider: alleen een paar aanhalingstekens eromheen gaat weg', () => {
+  assert.equal(views.quoteText('“Hoi”'), 'Hoi');
+  assert.equal(views.quoteText('"Hoi"'), 'Hoi');
+  assert.equal(views.quoteText("'Hoi'"), 'Hoi');
+  assert.equal(views.quoteText('„Hoi”'), 'Hoi');
+  assert.equal(views.quoteText('  “ Hoi ”  '), 'Hoi');
+  assert.equal(views.quoteText("Zo'n reis, da's mooi'"), "Zo'n reis, da's mooi'", 'een losse apostrof blijft staan');
+  assert.equal(views.quoteText('"Hoi'), '"Hoi', 'zonder sluitteken blijft het staan');
+  assert.equal(views.quoteText(''), '');
+  assert.equal(views.quoteText('"'), '"');
+});
+
 test('reis in een lijst: liggende box met foto, code, samenvatting en prijsvak; labels en aanbieding', () => {
   const item = toString(views.tripListItem(trip()));
   assert.match(item, /<a class="post-teaser post-teaser--landscape" href="\/reis\/namibie\/">/);

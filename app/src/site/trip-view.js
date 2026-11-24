@@ -90,14 +90,20 @@ function tripList(trips, empty) {
   return html`<div class="list list--journey archive archive--journey">${trips.map(tripListItem)}</div>`;
 }
 
+/** Aanhalingstekens die als paar om een citaat kunnen staan (openen, sluiten). */
+const QUOTE_PAIRS = [['“', '”'], ['„', '”'], ['„', '“'], ['"', '"'], ['‘', '’'], ["'", "'"], ['`', '`']];
+
 /**
- * Het citaat van een reisleider zonder aanhalingstekens aan begin en eind; de weergave zet er zelf “ en ” omheen,
- * zoals de huidige site, ook als het citaat in het CRM al met aanhalingstekens is ingevoerd.
+ * Het citaat van een reisleider zonder een paar aanhalingstekens eromheen (een losse apostrof aan het eind blijft
+ * staan); de weergave zet er zelf “ en ” omheen, zoals de huidige site, ook als het citaat in het CRM al met
+ * aanhalingstekens is ingevoerd.
  * @param {string} quote Citaat.
  * @returns {string} Citaat zonder omringende aanhalingstekens.
  */
 function quoteText(quote) {
-  return String(quote).trim().replace(/^[`'"‘“„]+|[`'"’”]+$/g, '').trim();
+  const text = String(quote || '').trim();
+  const pair = QUOTE_PAIRS.find(([open, close]) => text.length > 1 && text.startsWith(open) && text.endsWith(close));
+  return pair ? text.slice(1, -1).trim() : text;
 }
 
 /**

@@ -218,6 +218,13 @@ test('AVG-opschoning', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.equal(await restarted.tick(), true);
     assert.equal(await count(), before + 1);
     assert.equal(await restarted.tick(), false, 'daarna weer niet');
+    // Een mislukte ronde, of een die door een herstart nooit is afgerond, telt niet: de volgende controle probeert opnieuw.
+    await db.query("UPDATE retention_runs SET error = 'XX000' WHERE id = (SELECT max(id) FROM retention_runs)");
+    assert.equal(await restarted.tick(), true, 'na een mislukte ronde');
+    await db.query("UPDATE retention_runs SET finished_at = NULL, started_at = now() - interval '2 hours' WHERE id = (SELECT max(id) FROM retention_runs)");
+    assert.equal(await restarted.tick(), true, 'na een ronde die nooit is afgerond');
+    await db.query("UPDATE retention_runs SET finished_at = NULL WHERE id = (SELECT max(id) FROM retention_runs)");
+    assert.equal(await restarted.tick(), false, 'een ronde die net begon (bijv. op een andere instantie) telt wel');
   });
 
   await t.test('een nieuwe aanmelding schuift de termijn op; daarna wordt opnieuw gewist', async () => {
