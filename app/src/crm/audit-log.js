@@ -21,6 +21,7 @@ const ENTITIES = {
   bookings: { label: 'Aanmelding', href: (id) => `/app/aanmeldingen/${id}/` },
   persons: { label: 'Deelnemer', href: (id) => `/app/deelnemers/${id}/` },
   contact_messages: { label: 'Bericht', href: (id) => `/app/berichten/${id}/` },
+  infobrieven: { label: 'Infobrief', href: (id) => `/app/infobrieven/${id}/` },
   trips: { label: 'Reis', href: (id) => `/app/reizen/${id}/` },
   guides: { label: 'Reisleider', href: (id) => `/app/reisleiders/${id}/` },
   pages: { label: 'Pagina', href: (id) => `/app/paginas/${id}/` },

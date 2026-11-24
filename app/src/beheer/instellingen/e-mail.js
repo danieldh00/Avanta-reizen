@@ -51,6 +51,11 @@ const FIELDS = {
     required: true,
     validate: (value) => (value.split('\n').length > 10 ? 'Gebruik hoogstens 10 regels.' : ''),
   },
+  infobriefPerMinute: {
+    type: 'int', label: 'Hoogstens zoveel mails per minuut',
+    help: 'De infobrief gaat in de achtergrond weg, in dit tempo. Houd het onder de limiet van de mailserver (Microsoft 365: 30 per minuut); een lager getal duurt langer maar wordt minder snel als spam gezien.',
+    default: 20, min: 1, max: 120,
+  },
   mailHeaderColor: {
     type: 'text',
     label: 'Kleur van de titelbalk',
@@ -97,6 +102,13 @@ const GROUP = {
       intro: 'Na een aanmelding krijgt de reiziger een bevestiging met de referentie, de reisgegevens, de bedragen en de betaalinstructie. Werkt alleen met een ingestelde mailserver; een mislukte mail verandert niets aan de aanmelding.',
       fields: ['bookingConfirmEnabled', 'bookingPaymentText'],
       words: 'bevestiging reiziger klant aanmelding boeking betaalinstructie rekeningnummer iban aanbetaling referentie',
+    },
+    {
+      id: 'infobrief',
+      label: 'Infobrief',
+      intro: 'Kantoor stuurt de infobrief aan alle deelnemers van een vertrek (en de ouder of voogd van deelnemers onder de 16) vanuit het CRM, onder Boekingen > Infobrieven. De mails gaan in de achtergrond weg met de mailserver en de opmaak van hierboven; hier stel je het tempo in.',
+      fields: ['infobriefPerMinute'],
+      words: 'infobrief mailing nieuwsbrief deelnemers vertrek tempo limiet per minuut bulk',
     },
     {
       id: 'mail-opmaak',

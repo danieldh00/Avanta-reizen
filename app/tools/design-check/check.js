@@ -31,8 +31,8 @@ const VIEWPORTS = [
 ];
 /** Ernst per soort controle: hoog = zichtbaar kapot, midden = scheef of rommelig, laag = toegankelijkheid/verfijning. */
 const SEVERITY = { ingekort: 'midden', overloop: 'hoog', overlap: 'hoog', afgekapt: 'hoog', afbeelding: 'hoog', knophoogte: 'midden', uitlijning: 'midden', rand: 'midden', 'kleine-tekst': 'laag', klikdoel: 'laag' };
-/** Links onder /app/ die de controle nooit opent: uitloggen en downloads. */
-const SKIP_LINK = /\/uitloggen\/|\.xlsx|\/download\/|\/export\/|\/media\/|\/voorbeeld\/.*\.(jpg|webp)$/;
+/** Links onder /app/ die de controle nooit opent: uitloggen, downloads en het mailvoorbeeld van een infobrief (geen CRM-scherm). */
+const SKIP_LINK = /\/uitloggen\/|\/app\/infobrieven\/\d+\/voorbeeld\/|\.xlsx|\/download\/|\/export\/|\/media\/|\/voorbeeld\/.*\.(jpg|webp)$/;
 /** Gelijktijdige pagina's per context. */
 const PARALLEL = 4;
 

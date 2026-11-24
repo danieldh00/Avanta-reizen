@@ -39,6 +39,7 @@ const CRM_MENU = [
       { label: 'Berichten', href: '/app/berichten/', icon: 'mail', right: 'berichten', global: true, counter: 'berichten' },
       { label: 'Deelnemers', href: '/app/deelnemers/', icon: 'users', right: 'deelnemers', global: true },
       { label: 'Deelnemerslijsten', href: '/app/deelnemerslijsten/', icon: 'list', right: 'export.deelnemers' },
+      { label: 'Infobrieven', href: '/app/infobrieven/', icon: 'mail', right: 'infobrief', global: true },
       { label: 'Betalingen', href: '/app/betalingen/', icon: 'euro', right: 'betalingen', global: true },
     ],
   },
