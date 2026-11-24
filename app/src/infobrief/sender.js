@@ -97,13 +97,15 @@ function createInfobriefSender(options) {
       const mail = infobrieven.buildMail({ infobrief: row, recipient: { role: row.role, callName: row.call_name }, settings });
       recent.push(now());
       await mailer.send({ kind: 'infobrief', to: address, subject: mail.subject, text: mail.text, html: mail.html, attachments: mail.attachments });
-      await settle('verzonden', '');
-      return 'sent';
     } catch (error) {
       // mailFailure noemt nooit een e-mailadres of wachtwoord.
       await settle('mislukt', mailFailure(error));
       return 'failed';
     }
+    // Buiten het try: de mail is weg. Mislukt het vastleggen, dan blijft de regel op *bezig* (en wordt later *niet zeker
+    // verzonden*), nooit op *mislukt*, zodat *Opnieuw versturen* hem niet nog een keer stuurt.
+    await settle('verzonden', '');
+    return 'sent';
   };
 
   /**

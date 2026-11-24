@@ -407,8 +407,9 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     const [brief] = await db.query("INSERT INTO infobrieven (trip_id, subject, body_html, status, send_started_at) VALUES ($1, 'Halverwege', '<p>x</p>', 'verzenden', now()) RETURNING id", [trip.id]);
     const ids = await db.query("SELECT id FROM bookings WHERE reference IN ('AV-2', 'AV-3', 'AV-7') ORDER BY id");
     for (const row of ids) await db.query("INSERT INTO infobrief_recipients (infobrief_id, booking_id, role) VALUES ($1, $2, 'deelnemer')", [brief.id, row.id]);
-    // Twee keer: het vastleggen na het versturen én het vastleggen van de fout mislukken.
-    let failures = 2;
+    // Alleen het vastleggen na een geslaagde verzending mislukt: de regel mag dan niet op *mislukt* komen (dan zou
+    // *Opnieuw versturen* hem een tweede keer sturen), maar blijft op *bezig*.
+    let failures = 1;
     const flaky = {
       query: (sql, params) => {
         if (failures > 0 && sql.includes('SET status = $2, note = $3')) {
@@ -424,6 +425,7 @@ test('infobrief in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     await assert.rejects(own.runOnce(), /database weg/);
     const statuses = (await db.query('SELECT status FROM infobrief_recipients WHERE infobrief_id = $1 ORDER BY id', [brief.id])).map((row) => row.status);
     assert.deepEqual(statuses, ['bezig', 'wachtrij', 'wachtrij'], 'alleen de ene regel van het moment blijft hangen');
+    assert.equal(mailer.sent.length, 1, 'de mail ging één keer weg');
     await own.runOnce();
     const after = (await db.query('SELECT status FROM infobrief_recipients WHERE infobrief_id = $1 ORDER BY id', [brief.id])).map((row) => row.status);
     assert.deepEqual(after, ['bezig', 'verzonden', 'verzonden']);
