@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.30.0 — 2026-11-24 — Berichten van het contactformulier afhandelen in het CRM
+
+- Nieuw in het CRM onder Boekingen: **Berichten**. Hier staan de vragen die via het contactformulier binnenkomen, met
+- Per bericht zie je de tekst, de afzender (met knop om te mailen of te bellen) en de reis waar de vraag over gaat.
+
+Pakket P4.1 (bevinding F01).
+- Migratie 30: `contact_messages` krijgt `handled_at`, `handled_by` (gebruiker, `ON DELETE SET NULL`), `note` en een
+  controle op de status (`nieuw`, `afgehandeld`).
+- Nieuw recht `berichten` (beheerder, kantoor) en schermen `/app/berichten/` in `contact/messages.js` en
+  `contact/message-routes.js` (ingang `contact/index.js`): lijst met filter en zoeken, afhandelen met notitie,
+  weer openen en verwijderen met bevestiging, met audit (`bericht.afgehandeld`, `bericht.heropend`,
+  `bericht.verwijderd`) en 409 bij een verouderde stand.
+- `crm/menu-counters.js`: tellers naast menu-items (`counter` in `CRM_MENU`), alleen bij een GET en met het recht.
+
 ## 0.29.9 — 2026-11-24 — HSTS-preload als instelling voor na de livegang
 
 - Beheer > Toegang en beveiliging heeft een schakelaar *HSTS-preload*. Zet hem pas aan na een stabiele periode na de livegang; de controle voor de livegang toont hem als stap voor later.
