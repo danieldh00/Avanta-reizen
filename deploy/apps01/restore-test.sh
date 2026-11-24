@@ -119,7 +119,7 @@ restore_failure() {
 
 # APP_ERROR_KINDS: soorten fout bij het starten die de melding mag noemen (een vaste lijst: zo komt er nooit vrije tekst
 # met een naam, pad of waarde in Beheer). Codes van Node (ECONNREFUSED, ENOSPC, …) zijn ook toegestaan.
-APP_ERROR_KINDS='password authentication failed|role [a-z_]+ does not exist|database [a-z_]+ does not exist|relation does not exist|column does not exist|does not exist|permission denied|invalid input syntax for type [a-z]+|duplicate key value violates unique constraint|violates foreign key constraint|violates not-null constraint|out of memory|JavaScript heap out of memory|no space left on device|Connection terminated unexpectedly|timeout exceeded when trying to connect|Invalid key length|Unsupported state or unable to authenticate data|Cannot find module|EADDRINUSE|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|ENOSPC|EACCES|EROFS|ENOMEM'
+APP_ERROR_KINDS='password authentication failed|relation does not exist|column does not exist|does not exist|permission denied|invalid input syntax for type [a-z]+|duplicate key value violates unique constraint|violates foreign key constraint|violates not-null constraint|out of memory|JavaScript heap out of memory|no space left on device|Connection terminated unexpectedly|timeout exceeded when trying to connect|Invalid key length|Unsupported state or unable to authenticate data|Cannot find module|EADDRINUSE|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|ENOSPC|EACCES|EROFS|ENOMEM'
 
 # app_error <bestand met de uitvoer van de app>: de eigen foutmelding van de app bij het starten ("Starten mislukt" of
 # "Onverwerkte fout") met, als die erin staat, een soort fout uit APP_ERROR_KINDS. Andere tekst uit de melding komt er

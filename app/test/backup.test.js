@@ -272,6 +272,7 @@ test('hersteltest: de melding zegt waarom de wegwerp-app niet bruikbaar was, zon
     'Starten mislukt: pad naar bestand jansen.pdf niet gevonden': 'Starten mislukt',
     'Starten mislukt: gebruiker mevrouw dekker verwijderd': 'Starten mislukt',
     'Starten mislukt: connect ECONNREFUSED 10.0.0.2:5432': 'Starten mislukt: ECONNREFUSED',
+    'Starten mislukt: role jansen does not exist': 'Starten mislukt: does not exist',
     'Starten mislukt: password authentication failed for user "avanta_app"': 'Starten mislukt: password authentication failed',
   };
   for (const [line, expected] of Object.entries(leaks)) {
