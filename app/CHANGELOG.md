@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.33.8 — 2026-11-24 — Leesbare code in site/, booking/, account/, mail/, contact/ en infobrief/ (P6a.4)
+
+- `booking/fields.js`: `cleanFieldInput` en `formatProblem` uit `validateFields`.
+- `booking/routes.js` en `booking/manual-routes.js`: het invoerelement van een veld in `renderFormControl` en
+  `renderControl`.
+- `infobrief/infobrief-routes.js`: de pagina van een infobrief is opgesplitst in concept (`renderConcept`) en verstuurd
+  (`renderSent`), met de feiten in `infobriefFacts`.
+- `mail/mailer.js`: `connectionAdvice` (uitleg bij een verbindingsfout) uit `mailFailure`.
+- `site/layout.js`: `pageSettings` (waarden met standaarden) uit `renderPage`; `site/site-content.js`:
+  `plainObject`, `normalizeGuides`, `normalizeTags` en `normalizeGalleries` uit `normalizeSiteContent`.
+- ESLint bewaakt nu ook complexiteit (20) en bestandslengte (600) in deze zes mappen.
+
 ## 0.33.7 — 2026-11-24 — Leesbare code in beheer/, system/, backup/ en security/ (P6a.3)
 
 - `beheer/routes.js`: het invoerelement van een instelling staat in `renderSettingInput`.
