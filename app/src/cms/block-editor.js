@@ -7,7 +7,7 @@
  */
 const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
-const { renderCrmPage, renderAlert } = require('../crm/layout');
+const { renderCrmPage, renderAlert, formatDateTime } = require('../crm/layout');
 const { lockMediaForUse } = require('../media/library');
 const { pickerFilter, pickerPhotos, renderPhotoPicker } = require('../media/picker');
 const {
@@ -148,6 +148,68 @@ function chosenPhoto(body) {
   const none = body.geen === '1';
   const mediaId = none ? null : body.media_id;
   return { none, mediaId, valid: none || (typeof mediaId === 'string' && /^\d{1,9}$/.test(mediaId)) };
+}
+
+/**
+ * Het statusblok bovenaan een pagina of bericht: is er een concept (met Publiceren en Concept weggooien) of niet, en
+ * de feiten (adres, op de site, laatst gewijzigd).
+ * @param {{item: {draft: *}, url: string, hiddenFields: object, draftNote: string, publishedText: string, facts: Array<Array<*>>}} status
+ *   Pagina of bericht, adres van het bewerkscherm, verborgen velden, extra tekst bij een concept, wat er zonder
+ *   concept geldt ("staat op de site", "is gepubliceerd") en de feiten als paren van label en waarde.
+ * @returns {object} HTML.
+ */
+function renderDraftStatus({ item, url, hiddenFields, draftNote, publishedText, facts }) {
+  return html`<section class="crm-block cms-status">
+          ${item.draft ? html`<p><strong>Concept met wijzigingen</strong> die nog niet op de site staan.${draftNote}</p>
+            <div class="crm-actions">
+              <form method="post" action="${url}publiceren/">${hiddenFields}<button class="btn btn--small" type="submit">Publiceren</button></form>
+              <form method="post" action="${url}concept-weggooien/">${hiddenFields}<button class="btn btn--small btn--outline" type="submit">Concept weggooien</button></form>
+            </div>` : html`<p>Geen openstaande wijzigingen: wat je hier ziet ${publishedText}. Een wijziging komt eerst in een concept.</p>`}
+          <dl class="crm-facts">${facts.map(([label, value]) => html`
+            <dt>${label}</dt><dd>${value}</dd>`)}
+          </dl>
+        </section>`;
+}
+
+/**
+ * Het tabblad *Versies* van een pagina of bericht: elke gepubliceerde versie met een knop om hem als concept terug te
+ * zetten.
+ * @param {object[]} revisionRows Versies, nieuwste eerst.
+ * @param {string} itemUrl Adres van het bewerkscherm (eindigt op `/`).
+ * @param {object} hiddenFields Verborgen velden (CSRF-token en conceptversie).
+ * @returns {object} HTML.
+ */
+function renderRevisions(revisionRows, itemUrl, hiddenFields) {
+  return html`<section class="crm-block" id="versies">
+          <h2>Versies</h2>
+          ${revisionRows.length ? html`<div class="crm-table-wrap"><table class="crm-table">
+            <thead><tr><th>Versie</th><th>Gepubliceerd</th><th>Door</th><th></th></tr></thead>
+            <tbody>${revisionRows.map((row) => html`<tr>
+              <td>${String(row.version)}${row.note ? html` <span class="field__help">(${row.note})</span>` : ''}</td>
+              <td>${formatDateTime(row.published_at)}</td>
+              <td>${row.published_by_name || '–'}</td>
+              <td><form method="post" action="${itemUrl}versies/${row.version}/terugzetten/">${hiddenFields}<button class="btn btn--small btn--outline" type="submit">Terugzetten als concept</button></form></td>
+            </tr>`)}</tbody>
+          </table></div>` : html`<p>Nog geen versies. Bij de eerste publicatie wordt ook de huidige stand bewaard.</p>`}
+        </section>`;
+}
+
+/**
+ * De knoppen om een pagina of bericht offline te halen of weer online te zetten, en (als het mag) te verwijderen.
+ * @param {{item: {published: boolean}, url: string, hiddenFields: object, canDelete: boolean, deleteLabel: string}} actions
+ *   Pagina of bericht, adres van het bewerkscherm, verborgen velden, of verwijderen mag en wat er verwijderd wordt
+ *   ("deze pagina", "dit bericht").
+ * @returns {object} HTML.
+ */
+function renderVisibilityActions({ item, url, hiddenFields, canDelete, deleteLabel }) {
+  return html`<div class="crm-actions">
+            ${item.published
+              ? html`<form method="post" action="${url}online/">${hiddenFields}<input type="hidden" name="stand" value="offline"><button class="btn btn--small btn--outline" type="submit">Offline halen</button></form>`
+              : html`<form method="post" action="${url}online/">${hiddenFields}<input type="hidden" name="stand" value="online"><button class="btn btn--small btn--outline" type="submit">Weer online zetten</button></form>`}
+            ${canDelete ? html`<form method="post" action="${url}verwijderen/">${hiddenFields}
+              <label class="checkbox"><input type="checkbox" name="zeker" value="ja" required> Ja, verwijder ${deleteLabel} met alle versies</label>
+              <button class="btn btn--small btn--outline" type="submit">Verwijderen</button></form>` : ''}
+          </div>`;
 }
 
 /**
@@ -437,4 +499,4 @@ function createBlockEditor(config) {
   return { renderBlocksSection, addRoutes };
 }
 
-module.exports = { createBlockEditor, fieldRow, invalidAttributes, fieldControl, blockFields, photoFieldOf, chosenPhoto, RICHTEXT_HELP, FIELD_HELP };
+module.exports = { createBlockEditor, renderDraftStatus, renderRevisions, renderVisibilityActions, fieldRow, invalidAttributes, fieldControl, blockFields, photoFieldOf, chosenPhoto, RICHTEXT_HELP, FIELD_HELP };

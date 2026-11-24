@@ -11,12 +11,6 @@ const js = require('@eslint/js');
 const globals = require('globals');
 const security = require('eslint-plugin-security');
 
-/** Mappen waar `complexity` en `max-lines` nog uit staan tot ze in P6a zijn nagelopen. */
-const P6A_NOG_NALOPEN = [
-  'src/cms/**', 'src/trips/**', 'src/media/**', 'src/export/**', 'src/dev/**', 'src/services.js', 'src/server.js',
-  'tools/**',
-];
-
 module.exports = [
   {
     ignores: ['node_modules/**', 'public/**/*.min.js', 'coverage/**'],
@@ -58,18 +52,12 @@ module.exports = [
   },
   {
     // Lengte en vertakkingen van de app-code: een functie met meer dan 20 paden of een bestand van meer dan 600
-    // regels code wordt opgesplitst. Geldt per map zodra die in pakket P6a is nagelopen; de mappen in
-    // `P6A_NOG_NALOPEN` (onderaan) volgen nog en vallen tot dan buiten deze twee regels.
+    // regels code wordt opgesplitst. Een uitzondering alleen met `eslint-disable-next-line` en de reden erboven.
     files: ['src/**/*.js', 'tools/**/*.js'],
     rules: {
       complexity: ['error', 20],
       'max-lines': ['error', { max: 600, skipBlankLines: true, skipComments: true }],
     },
-  },
-  {
-    // Mappen die in P6a nog worden nagelopen (6a.2 t/m 6a.5); elke PR haalt zijn mappen hier weg.
-    files: P6A_NOG_NALOPEN,
-    rules: { complexity: 'off', 'max-lines': 'off' },
   },
   {
     // Hulpmiddelen met Playwright: Node-code met stukken die in de browser draaien (page.evaluate).

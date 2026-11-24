@@ -24,6 +24,9 @@
  * @returns {Array<{check: string, message: string, selector: string, rect: {x: number, y: number, width: number, height: number}}>}
  *   Bevindingen; de rechthoek is in paginacoördinaten (inclusief scrollpositie).
  */
+// Playwright stuurt deze functie als tekst naar de browser, dus hulpfuncties buiten haar bestaan daar niet; de
+// controles staan daarom bewust in één functie, elk als eigen blok met kopcommentaar.
+// eslint-disable-next-line complexity
 function runPageChecks(context) {
   const THRESHOLDS = {
     overflowPx: 1, // meer dan 1 px breder dan het venster telt als overloop

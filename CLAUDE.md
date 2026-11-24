@@ -120,7 +120,7 @@ Regels:
 - Beschrijvende namen (geen namen van één letter behalve `i`/`j`/`x`/`y`, geen cryptische afkortingen). Maatstaf voor
   namen, lengte van functies en bestanden, opbouw van een routebestand en commentaar: `docs/WERKWIJZE.md`, *Leesbare
   code*; ESLint bewaakt namen, diepte, parameters en callbacks overal, en complexiteit (20) en bestandslengte (600)
-  per map zodra die in P6a is nagelopen (`P6A_NOG_NALOPEN` in `app/eslint.config.js`).
+  in `app/src/` en `app/tools/` (sinds P6a voor alle code).
 - Elke functie een `/** … */`-blok in het Nederlands (wat, `@param`, `@returns`); elk bestand een kopcommentaar.
 - **Lint en typecontrole**: `npm run lint` (ESLint, `app/eslint.config.js`) moet schoon zijn. Een nieuw bestand onder
   `app/src/` begint met `// @ts-check`; `npm run typecheck` controleert die bestanden op hun JSDoc. Een bestaand bestand

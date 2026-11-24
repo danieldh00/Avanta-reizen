@@ -5,7 +5,8 @@
 const { html } = require('../site/html');
 const { introduction } = require('../site/page-view');
 const { renderGallery } = require('../site/trip-view');
-const { renderBlocks, publishedBlocks, loadBlockData } = require('./blocks');
+const { publishedBlocks } = require('./blocks');
+const { renderBlocks, loadBlockData } = require('./block-render');
 
 /**
  * De HTML onder de kop van een pagina; voor de homepage (pad `/`) alleen de blokken, omhuld zoals de vaste homepage.

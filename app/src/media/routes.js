@@ -105,6 +105,26 @@ function readMultipart(req, tokenValid) {
 }
 
 /**
+ * De melding na een upload waarvan een deel niet lukte.
+ * @param {number} stored Aantal opgeslagen foto's.
+ * @param {string[]} problems Meldingen per bestand.
+ * @returns {string} Melding.
+ */
+function partialUploadMessage(stored, problems) {
+  const prefix = stored ? `${stored} ${stored === 1 ? 'foto' : 'foto\'s'} geüpload. Niet gelukt: ` : 'Niet gelukt: ';
+  return prefix + problems.join(' ');
+}
+
+/**
+ * Het adres van de reis om na de upload naar terug te gaan: alleen een vast pad binnen het CRM (geen open redirect).
+ * @param {*} value Veld `terug` uit het formulier.
+ * @returns {string} Pad van de reis, of leeg.
+ */
+function tripReturnPath(value) {
+  return typeof value === 'string' && /^\/app\/reizen\/\d{1,9}\/$/.test(value) ? value : '';
+}
+
+/**
  * Maakt de routes van de fotobibliotheek.
  * @param {{db: object, auth: object, mediaDir: string, now?: Function, limits?: {uploadsPerHour?: number, maxParallelUploads?: number}}} options
  *   Database, sessie- en rechtenlaag, map met bestanden en (voor tests) andere grenzen.
@@ -217,6 +237,40 @@ function createMediaRoutes(options) {
     }
   });
 
+  /**
+   * Slaat de bestanden van een upload op in de bibliotheek, elk met een regel in het auditlog. Een te groot bestand of
+   * een bestand dat geen bruikbare foto is, wordt overgeslagen met een melding; een andere fout breekt de upload af.
+   * @param {object} req Express-verzoek (gebruiker, audit).
+   * @param {object[]} files Bestanden uit `readMultipart`.
+   * @param {string[]} countryIds Gekozen landen.
+   * @returns {Promise<{stored: number, problems: string[]}>} Aantal opgeslagen foto's en de meldingen per bestand.
+   */
+  const storeFiles = async (req, files, countryIds) => {
+    const problems = [];
+    let stored = 0;
+    for (const file of files) {
+      const label = file.filename.split(/[\\/]/).pop().slice(0, 120) || 'zonder naam';
+      if (file.truncated || !file.buffer) {
+        problems.push(`${label}: het bestand is groter dan ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`);
+        continue;
+      }
+      try {
+        await library.storeUpload({
+          buffer: file.buffer,
+          filename: file.filename,
+          userId: req.user.id,
+          countryIds,
+          audit: (client, mediaId) => auth.audit(req, { userId: req.user.id, action: 'media.geupload', entity: 'media', entityId: mediaId }, client),
+        });
+        stored++;
+      } catch (error) {
+        if (!(error instanceof ImageError)) throw error;
+        problems.push(`${label}: ${error.message}`);
+      }
+    }
+    return { stored, problems };
+  };
+
   router.post('/fotobibliotheek/uploaden/', guard, async (req, res, next) => {
     if (!req.is('multipart/form-data')) return res.status(415).type('text').send('Verwacht een formulier met bestanden.');
     if (Number(req.get('content-length') || 0) > MAX_FILES * MAX_UPLOAD_BYTES + 64 * 1024) {
@@ -239,34 +293,9 @@ function createMediaRoutes(options) {
       const withinLimit = form.files.map(() => uploadLimiter.hit(userKey)).every(Boolean);
       if (!withinLimit) return await fail(429, `Je kunt maximaal ${uploadsPerHour} foto's per uur uploaden. Probeer het later opnieuw.`);
       const countryIds = [].concat(form.fields.land || []);
-      const problems = [];
-      let stored = 0;
-      for (const file of form.files) {
-        const label = file.filename.split(/[\\/]/).pop().slice(0, 120) || 'zonder naam';
-        if (file.truncated || !file.buffer) {
-          problems.push(`${label}: het bestand is groter dan ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`);
-          continue;
-        }
-        try {
-          await library.storeUpload({
-            buffer: file.buffer,
-            filename: file.filename,
-            userId: req.user.id,
-            countryIds,
-            audit: (client, mediaId) => auth.audit(req, { userId: req.user.id, action: 'media.geupload', entity: 'media', entityId: mediaId }, client),
-          });
-          stored++;
-        } catch (error) {
-          if (!(error instanceof ImageError)) throw error;
-          problems.push(`${label}: ${error.message}`);
-        }
-      }
-      if (problems.length) {
-        const prefix = stored ? `${stored} ${stored === 1 ? 'foto' : 'foto\'s'} geüpload. Niet gelukt: ` : 'Niet gelukt: ';
-        return await fail(422, prefix + problems.join(' '));
-      }
-      // Vanaf een reis geüpload: terug naar die reis (alleen een vast pad binnen het CRM, geen open redirect).
-      const back = typeof form.fields.terug === 'string' && /^\/app\/reizen\/\d{1,9}\/$/.test(form.fields.terug) ? form.fields.terug : '';
+      const { stored, problems } = await storeFiles(req, form.files, countryIds);
+      if (problems.length) return await fail(422, partialUploadMessage(stored, problems));
+      const back = tripReturnPath(form.fields.terug);
       if (back) return res.redirect(303, `${back}?geupload=${stored}#fotos`);
       return res.redirect(303, `${BASE}?geupload=${stored}`);
     } catch (error) {
