@@ -2,7 +2,7 @@
  * Router van het CRM onder `/app/`: de gedeelde schil (limiet, formuliergrootte per onderdeel, sessie laden) en de
  * routes van alle modules. De routes zelf staan per onderwerp in een eigen bestand: toegang in `crm/login-routes.js`,
  * het overzicht in `crm/dashboard-routes.js`, en per module een ingang `index.js` (`persons/`, `booking/`,
- * `payments/`, `trips/`, `cms/`, `media/`, `contact/`) die
+ * `payments/`, `trips/`, `cms/`, `media/`, `contact/`, `infobrief/`) die
  * de routes van die module koppelt. Een nieuw scherm in een module komt in de ingang van die module, niet hier.
  * Alles onder `/app/` krijgt `Cache-Control: no-store` en `noindex`.
  */
@@ -28,6 +28,7 @@ const { createMediaModuleRoutes } = require('../media');
 const { createTripsModuleRoutes } = require('../trips');
 const { createCmsModuleRoutes } = require('../cms');
 const { createContactModuleRoutes } = require('../contact');
+const { createInfobriefModuleRoutes } = require('../infobrief');
 const { createMenuCounters } = require('./menu-counters');
 const { createBeheerRoutes } = require('../beheer/routes');
 
@@ -62,7 +63,7 @@ function createCrmRouter(options) {
   const beheerForms = express.urlencoded({ extended: false, limit: '64kb', parameterLimit: 100 });
   // De fotobibliotheek heeft een keuzelijst met alle landen (één veld per gekozen land).
   const mediaForms = express.urlencoded({ extended: false, limit: '64kb', parameterLimit: 400 });
-  // Pagina's, blogberichten, FAQ-antwoorden en reisleiders: een tekstblok mag lang zijn (100.000 tekens opgemaakte tekst); velden per blok blijven beperkt.
+  // Pagina's, blogberichten, FAQ-antwoorden, reisleiders en infobrieven: een tekstblok mag lang zijn (100.000 tekens opgemaakte tekst); velden per blok blijven beperkt.
   const pageForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 100 });
   // Blog: als pagina's, plus een vinkje per categorie en tag (hoogstens 2 × 200).
   const blogForms = express.urlencoded({ extended: false, limit: '512kb', parameterLimit: 450 });
@@ -70,7 +71,7 @@ function createCrmRouter(options) {
   const bookingForms = express.urlencoded({ extended: false, limit: '32kb', parameterLimit: 80 });
   router.use((req, res, next) => {
     if (req.path.startsWith('/beheer/')) return beheerForms(req, res, next);
-    if (req.path.startsWith('/paginas/') || req.path.startsWith('/faq/') || req.path.startsWith('/reisleiders/')) return pageForms(req, res, next);
+    if (req.path.startsWith('/paginas/') || req.path.startsWith('/faq/') || req.path.startsWith('/reisleiders/') || req.path.startsWith('/infobrieven/')) return pageForms(req, res, next);
     if (req.path.startsWith('/blog/')) return blogForms(req, res, next);
     if (req.path === '/aanmeldingen/nieuw/') return bookingForms(req, res, next);
     if (req.path.startsWith('/fotobibliotheek/')) return mediaForms(req, res, next);
@@ -97,6 +98,7 @@ function createCrmRouter(options) {
   router.use(createTripsModuleRoutes(moduleContext));
   router.use(createCmsModuleRoutes(moduleContext));
   router.use(createContactModuleRoutes(moduleContext));
+  router.use(createInfobriefModuleRoutes(moduleContext));
   router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, passwordCheck, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, retention: options.retention, siteContent: options.siteContent, now: options.now }));
 
   router.use((req, res) => {

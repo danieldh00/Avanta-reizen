@@ -12,6 +12,7 @@ const RIGHTS = {
   reizen: 'Reizen aanmaken, wijzigen en publiceren',
   aanmeldingen: 'Aanmeldingen inzien en status wijzigen',
   berichten: 'Berichten via het contactformulier lezen en afhandelen',
+  infobrief: 'Infobrieven aan de deelnemers van een vertrek opstellen en versturen',
   deelnemers: 'Deelnemers (NAW en contact) inzien',
   'deelnemers.wijzigen': 'Deelnemers wijzigen, samenvoegen en toestemmingen intrekken',
   'gegevens.identiteit': 'Paspoort- en identiteitsgegevens inzien',
@@ -31,7 +32,7 @@ const ROLES = {
   beheerder: { label: 'Beheerder', rights: Object.keys(RIGHTS) },
   kantoor: {
     label: 'Kantoor',
-    rights: ['reizen', 'aanmeldingen', 'berichten', 'deelnemers', 'deelnemers.wijzigen', 'gegevens.identiteit', 'gegevens.gezondheid', 'betalingen', 'export.deelnemers', 'avg', 'kpis', 'media', 'content'],
+    rights: ['reizen', 'aanmeldingen', 'berichten', 'infobrief', 'deelnemers', 'deelnemers.wijzigen', 'gegevens.identiteit', 'gegevens.gezondheid', 'betalingen', 'export.deelnemers', 'avg', 'kpis', 'media', 'content'],
   },
   reisleider: {
     label: 'Reisleider',

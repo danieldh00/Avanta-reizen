@@ -32,6 +32,7 @@ const { createRetention } = require('./persons/retention');
 const { createPaymentReminders } = require('./payments/payment-reminders');
 const { createMollie } = require('./payments/mollie');
 const { createOnlinePayments } = require('./payments/online-payments');
+const { createInfobriefSender } = require('./infobrief/sender');
 const { createAccounts } = require('./account/accounts');
 const { startAccountMaintenance } = require('./account/routes');
 const { MEDIA_DIR, DATA_DIR } = require('./paths');
@@ -111,6 +112,8 @@ function createServices(options) {
   const onlinePayments = createOnlinePayments({ db: options.db, settings, mollie, masterKey: options.masterKey, appLog, now: options.now });
   // Betaalherinneringen (Beheer > CRM > Betalingen): de dagelijkse ronde start pas in `start()`.
   const paymentReminders = createPaymentReminders({ db: options.db, mailer, settings, onlinePayments, now: options.now });
+  // Infobrief aan de deelnemers van een vertrek: versturen in de achtergrond; de rondes starten pas in `start()`.
+  const infobriefSender = options.infobriefSender || createInfobriefSender({ db: options.db, mailer, settings, persons: createPersons({ vault }), now: options.now });
 
   // Vaste inhoud van de homepage en lijstkoppen (DATA_DIR); ook het CRM gebruikt ze (homepage als blokpagina opzetten).
   const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
@@ -121,13 +124,13 @@ function createServices(options) {
   return {
     vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary,
     mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders,
-    siteContent, homepage, accounts,
+    infobriefSender, siteContent, homepage, accounts,
   };
 }
 
 /**
  * Start het achtergrondwerk van de diensten: opschonen van sessies, tellers, back-ups, kopie naar Google Drive,
- * hersteltest, bewaking, AVG-opschoning, betaalherinneringen, opruimen van foto's en de koppeling met het updatescript.
+ * hersteltest, bewaking, AVG-opschoning, betaalherinneringen, infobrieven, opruimen van foto's en de koppeling met het updatescript.
  * @param {object} services De diensten uit `createServices`.
  * @param {object} db De database.
  * @returns {void}
@@ -142,6 +145,7 @@ function startBackgroundTasks(services, db) {
   services.monitor.start();
   services.retention.start();
   services.paymentReminders.start();
+  services.infobriefSender.start();
   services.mediaLibrary.startCleanupTimer();
   // Updates: de stand van "automatisch bijwerken" naar het hostscript en een afgeronde uitrol in het auditlog (elke minuut).
   startUpdateSync({ db, settings: services.settings, systemUpdate: services.systemUpdate });

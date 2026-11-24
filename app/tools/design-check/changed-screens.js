@@ -51,6 +51,7 @@ const SCREEN_RULES = [
   { pattern: /^app\/src\/crm\/audit-(log|routes)\.js$/, screens: ['/app/auditlog/', '/app/auditlog/?actie=inloggen'] },
   { pattern: /^app\/src\/persons\//, screens: ['/app/deelnemers/*', '/app/deelnemerslijsten/'] },
   { pattern: /^app\/src\/payments\//, screens: ['/app/betalingen/*'] },
+  { pattern: /^app\/src\/infobrief\//, screens: ['/app/infobrieven/*'] },
   { pattern: /^app\/src\/trips\//, screens: ['/app/reizen/*', '/app/reisleiders/*', '/app/reistypes-en-landen/*', '/reis/*'] },
   { pattern: /^app\/src\/cms\//, screens: ['/app/paginas/*', '/app/blog/*', '/app/faq/*', '/app/menus/', '/'] },
   { pattern: /^app\/src\/media\//, screens: ['/app/fotobibliotheek/*'] },

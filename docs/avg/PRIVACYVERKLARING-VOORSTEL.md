@@ -40,7 +40,8 @@ dat voor de boekhouding verplicht.
 **Deelnemers jonger dan 16 jaar**
 - Is de deelnemer op de dag van aanmelden jonger dan 16, dan geeft een ouder of voogd toestemming voor de aanmelding
   en voor de gegevens. We vragen naam, relatie, e-mailadres en (vrijwillig) telefoonnummer van de ouder of voogd en
-  sturen hem of haar een bevestiging. Deze gegevens gebruiken we ook als contact in een noodgeval.
+  sturen hem of haar een bevestiging. Deze gegevens gebruiken we ook als contact in een noodgeval, en de ouder of voogd
+  krijgt de infobrief over de reis (praktische informatie vóór vertrek) op zijn of haar e-mailadres.
 
 **Reizigersaccount**
 - Maak je een account aan, dan bewaren we je e-mailadres en een versleutelde vorm van je wachtwoord. In je account zie

@@ -170,11 +170,29 @@ async function main() {
       ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`, [CUSTOMER.email, await hashPassword(CUSTOMER.password)]);
     await loginCrm(page, ADMIN);
     await recordPayment(page, db);
+    await seedInfobrieven(db);
     console.log('testgegevens klaar');
   } finally {
     await browser.close();
     await db.close();
   }
+}
+
+/**
+ * Zet een concept en een verstuurde infobrief klaar (rechtstreeks in de database: lokaal is geen mailserver), zodat de
+ * schermen onder /app/infobrieven/ iets te tonen hebben. Doet niets als er al infobrieven zijn.
+ * @param {object} db Database.
+ * @returns {Promise<void>}
+ */
+async function seedInfobrieven(db) {
+  const [{ total }] = await db.query('SELECT count(*)::int AS total FROM infobrieven');
+  const [trip] = await db.query("SELECT trip_id AS id FROM bookings WHERE status <> 'geannuleerd' AND trip_id IS NOT NULL ORDER BY id LIMIT 1");
+  if (total > 0 || !trip) return;
+  await db.query(`INSERT INTO infobrieven (trip_id, subject, body_html) VALUES ($1, 'Infobrief: paklijst en vertrektijden', '<h2>Paklijst</h2><ul><li>Slaapzak</li><li>Zaklamp</li></ul><p>We vertrekken om <strong>8.00 uur</strong> vanaf het kantoor.</p>')`, [trip.id]);
+  const [sent] = await db.query(`INSERT INTO infobrieven (trip_id, subject, body_html, status, send_started_at, send_finished_at)
+    VALUES ($1, 'Welkom bij de reis', '<p>Fijn dat je meegaat! Binnenkort volgt de paklijst.</p>', 'verzonden', now() - interval '1 day', now() - interval '1 day') RETURNING id`, [trip.id]);
+  await db.query(`INSERT INTO infobrief_recipients (infobrief_id, booking_id, role, status, sent_at)
+    SELECT $1, b.id, 'deelnemer', 'verzonden', now() - interval '1 day' FROM bookings b WHERE b.trip_id = $2 AND b.status <> 'geannuleerd'`, [sent.id, trip.id]);
 }
 
 if (require.main === module) main().catch((error) => { console.error(error); process.exitCode = 1; });

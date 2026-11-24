@@ -123,8 +123,8 @@ function createApp(options) {
   // Alle diensten (instellingen, logboek, mail, back-ups, bewaking, …) staan in `services.js`. `app.locals` geeft ze
   // door aan `start()` en aan de tests.
   const services = createServices(options);
-  const { vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary, mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, siteContent, homepage, accounts } = services;
-  Object.assign(app.locals, { services, settings, appLog, captcha, passwordCheck, menus, systemUpdate, redirects, mediaLibrary, mailer, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, accounts });
+  const { vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary, mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, infobriefSender, siteContent, homepage, accounts } = services;
+  Object.assign(app.locals, { services, settings, appLog, captcha, passwordCheck, menus, systemUpdate, redirects, mediaLibrary, mailer, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, infobriefSender, accounts });
   app.disable('x-powered-by');
   const trustedProxy = parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY);
   app.set('trust proxy', trustedProxy);
@@ -206,7 +206,7 @@ function createApp(options) {
   app.use('/media', express.static(mediaDir, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
 
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, passwordCheck, redirects, mailer, wanIp, notifications, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, auditExportMax: options.auditExportMax, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, settings, passwordCheck, redirects, mailer, wanIp, notifications, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, infobriefSender, mediaLibrary, menus, homepage, siteContent, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, auditExportMax: options.auditExportMax, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).

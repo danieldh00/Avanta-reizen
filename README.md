@@ -351,6 +351,18 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     afgehandeld bericht kan weer op nieuw, spam kan weg (met bevestiging). Twee keer afhandelen geeft 409. Alles in het
     auditlog, zonder de inhoud. Het menu toont naast *Berichten* het aantal nieuwe berichten (`app/src/crm/menu-counters.js`:
     alleen bij een pagina en met het recht; een nieuwe teller is één regel daar en `counter` bij het menu-item).
+  - **Infobrieven** op `/app/infobrieven/` (recht `infobrief`: beheerder en kantoor; `app/src/infobrief/`, migratie 32):
+    de infobrief is de mail aan alle deelnemers van een vertrek. Kantoor kiest het vertrek, schrijft onderwerp en tekst
+    (opgemaakte tekst, met de teksteditor), bekijkt het voorbeeld (ook de versie voor de ouder of voogd), stuurt een
+    testmail naar het eigen adres en verstuurt hem dan met een bevestiging waarin het aantal ontvangers staat. Ontvangers:
+    de aanmeldingen die niet geannuleerd of gewist zijn (status *nieuw* alleen met een vinkje) en de ouder of voogd van
+    deelnemers onder de 16; elk adres krijgt de brief één keer. Versturen gaat in de achtergrond
+    (`app/src/infobrief/sender.js`, rondes elke 15 seconden, tempo in Beheer > E-mail > Infobrief) en nooit dubbel: de
+    brief gaat één keer van concept naar verzenden (onder een slot), elke ontvanger staat eerst op *bezig* en wordt na
+    een herstart *niet zeker verzonden* in plaats van opnieuw verstuurd. Het verzendoverzicht per brief toont per
+    ontvanger de status, een opmerking en het tijdstip, wie verstuurde en wanneer, met *Mislukte opnieuw versturen* en
+    een export (.xlsx). Adressen worden nergens opgeslagen of getoond; de verzender zoekt ze pas bij het versturen op.
+    Alle acties in het auditlog, zonder inhoud.
   - **Betalingen** op `/app/betalingen/<aanmelding>/` (recht `betalingen`: beheerder, kantoor, boekhouding;
     `app/src/payments/payments.js` en `payment-routes.js`, migratie 26): per aanmelding de verwachte bedragen
     (`booking_charges`: reissom, SGR-garantie € 5 en boekingskosten € 15 bij aanmelden, plus korting,

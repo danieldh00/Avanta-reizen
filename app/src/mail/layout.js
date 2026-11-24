@@ -7,7 +7,7 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
-const { html, toString } = require('../site/html');
+const { html, raw, toString } = require('../site/html');
 const { PUBLIC_DIR } = require('../paths');
 
 /** Content-ID van het ingebedde logo. */
@@ -52,11 +52,13 @@ function contrastWithWhite(hex) {
 }
 
 /**
- * Bouwt een mail: kop met logo, titelbalk, inleiding, een tabel met gegevens, eventueel een blok vrije tekst en de
- * voettekst.
- * @param {{title: string, intro?: string, rows?: Array<[string, string]>, body?: string, action?: {label: string, url: string}, headerColor: string, footerText?: string, siteName: string}} content
- *   Titel, inleiding, rijen (label, waarde; lege waarden vallen weg), vrije tekst (regeleinden blijven), eventueel een
- *   knop (alleen een https-adres), kleur van de titelbalk, voettekst en naam van de site (alt-tekst van het logo).
+ * Bouwt een mail: kop met logo, titelbalk, inleiding, een tabel met gegevens, eventueel opgemaakte tekst, een blok
+ * vrije tekst en de voettekst.
+ * @param {{title: string, intro?: string, rows?: Array<[string, string]>, richHtml?: string, richText?: string, body?: string, action?: {label: string, url: string}, headerColor: string, footerText?: string, siteName: string}} content
+ *   Titel, inleiding, rijen (label, waarde; lege waarden vallen weg), opgemaakte tekst (`richHtml`: alleen de uitkomst
+ *   van `mailHtmlFromRichText` in `mail/rich-text.js`, nooit ruwe invoer; `richText` de platte versie ervan), vrije
+ *   tekst (regeleinden blijven), eventueel een knop (alleen een https-adres), kleur van de titelbalk, voettekst en naam
+ *   van de site (alt-tekst van het logo).
  * @returns {{html: string, text: string, attachments: object[]}} HTML, platte tekst en het logo als ingebedde bijlage.
  */
 function renderMail(content) {
@@ -77,6 +79,7 @@ ${logo ? html`<tr><td style="padding:20px 24px 12px;"><img src="cid:${LOGO_CID}"
 <tr><td style="padding:20px 24px 8px;">
 ${paragraphs(content.intro)}
 ${rows.length ? html`<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 12px;">${rows.map(([label, value]) => html`<tr><td style="${cell}font-weight:bold;white-space:nowrap;">${label}</td><td style="${cell}">${value}</td></tr>`)}</table>` : ''}
+${content.richHtml ? html`<div style="margin:0 0 4px;">${raw(content.richHtml)}</div>` : ''}
 ${content.body ? html`<div style="margin:4px 0 12px;padding:12px;background:#f7f7f7;border-left:3px solid ${color};">${paragraphs(content.body)}</div>` : ''}
 ${action ? html`<p style="margin:8px 0 16px;"><a href="${action.url}" style="display:inline-block;padding:10px 18px;background:${color};border-radius:4px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">${action.label}</a></p>` : ''}
 </td></tr>
@@ -89,6 +92,7 @@ ${content.footerText ? html`<tr><td style="padding:12px 24px 20px;border-top:1px
     '',
     content.intro || '',
     rows.length ? `\n${rows.map(([label, value]) => `${label}: ${value}`).join('\n')}` : '',
+    content.richText ? `\n${content.richText}` : '',
     content.body ? `\n${content.body}` : '',
     action ? `\n${action.label}: ${action.url}` : '',
     content.footerText ? `\n--\n${content.footerText}` : '',

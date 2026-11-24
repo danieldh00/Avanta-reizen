@@ -7,5 +7,6 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 ## Bestanden
 - `mailer.js` (nodemailer: SMTP of Exchange-connector, alleen openbare adressen, STARTTLS verplicht)
 - `wan-ip.js`
-- `layout.js` (mail-opmaak, alles ge-escaped)
+- `layout.js` (mail-opmaak, alles ge-escaped; `richHtml` alleen uit `rich-text.js`)
+- `rich-text.js` (opgemaakte tekst uit de teksteditor naar een mail: opnieuw `sanitizeHtml`, volledige adressen, inline stijlen, platte tekst)
 - `notifications.js` (meldingen aan kantoor, nooit gevoelige velden)

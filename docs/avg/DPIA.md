@@ -19,7 +19,8 @@ betrokkenen, gegevens over meerdere jaren) is een DPIA daarom waarschijnlijk ver
 - **Systemen**: eigen webapplicatie (Node.js, PostgreSQL) op een server van de hostingpartij, achter een tunnel;
   verwerkers in `VERWERKERS.md`.
 - **Gegevensstroom**: formulier → controle op de server → persoon (ontdubbeld) met per categorie versleutelde blokken →
-  CRM (inzien per categorie met rechten en audit) → deelnemerslijst per vertrek → opschonen na de reis.
+  CRM (inzien per categorie met rechten en audit) → deelnemerslijst en infobrief per vertrek (de infobrief gebruikt
+  alleen het e-mailadres, ook dat van de ouder onder de 16, en bewaart geen adressen) → opschonen na de reis.
 
 ## 3. Doelen en belangen
 
