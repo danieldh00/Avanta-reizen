@@ -158,8 +158,19 @@ function runPageChecks(context) {
       add('ingekort', element, `Tekst wordt met … ingekort ("${element.textContent.trim().slice(0, 40)}").`);
     }
     if ((clipsX || clipsY) && element.clientWidth > 0) {
-      // Een afknipcontainer rond afbeeldingen (foto's met afgeronde hoeken) is geen afgekapte tekst.
-      const textInside = [...element.querySelectorAll('*')].concat(element).some((child) => hasOwnText(child) && (() => {
+      // Een afknipcontainer rond afbeeldingen (foto's met afgeronde hoeken) is geen afgekapte tekst. Tekst in een
+      // eigen scroll- of afknipvak daarbinnen (schuifbalk met reizen) telt bij dat vak, en verborgen tekst (inactieve
+      // dia's van een carrousel) is niet zichtbaar afgekapt.
+      const nestedOrHidden = (child) => {
+        if (getComputedStyle(child).visibility === 'hidden') return true;
+        for (let ancestor = child.parentElement; ancestor && ancestor !== element; ancestor = ancestor.parentElement) {
+          const ancestorStyle = getComputedStyle(ancestor);
+          if (ancestor.getAttribute('aria-hidden') === 'true') return true;
+          if (/(auto|scroll|hidden|clip)/.test(`${ancestorStyle.overflowX} ${ancestorStyle.overflowY}`)) return true;
+        }
+        return false;
+      };
+      const textInside = [...element.querySelectorAll('*')].concat(element).some((child) => hasOwnText(child) && !(child !== element && nestedOrHidden(child)) && (() => {
         const outer = element.getBoundingClientRect();
         const inner = child.getBoundingClientRect();
         return inner.right > outer.right + 1 || inner.bottom > outer.bottom + 2 || inner.left < outer.left - 1;

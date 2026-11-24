@@ -13,3 +13,7 @@ titel: Design-controle in CI op de gewijzigde schermen
 - `check.js`: een pad met `*` volgt in de gerichte run ook op de publieke site links onder dat pad (maximaal twee per
   soort scherm), bijvoorbeeld `/reis/*` voor de reislijst en twee reispagina's.
 - `seed.js`: maakt de testbeheerder ook aan als er al gebruikers zijn (bijvoorbeeld na de testdata uit `src/dev/seed/`).
+- `page-checks.js`: "afgekapt" telt geen tekst meer mee die in een eigen scroll- of afknipvak ligt (schuifbalk met
+  reizen) of verborgen is (inactieve dia's); dat gaf op de homepage een valse melding met ernst hoog.
+- Documentatie (`.md`) in een map met schermen start de job niet; mislukt het ophalen van de gewijzigde bestanden, dan
+  draait de job op een kleine vaste set (`/` en `/app/`).

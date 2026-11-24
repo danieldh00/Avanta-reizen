@@ -65,7 +65,8 @@ const SCREEN_RULES = [
  */
 function screensFor(files) {
   const screens = new Set();
-  for (const file of files.map((entry) => entry.trim()).filter(Boolean)) {
+  // Documentatie (zoals de CLAUDE.md per map) verandert geen scherm, ook niet als die in een map met schermen staat.
+  for (const file of files.map((entry) => entry.trim()).filter((entry) => entry && !/\.md$/i.test(entry))) {
     for (const rule of SCREEN_RULES) {
       if (rule.pattern.test(file)) rule.screens.forEach((screen) => screens.add(screen));
     }

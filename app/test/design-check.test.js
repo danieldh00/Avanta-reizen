@@ -92,6 +92,8 @@ test('bevindingen: dezelfde fout op meerdere pagina\'s wordt één regel, ernsti
 test('gewijzigde schermen (CI): bestanden zonder scherm leveren niets op', () => {
   assert.deepEqual(screensFor([]), []);
   assert.deepEqual(screensFor(['README.md', 'docs/WERKWIJZE.md', 'changes/iets.md', 'app/src/database/migrations/029-x.js', 'app/test/units.test.js', 'app/src/security/vault.js', '']), []);
+  // Documentatie in een map met schermen start de zware job niet.
+  assert.deepEqual(screensFor(['app/src/site/CLAUDE.md', 'app/src/payments/CLAUDE.md', 'app/tools/design-check/README.md']), []);
 });
 
 test('gewijzigde schermen (CI): module en gedeelde opmaak naar hun schermen', () => {
