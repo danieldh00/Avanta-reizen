@@ -74,11 +74,12 @@ function hstsValue(req, settings) {
  * Zet de beveiligingskoppen op elk antwoord, met standaard `noindex`: de middleware met de site-instellingen haalt die
  * kop pas weg als indexeren in Beheer aan staat. Zo is een antwoord van vóór die middleware (of bij een fout) nooit
  * indexeerbaar. HSTS alleen bij https (`req.secure`, achter de vertrouwde proxy via `X-Forwarded-Proto`): over http
- * negeert de browser de kop, en lokaal of in de tests draait de app zonder https.
- * @param {{get: (key: string) => *}} [settings] Instellingen, voor HSTS-preload (`hstsValue`).
+ * negeert de browser de kop, en lokaal of in de tests draait de app zonder https. Hier altijd de gewone HSTS-waarde;
+ * de middleware met de site-instellingen zet de preloadwaarde pas na `settings.ready()`, zodat nooit een startwaarde
+ * in plaats van de waarde uit Beheer telt.
  * @returns {Function} Express-middleware.
  */
-function securityHeaders(settings) {
+function securityHeaders() {
   return (req, res, next) => {
     res.set({
       'Content-Security-Policy': BASE_CSP,
@@ -86,7 +87,7 @@ function securityHeaders(settings) {
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     });
-    if (req.secure) res.set('Strict-Transport-Security', hstsValue(req, settings));
+    if (req.secure) res.set('Strict-Transport-Security', HSTS_VALUE);
     res.set('X-Robots-Tag', 'noindex, nofollow');
     next();
   };
@@ -127,7 +128,7 @@ function createApp(options) {
   app.disable('x-powered-by');
   const trustedProxy = parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY);
   app.set('trust proxy', trustedProxy);
-  app.use(securityHeaders(settings));
+  app.use(securityHeaders());
   // Elk verzoek een eigen request-id (nooit een id van buiten) in de context en in de kop X-Request-Id; trage verzoeken
   // komen in het logboek (genormaliseerd pad, geen querystring).
   app.use((req, res, next) => {
@@ -147,11 +148,13 @@ function createApp(options) {
   // Gezondheid voor Docker en het updatescript; de versie alleen voor verzoeken van binnen de server (`system/health.js`).
   app.get('/api/health', createHealthRoute({ db: options.db, version: require('../package.json').version, trustedProxy }));
 
-  // Site-instellingen per verzoek (`res.locals.site`), de noindex-kop en de CSP voor Analytics en de captcha.
+  // Site-instellingen per verzoek (`res.locals.site`), HSTS-preload, de noindex-kop en de CSP voor Analytics en de captcha.
   app.use(async (req, res, next) => {
     try {
       await settings.ready();
       res.locals.site = siteSettingsOf(settings);
+      // HSTS-preload pas hier, met de geladen waarden uit Beheer (zie `hstsValue`).
+      if (req.secure) res.set('Strict-Transport-Security', hstsValue(req, settings));
       // Express routeert hoofdletterongevoelig, dus ook `/APP/…` is het CRM: dat blijft altijd noindex.
       const lowerPath = req.path.toLowerCase();
       const inCrm = lowerPath.startsWith('/app/') || lowerPath === '/app';

@@ -15,7 +15,7 @@ const FIELDS = {
     help: 'Alleen de eerste 5 tekens van een hash van het wachtwoord gaan naar de dienst; het wachtwoord zelf nooit. Is de dienst niet bereikbaar, dan geldt alleen de lokale controle.',
   },
   hstsPreload: {
-    type: 'bool', label: 'HSTS-preload aan (alle subdomeinen, twee jaar)', default: false, env: 'HSTS_PRELOAD', confirmOn: true,
+    type: 'bool', label: 'HSTS-preload aan (alle subdomeinen, twee jaar)', default: false, confirmOn: true,
     help: 'Pas aanzetten na een stabiele periode in productie, als élk subdomein van het domein https heeft. Werkt alleen als de site live is (zoekmachines toegelaten) en op de host van het basisadres; de testomgeving stuurt het nooit. Daarna de opname aanvragen op hstspreload.org. Terugdraaien duurt maanden.',
   },
   sessionIdleHours: { type: 'int', label: 'Uitloggen na inactiviteit (uren)', help: 'Een sessie zonder activiteit vervalt na zoveel uur. Geldt meteen, ook voor wie al is ingelogd. Advies: 1 uur, want het CRM toont bijzondere gegevens.', default: 1, min: 1, max: 24 },
