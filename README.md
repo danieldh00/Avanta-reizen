@@ -109,10 +109,11 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   De **homepage** volgt de huidige site: slider (wisselt automatisch, niet bij "minder beweging"), filterbalk naar
   `/reis/` (met `nieuw=1` voor nieuwe reizen bovenaan), last-minutes met label Nieuw/Volgeboekt, reistypes met icoon,
   inspiratie-slider, bestemmingsbanners, blog en "over Avanta". Reizen, types, bestemmingen en blog komen uit de
-  database; de vaste teksten en foto's (slider, inspiratie, "over Avanta", sectietitels) staan tot CMS-pakket H in
-  `DATA_DIR/homepage.json` (`app/src/site/homepage.js`, alles gecontroleerd). De import schrijft dat bestand; los
-  vernieuwen kan met `node tools/import-wordpress.js --alleen-vaste-inhoud`, en `install.sh` doet dat zelf als het bestand
-  ontbreekt. Een videodia speelt de YouTube-video stil af via youtube-nocookie.com (alleen op `/` staat dat adres in
+  database; de vaste teksten en foto's (slider, inspiratie, "over Avanta", sectietitels) staan in de blokpagina `/`
+  in het CRM. De import schrijft `DATA_DIR/homepage.json` (`app/src/site/homepage.js`, alles gecontroleerd; los met
+  `node tools/import-wordpress.js --alleen-vaste-inhoud`); bij de start van de app wordt dat eenmalig de gepubliceerde
+  blokpagina `/` als die nog niet bestaat (W28). Staat de homepage offline, dan toont de site de standaardteksten uit
+  de code. Een videodia speelt de YouTube-video stil af via youtube-nocookie.com (alleen op `/` staat dat adres in
   `frame-src` van de CSP); bij "minder beweging" blijft de stilstaande afbeelding staan.
   **Reizen en reisleiders** volgen ook de huidige site: reisoverzicht en categorie als liggende boxen met donker
   prijsvak (filterbalk boven het overzicht), reisdetail met reisleider, kenmerken als iconen, inleiding, zijvak met
@@ -120,16 +121,18 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   foto's en een detailpagina met stempel, citaat, woonplaats en galerij (`app/src/site/trip-view.js`). De koppen van de
   lijstpagina's staan in de database (`list_headers`, migratie 34) en de reisleiders met volgorde en galerij ook; de
   import schrijft `DATA_DIR/site-content.json` (los met `--alleen-vaste-inhoud`) en zet het meteen over naar de
-  database (`app/src/site/content-transfer.js`, per deel één keer, ook bij de start van de app).
+  database (`app/src/site/content-transfer.js`, per deel één keer, ook bij de start van de app). De site en het CRM
+  lezen die bestanden niet meer (W28): alles staat in het CRM.
   **Blog, pagina's, FAQ, contact en aanmelden** volgen de huidige site (`app/src/site/page-view.js`): het weblog met
   tagbalk, link naar het oude blogarchief en het uitgelichte bericht groot naast de eerste drie, tagpagina's op
   `/tag/<slug>/` (onbekende tag: 301 naar `/blog/`), berichten met datum en "Naar overzicht", inhoud in blokken (tekst,
   afbeelding, galerij, video via youtube-nocookie.com, alleen op pagina's met een video in `frame-src`), de FAQ als
   uitklapbare vragen per categorie, de contactpagina met adresblok en formulier, en het aanmeldformulier in de
   huisstijl (zonder reis een melding met "Naar alle reizen"). Samenvattingen zijn de eerste 197 bytes van de tekst plus
-  " ...", zoals nu. Tags, het uitgelichte bericht, de link naar het blogarchief en de fotogalerijen van pagina's en
-  berichten staan tot CMS-pakket H/I in `site-content.json` (versie 2; `install.sh` importeert opnieuw bij een oudere
-  versie). Adres en KvK-nummer op de contactpagina komen uit Beheer > Organisatie > Contact (`orgKvk`, leeg = niet tonen).
+  " ...", zoals nu. Tags en het uitgelichte bericht staan in het CRM (Blog > Categorieën en tags), de link naar het
+  blogarchief in Beheer > Organisatie > Weblog (`blogArchiveLabel`, `blogArchiveUrl`; leeg adres = geen link) en de
+  fotogalerij onder een bericht of pagina is een galerijblok met weergave *Strook op volle breedte* (zoals onder een
+  reis; *In de tekstkolom* blijft binnen de tekst). Bij de overname (W28) kregen bestaande galerijen dat blok achteraan. Adres en KvK-nummer op de contactpagina komen uit Beheer > Organisatie > Contact (`orgKvk`, leeg = niet tonen).
   **Vergelijkende DOM-meting**: `app/tools/layout-compare.js` meet blog, tag, bericht, pagina, FAQ, contact, aanmelden en
   reisleiders op 1440 en 375 px en vergelijkt met de opgeslagen meting van de huidige site
   (`app/test/fixtures/layout-live.json`). Tegen een draaiende server: `LAYOUT_BASE_URL=http://localhost:3400 npm test`
@@ -202,7 +205,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     `bib-<willekeurig>-<breedte>.webp`. Per foto titel, alt-tekst, bijschrift, fotograaf en landen wijzigen; uploads
     en wijzigingen staan in de auditlog. Landen zijn de reiscategorieën van het soort *bestemming*. Bovenaan staan
     de landen met foto's als mappen (met aantal) en *Zonder land*. Per foto staat waar hij gebruikt wordt (reizen,
-    blog, pagina's, reisleiders, reiscategorieën, `homepage.json` en `site-content.json`); een geüploade foto die
+    blog, pagina's, reisleiders, koppen van lijstpagina's, categorieën en tags van het blog en reiscategorieën); een geüploade foto die
     nergens gebruikt wordt kan verwijderd worden (rij, landen en bestanden, met audit), een foto uit de import niet.
     Losse `bib-*`-bestanden zonder rij (bijv. na een crash midden in een upload) worden bij het starten en daarna
     dagelijks opgeruimd als ze ouder zijn dan een dag. Foto's uit de import zonder land krijgen automatisch de landen
@@ -312,8 +315,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     uit het CRM (of met een open concept) laat de WordPress-import staan. Audit `blog.*`.
   - **Categorieën en tags** op `/app/blog/categorieen-en-tags/` (recht `content`, `app/src/cms/post-terms.js`,
     migratie 20): per soort naam, adres (leeg = uit de naam; wijzigen geeft een 301), inleiding en volgorde;
-    verwijderen laat de berichten staan. *Tags van de huidige site overnemen* zet de tags uit `site-content.json` (met
-    foto, berichten en het uitgelichte bericht) in de database; tot dan toont de site die tags. Op het bewerkscherm van
+    verwijderen laat de berichten staan. De tags van de huidige site (met foto, berichten en het uitgelichte bericht)
+    zijn bij de overname (W28) uit `site-content.json` in de database gezet. Op het bewerkscherm van
     een bericht vink je categorieën en tags aan en kies je het uitgelichte bericht (hoogstens één); dat geldt meteen,
     zonder concept. De site toont `/category/<slug>/` en `/tag/<slug>/` met de zichtbare berichten.
   - **Veelgestelde vragen** op `/app/faq/` (recht `content`, `app/src/cms/faqs.js` en `faq-routes.js`, migratie 21):
@@ -326,8 +329,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     22): voornaam, achternaam, adres (`/reisleider/<slug>/`; wijzigen geeft een 301), woonplaats, sinds, citaat,
     inleiding en tekst (veilige HTML), portret en tweede foto uit de fotobibliotheek, online/offline, nieuw (offline) en
     verwijderen (alleen offline, niet uit de import en zonder reizen; het adres verwijst daarna naar `/reisleider/`).
-    Tot de eerste wijziging toont de site de gegevens uit `site-content.json`; het formulier staat dan al op die
-    gegevens en bij opslaan gaan ze mee (`managed_in_crm`). Sinds migratie 34 ook de *Volgorde* op de site (lager
+    De gegevens van de huidige site (`site-content.json`) zijn bij de overname (W28) in de database gezet
+    (`managed_in_crm`). Sinds migratie 34 ook de *Volgorde* op de site (lager
     eerder, in het profiel) en de *Galerij* onderaan de pagina (tabblad Foto's: titel, subtitel, foto's uit de
     bibliotheek toevoegen, volgnummers en weghalen; een formulier op een oude stand geeft 409). Een
     reisleider uit het CRM laat de WordPress-import staan (reizen koppelen nog wel aan hem, ook na een nieuw adres).
@@ -336,13 +339,14 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     `list-header-routes.js`, migratie 34): pretitel, titel, inleiding en foto uit de bibliotheek van de koppen van
     Reizen, Reisleiders, Blog, Veelgestelde vragen en het aanmeldformulier. Audit `lijstkop.*`.
   - **Homepage als blokpagina** (CMS-pakket H4, geen migratie): *Homepage als blokpagina opzetten* op `/app/paginas/`
-    maakt de pagina `/` aan met de huidige inhoud van de vaste homepage (`homepage.json`) als blokken: slider, zoekbalk
+    maakt de pagina `/` aan met de standaardinhoud van de vaste homepage als blokken (normaal bestaat ze al: de overname
+    van `homepage.json` publiceert haar bij de start van de app): slider, zoekbalk
     "Vind jouw reis", last-minutes, reistypes, inspiratie-slider, bestemmingen, blog en "Over Avanta met stempel". Die
     homepage-secties gebruiken dezelfde opmaak als de vaste homepage (`site/home-view.js`) en zijn alleen op de homepage
     te kiezen; daarnaast kunnen alle gewone blokken. Dia's krijgen hun foto op volgorde (dia 1 foto 1); zonder foto een
-    kaartfoto van een reis. Tot de eerste publicatie, en zolang de homepage offline staat, toont de site de vaste
-    homepage. Reistypes en bestemmingen volgen *tonen op de homepage* (Reistypes en landen); staat er geen aan, dan alle
-    met reizen. Het blogblok gebruikt het uitgelichte bericht uit `site-content.json`.
+    kaartfoto van een reis. Zolang de homepage offline staat of ontbreekt, toont de site de vaste homepage met de
+    standaardteksten uit de code. Reistypes en bestemmingen volgen *tonen op de homepage* (Reistypes en landen); staat er geen aan, dan alle
+    met reizen. Het blogblok gebruikt het uitgelichte bericht uit het CRM.
   - **Reistypes en landen** op `/app/reistypes-en-landen/` (recht `reizen`: beheerder en kantoor; `app/src/trips/`,
     migratie 14): lijst per soort (reistypes, landen, overig) met het aantal reizen (komend) en foto's. Alle landen van
     de wereld staan erin (migratie 33: de 249 ISO 3166-1-landen en -gebieden plus Kosovo, Nederlandse naam, kolom
@@ -351,7 +355,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     en wijzigen: naam, slug (leeg = uit de naam), soort, icoon uit de eigen SVG-set (leeg = op de slug), inleiding,
     tekst (HTML, opgeschoond met dezelfde `sanitizeHtml` als de import), volgorde en *tonen op de homepage*. Staat bij
     minstens één reistype *tonen op de homepage* aan, dan toont de homepage alleen die (op volgorde); anders de types
-    uit `homepage.json`. Hetzelfde voor de bestemmingen (anders alle landen met reizen). Een foto kies je uit de
+    van de homepage. Hetzelfde voor de bestemmingen (anders alle landen met reizen). Een foto kies je uit de
     fotobibliotheek (bij een land standaard de foto's van dat land; zoeken en filteren op land); de foto wordt bij het
     opslaan vergrendeld (`FOR SHARE`), zodat hij niet tegelijk verwijderd kan worden, en staat daarna bij *gebruikt in*.
     Een gewijzigde slug geeft automatisch een 301 van het oude adres (doorverwijzingen naar het oude adres gaan mee,
@@ -530,10 +534,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   app zelf kan nagaan van het go-live-draaiboek (`docs/GO-LIVE.md`), per onderdeel met stand *Klaar*, *Open*, *Zelf
   controleren* of *Later* en een link naar waar je het regelt. Instellingen: mailserver, meldadres en heartbeat van de
   bewaking, captcha, tweestapsverificatie (aangezet door iedereen met bijzondere gegevens, en verplicht), venster van
-  de reisleider, balk "in ontwikkeling", basisadres en indexeren. Vaste inhoud (F09): homepage als blokpagina,
-  reisleiders (met volgorde en galerij), tags en uitgelicht bericht van het blog in het CRM of nog uit
-  `homepage.json`/`site-content.json`; de koppen van de lijstpagina's staan altijd in het CRM; de fotogalerijen onder
-  berichten en pagina's hebben nog geen plek in het CRM (*Later*). Alleen lezen, alleen aantallen.
+  de reisleider, balk "in ontwikkeling", basisadres en indexeren. Vaste inhoud (F09, W28): homepage gepubliceerd als
+  blokpagina, en of alle delen van de vaste inhoud van de huidige site zijn overgezet (`content_transfers`). Alleen lezen, alleen aantallen.
 - **Content-Security-Policy**: `style-src 'self'` zonder `'unsafe-inline'`, dus geen inline `<style>`-blokken. Alleen
   het `style`-attribuut mag nog (`style-src-attr 'unsafe-inline'`), omdat de publieke site daarmee achtergrondfoto's
   zet; het CRM en Beheer gebruiken geen inline stijlen. Op de formulierpagina's met reCAPTCHA mag het script van Google

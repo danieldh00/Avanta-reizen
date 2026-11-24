@@ -36,6 +36,22 @@ const FIELDS = {
   socialInstagram: { type: 'url', label: 'Instagram-account', default: '', max: 200 },
   socialYoutube: { type: 'url', label: 'YouTube-kanaal', default: '', max: 200 },
   socialLinkedin: { type: 'url', label: 'LinkedIn-pagina', default: '', max: 200 },
+  blogArchiveLabel: {
+    type: 'text',
+    label: 'Tekst van de link naar het oude blogarchief',
+    help: 'Staat naast de tags boven het weblog op /blog/.',
+    default: 'Bekijk blog archief',
+    max: 60,
+    required: true,
+  },
+  blogArchiveUrl: {
+    type: 'url',
+    label: 'Adres van het oude blogarchief',
+    help: 'Volledig https-adres; leeg = geen link naast de tags.',
+    default: 'https://avantareizen.blogspot.com/',
+    max: 300,
+    validate: (value) => (value && !/^https:\/\//.test(value) ? 'Gebruik een adres dat begint met https://.' : ''),
+  },
   devBannerEnabled: {
     type: 'bool',
     label: 'Balk "Deze website is in ontwikkeling" tonen',
@@ -62,6 +78,13 @@ const GROUP = {
       intro: 'Contactgegevens in de voettekst van de site, en adres en social media voor de gegevens voor zoekmachines (JSON-LD).',
       fields: ['contactPhone', 'contactEmail', 'orgStreet', 'orgPostalCode', 'orgCity', 'orgKvk', 'socialFacebook', 'socialInstagram', 'socialYoutube', 'socialLinkedin'],
       words: 'telefoon e-mail mail voettekst adres postcode plaats organisatie facebook instagram youtube linkedin social sameas json-ld',
+    },
+    {
+      id: 'weblog',
+      label: 'Weblog',
+      intro: 'De link naar het oude blogarchief naast de tags boven het weblog. De kop van het weblog wijzig je in het CRM bij Website > Lijstpagina\'s.',
+      fields: ['blogArchiveLabel', 'blogArchiveUrl'],
+      words: 'blog weblog archief blogspot tags link',
     },
     {
       id: 'ontwikkeling',

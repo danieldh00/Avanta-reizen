@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Zet de vaste inhoud uit `DATA_DIR/site-content.json` eenmalig over naar de database (W28, migratie 34), zodat het CRM
+ * Zet de vaste inhoud uit `DATA_DIR/site-content.json` en `DATA_DIR/homepage.json` eenmalig over naar de database (W28, migratie 34), zodat het CRM
  * de enige bron wordt en de JSON-terugval kan verdwijnen. Per deel staat in `content_transfers` dat het is gedaan; een
  * deel gebeurt dus precies één keer, ook als de app vaker start. Wat al in het CRM is gewijzigd, blijft staan.
  *
@@ -8,13 +8,24 @@
  * - `reisleiders`: de extra gegevens van elke reisleider die nog niet in het CRM wordt beheerd (zoals bij de eerste
  *   wijziging, `adoptFixedGuide`), de galerij bij reisleiders die al wel beheerd worden maar nog geen galerij hebben, en
  *   de volgorde van de huidige site (`guideOrder`): eerst die reisleiders in die volgorde, daarna de rest op naam.
+ * - `galerijen`: de fotogalerij onder een bericht of pagina wordt een galerijblok als strook op volle breedte achteraan
+ *   de blokken (ook in een openstaand concept), zodat de pagina er hetzelfde uitziet; het bericht of de pagina wordt
+ *   daarmee beheerd in het CRM.
+ * - `blog`: de tags en het uitgelichte bericht (alleen als er nog geen tags zijn, `copySiteTags`) en de link naar het
+ *   oude blogarchief (als instelling, alleen als die afwijkt van de standaard en nog niet is ingesteld).
+ * - `homepage`: bestaat er nog geen pagina `/`, dan wordt de homepage uit `homepage.json` een gepubliceerde blokpagina
+ *   (`homepageBlocks`, met dezelfde teksten en foto's).
  *
  * Alleen gebonden parameters; alles in één transactie met een advisory lock, zodat twee containers het niet tegelijk doen.
  */
 const { adoptFixedGuide } = require('../trips/guides');
+const { copySiteTags } = require('../cms/post-terms');
+const { newBlock, publishedBlocks, normalizeImage } = require('../cms/blocks');
+const { homepageBlocks, mediaByUrl } = require('../cms/pages');
+const { FIELDS: ORGANISATION_FIELDS } = require('../beheer/instellingen/organisatie');
 
 /** De delen in volgorde. */
-const TRANSFER_PARTS = Object.freeze(['lijstkoppen', 'reisleiders']);
+const TRANSFER_PARTS = Object.freeze(['lijstkoppen', 'reisleiders', 'galerijen', 'blog', 'homepage']);
 
 /**
  * Zet de koppen van de lijstpagina's over.
@@ -73,26 +84,118 @@ async function transferGuides(client, fixed) {
   return `${adopted} reisleider(s) overgenomen, ${galleries} galerij(en) aangevuld, volgorde ${fixed.guideOrder.length ? 'overgenomen' : 'ongewijzigd'}`;
 }
 
+/**
+ * Een galerijblok (strook op volle breedte) voor een galerij uit het bestand; foto's uit de bibliotheek krijgen hun id.
+ * @param {{query: Function}} client Transactie-client.
+ * @param {{title: string, subtitle: string, images: string[]}} gallery Galerij uit het bestand.
+ * @returns {Promise<object>} Blok.
+ */
+async function galleryBlock(client, gallery) {
+  const block = /** @type {any} */ (newBlock('galerij'));
+  const fotos = [];
+  for (const url of gallery.images) {
+    const media = await mediaByUrl(client, url);
+    const image = normalizeImage({ mediaId: media ? media.id : null, url, alt: media ? media.alt_text || '' : '' });
+    if (image) fotos.push(image);
+  }
+  block.data = { ...block.data, titel: gallery.title, subtitel: gallery.subtitle, fotos, weergave: 'strook' };
+  return block;
+}
+
+/**
+ * Zet de fotogalerijen onder berichten en pagina's om in een galerijblok achteraan.
+ * @param {{query: Function}} client Transactie-client.
+ * @param {{galleries: Map<string, any>}} fixed Inhoud uit het bestand.
+ * @returns {Promise<string>} Samenvatting.
+ */
+async function transferGalleries(client, fixed) {
+  let moved = 0;
+  for (const [pagePath, gallery] of fixed.galleries) {
+    const slug = /^\/([^/]+)\/$/.exec(pagePath);
+    const [target] = await client.query(
+      `SELECT 'pages' AS kind, id, blocks, body_html, managed_in_crm, draft FROM pages WHERE path = $1
+       UNION ALL
+       SELECT 'posts', id, blocks, body_html, managed_in_crm, draft FROM posts WHERE slug = $2
+       LIMIT 1`,
+      [pagePath, slug ? slug[1] : null],
+    );
+    if (!target) continue;
+    const block = await galleryBlock(client, gallery);
+    const blocks = [...publishedBlocks(target), block];
+    const draft = target.draft && typeof target.draft === 'object' && Array.isArray(target.draft.blocks)
+      ? { ...target.draft, blocks: [...target.draft.blocks, block] } : target.draft;
+    // De tabelnaam komt uit de vaste lijst in de query hierboven, nooit uit de invoer. Met de galerij in de blokken is
+    // de inhoud van het CRM (`managed_in_crm`): een nieuwe import zou de tekst anders naast de blokken zetten.
+    const table = target.kind === 'posts' ? 'posts' : 'pages';
+    await client.query(`UPDATE ${table} SET blocks = $2::jsonb, draft = $3::jsonb, managed_in_crm = true WHERE id = $1`, [target.id, JSON.stringify(blocks), draft ? JSON.stringify(draft) : null]);
+    moved += 1;
+  }
+  return `${moved} van ${fixed.galleries.size} galerij(en) als blok overgenomen`;
+}
+
+/**
+ * Zet de tags, het uitgelichte bericht en de link naar het oude blogarchief over.
+ * @param {{query: Function}} client Transactie-client.
+ * @param {{blogTags: object[], featuredPost: string, blogArchiveLink: {label: string, href: string}}} fixed Inhoud uit het bestand.
+ * @returns {Promise<string>} Samenvatting.
+ */
+async function transferBlog(client, fixed) {
+  const tags = await copySiteTags(client, fixed, null);
+  const link = fixed.blogArchiveLink;
+  let linkChanged = false;
+  for (const [key, value] of [['blogArchiveLabel', link.label], ['blogArchiveUrl', link.href]]) {
+    if (value === ORGANISATION_FIELDS[/** @type {'blogArchiveLabel'|'blogArchiveUrl'} */ (key)].default) continue;
+    const rows = await client.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING RETURNING key', [key, JSON.stringify(value)]);
+    linkChanged = linkChanged || rows.length > 0;
+  }
+  return `${tags.status === 'ok' ? `${tags.tags} tag(s)` : 'tags stonden er al'}, link naar het blogarchief ${linkChanged ? 'overgenomen' : 'standaard'}`;
+}
+
+/**
+ * Maakt van de homepage uit `homepage.json` een gepubliceerde blokpagina, als er nog geen pagina `/` is.
+ * @param {{query: Function}} client Transactie-client.
+ * @param {object} home Inhoud uit `normalizeHomepage`.
+ * @returns {Promise<string>} Samenvatting.
+ */
+async function transferHomepage(client, home) {
+  const [existing] = await client.query("SELECT id FROM pages WHERE path = '/'");
+  if (existing) return 'pagina / bestond al';
+  const blocks = JSON.stringify(await homepageBlocks(home, client));
+  const [page] = await client.query(
+    `INSERT INTO pages (path, title, published, blocks, managed_in_crm) VALUES ('/', 'Homepage', true, $1::jsonb, true) RETURNING id`,
+    [blocks],
+  );
+  await client.query(
+    `INSERT INTO page_revisions (page_id, version, title, blocks, note) VALUES ($1, 1, 'Homepage', $2::jsonb, 'Overgenomen van de vaste homepage')`,
+    [page.id, blocks],
+  );
+  return 'homepage als blokpagina gepubliceerd';
+}
+
 /** Overzetfunctie per deel. */
 const TRANSFERS = {
   lijstkoppen: (/** @type {any} */ client, /** @type {any} */ fixed) => transferListHeaders(client, fixed.archives),
   reisleiders: transferGuides,
+  galerijen: transferGalleries,
+  blog: transferBlog,
+  homepage: (/** @type {any} */ client, /** @type {any} */ _fixed, /** @type {any} */ home) => transferHomepage(client, home),
 };
 
 /**
  * Zet de delen over die nog niet zijn gedaan.
- * @param {{db: {transaction: Function}, siteContent: any}} options Database en de gecontroleerde inhoud van
- *   `site-content.json` (`normalizeSiteContent`), of null als het bestand er niet is (dan gebeurt er niets).
+ * @param {{db: {transaction: Function}, siteContent: any, homepage?: any}} options Database, de gecontroleerde inhoud van
+ *   `site-content.json` (`normalizeSiteContent`), of null als het bestand er niet is (dan gebeurt er niets), en die van
+ *   `homepage.json` (`normalizeHomepage`), of null (dan blijft het deel `homepage` staan tot het bestand er is).
  * @returns {Promise<Array<{part: string, summary: string}>>} De delen die nu zijn overgezet.
  */
-async function transferFixedContent({ db, siteContent }) {
+async function transferFixedContent({ db, siteContent, homepage = null }) {
   if (!siteContent) return [];
   return db.transaction(async (/** @type {any} */ client) => {
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['vaste-inhoud-overzetten']);
     const done = new Set((await client.query('SELECT part FROM content_transfers')).map((/** @type {{part: string}} */ row) => row.part));
     const result = [];
-    for (const part of TRANSFER_PARTS.filter((name) => !done.has(name))) {
-      const summary = await TRANSFERS[/** @type {keyof typeof TRANSFERS} */ (part)](client, siteContent);
+    for (const part of TRANSFER_PARTS.filter((name) => !done.has(name) && (name !== 'homepage' || homepage))) {
+      const summary = await TRANSFERS[/** @type {keyof typeof TRANSFERS} */ (part)](client, siteContent, homepage);
       await client.query('INSERT INTO content_transfers (part, summary) VALUES ($1, $2)', [part, summary]);
       result.push({ part, summary });
     }

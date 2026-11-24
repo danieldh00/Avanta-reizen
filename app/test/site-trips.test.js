@@ -9,7 +9,11 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const views = require('../src/site/trip-view');
-const { normalizeSiteContent, createSiteContentStore, sortGuides, DEFAULT_ARCHIVES, EMPTY_GUIDE, SITE_CONTENT_FILE } = require('../src/site/site-content');
+const { normalizeSiteContent, readSiteContentFile, DEFAULT_ARCHIVES, SITE_CONTENT_FILE } = require('../src/site/site-content');
+const { guideExtra } = require('../src/site/content');
+
+/** Extra gegevens van een reisleider zonder eigen invulling. */
+const EMPTY_GUIDE = Object.freeze(guideExtra({}));
 const { normalizeHomepage, cleanVideoId } = require('../src/site/homepage');
 const { renderHome, renderFilterBar } = require('../src/site/home-view');
 const { addCspSources } = require('../src/security/csp');
@@ -173,19 +177,16 @@ test('site-content.json: standaard lijstkoppen, controle van reisleiders en volg
   assert.deepEqual(caroline.gallery, ['/media/a.jpg', '/media/b.png']);
   assert.equal(content.guides.get('jan').since, '');
   assert.deepEqual(content.guideOrder, ['jan', 'caroline-de-bruin']);
-  const sorted = sortGuides([{ slug: 'piet', name: 'Piet' }, { slug: 'caroline-de-bruin', name: 'Caroline' }, { slug: 'anna', name: 'Anna' }, { slug: 'jan', name: 'Jan' }], content.guideOrder);
-  assert.deepEqual(sorted.map((guide) => guide.slug), ['jan', 'caroline-de-bruin', 'anna', 'piet']);
 });
 
-test('site-content.json: lezer met cache en terugval bij een kapot bestand', () => {
+test('site-content.json: inlezen voor de overname; ontbrekend of kapot bestand geeft null', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'avanta-site-'));
   try {
-    const store = createSiteContentStore(dir);
-    assert.equal(store.load().archives.reis.title, 'Ons reisaanbod');
+    assert.equal(readSiteContentFile(dir), null);
     fs.writeFileSync(path.join(dir, SITE_CONTENT_FILE), JSON.stringify({ archives: { reis: { title: 'Nieuw' } } }));
-    assert.equal(store.load().archives.reis.title, 'Nieuw');
+    assert.equal(readSiteContentFile(dir).archives.reis.title, 'Nieuw');
     fs.writeFileSync(path.join(dir, SITE_CONTENT_FILE), 'kapot');
-    assert.equal(store.load().archives.reis.title, 'Ons reisaanbod');
+    assert.equal(readSiteContentFile(dir), null);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

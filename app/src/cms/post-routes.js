@@ -22,8 +22,6 @@ const { imageFromMedia } = require('./pages');
 const { createPostTerms, TERM_KINDS } = require('./post-terms');
 const { createPosts, validatePostFields, editablePostState, postStatus, toLocalDateTime, fromLocalDateTime, POST_LIMITS } = require('./posts');
 const { slugify, MAX_SLUG_LENGTH } = require('../trips/slugs');
-const { createSiteContentStore } = require('../site/site-content');
-const { DATA_DIR } = require('../paths');
 const { renderPageArticle } = require('./page-render');
 const { createContent } = require('../site/content');
 
@@ -129,9 +127,8 @@ function renderPostTermsPanel({ post, postUrl, csrf, termRows, chosenTerms }) {
 
 /**
  * Maakt de routes voor blogberichten.
- * @param {{db: object, auth: object, library?: object, mediaDir?: string, redirects?: object, menus?: object, siteContent?: object}} options
- *   Database, sessie- en rechtenlaag, de fotobibliotheek, doorverwijzingen en menu's (opnieuw laden na een nieuw adres)
- *   en `site-content.json` (fotogalerij onder een geïmporteerd bericht in het voorbeeld).
+ * @param {{db: object, auth: object, library?: object, mediaDir?: string, redirects?: object, menus?: object}} options
+ *   Database, sessie- en rechtenlaag, de fotobibliotheek en doorverwijzingen en menu's (opnieuw laden na een nieuw adres).
  * @returns {express.Router} Router.
  */
 function createPostRoutes(options) {
@@ -142,7 +139,6 @@ function createPostRoutes(options) {
   const library = options.library || createMediaLibrary({ db, mediaDir: options.mediaDir || '' });
   const router = express.Router();
   const guard = auth.requireRight('content');
-  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
 
   /**
    * 404-pagina binnen het CRM.
@@ -399,8 +395,7 @@ function createPostRoutes(options) {
       const post = await loadOr404(req, res);
       if (!post) return undefined;
       const current = editablePostState(post);
-      const gallery = siteContent.load().galleries.get(`/${post.slug}/`) || null;
-      const article = await renderPageArticle({ title: current.title, intro: current.intro, blocks: current.blocks }, content, gallery);
+      const article = await renderPageArticle({ title: current.title, intro: current.intro, blocks: current.blocks }, content);
       if (article.hasVideo) res.set('Content-Security-Policy', addCspSources(res.get('Content-Security-Policy'), { 'frame-src': [YOUTUBE_ORIGIN] }));
       const bar = html`<div class="cms-preview-bar" role="status">Voorbeeld van ${post.draft ? 'het concept' : 'het gepubliceerde bericht'}, niet zichtbaar voor bezoekers. <a href="${BASE}${post.id}/">Terug naar bewerken</a></div>`;
       const date = fromLocalDateTime(current.postDate) || (post.published_at ? new Date(post.published_at) : new Date());

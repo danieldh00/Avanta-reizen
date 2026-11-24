@@ -545,4 +545,4 @@ function createPages(options) {
   return { list, get, revisions, changeDraft, publish, discardDraft, restoreRevision, sourceOptions, parentOptions, create, createHomepage, move, setOnline, remove };
 }
 
-module.exports = { createPages, homepageBlocks, validatePageFields, buildPagePath, editableState, imageFromMedia, PAGE_LIMITS, IMAGE_WIDTH, RESERVED_SEGMENTS };
+module.exports = { createPages, homepageBlocks, mediaByUrl, validatePageFields, buildPagePath, editableState, imageFromMedia, PAGE_LIMITS, IMAGE_WIDTH, RESERVED_SEGMENTS };

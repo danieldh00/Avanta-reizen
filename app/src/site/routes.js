@@ -6,17 +6,15 @@ const express = require('express');
 const { html, raw } = require('./html');
 const { renderPage, renderPageHeader, cssImageUrl } = require('./layout');
 const { isExcluded } = require('./site-settings');
-const { createContent, today } = require('./content');
+const { createContent, guideExtra, today } = require('./content');
 const pageViews = require('./page-view');
 const { renderPageArticle } = require('../cms/page-render');
 const { publishedBlocks } = require('../cms/blocks');
 const homeViews = require('./home-view');
-const { createHomepageStore, YOUTUBE_ORIGIN } = require('./homepage');
+const { normalizeHomepage, YOUTUBE_ORIGIN } = require('./homepage');
 const { addCspSources } = require('../security/csp');
 const tripViews = require('./trip-view');
-const { createSiteContentStore, guideExtra } = require('./site-content');
 const { createListHeaders } = require('../cms/list-headers');
-const { DATA_DIR } = require('../paths');
 const { isoDate, toDate, tripPath, categoryPath, guidePath, postPath } = require('./format');
 const seo = require('./seo');
 
@@ -51,10 +49,8 @@ function queryValue(value) {
 
 /**
  * Bouwt de router van de website.
- * @param {{db: object, contactForm?: object, homepage?: {load: Function}, siteContent?: {load: Function}, listHeaders?: {get: Function}}} options Database,
- *   het contactformulier, de koppen van de lijstpagina's (`cms/list-headers.js`) en (voor tests) de vaste inhoud van
- *   de homepage (standaard `DATA_DIR/homepage.json`, zie `site/homepage.js`) en van reisleiders die nog niet in het
- *   CRM worden beheerd (standaard `DATA_DIR/site-content.json`, zie `site/site-content.js`). Indexeren, basisadres, naam en
+ * @param {{db: object, contactForm?: object, listHeaders?: {get: Function}}} options Database, het contactformulier en
+ *   de koppen van de lijstpagina's (`cms/list-headers.js`). Alle inhoud komt uit de database. Indexeren, basisadres, naam en
  *   de overige site-instellingen komen per verzoek uit `res.locals.site` (Beheer, zie `site/site-settings.js`).
  *   Zonder contactformulier (`contact/routes.js`) is `/contact/` een gewone pagina.
  * @returns {express.Router} De router.
@@ -62,8 +58,6 @@ function queryValue(value) {
 function createSiteRouter(options) {
   const router = express.Router({ strict: true });
   const content = createContent(options.db);
-  const homepage = options.homepage || createHomepageStore(DATA_DIR);
-  const siteContent = options.siteContent || createSiteContentStore(DATA_DIR);
   const listHeaders = options.listHeaders || createListHeaders({ db: options.db });
   let sitemapCache = null;
 
@@ -128,10 +122,11 @@ function createSiteRouter(options) {
 
   router.get('/', asyncRoute(async (req, res) => {
     if (typeof req.query.s === 'string') return res.redirect(302, `/zoeken/?s=${encodeURIComponent(req.query.s)}`);
-    // De homepage als blokpagina (CMS-pakket H4), zodra die in het CRM is gepubliceerd en online staat; anders de vaste.
+    // De homepage als blokpagina (CMS-pakket H4); staat die offline of ontbreekt hij, dan de vaste homepage met de
+    // standaardteksten (`DEFAULT_HOMEPAGE`) en foto's van reizen.
     const blockHome = await content.pageByPath('/');
     if (blockHome && blockHome.managed_in_crm) {
-      const article = await renderPageArticle(blockHome, content, null, { featuredSlug: (await content.blogHighlights(siteContent.load())).featuredSlug });
+      const article = await renderPageArticle(blockHome, content, { featuredSlug: (await content.blogHighlights()).featuredSlug });
       if (article.body) {
         if (article.hasVideo) allowVideos(res);
         // Foto voor delen (og:image): de eerste foto van de slider, als die er is.
@@ -147,7 +142,7 @@ function createSiteRouter(options) {
         });
       }
     }
-    const home = homepage.load();
+    const home = normalizeHomepage(null);
     const [finder, lastMinutes, upcoming, types, blog, newCount] = await Promise.all([
       finderOptions(),
       content.upcomingTrips({ onlyAvailable: true, limit: 6 }),
@@ -157,7 +152,7 @@ function createSiteRouter(options) {
       content.newTripCount(),
     ]);
     // Blog: drie nieuwste links, het uitgelichte bericht (of anders het vierde) groot rechts, zoals de huidige site.
-    const { featuredSlug } = await content.blogHighlights(siteContent.load());
+    const { featuredSlug } = await content.blogHighlights();
     const featuredPost = featuredSlug && !blog.posts.some((post) => post.slug === featuredSlug) ? (await content.postsBySlugs([featuredSlug]))[0] : null;
     const arranged = pageViews.arrangePosts(featuredPost ? [...blog.posts, featuredPost] : blog.posts, featuredSlug);
     const homePosts = [...arranged.list, ...(arranged.featured ? [arranged.featured] : [])];
@@ -285,8 +280,7 @@ function createSiteRouter(options) {
 
   router.get('/reisleider/', asyncRoute(async (req, res) => {
     const archive = listHeaders.get('reisleider');
-    const fixedGuides = siteContent.load().guides;
-    const guides = (await content.guides()).map((guide) => ({ ...guide, extra: guideExtra(guide, fixedGuides) }));
+    const guides = (await content.guides()).map((guide) => ({ ...guide, extra: guideExtra(guide) }));
     send(res, {
       title: 'Reisleiders',
       path: '/reisleider/',
@@ -307,7 +301,7 @@ function createSiteRouter(options) {
       path: '/reisleider/',
       seo: seoFor(guidePath(guide.slug), { imageUrl: guide.photo_url }),
       header: renderPageHeader({ bare: true, backLink: '/reisleider/' }),
-      body: html`${tripViews.guideDetail({ ...guide, extra: guideExtra(guide, siteContent.load().guides) })}
+      body: html`${tripViews.guideDetail({ ...guide, extra: guideExtra(guide) })}
       ${guide.trips.length ? html`<section class="section guide-trips"><div class="layout-container">
         <h2 class="section__title">Reizen met ${guide.name}</h2>
         ${tripViews.tripList(guide.trips, '')}
@@ -327,8 +321,8 @@ function createSiteRouter(options) {
   router.get('/blog/', asyncRoute(async (req, res) => {
     const archive = listHeaders.get('blog');
     const { posts } = await content.posts({ perPage: 500 });
-    const { blogArchiveLink } = siteContent.load();
-    const { tags, featuredSlug } = await content.blogHighlights(siteContent.load());
+    const { blogArchiveLink } = res.locals.site;
+    const { tags, featuredSlug } = await content.blogHighlights();
     send(res, {
       title: archive.title,
       description: archive.introduction,
@@ -354,15 +348,12 @@ function createSiteRouter(options) {
     body: html`<div class="content-main">${pageViews.introduction(term.intro)}${pageViews.tagArchive(term.posts)}</div>`,
   });
 
-  // Tags van het weblog: uit het CMS (pakket I2), anders nog uit `site-content.json`; een onbekende tag gaat naar het
-  // overzicht, zoals voorheen.
+  // Tags van het weblog (CMS-pakket I2); een onbekende tag gaat naar het overzicht, zoals voorheen.
   router.get('/tag/:slug/', asyncRoute(async (req, res) => {
     const slug = safeSlug(req.params.slug);
     const term = slug ? await content.postTerm('tag', slug) : null;
     if (term) return sendTermArchive(res, { name: term.name, path: `/tag/${term.slug}/`, image: term.image_url, intro: term.intro, posts: await content.postsOfTerm(term.id) });
-    const tag = slug ? siteContent.load().blogTags.find((item) => item.slug === slug) : null;
-    if (!tag) return res.redirect(301, '/blog/');
-    return sendTermArchive(res, { name: tag.name, path: `/tag/${tag.slug}/`, image: tag.image, intro: '', posts: await content.postsBySlugs(tag.posts) });
+    return res.redirect(301, '/blog/');
   }));
 
   router.get('/faq/', asyncRoute(async (req, res) => {
@@ -462,7 +453,7 @@ function createSiteRouter(options) {
     if (path.length > 300) return next();
     const page = await content.pageByPath(path);
     if (page) {
-      const article = await renderPageArticle(page, content, siteContent.load().galleries.get(page.path));
+      const article = await renderPageArticle(page, content);
       if (article.hasVideo) allowVideos(res);
       return send(res, {
         title: page.seo_title || page.title,
@@ -478,7 +469,7 @@ function createSiteRouter(options) {
     const post = await content.postBySlug(segments[0]);
     if (!post) return next();
     // Blokken uit het CMS (pakket I1); een bericht uit de import zonder blokken toont zijn tekst als één tekstblok.
-    const article = await renderPageArticle(post, content, siteContent.load().galleries.get(`/${post.slug}/`));
+    const article = await renderPageArticle(post, content);
     if (article.hasVideo) allowVideos(res);
     const published = post.published_at ? new Date(post.published_at) : null;
     return send(res, {

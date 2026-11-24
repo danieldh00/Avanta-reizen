@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-// Eigen datamap vóór het laden van de app: `paths.js` leest DATA_DIR bij het laden (site-content.json komt hier).
+// Eigen datamap vóór het laden van de app: `paths.js` leest DATA_DIR bij het laden.
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'avanta-livegang-'));
 process.env.DATA_DIR = DATA_DIR;
 
@@ -17,7 +17,7 @@ const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { COOKIE_NAME } = require('../src/crm/auth');
 const { settingsChecks, contentChecks } = require('../src/beheer/go-live-check');
-const { normalizeSiteContent } = require('../src/site/site-content');
+const { TRANSFER_PARTS } = require('../src/site/content-transfer');
 const { findSection } = require('../src/beheer/indeling');
 const { loginWithTwoFactor } = require('./helpers/two-factor');
 
@@ -95,30 +95,13 @@ test('livegang: instellingen vóór en na de overstap', () => {
   }
 });
 
-test('livegang: vaste inhoud uit het bestand of uit het CRM', () => {
-  const fixed = normalizeSiteContent({
-    guideOrder: ['anna', 'bert'],
-    guides: { anna: { surname: 'Jansen', gallery: ['/media/aaaaaaaaaaaaaaaaaaaa.jpg'] } },
-    blogTags: [{ slug: 'reizen', name: 'Reizen' }],
-    featuredPost: 'mooi-bericht',
-    galleries: { '/een-bericht/': { title: 'Foto\'s', images: ['/media/bbbbbbbbbbbbbbbbbbbb.jpg'] } },
-  });
-  const fromFile = contentChecks(fixed, { homeInCrm: false, postTags: 0, featuredPosts: 0, guides: 3, guidesInFile: 2 });
-  assert.equal(stateOf(fromFile, 'Homepage'), 'open');
-  assert.equal(stateOf(fromFile, 'Reisleiders'), 'open');
-  assert.match(fromFile.find((row) => row.label === 'Reisleiders').detail, /^2 van de 3/);
-  assert.equal(stateOf(fromFile, 'Tags van het blog'), 'open');
-  assert.equal(stateOf(fromFile, 'Uitgelicht bericht'), 'open');
-  assert.equal(stateOf(fromFile, 'Koppen'), 'klaar', 'altijd in het CRM (W28)');
-  assert.equal(stateOf(fromFile, 'Volgorde en galerij'), 'open', 'nog niet overgezet');
-  assert.equal(stateOf(fromFile, 'Fotogalerijen'), fixed.galleries.size ? 'later' : 'klaar');
-
-  const inCrm = contentChecks(fixed, { homeInCrm: true, postTags: 4, featuredPosts: 1, guides: 3, guidesInFile: 0 });
-  assert.deepEqual(inCrm.filter((row) => row.state === 'open'), [], 'alles in het CRM: niets open');
-  const empty = contentChecks(normalizeSiteContent(null), { homeInCrm: true, postTags: 0, featuredPosts: 0, guides: 0, guidesInFile: 0 });
-  assert.equal(stateOf(empty, 'Tags van het blog'), 'klaar', 'geen tags in bestand of CRM');
-  assert.equal(stateOf(empty, 'Volgorde en galerij'), 'klaar');
-  assert.equal(stateOf(empty, 'Fotogalerijen'), 'klaar');
+test('livegang: vaste inhoud overgezet en homepage in het CRM', () => {
+  const before = contentChecks({ homeInCrm: false, transfersDone: 2 });
+  assert.equal(stateOf(before, 'Homepage'), 'open');
+  assert.equal(stateOf(before, 'Vaste inhoud van de huidige site overgezet'), 'open');
+  assert.match(before.find((row) => row.label === 'Vaste inhoud van de huidige site overgezet').detail, new RegExp(`^2 van de ${TRANSFER_PARTS.length} delen`));
+  const after = contentChecks({ homeInCrm: true, transfersDone: TRANSFER_PARTS.length });
+  assert.deepEqual(after.filter((row) => row.state === 'open'), [], 'alles in het CRM: niets open');
 });
 
 test('livegang: de pagina in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
@@ -128,7 +111,6 @@ test('livegang: de pagina in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
   await admin.close();
   const db = createDatabase(withSchema(DATABASE_URL));
   await db.migrate();
-  fs.writeFileSync(path.join(DATA_DIR, 'site-content.json'), JSON.stringify({ blogTags: [{ slug: 'reizen', name: 'Reizen' }] }));
   const app = createApp({ db, masterKey: MASTER_KEY, setupCode: SETUP_CODE });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -177,8 +159,8 @@ test('livegang: de pagina in Beheer', { skip: !DATABASE_URL && 'TEST_DATABASE_UR
     assert.match(page.text, /Vaste inhoud in het CRM/);
     // De beheerder heeft geen tweestapsverificatie aangezet; kantoor wel (helper hierboven).
     assert.match(page.text, /1 actieve gebruiker\(s\) met rol beheerder, kantoor of reisleider zonder tweestapsverificatie/);
-    assert.match(page.text, /1 tag\(s\) komen nog uit site-content\.json/);
-    assert.match(page.text, /Komt nog uit homepage\.json/);
+    assert.match(page.text, /0 van de 5 delen overgezet/);
+    assert.match(page.text, /Staat offline of ontbreekt/);
     assert.match(page.text, /crm-status--vol">Open</);
     assert.match(page.text, /crm-status--open">Zelf controleren</);
     assert.doesNotMatch(page.text, /beheer@example\.nl|kantoor@example\.nl/, 'geen e-mailadressen van gebruikers');

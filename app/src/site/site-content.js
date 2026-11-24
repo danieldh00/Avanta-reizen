@@ -1,18 +1,15 @@
 /**
- * Vaste inhoud van de site die (nog) geen eigen plek in de database heeft: de koppen van de lijstpagina's (reizen,
- * reisleiders, blog, FAQ en aanmelden: pretitel, titel, foto en inleiding), de extra gegevens van reisleiders die de
- * huidige site toont (achternaam, woonplaats, bij Avanta sinds, citaat, portret, tweede foto, galerij en volgorde in
- * de lijst), de tags van het weblog (naam, foto en berichten per tag, plus de link naar het oude blogarchief), het
- * uitgelichte bericht (groot op de homepage en het blog) en de
- * fotogalerijen onder blogberichten en pagina's (titel, ondertitel en foto's per pad).
+ * Vaste inhoud van de huidige site uit `DATA_DIR/site-content.json`: de koppen van de lijstpagina's, de extra gegevens
+ * van reisleiders (achternaam, woonplaats, bij Avanta sinds, citaat, foto's, galerij en volgorde), de tags van het
+ * weblog met de link naar het oude blogarchief, het uitgelichte bericht en de fotogalerijen onder berichten en pagina's.
  *
- * Tot het CMS (pakket G voor reisleiders, H voor pagina's, I voor het blog) dit overneemt, staat het in `DATA_DIR/site-content.json`.
- * De import van de huidige site schrijft dat bestand (ook los met `--alleen-vaste-inhoud`). Alles uit het bestand
- * wordt gecontroleerd zoals in `homepage.js`: alleen tekst met een maximumlengte, links naar een eigen pad of https en
- * afbeeldingen onder `/media/`. Ontbreekt het bestand, dan gelden de teksten van de huidige site zonder foto's.
+ * De import van de huidige site schrijft dat bestand (ook los met `--alleen-vaste-inhoud`). Sinds W28 (migratie 34) is
+ * het alleen nog bron voor de eenmalige overname naar de database (`content-transfer.js`); de site en het CRM lezen
+ * het niet meer. Alles uit het bestand wordt gecontroleerd zoals in `homepage.js`: alleen tekst met een maximumlengte,
+ * links naar een eigen pad of https en afbeeldingen onder `/media/`.
  */
 const path = require('node:path');
-const { createJsonFileStore } = require('./json-store');
+const { readJsonFile } = require('./json-store');
 const { cleanString, cleanHref, cleanImage } = require('./homepage');
 
 /** Naam van het bestand in DATA_DIR. */
@@ -198,55 +195,13 @@ function normalizeSiteContent(data) {
   };
 }
 
-/** Lege extra gegevens voor een reisleider zonder regel in het bestand. */
-const EMPTY_GUIDE = Object.freeze(normalizeGuide(null));
-
 /**
- * Maakt een lezer die `site-content.json` uit DATA_DIR leest en onthoudt tot het bestand verandert.
+ * Leest `site-content.json` uit de datamap, voor de overname naar de database.
  * @param {string} dataDir De datamap.
- * @returns {{load: Function}} `load()` geeft de (gecontroleerde) inhoud.
+ * @returns {object|null} De gecontroleerde inhoud, of null als het bestand ontbreekt of kapot is.
  */
-function createSiteContentStore(dataDir) {
-  return createJsonFileStore(path.join(dataDir, SITE_CONTENT_FILE), normalizeSiteContent);
+function readSiteContentFile(dataDir) {
+  return readJsonFile(path.join(dataDir, SITE_CONTENT_FILE), normalizeSiteContent);
 }
 
-/**
- * Zet reisleiders in de volgorde van de huidige site; wie daar niet in staat komt erachter op naam.
- * @param {object[]} guides Reisleiders (met `slug` en `name`).
- * @param {string[]} order Slugs in volgorde.
- * @returns {object[]} Gesorteerde kopie.
- */
-function sortGuides(guides, order) {
-  const position = new Map(order.map((slug, index) => [slug, index]));
-  return [...guides].sort((first, second) => {
-    const left = position.has(first.slug) ? position.get(first.slug) : Infinity;
-    const right = position.has(second.slug) ? position.get(second.slug) : Infinity;
-    if (left !== right) return left - right;
-    return String(first.name).localeCompare(String(second.name), 'nl');
-  });
-}
-
-/**
- * De extra gegevens van een reisleider voor de site: uit het CRM als hij daar beheerd wordt (`managed_in_crm`; het
- * portret is dan `photo_url`, de galerij `gallery` met titel en subtitel), anders uit `site-content.json`.
- * @param {{slug: string, managed_in_crm?: boolean, surname?: string, city?: string, since?: string, quote?: string, image_url?: (string|null), gallery?: *, gallery_title?: string, gallery_subtitle?: string}} guide Reisleider uit de database.
- * @param {Map<string, object>} guides Gegevens uit `site-content.json` per slug.
- * @returns {object} Gegevens zoals `normalizeGuide`.
- */
-function guideExtra(guide, guides) {
-  const fixed = guides.get(guide.slug) || EMPTY_GUIDE;
-  if (!guide.managed_in_crm) return fixed;
-  return {
-    surname: guide.surname || '',
-    city: guide.city || '',
-    since: guide.since || '',
-    quote: guide.quote || '',
-    portrait: '',
-    image: guide.image_url || '',
-    galleryTitle: guide.gallery_title || '',
-    gallerySubtitle: guide.gallery_subtitle || '',
-    gallery: Array.isArray(guide.gallery) ? guide.gallery : [],
-  };
-}
-
-module.exports = { SITE_CONTENT_FILE, SITE_CONTENT_VERSION, DEFAULT_ARCHIVES, DEFAULT_BLOG_ARCHIVE_LINK, EMPTY_GUIDE, normalizeSiteContent, createSiteContentStore, sortGuides, guideExtra };
+module.exports = { SITE_CONTENT_FILE, SITE_CONTENT_VERSION, DEFAULT_ARCHIVES, DEFAULT_BLOG_ARCHIVE_LINK, normalizeSiteContent, readSiteContentFile };

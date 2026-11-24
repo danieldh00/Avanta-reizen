@@ -2,9 +2,8 @@
  * Reisleiders beheren (CMS-pakket I4, migratie 22): profiel (voornaam, achternaam, woonplaats, sinds, citaat,
  * inleiding, tekst), adres (`/reisleider/<slug>/`, een ander adres geeft een 301), portret en kopfoto uit de
  * fotobibliotheek, online/offline, nieuw en verwijderen. Een reisleider die hier is gewijzigd krijgt `managed_in_crm`:
- * de site toont dan de gegevens uit de database in plaats van die uit `site-content.json`, en de WordPress-import laat
- * hem staan. Bij de eerste wijziging gaan de gegevens uit `site-content.json` mee (`adopt`), zodat de site niets
- * verliest. Ook de volgorde in de lijst op de site (`sort_order`) en de fotogalerij onderaan de pagina (titel, subtitel en
+ * de WordPress-import laat hem dan staan. De gegevens van de huidige site zijn bij de update overgezet
+ * (`adoptFixedGuide`, aangeroepen door `site/content-transfer.js`); de site leest alleen de database. Ook de volgorde in de lijst op de site (`sort_order`) en de fotogalerij onderaan de pagina (titel, subtitel en
  * foto's uit de bibliotheek, migratie 34) worden hier beheerd. Elke wijziging schrijft de audit in dezelfde transactie; alle vragen met gebonden parameters.
  */
 const { cleanText, lockMediaForUse, mediaUrl } = require('../media/library');
@@ -118,7 +117,7 @@ function arrangedPositions(body, count) {
 /**
  * Zet de gegevens uit `site-content.json` van één reisleider in de database en zet hem op beheerd in het CRM: profiel-
  * velden, portret en tweede foto (alleen als het bestand er een heeft) en de galerij als die in de database nog leeg is.
- * Gebruikt bij de eerste wijziging in het CRM en bij het overzetten van de vaste inhoud (`site/content-transfer.js`).
+ * Gebruikt bij het overzetten van de vaste inhoud (`site/content-transfer.js`).
  * @param {{query: Function}} client Transactie-client.
  * @param {number} guideId Id.
  * @param {object} [extra] Gegevens uit het bestand (`surname`, `city`, `since`, `quote`, `portrait`, `image`,
@@ -187,20 +186,6 @@ function createGuides(options) {
   };
 
   /**
-   * Neemt bij de eerste wijziging de gegevens uit `site-content.json` over (achternaam, woonplaats, sinds, citaat,
-   * portret, tweede foto en de galerij als die in de database nog leeg is), zodat de site na `managed_in_crm` hetzelfde toont. Doet niets als hij al beheerd wordt.
-   * @param {object} client Transactie-client.
-   * @param {{id: number, managed_in_crm: boolean}} guide Rij (vergrendeld).
-   * @param {object} [extra] Gegevens uit `site-content.json` (`surname`, `city`, `since`, `quote`, `portrait`, `image`,
-   *   `galleryTitle`, `gallerySubtitle`, `gallery`).
-   * @returns {Promise<void>}
-   */
-  const adopt = async (client, guide, extra) => {
-    if (guide.managed_in_crm) return;
-    await adoptFixedGuide(client, guide.id, extra);
-  };
-
-  /**
    * Of een slug al door een andere reisleider wordt gebruikt.
    * @param {object} client Client.
    * @param {string} slug Slug.
@@ -237,17 +222,15 @@ function createGuides(options) {
    * Wijzigt het profiel; een ander adres geeft een 301 vanaf het oude (daarna `redirects.reload()`).
    * @param {(number|string)} id Id.
    * @param {object} values Uit `validateGuideFields`.
-   * @param {{userId: number, audit: Function, extra?: object}} context Gebruiker, audit en de gegevens uit
-   *   `site-content.json` (voor de eerste keer).
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
    * @returns {Promise<{status: ('ok'|'weg'|'fout'), errors?: object, moved?: boolean}>} Uitkomst.
    */
   const update = (id, values, context) => db.transaction(async (client) => {
     if (!validId(id)) return { status: 'weg' };
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['reisleider-adres']);
-    const [guide] = await client.query('SELECT id, slug, managed_in_crm FROM guides WHERE id = $1 FOR UPDATE', [Number(id)]);
+    const [guide] = await client.query('SELECT id, slug FROM guides WHERE id = $1 FOR UPDATE', [Number(id)]);
     if (!guide) return { status: 'weg' };
     if (values.slug !== guide.slug && await slugTaken(client, values.slug, guide.id)) return { status: 'fout', errors: { slug: 'Dit adres bestaat al.' } };
-    await adopt(client, guide, context.extra);
     await client.query(
       `UPDATE guides SET name = $2, surname = $3, slug = $4, city = $5, since = $6, quote = $7, intro = $8, body_html = $9,
          sort_order = COALESCE($11, sort_order), managed_in_crm = true, updated_at = now(), updated_by = $10 WHERE id = $1`,
@@ -263,14 +246,13 @@ function createGuides(options) {
    * Zet een reisleider online of offline (offline: geen pagina en niet in de lijst; reizen tonen hem niet meer).
    * @param {(number|string)} id Id.
    * @param {boolean} online Online.
-   * @param {{userId: number, audit: Function, extra?: object}} context Gebruiker, audit en `site-content.json`-gegevens.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
    * @returns {Promise<{status: ('ok'|'weg')}>} Uitkomst.
    */
   const setOnline = (id, online, context) => db.transaction(async (client) => {
     if (!validId(id)) return { status: 'weg' };
-    const [guide] = await client.query('SELECT id, managed_in_crm FROM guides WHERE id = $1 FOR UPDATE', [Number(id)]);
+    const [guide] = await client.query('SELECT id FROM guides WHERE id = $1 FOR UPDATE', [Number(id)]);
     if (!guide) return { status: 'weg' };
-    await adopt(client, guide, context.extra);
     await client.query('UPDATE guides SET published = $2, managed_in_crm = true, updated_at = now(), updated_by = $3 WHERE id = $1', [guide.id, online, context.userId]);
     await context.audit(client);
     return { status: 'ok' };
@@ -281,13 +263,13 @@ function createGuides(options) {
    * @param {(number|string)} id Id.
    * @param {string} kind `portret` of `kopfoto`.
    * @param {(number|null)} mediaId Foto, of null voor geen.
-   * @param {{userId: number, audit: Function, extra?: object}} context Gebruiker, audit en `site-content.json`-gegevens.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
    * @returns {Promise<('ok'|'weg'|'foto-weg')>} Uitkomst.
    */
   const setPhoto = (id, kind, mediaId, context) => db.transaction(async (client) => {
     const field = PHOTO_FIELDS[kind];
     if (!field || !validId(id)) return 'weg';
-    const [guide] = await client.query('SELECT id, managed_in_crm FROM guides WHERE id = $1 FOR UPDATE', [Number(id)]);
+    const [guide] = await client.query('SELECT id FROM guides WHERE id = $1 FOR UPDATE', [Number(id)]);
     if (!guide) return 'weg';
     let url = null;
     if (mediaId !== null) {
@@ -295,7 +277,6 @@ function createGuides(options) {
       if (!photo) return 'foto-weg';
       url = mediaUrl(photo, field.width);
     }
-    await adopt(client, guide, context.extra);
     // De kolomnaam komt uit de vaste lijst PHOTO_FIELDS, nooit uit de invoer.
     await client.query(`UPDATE guides SET ${field.column} = $2, managed_in_crm = true, updated_at = now(), updated_by = $3 WHERE id = $1`, [guide.id, url, context.userId]);
     await context.audit(client);
@@ -328,20 +309,16 @@ function createGuides(options) {
 
 
   /**
-   * Vergrendelt een reisleider voor een wijziging aan de galerij en neemt zo nodig eerst de gegevens uit
-   * `site-content.json` over.
+   * Vergrendelt een reisleider voor een wijziging aan de galerij.
    * @param {object} client Transactie-client.
    * @param {(number|string)} id Id.
-   * @param {object} [extra] Gegevens uit `site-content.json`.
-   * @returns {Promise<(object|null)>} De rij met de (overgenomen) galerij, of null.
+   * @returns {Promise<(object|null)>} Id en galerij, of null.
    */
-  const lockForGallery = async (client, id, extra) => {
+  const lockForGallery = async (client, id) => {
     if (!validId(id)) return null;
-    const [guide] = await client.query('SELECT id, managed_in_crm FROM guides WHERE id = $1 FOR UPDATE', [Number(id)]);
+    const [guide] = await client.query('SELECT id, gallery FROM guides WHERE id = $1 FOR UPDATE', [Number(id)]);
     if (!guide) return null;
-    await adopt(client, guide, extra);
-    const [row] = await client.query('SELECT id, gallery FROM guides WHERE id = $1', [guide.id]);
-    return { id: row.id, gallery: Array.isArray(row.gallery) ? row.gallery : [] };
+    return { id: guide.id, gallery: Array.isArray(guide.gallery) ? guide.gallery : [] };
   };
 
   /**
@@ -361,11 +338,11 @@ function createGuides(options) {
    * Voegt foto's uit de bibliotheek achter aan de galerij toe (een foto die er al in staat, slaat hij over).
    * @param {(number|string)} id Id.
    * @param {number[]} mediaIds Foto's.
-   * @param {{userId: number, audit: Function, extra?: object}} context Gebruiker, audit en `site-content.json`-gegevens.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
    * @returns {Promise<('ok'|'weg'|'foto-weg'|'te-veel')>} Uitkomst.
    */
   const addGalleryPhotos = (id, mediaIds, context) => db.transaction(async (client) => {
-    const guide = await lockForGallery(client, id, context.extra);
+    const guide = await lockForGallery(client, id);
     if (!guide) return 'weg';
     const gallery = [...guide.gallery];
     for (const mediaId of [...new Set(mediaIds)]) {
@@ -383,11 +360,11 @@ function createGuides(options) {
    * @param {(number|string)} id Id.
    * @param {{fingerprint: string, body: Record<string, *>}} form Vingerafdruk van de galerij waarop het formulier is
    *   gemaakt en de ingezonden velden (zie `arrangedPositions`).
-   * @param {{userId: number, audit: Function, extra?: object}} context Gebruiker, audit en `site-content.json`-gegevens.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
    * @returns {Promise<('ok'|'weg'|'gewijzigd')>} Uitkomst; `gewijzigd` als de galerij intussen anders is.
    */
   const arrangeGallery = (id, form, context) => db.transaction(async (client) => {
-    const guide = await lockForGallery(client, id, context.extra);
+    const guide = await lockForGallery(client, id);
     if (!guide) return 'weg';
     if (galleryFingerprint(guide.gallery) !== form.fingerprint) return 'gewijzigd';
     const gallery = arrangedPositions(form.body, guide.gallery.length).map((index) => guide.gallery[index]);
@@ -399,11 +376,11 @@ function createGuides(options) {
    * Wijzigt de titel en subtitel van de galerij.
    * @param {(number|string)} id Id.
    * @param {{title: *, subtitle: *}} texts Ingezonden teksten (worden opgeschoond en ingekort).
-   * @param {{userId: number, audit: Function, extra?: object}} context Gebruiker, audit en `site-content.json`-gegevens.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
    * @returns {Promise<('ok'|'weg')>} Uitkomst.
    */
   const setGalleryText = (id, texts, context) => db.transaction(async (client) => {
-    const guide = await lockForGallery(client, id, context.extra);
+    const guide = await lockForGallery(client, id);
     if (!guide) return 'weg';
     await client.query(
       'UPDATE guides SET gallery_title = $2, gallery_subtitle = $3, managed_in_crm = true, updated_at = now(), updated_by = $4 WHERE id = $1',

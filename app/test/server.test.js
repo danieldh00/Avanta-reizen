@@ -9,6 +9,7 @@ const assert = require('node:assert/strict');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
 const { normalizeSiteContent } = require('../src/site/site-content');
+const { transferFixedContent } = require('../src/site/content-transfer');
 const { createVault } = require('../src/security/vault');
 const { createPersons } = require('../src/persons/persons');
 const { CONSENT_TEXT_VERSION } = require('../src/booking/fields');
@@ -81,14 +82,16 @@ test('website en aanmelden', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbree
     transaction: (work) => db.transaction((client) => work({ ...client, query: colliding(client.query) })),
   };
   // Vaste inhoud zoals de import die schrijft: een tag, het uitgelichte bericht en een galerij onder een pagina.
-  const siteContent = {
-    load: () => normalizeSiteContent({
+  // Die staat na de eenmalige overname (W28) in de database.
+  await transferFixedContent({
+    db,
+    siteContent: normalizeSiteContent({
       blogTags: [{ slug: 'avontuur', name: 'Avontuur', posts: ['op-avantuur', 'bestaat-niet'] }],
       featuredPost: 'op-avantuur',
       galleries: { '/avanta-reizen/voorpret/': { title: 'Avanta = avontuur', images: ['/media/voorpret.jpg'] } },
     }),
-  };
-  const app = createApp({ db: collidingDb, masterKey: MASTER_KEY, now: () => clock, siteContent });
+  });
+  const app = createApp({ db: collidingDb, masterKey: MASTER_KEY, now: () => clock });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   testContext.after(async () => { server.close(); await db.close(); });

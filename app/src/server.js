@@ -20,7 +20,8 @@ const { cspWith } = require('./site/analytics');
 const { cspWith: captchaCspWith, isFormPath } = require('./security/captcha');
 const crypto = require('node:crypto');
 const { PUBLIC_DIR, MEDIA_DIR, DATA_DIR } = require('./paths');
-const { SITE_CONTENT_FILE } = require('./site/site-content');
+const { readSiteContentFile } = require('./site/site-content');
+const { readHomepageFile } = require('./site/homepage');
 const { transferFixedContent } = require('./site/content-transfer');
 const { createServices, startBackgroundTasks } = require('./services');
 const { roleHasRight } = require('./crm/rights');
@@ -113,7 +114,7 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: object, masterKey: Buffer, previousKeys?: Buffer[], settings?: object, appLog?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, statfs?: Function, monitorRequest?: Function, monitorDataDir?: string, retentionToday?: () => string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, passwordCheckFetch?: Function, now?: () => number, homepage?: {load: Function}, siteContent?: {load: Function}}} options Database,
+ * @param {{db: object, masterKey: Buffer, previousKeys?: Buffer[], settings?: object, appLog?: object, systemUpdate?: object, updateStatusDir?: string, updateRequestDir?: string, mailer?: object, wanIp?: object, captcha?: object, captchaFetch?: Function, backups?: object, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, statfs?: Function, monitorRequest?: Function, monitorDataDir?: string, retentionToday?: () => string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, passwordCheckFetch?: Function, now?: () => number}} options Database,
  *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), het logboek (standaard
  *   `system/app-log.js`; wegschrijven start pas met `appLog.start()` in `start()`), de koppeling met het updatescript
  *   (standaard `system/system-update.js` met de mappen uit `updateStatusDir`/`updateRequestDir` of UPDATE_STATUS_DIR/UPDATE_REQUEST_DIR), de mailer en WAN-IP-opzoeker (standaard `mail/`), de captcha (standaard `security/captcha.js`, met `captchaFetch` als eigen fetch), de back-updienst (standaard `backup/backups.js` met `databaseUrl`, `backupDir` en `pgDumpPath`; zonder `databaseUrl` geen back-ups), een eigen fetch voor Google Drive (`googleFetch`, tests) en voor de controle op gelekte wachtwoorden (`passwordCheckFetch`, tests), of de site geïndexeerd mag worden, het basisadres (standaard `SITE_URL`), welke proxy vertrouwd wordt
@@ -126,7 +127,7 @@ function createApp(options) {
   // Alle diensten (instellingen, logboek, mail, back-ups, bewaking, …) staan in `services.js`. `app.locals` geeft ze
   // door aan `start()` en aan de tests.
   const services = createServices(options);
-  const { vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary, imageFormats, mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, infobriefSender, siteContent, homepage, listHeaders, accounts } = services;
+  const { vault, settings, appLog, captcha, passwordCheck, menus, systemUpdate, hostTasks, redirects, mediaDir, mediaLibrary, imageFormats, mailer, wanIp, notifications, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, infobriefSender, listHeaders, accounts } = services;
   Object.assign(app.locals, { services, settings, appLog, captcha, passwordCheck, menus, systemUpdate, redirects, mediaLibrary, mailer, drive, backups, restoreTests, monitor, retention, onlinePayments, paymentReminders, infobriefSender, accounts });
   app.disable('x-powered-by');
   const trustedProxy = parseTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY);
@@ -220,7 +221,7 @@ function createApp(options) {
   app.use('/media', express.static(mediaDir, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
 
 
-  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, vault, settings, passwordCheck, redirects, mailer, wanIp, notifications, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, infobriefSender, mediaLibrary, menus, homepage, siteContent, listHeaders, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, auditExportMax: options.auditExportMax, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, vault, settings, passwordCheck, redirects, mailer, wanIp, notifications, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, infobriefSender, mediaLibrary, menus, listHeaders, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, auditExportMax: options.auditExportMax, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).
@@ -231,7 +232,7 @@ function createApp(options) {
   app.use(createBookingRouter({ db: options.db, vault, formKey, notifications, captcha, now: options.now, listHeaders, prefill: accountRouter.prefillFor, customerFor: accountRouter.customerFor }));
   app.use(accountRouter);
   const contactForm = createContactForm({ db: options.db, formKey, notifications, captcha, now: options.now });
-  app.use(createSiteRouter({ db: options.db, contactForm, homepage, siteContent, listHeaders }));
+  app.use(createSiteRouter({ db: options.db, contactForm, listHeaders }));
 
   // 404: telt mee in de 404-lijst van Beheer; altijd noindex (kop en renderPage zonder indexable), met een canonical
   // naar het gevraagde pad.
@@ -320,10 +321,12 @@ async function start() {
     setTimeout(() => process.exit(1), 3000);
     app.locals.appLog.flush().catch(() => {}).finally(() => process.exit(1));
   });
-  // Vaste inhoud uit site-content.json eenmalig naar de database (W28); wat al is overgezet, blijft zoals het is.
-  const siteContentFile = path.join(DATA_DIR, SITE_CONTENT_FILE);
-  const transferred = await transferFixedContent({ db, siteContent: fs.existsSync(siteContentFile) ? app.locals.services.siteContent.load() : null });
+  // Vaste inhoud uit site-content.json en homepage.json eenmalig naar de database (W28); wat al is overgezet, blijft
+  // zoals het is.
+  const transferred = await transferFixedContent({ db, siteContent: readSiteContentFile(DATA_DIR), homepage: readHomepageFile(DATA_DIR) });
   for (const part of transferred) console.log(`vaste inhoud: ${part.part} overgezet naar de database (${part.summary})`);
+  // Het deel `blog` kan instellingen schrijven (link naar het blogarchief): opnieuw inlezen.
+  if (transferred.length) await app.locals.services.settings.load();
   startBackgroundTasks(app.locals.services, db);
   const [{ present }] = await db.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
   // Eenmalige installatiecode voor de eerste beheerder; alleen bruikbaar zolang er geen enkele CRM-gebruiker is.

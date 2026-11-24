@@ -41,6 +41,43 @@ function validateTermFields(body) {
 }
 
 /**
+ * Zet de tags uit `site-content.json` in de database (naam, slug, foto, volgorde en berichten op slug), alleen als er
+ * nog geen tags zijn, en het uitgelichte bericht als er nog geen is. Gebruikt bij het overzetten van de vaste inhoud
+ * (`site/content-transfer.js`).
+ * @param {{query: Function}} client Transactie-client.
+ * @param {{blogTags: object[], featuredPost: string}} fixed Inhoud uit `site-content.json`.
+ * @param {(number|null)} userId Gebruiker (null bij het automatisch overzetten).
+ * @returns {Promise<{status: ('ok'|'bestaan-al'), tags?: number}>} Uitkomst en aantal overgenomen tags.
+ */
+async function copySiteTags(client, fixed, userId) {
+  const [{ count }] = await client.query("SELECT count(*)::int AS count FROM post_terms WHERE kind = 'tag'");
+  if (count > 0) return { status: 'bestaan-al' };
+  let added = 0;
+  for (const [index, tag] of fixed.blogTags.slice(0, TERM_LIMITS.terms).entries()) {
+    // Zelfde controle als `site-content.js` (slugs van de huidige site kunnen dubbele streepjes hebben).
+    if (typeof tag.slug !== 'string' || !/^[a-z0-9][a-z0-9-]{0,119}$/.test(tag.slug)) continue;
+    const [row] = await client.query(
+      `INSERT INTO post_terms (kind, slug, name, image_url, sort_order, updated_by) VALUES ('tag', $1, $2, $3, $4, $5)
+       ON CONFLICT (kind, slug) DO NOTHING RETURNING id`,
+      [tag.slug, cleanText(tag.name, TERM_LIMITS.name) || tag.slug, tag.image || null, (index + 1) * 10, userId],
+    );
+    if (!row) continue;
+    added += 1;
+    await client.query(
+      'INSERT INTO post_term_links (post_id, term_id) SELECT p.id, $1 FROM posts p WHERE p.slug = ANY($2::text[]) ON CONFLICT DO NOTHING',
+      [row.id, (tag.posts || []).filter((slug) => typeof slug === 'string')],
+    );
+  }
+  if (fixed.featuredPost) {
+    await client.query(
+      'UPDATE posts SET featured = true WHERE slug = $1 AND NOT EXISTS (SELECT 1 FROM posts other WHERE other.featured)',
+      [fixed.featuredPost],
+    );
+  }
+  return { status: 'ok', tags: added };
+}
+
+/**
  * Maakt de functies voor categorieën en tags.
  * @param {{db: object}} options Database.
  * @returns {object} Functies.
@@ -171,44 +208,7 @@ function createPostTerms(options) {
     return { status: 'ok' };
   });
 
-  /**
-   * Neemt de tags uit `site-content.json` over (naam, slug, foto, volgorde en berichten op slug), alleen als er nog geen
-   * tags zijn, en het uitgelichte bericht als er nog geen is.
-   * @param {{blogTags: object[], featuredPost: string}} fixed Inhoud uit `site-content.json`.
-   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
-   * @returns {Promise<{status: ('ok'|'bestaan-al'), tags?: number}>} Uitkomst en aantal overgenomen tags.
-   */
-  const importSiteTags = (fixed, context) => db.transaction(async (client) => {
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['blog-tags-overnemen']);
-    const [{ count }] = await client.query("SELECT count(*)::int AS count FROM post_terms WHERE kind = 'tag'");
-    if (count > 0) return { status: 'bestaan-al' };
-    let added = 0;
-    for (const [index, tag] of fixed.blogTags.slice(0, TERM_LIMITS.terms).entries()) {
-      // Zelfde controle als `site-content.js` (slugs van de huidige site kunnen dubbele streepjes hebben).
-      if (typeof tag.slug !== 'string' || !/^[a-z0-9][a-z0-9-]{0,119}$/.test(tag.slug)) continue;
-      const [row] = await client.query(
-        `INSERT INTO post_terms (kind, slug, name, image_url, sort_order, updated_by) VALUES ('tag', $1, $2, $3, $4, $5)
-         ON CONFLICT (kind, slug) DO NOTHING RETURNING id`,
-        [tag.slug, cleanText(tag.name, TERM_LIMITS.name) || tag.slug, tag.image || null, (index + 1) * 10, context.userId],
-      );
-      if (!row) continue;
-      added += 1;
-      await client.query(
-        'INSERT INTO post_term_links (post_id, term_id) SELECT p.id, $1 FROM posts p WHERE p.slug = ANY($2::text[]) ON CONFLICT DO NOTHING',
-        [row.id, (tag.posts || []).filter((slug) => typeof slug === 'string')],
-      );
-    }
-    if (fixed.featuredPost) {
-      await client.query(
-        'UPDATE posts SET featured = true WHERE slug = $1 AND NOT EXISTS (SELECT 1 FROM posts other WHERE other.featured)',
-        [fixed.featuredPost],
-      );
-    }
-    await context.audit(client);
-    return { status: 'ok', tags: added };
-  });
-
-  return { list, get, create, update, remove, termIdsOfPost, setPostTerms, importSiteTags };
+  return { list, get, create, update, remove, termIdsOfPost, setPostTerms };
 }
 
-module.exports = { createPostTerms, validateTermFields, TERM_KINDS, TERM_LIMITS };
+module.exports = { createPostTerms, copySiteTags, validateTermFields, TERM_KINDS, TERM_LIMITS };

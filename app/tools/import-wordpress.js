@@ -16,7 +16,7 @@ const { createDatabase } = require('../src/database/db');
 const { DATA_DIR, MEDIA_DIR } = require('../src/paths');
 const { sanitizeHtml, plainText } = require('./import/sanitize');
 const parsers = require('./import/parse');
-const { HOMEPAGE_FILE } = require('../src/site/homepage');
+const { HOMEPAGE_FILE, normalizeHomepage } = require('../src/site/homepage');
 const { SITE_CONTENT_FILE, SITE_CONTENT_VERSION, normalizeSiteContent } = require('../src/site/site-content');
 const { transferFixedContent } = require('../src/site/content-transfer');
 const { linkImportedMedia } = require('../src/media/library');
@@ -705,8 +705,9 @@ async function importFixedContent(db, media, options) {
   const result = await media.download(db);
   console.log(`Vaste inhoud: ${homepage.slides.length} dia's, ${Object.keys(siteContent.guides).length} reisleiders, ${Object.keys(siteContent.galleries).length} fotogalerijen, afbeeldingen lokaal: ${result.ok}, mislukt: ${result.failed.length}`);
   const written = withExistingSiteImages(siteContent);
-  console.log(`Opgeslagen in ${writeHomepage(withExistingImages(homepage))} en ${writeSiteContent(written)}`);
-  await reportTransfer(db, written);
+  const keptHomepage = withExistingImages(homepage);
+  console.log(`Opgeslagen in ${writeHomepage(keptHomepage)} en ${writeSiteContent(written)}`);
+  await reportTransfer(db, written, keptHomepage);
   for (const line of [...warnings, ...result.failed].slice(0, 20)) console.warn(`  let op: ${line}`);
 }
 
@@ -715,10 +716,11 @@ async function importFixedContent(db, media, options) {
  * overgezet blijft zoals het is) en meldt wat er is gebeurd.
  * @param {object} db Database.
  * @param {object} written Inhoud zoals in `site-content.json` geschreven.
+ * @param {object|null} homepage Inhoud zoals in `homepage.json` geschreven, of null als er geen homepage is gelezen.
  * @returns {Promise<void>}
  */
-async function reportTransfer(db, written) {
-  const parts = await transferFixedContent({ db, siteContent: normalizeSiteContent(written) });
+async function reportTransfer(db, written, homepage) {
+  const parts = await transferFixedContent({ db, siteContent: normalizeSiteContent(written), homepage: homepage ? normalizeHomepage(homepage) : null });
   console.log(parts.length ? `Overgezet naar de database: ${parts.map((part) => `${part.part} (${part.summary})`).join('; ')}` : 'Vaste inhoud stond al in de database.');
 }
 
@@ -745,10 +747,11 @@ async function main() {
     // Fotobibliotheek: foto's zonder land krijgen de landen van de reizen waarin ze staan.
     const linked = await linkImportedMedia(db);
     console.log(`Fotobibliotheek: ${linked.linked} foto('s) automatisch aan een land gekoppeld`);
-    if (data.homepage) console.log(`Homepage opgeslagen in ${writeHomepage(withExistingImages(data.homepage))}`);
+    const homepage = data.homepage ? withExistingImages(data.homepage) : null;
+    if (homepage) console.log(`Homepage opgeslagen in ${writeHomepage(homepage)}`);
     const written = withExistingSiteImages(data.siteContent);
     console.log(`Lijstkoppen en reisleiders opgeslagen in ${writeSiteContent(written)}`);
-    await reportTransfer(db, written);
+    await reportTransfer(db, written, homepage);
     for (const line of [...data.warnings, ...result.failed].slice(0, 50)) console.warn(`  let op: ${line}`);
   } finally {
     await db.close();

@@ -2,7 +2,7 @@
 /**
  * Weergave van blokken op de site: de tekenfunctie per bloktype (`BLOCK_RENDERERS`), het ophalen van de gegevens die
  * blokken nodig hebben (`loadBlockData`: FAQ, reistypes, landen, reizen, homepage-secties) en de hele lijst blokken
- * binnen `page-content` (`renderBlocks`). De bloktypes, hun velden en de controle staan in `blocks.js`. Alles gaat door
+ * binnen `page-content` (`renderBlocks`; een galerij als strook op volle breedte staat erbuiten). De bloktypes, hun velden en de controle staan in `blocks.js`. Alles gaat door
  * `html\`…\`` (escapen); opgemaakte tekst is bij het opslaan al door `sanitizeHtml` gegaan.
  */
 const { html, raw } = require('../site/html');
@@ -20,9 +20,9 @@ const { YOUTUBE_ORIGIN } = require('../site/homepage');
 const { MAX_TRIP_BLOCKS, YOUTUBE_ID_PATTERN, normalizeBlocks, isDefaultStyle } = require('./blocks');
 
 /**
- * Tekenfunctie per bloktype: `(block, context) => {markup, hasVideo}`. Een leeg blok geeft lege markup; de omhullende
- * sectie laat het dan weg.
- * @type {Object<string, (block: any, context: any) => {markup: (object|string), hasVideo: boolean}>}
+ * Tekenfunctie per bloktype: `(block, context) => {markup, hasVideo, fullWidth?}`. Een leeg blok geeft lege markup;
+ * de omhullende sectie laat het dan weg. `fullWidth`: het blok staat buiten de tekstkolom (`page-content`).
+ * @type {Object<string, (block: any, context: any) => {markup: (object|string), hasVideo: boolean, fullWidth?: boolean}>}
  */
 const BLOCK_RENDERERS = {
   'tekst': (block, context) => {
@@ -80,7 +80,10 @@ const BLOCK_RENDERERS = {
   'galerij': (block, _context) => {
     const { data } = block;
     if (!data.fotos.length) return { markup: '', hasVideo: false };
-    return { markup: html`<div class="page-content__gallery">${renderGallery({ title: data.titel, subtitle: data.subtitel, images: data.fotos })}</div>`, hasVideo: false };
+    const gallery = renderGallery({ title: data.titel, subtitle: data.subtitel, images: data.fotos });
+    // Een strook staat buiten de tekstkolom (`renderBlocks`), precies zoals de galerij onder een reis.
+    if (data.weergave === 'strook') return { markup: gallery, hasVideo: false, fullWidth: true };
+    return { markup: html`<div class="page-content__gallery">${gallery}</div>`, hasVideo: false };
   },
   'kolommen': (block, _context) => {
     const { data } = block;
@@ -247,7 +250,8 @@ const BLOCK_RENDERERS = {
  * HTML van de inhoud van één blok (zonder de omhullende sectie).
  * @param {any} block Genormaliseerd blok.
  * @param {{title: string, data?: any}} context Titel van de pagina (voor video's) en de gegevens uit `loadBlockData`.
- * @returns {{markup: (object|string), hasVideo: boolean}} HTML en of er een video in staat.
+ * @returns {{markup: (object|string), hasVideo: boolean, fullWidth?: boolean}} HTML, of er een video in staat en of het
+ *   blok buiten de tekstkolom staat.
  */
 function renderBlockContent(block, context) {
   const render = Object.hasOwn(BLOCK_RENDERERS, block.type) ? BLOCK_RENDERERS[block.type] : null;
@@ -408,10 +412,19 @@ function renderBlocks(blocks, context) {
     hasVideo = hasVideo || content.hasVideo;
     const empty = !content.markup || (Array.isArray(content.markup) && !content.markup.length);
     if (empty) continue;
-    parts.push(isDefaultStyle(block.style) ? content.markup : html`<div class="${sectionClasses(block.style)}">${content.markup}</div>`);
+    const markup = isDefaultStyle(block.style) ? content.markup : html`<div class="${sectionClasses(block.style)}">${content.markup}</div>`;
+    parts.push({ markup, fullWidth: Boolean(content.fullWidth) && !context.homepage });
   }
   if (!parts.length) return { body: '', hasVideo };
-  return { body: context.homepage ? html`<div class="homepage">${parts}</div>` : html`<div class="page-content">${parts}</div>`, hasVideo };
+  if (context.homepage) return { body: html`<div class="homepage">${parts.map((part) => part.markup)}</div>`, hasVideo };
+  // Opeenvolgende gewone blokken samen in één `page-content`; een strook op volle breedte staat ertussen, erbuiten.
+  const groups = [];
+  for (const part of parts) {
+    const last = groups[groups.length - 1];
+    if (!part.fullWidth && last && !last.fullWidth) last.items.push(part.markup);
+    else groups.push({ fullWidth: part.fullWidth, items: [part.markup] });
+  }
+  return { body: groups.map((group) => (group.fullWidth ? group.items[0] : html`<div class="page-content">${group.items}</div>`)), hasVideo };
 }
 
 module.exports = { BLOCK_RENDERERS, renderBlocks, loadBlockData, chooseCategories, isSafeLink };

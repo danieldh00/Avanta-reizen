@@ -15,6 +15,7 @@ const { hashPassword } = require('../src/crm/passwords');
 const { COOKIE_NAME } = require('../src/crm/auth');
 const { validateListHeaderFields, createListHeaders, isListKey, LIST_HEADER_LIMITS, DEFAULT_LIST_HEADERS } = require('../src/cms/list-headers');
 const { normalizeSiteContent } = require('../src/site/site-content');
+const { normalizeHomepage } = require('../src/site/homepage');
 const { transferFixedContent, TRANSFER_PARTS } = require('../src/site/content-transfer');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -77,7 +78,7 @@ test('lijstkoppen en overzetten', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'avanta-lijstkoppen-'));
   const mediaDir = path.join(dataDir, 'media');
   await fs.mkdir(mediaDir);
-  const app = createApp({ db, masterKey: MASTER_KEY, mediaDir, siteContent: { load: () => normalizeSiteContent(null) } });
+  const app = createApp({ db, masterKey: MASTER_KEY, mediaDir });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   testContext.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
@@ -191,11 +192,23 @@ test('lijstkoppen en overzetten', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
         carla: { surname: 'de Wit', city: 'Ede', gallery: ['/media/carla-1.jpg'], galleryTitle: 'Carla onderweg' },
         dirk: { surname: 'Bestand', gallery: ['/media/dirk-1.jpg'] },
       },
+      blogTags: [{ slug: 'kamperen', name: 'Kamperen', image: '/media/tag-kamperen.jpg', posts: ['kampverhaal'] }],
+      featuredPost: 'kampverhaal',
+      blogArchiveLink: { label: 'Ons oude blog', href: 'https://oud-blog.example.nl/' },
+      galleries: {
+        '/over-ons/': { title: 'Sfeer', subtitle: 'Onderweg', images: ['/media/over-1.jpg', '/media/over-2.jpg'] },
+        '/kampverhaal/': { title: 'Kampfoto\'s', images: ['/media/kamp-1.jpg'] },
+        '/bestaat-niet/': { title: 'Weg', images: ['/media/weg.jpg'] },
+      },
     });
+    const homepage = normalizeHomepage({ about: { title: 'Over Avanta uit het bestand' } });
+    await db.query("INSERT INTO pages (path, title, body_html, published) VALUES ('/over-ons/', 'Over ons', '<p>Wie wij zijn</p>', true)");
+    await db.query(`INSERT INTO posts (slug, title, published_at, managed_in_crm, blocks, draft)
+      VALUES ('kampverhaal', 'Kampverhaal', now(), true, '[]'::jsonb, '{"title": "Kampverhaal", "blocks": []}'::jsonb)`);
     assert.deepEqual(await transferFixedContent({ db, siteContent: null }), [], 'zonder bestand niets');
     // Koppen die al in het CRM zijn gewijzigd blijven; één kop nog standaard.
     await db.query("UPDATE list_headers SET source = 'standaard' WHERE key = 'aanmelden'");
-    const parts = await transferFixedContent({ db, siteContent: fixed });
+    const parts = await transferFixedContent({ db, siteContent: fixed, homepage });
     assert.deepEqual(parts.map((part) => part.part), TRANSFER_PARTS);
     const headers = await db.query('SELECT key, title, image_url, source FROM list_headers ORDER BY key');
     const byKey = Object.fromEntries(headers.map((row) => [row.key, row]));
@@ -216,9 +229,33 @@ test('lijstkoppen en overzetten', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     assert.ok(list.indexOf('Carla') < list.indexOf('Anna') && list.indexOf('Anna') < list.indexOf('Bram'));
     assert.match((await request('/reisleider/carla/')).text, /carla-1\.jpg/);
 
+    // Galerijen: een strook achteraan de blokken (ook in het concept); de pagina is nu van het CRM.
+    assert.match(parts.find((part) => part.part === 'galerijen').summary, /^2 van 3 galerij/);
+    const [page] = await db.query("SELECT blocks, managed_in_crm FROM pages WHERE path = '/over-ons/'");
+    assert.deepEqual(page.blocks.map((block) => block.type), ['tekst', 'galerij']);
+    assert.deepEqual([page.blocks[1].data.titel, page.blocks[1].data.weergave, page.blocks[1].data.fotos.length, page.managed_in_crm], ['Sfeer', 'strook', 2, true]);
+    const pageHtml = (await request('/over-ons/')).text;
+    assert.match(pageHtml, /Wie wij zijn[\s\S]*<\/div>\s*<section class="section page-gallery">[\s\S]*Sfeer[\s\S]*over-2\.jpg/, 'strook buiten de tekstkolom');
+    const [post] = await db.query("SELECT blocks, draft, featured FROM posts WHERE slug = 'kampverhaal'");
+    assert.deepEqual([post.blocks.map((block) => block.type), post.draft.blocks.map((block) => block.type)], [['galerij'], ['galerij']]);
+
+    // Blog: tag met bericht, uitgelicht en de archieflink als instelling.
+    assert.equal(post.featured, true);
+    const [tag] = await db.query("SELECT t.name, t.image_url, count(l.post_id)::int AS posts FROM post_terms t LEFT JOIN post_term_links l ON l.term_id = t.id WHERE t.kind = 'tag' AND t.slug = 'kamperen' GROUP BY t.id");
+    assert.deepEqual(tag, { name: 'Kamperen', image_url: '/media/tag-kamperen.jpg', posts: 1 });
+    const archiveSettings = await db.query("SELECT key, value FROM settings WHERE key IN ('blogArchiveLabel', 'blogArchiveUrl') ORDER BY key");
+    assert.deepEqual(archiveSettings.map((row) => [row.key, JSON.parse(row.value)]), [['blogArchiveLabel', 'Ons oude blog'], ['blogArchiveUrl', 'https://oud-blog.example.nl/']]);
+
+    // Homepage: gepubliceerde blokpagina met de teksten uit het bestand en een eerste versie.
+    const [home] = await db.query("SELECT id, published, managed_in_crm, blocks FROM pages WHERE path = '/'");
+    assert.deepEqual([home.published, home.managed_in_crm], [true, true]);
+    assert.ok(home.blocks.some((block) => block.type === 'home-over' && block.data.titel === 'Over Avanta uit het bestand'));
+    assert.equal((await db.query('SELECT count(*)::int AS count FROM page_revisions WHERE page_id = $1', [home.id]))[0].count, 1);
+    assert.match((await request('/')).text, /Over Avanta uit het bestand/);
+
     // Tweede keer: niets meer, ook niet als het bestand anders is.
     await db.query("UPDATE guides SET sort_order = 50 WHERE slug = 'carla'");
-    assert.deepEqual(await transferFixedContent({ db, siteContent: normalizeSiteContent({ guideOrder: ['carla'] }) }), []);
+    assert.deepEqual(await transferFixedContent({ db, siteContent: normalizeSiteContent({ guideOrder: ['carla'] }), homepage }), []);
     assert.equal((await db.query("SELECT sort_order FROM guides WHERE slug = 'carla'"))[0].sort_order, 50);
     assert.equal((await db.query('SELECT count(*)::int AS count FROM content_transfers'))[0].count, TRANSFER_PARTS.length);
   });
@@ -229,5 +266,10 @@ test('lijstkoppen en overzetten', { skip: !DATABASE_URL && 'TEST_DATABASE_URL on
     const parts = await transferFixedContent({ db, siteContent: normalizeSiteContent({ guides: { dirk: { gallery: [] } } }) });
     assert.match(parts.find((part) => part.part === 'reisleiders').summary, /volgorde ongewijzigd/);
     assert.equal((await db.query("SELECT sort_order FROM guides WHERE slug = 'carla'"))[0].sort_order, 50);
+    assert.ok(!parts.some((part) => part.part === 'homepage'), 'zonder homepage.json wacht dat deel');
+    assert.match(parts.find((part) => part.part === 'blog').summary, /tags stonden er al, link naar het blogarchief standaard/);
+    await db.query("DELETE FROM content_transfers WHERE part = 'homepage'");
+    const again = await transferFixedContent({ db, siteContent: normalizeSiteContent({}), homepage: normalizeHomepage(null) });
+    assert.deepEqual(again, [{ part: 'homepage', summary: 'pagina / bestond al' }]);
   });
 });
