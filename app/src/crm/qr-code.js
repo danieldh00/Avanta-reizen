@@ -129,24 +129,21 @@ const MASKS = [
 ];
 
 /**
- * Bouwt de matrix voor een versie en masker.
- * @param {number[]} words De codewoorden (codewords).
- * @param {number} version De versie.
- * @param {number} mask Het masker (0-7).
- * @returns {boolean[][]} De modules (true = donker).
+ * Zet een vaste module (een functiepatroon dat de data overslaat).
+ * @callback SetModule
+ * @param {number} row De rij.
+ * @param {number} column De kolom.
+ * @param {boolean} dark Donker of licht.
+ * @returns {void}
  */
-function build(words, version, mask) {
-  const size = version * 4 + 17;
-  const modules = Array.from({ length: size }, () => new Array(size).fill(false));
-  const fixed = Array.from({ length: size }, () => new Array(size).fill(false));
-  /**
-   * Zet een vaste module.
-   * @param {number} row De rij.
-   * @param {number} column De kolom.
-   * @param {boolean} dark Donker of licht.
-   * @returns {void}
-   */
-  const set = (row, column, dark) => { modules[row][column] = dark; fixed[row][column] = true; };
+
+/**
+ * Zet de drie zoekers in de hoeken (7×7 met een lichte rand) en de tijdlijnen ertussen.
+ * @param {SetModule} set Zet een vaste module.
+ * @param {number} size Breedte van de matrix.
+ * @returns {void}
+ */
+function placeFindersAndTiming(set, size) {
   for (const [top, left] of [[0, 0], [0, size - 7], [size - 7, 0]]) {
     for (let row = -1; row <= 7; row++) {
       for (let column = -1; column <= 7; column++) {
@@ -159,6 +156,15 @@ function build(words, version, mask) {
     }
   }
   for (let i = 8; i < size - 8; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+}
+
+/**
+ * Zet de uitlijnpatronen (5×5) van een versie, behalve op de plekken van de drie zoekers.
+ * @param {SetModule} set Zet een vaste module.
+ * @param {number} version De versie.
+ * @returns {void}
+ */
+function placeAlignment(set, version) {
   const centers = ALIGNMENT[version];
   const last = centers.length - 1;
   centers.forEach((y, rowIndex) => {
@@ -168,6 +174,18 @@ function build(words, version, mask) {
       for (let row = -2; row <= 2; row++) for (let column = -2; column <= 2; column++) set(y + row, x + column, Math.max(Math.abs(row), Math.abs(column)) !== 1);
     });
   });
+}
+
+/**
+ * Zet de formaatinformatie (foutcorrectie M en het masker, twee kopieën), de vaste donkere module en vanaf versie 7
+ * de versie-informatie.
+ * @param {SetModule} set Zet een vaste module.
+ * @param {number} size Breedte van de matrix.
+ * @param {number} version De versie.
+ * @param {number} mask Het masker (0-7).
+ * @returns {void}
+ */
+function placeFormatAndVersion(set, size, version, mask) {
   // Formaatinformatie: foutcorrectie M (00) en het masker, met BCH-code en het vaste XOR-patroon.
   const format = ((mask << 10) | bchRemainder(mask << 10, 0x537)) ^ 0x5412;
   for (let i = 0; i < 15; i++) {
@@ -177,15 +195,24 @@ function build(words, version, mask) {
     if (i < 8) set(8, size - 1 - i, bit); else set(size - 15 + i, 8, bit);
   }
   set(size - 8, 8, true);
-  if (version >= 7) {
-    const info = (version << 12) | bchRemainder(version << 12, 0x1f25);
-    for (let i = 0; i < 18; i++) {
-      const bit = ((info >>> i) & 1) === 1;
-      set(Math.floor(i / 3), size - 11 + (i % 3), bit);
-      set(size - 11 + (i % 3), Math.floor(i / 3), bit);
-    }
+  if (version < 7) return;
+  const info = (version << 12) | bchRemainder(version << 12, 0x1f25);
+  for (let i = 0; i < 18; i++) {
+    const bit = ((info >>> i) & 1) === 1;
+    set(Math.floor(i / 3), size - 11 + (i % 3), bit);
+    set(size - 11 + (i % 3), Math.floor(i / 3), bit);
   }
-  // De data in zigzag van rechtsonder, twee kolommen tegelijk, over de vaste modules heen.
+}
+
+/**
+ * Zet de data in zigzag van rechtsonder, twee kolommen tegelijk, over de vaste modules heen, met het masker erop.
+ * @param {{modules: boolean[][], fixed: boolean[][]}} matrix De modules en welke ervan vast zijn.
+ * @param {number[]} words De codewoorden.
+ * @param {number} mask Het masker (0-7).
+ * @returns {void}
+ */
+function placeData({ modules, fixed }, words, mask) {
+  const size = modules.length;
   let bitIndex = 0;
   const totalBits = words.length * 8;
   for (let right = size - 1; right >= 1; right -= 2) {
@@ -203,6 +230,25 @@ function build(words, version, mask) {
       }
     }
   }
+}
+
+/**
+ * Bouwt de matrix voor een versie en masker: eerst de vaste patronen, dan de data.
+ * @param {number[]} words De codewoorden (codewords).
+ * @param {number} version De versie.
+ * @param {number} mask Het masker (0-7).
+ * @returns {boolean[][]} De modules (true = donker).
+ */
+function build(words, version, mask) {
+  const size = version * 4 + 17;
+  const modules = Array.from({ length: size }, () => new Array(size).fill(false));
+  const fixed = Array.from({ length: size }, () => new Array(size).fill(false));
+  /** @type {SetModule} */
+  const set = (row, column, dark) => { modules[row][column] = dark; fixed[row][column] = true; };
+  placeFindersAndTiming(set, size);
+  placeAlignment(set, version);
+  placeFormatAndVersion(set, size, version, mask);
+  placeData({ modules, fixed }, words, mask);
   return modules;
 }
 

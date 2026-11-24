@@ -103,6 +103,162 @@ function validateCharge(body) {
 }
 
 /**
+ * Het blok *Stand*: betaalstatus, totaal, betaald, openstaand, aanbetaling en restant, met een waarschuwing als de
+ * status van de aanmelding niet bij de betalingen past.
+ * @param {object} booking Aanmelding.
+ * @param {object} summary Uitkomst van `payments.summarize`.
+ * @returns {object} HTML.
+ */
+function renderPaymentStatus(booking, summary) {
+  const due = [
+    ['Betaalstatus', html`<span class="crm-status crm-status--${summary.state}">${payments.PAYMENT_STATES[summary.state]}</span>${summary.overdue ? html` <span class="crm-badge">${summary.overdue} te laat</span>` : ''}`],
+    ['Totaal', payments.formatAmount(summary.totalCents)],
+    ['Betaald', payments.formatAmount(summary.paidCents)],
+    ['Openstaand', payments.formatAmount(summary.balanceCents)],
+    ['Aanbetaling', html`${payments.formatAmount(summary.depositRequiredCents)} uiterlijk ${formatDate(summary.depositDueOn)}${summary.depositOpenCents ? ` (nog ${payments.formatAmount(summary.depositOpenCents)})` : ' (voldaan)'}`],
+    ['Restant uiterlijk', summary.balanceDueOn ? formatDate(summary.balanceDueOn) : 'geen vertrekdatum'],
+  ];
+  return html`<h2>Stand</h2>
+            <dl class="crm-facts">${due.map(([label, value]) => html`<dt>${label}</dt><dd>${value}</dd>`)}</dl>
+            ${payments.statusMismatch(booking.status, summary.state) ? html`<p class="form-alert" role="status">${payments.statusMismatch(booking.status, summary.state)} Pas de status zo nodig aan bij de aanmelding.</p>` : ''}
+            ${booking.status === 'nieuw' && summary.paidCents > 0 ? html`<p class="field__help">Deze aanmelding is nog niet bevestigd; na het bevestigen schuift de status mee met de betalingen.</p>` : ''}`;
+}
+
+/**
+ * Het blok *Aanmelding*: deelnemer, reis, vertrek, status en gekozen betaling.
+ * @param {object} booking Aanmelding.
+ * @returns {object} HTML.
+ */
+function renderBookingFacts(booking) {
+  const facts = [
+    ['Deelnemer', `${booking.last_name}, ${booking.call_name || booking.first_names}`],
+    ['Reis', `${booking.trip_title}${booking.trip_code ? ` (${booking.trip_code})` : ''}`],
+    ['Vertrek', formatDate(booking.departure_date) || '–'],
+    ['Status aanmelding', STATUSES[booking.status] || booking.status],
+    ['Gekozen betaling', booking.payment_choice === 'totaal' ? 'Totaalbedrag' : 'Aanbetaling'],
+  ];
+  return html`<h2>Aanmelding</h2>
+            <dl class="crm-facts">${facts.map(([label, value]) => html`<dt>${label}</dt><dd>${value}</dd>`)}</dl>`;
+}
+
+/**
+ * De tabel *Bedragen* met een knop Weghalen per regel, en de weggehaalde bedragen eronder.
+ * @param {object} booking Aanmelding.
+ * @param {{charges: object[], removedCharges: object[]}} lines Regels uit `payments.loadLines`.
+ * @param {object} summary Uitkomst van `payments.summarize`.
+ * @param {object} hidden Verborgen velden (CSRF-token en stand) voor elk formulier.
+ * @returns {object} HTML.
+ */
+function renderCharges(booking, lines, summary, hidden) {
+  return html`<h2>Bedragen</h2>
+        <div class="crm-table-wrap" tabindex="0" role="region" aria-label="Bedragen"><table class="crm-table">
+          <thead><tr><th scope="col">Soort</th><th scope="col">Omschrijving</th><th scope="col">Bedrag</th><th scope="col">Toegevoegd</th><th scope="col"><span class="visually-hidden">Actie</span></th></tr></thead>
+          <tbody>${lines.charges.map((line) => html`<tr>
+            <td>${payments.CHARGE_KINDS[line.kind] || line.kind}</td>
+            <td>${line.description || '–'}</td>
+            <td>${payments.formatAmount(line.amount_cents)}</td>
+            <td>${formatDateTime(line.created_at)}${line.user_name ? ` · ${line.user_name}` : ' · bij aanmelden'}</td>
+            <td><form method="post" action="/app/betalingen/${booking.id}/bedragen/${line.id}/weg/">${hidden}<button class="btn btn--small btn--outline" type="submit">Weghalen</button></form></td>
+          </tr>`)}</tbody>
+          <tfoot><tr><th scope="row" colspan="2">Totaal</th><td>${payments.formatAmount(summary.totalCents)}</td><td colspan="2"></td></tr></tfoot>
+        </table></div>
+        ${lines.removedCharges.length ? html`<details class="crm-removed"><summary>Weggehaalde bedragen (${lines.removedCharges.length})</summary>
+          <ul>${lines.removedCharges.map((line) => html`<li>${payments.CHARGE_KINDS[line.kind] || line.kind}${line.description ? ` (${line.description})` : ''}: ${payments.formatAmount(line.amount_cents)}, weggehaald ${formatDateTime(line.removed_at)}${line.removed_by_name ? ` door ${line.removed_by_name}` : ''}</li>`)}</ul>
+        </details>` : ''}`;
+}
+
+/**
+ * De tabel *Ontvangen betalingen*.
+ * @param {{payments: object[]}} lines Regels uit `payments.loadLines`.
+ * @returns {object} HTML.
+ */
+function renderReceivedPayments(lines) {
+  return html`<h2>Ontvangen betalingen</h2>
+        ${lines.payments.length ? html`<div class="crm-table-wrap" tabindex="0" role="region" aria-label="Ontvangen betalingen"><table class="crm-table">
+          <thead><tr><th scope="col">Ontvangen op</th><th scope="col">Bedrag</th><th scope="col">Wijze</th><th scope="col">Toelichting</th><th scope="col">Geregistreerd</th></tr></thead>
+          <tbody>${lines.payments.map((line) => html`<tr>
+            <td>${formatDate(line.received_on)}</td>
+            <td>${payments.formatAmount(line.amount_cents)}</td>
+            <td>${payments.PAYMENT_METHODS[line.method] || line.method}</td>
+            <td>${line.note || '–'}</td>
+            <td>${formatDateTime(line.created_at)}${line.user_name ? ` · ${line.user_name}` : ''}</td>
+          </tr>`)}</tbody>
+        </table></div>` : html`<p>Nog geen betalingen ontvangen.</p>`}`;
+}
+
+/**
+ * Het blok *Herinneringen*: de knop om er een te sturen (als er iets openstaat) en de verstuurde herinneringen.
+ * @param {object} booking Aanmelding.
+ * @param {object} summary Uitkomst van `payments.summarize`.
+ * @param {object[]} sentReminders Verstuurde herinneringen.
+ * @param {object} hidden Verborgen velden voor het formulier.
+ * @returns {object} HTML.
+ */
+function renderReminders(booking, summary, sentReminders, hidden) {
+  return html`<h2>Herinneringen</h2>
+          ${reminderKind(summary) && booking.status !== 'geannuleerd' ? html`<form method="post" action="/app/betalingen/${booking.id}/herinnering/">${hidden}
+            <p>Stuur de reiziger een mail met het openstaande bedrag voor de ${KIND_LABELS[reminderKind(summary)]}, de vervaldatum en de betaalinstructie.</p>
+            <p><button class="btn btn--small btn--outline" type="submit">Herinnering sturen</button></p>
+          </form>` : ''}
+          ${sentReminders.length ? html`<ul class="crm-reminders">${sentReminders.map((line) => html`<li>${formatDateTime(line.created_at)}: ${KIND_LABELS[line.kind] || line.kind},
+            ${line.trigger === 'automatisch' ? 'automatisch' : `door ${line.user_name || 'onbekend'}`}, ${line.sent ? 'verstuurd' : html`<strong>niet verstuurd</strong> (${line.error})`}</li>`)}</ul>`
+    : html`<p>Nog geen herinneringen verstuurd.</p>`}`;
+}
+
+/**
+ * Het blok *Online betalen*: de persoonlijke betaallink en de gestarte online betalingen.
+ * @param {string} payLink Betaallink, of leeg.
+ * @param {object[]} onlineLines Online betalingen.
+ * @returns {object} HTML.
+ */
+function renderOnlinePayments(payLink, onlineLines) {
+  return html`<h2>Online betalen</h2>
+          ${payLink ? html`<p>Persoonlijke betaallink (staat ook in de herinnering): <a href="${payLink}" rel="noreferrer">${payLink}</a></p>` : ''}
+          ${onlineLines.length ? html`<ul class="crm-reminders">${onlineLines.map((line) => html`<li>${formatDateTime(line.created_at)}: ${KIND_LABELS[line.kind] || line.kind}
+            ${payments.formatAmount(line.amount_cents)}, ${ONLINE_STATES[line.status] || line.status}${line.paid_at ? ` op ${formatDateTime(line.paid_at)}` : ''}</li>`)}</ul>` : html`<p>Nog geen online betalingen gestart.</p>`}`;
+}
+
+/**
+ * De formulieren *Betaling registreren* en *Bedrag toevoegen*.
+ * @param {object} booking Aanmelding.
+ * @param {{payment: object, charge: object, day: string, hidden: object}} form Ingevulde waarden, de datum van
+ *   vandaag (hoogste ontvangstdatum) en de verborgen velden.
+ * @returns {object} HTML.
+ */
+function renderPaymentForms(booking, { payment, charge, day, hidden }) {
+  return html`<div class="crm-columns">
+          <section>
+            <h2>Betaling registreren</h2>
+            <form class="form crm-narrow" method="post" action="/app/betalingen/${booking.id}/betaling/">${hidden}
+              <div class="field"><span class="field__label"><label for="veld-bedrag">Bedrag (€)</label></span>
+                <input id="veld-bedrag" name="bedrag" inputmode="decimal" maxlength="20" required value="${payment.amountText}"></div>
+              <div class="field"><span class="field__label"><label for="veld-wijze">Wijze</label></span>
+                <select id="veld-wijze" name="wijze">${Object.entries(payments.PAYMENT_METHODS).map(([key, label]) => html`<option value="${key}"${key === payment.method ? raw(' selected') : ''}>${label}</option>`)}</select></div>
+              <div class="field"><span class="field__label"><label for="veld-datum">Ontvangen op</label></span>
+                <input id="veld-datum" name="datum" type="date" max="${day}" required value="${payment.receivedOn}"></div>
+              <div class="field"><span class="field__label"><label for="veld-toelichting">Toelichting (verplicht bij een correctie)</label></span>
+                <input id="veld-toelichting" name="toelichting" maxlength="${payments.NOTE_MAX}" value="${payment.note}"></div>
+              <p class="field__help">Een betaling is niet te wijzigen of te verwijderen. Een vergissing of terugbetaling registreer je als correctie, met een minteken.</p>
+              <div><button class="btn" type="submit">Betaling registreren</button></div>
+            </form>
+          </section>
+          <section>
+            <h2>Bedrag toevoegen</h2>
+            <form class="form crm-narrow" method="post" action="/app/betalingen/${booking.id}/bedragen/">${hidden}
+              <div class="field"><span class="field__label"><label for="veld-soort">Soort</label></span>
+                <select id="veld-soort" name="soort">${payments.MANUAL_CHARGE_KINDS.map((kind) => html`<option value="${kind}"${kind === charge.kind ? raw(' selected') : ''}>${payments.CHARGE_KINDS[kind]}</option>`)}</select></div>
+              <div class="field"><span class="field__label"><label for="veld-bedrag-regel">Bedrag (€)</label></span>
+                <input id="veld-bedrag-regel" name="bedrag" inputmode="decimal" maxlength="20" required value="${charge.amountText}"></div>
+              <div class="field"><span class="field__label"><label for="veld-omschrijving">Omschrijving (verplicht bij overig)</label></span>
+                <input id="veld-omschrijving" name="omschrijving" maxlength="${payments.DESCRIPTION_MAX}" value="${charge.description}"></div>
+              <p class="field__help">Een korting gaat van het totaal af. Bij overig mag het bedrag ook negatief zijn.</p>
+              <div><button class="btn btn--outline" type="submit">Bedrag toevoegen</button></div>
+            </form>
+          </section>
+        </div>`;
+}
+
+/**
  * Maakt de routes voor de betalingen van een aanmelding.
  * @param {{db: object, auth: object, settings: object, now?: () => number}} options Database, sessie- en rechtenlaag,
  *   instellingen (termijnen) en de klok (tests).
@@ -159,21 +315,6 @@ function createPaymentRoutes(options) {
     const payment = state.payment || { method: 'bank', receivedOn: day, amountText: '', note: '' };
     const charge = state.charge || { kind: 'korting', amountText: '', description: '' };
     const canSeeBooking = roleHasGlobalRight(req.user.role, 'aanmeldingen');
-    const facts = [
-      ['Deelnemer', `${booking.last_name}, ${booking.call_name || booking.first_names}`],
-      ['Reis', `${booking.trip_title}${booking.trip_code ? ` (${booking.trip_code})` : ''}`],
-      ['Vertrek', formatDate(booking.departure_date) || '–'],
-      ['Status aanmelding', STATUSES[booking.status] || booking.status],
-      ['Gekozen betaling', booking.payment_choice === 'totaal' ? 'Totaalbedrag' : 'Aanbetaling'],
-    ];
-    const due = [
-      ['Betaalstatus', html`<span class="crm-status crm-status--${summary.state}">${payments.PAYMENT_STATES[summary.state]}</span>${summary.overdue ? html` <span class="crm-badge">${summary.overdue} te laat</span>` : ''}`],
-      ['Totaal', payments.formatAmount(summary.totalCents)],
-      ['Betaald', payments.formatAmount(summary.paidCents)],
-      ['Openstaand', payments.formatAmount(summary.balanceCents)],
-      ['Aanbetaling', html`${payments.formatAmount(summary.depositRequiredCents)} uiterlijk ${formatDate(summary.depositDueOn)}${summary.depositOpenCents ? ` (nog ${payments.formatAmount(summary.depositOpenCents)})` : ' (voldaan)'}`],
-      ['Restant uiterlijk', summary.balanceDueOn ? formatDate(summary.balanceDueOn) : 'geen vertrekdatum'],
-    ];
     return renderCrmPage({
       title: `Betalingen ${booking.reference}`,
       user: req.user,
@@ -183,85 +324,14 @@ function createPaymentRoutes(options) {
         ${state.notice ? html`<p class="notice" role="status">${state.notice}</p>` : ''}
         ${renderAlert(state.error)}
         <div class="crm-columns">
-          <section>
-            <h2>Stand</h2>
-            <dl class="crm-facts">${due.map(([label, value]) => html`<dt>${label}</dt><dd>${value}</dd>`)}</dl>
-            ${payments.statusMismatch(booking.status, summary.state) ? html`<p class="form-alert" role="status">${payments.statusMismatch(booking.status, summary.state)} Pas de status zo nodig aan bij de aanmelding.</p>` : ''}
-            ${booking.status === 'nieuw' && summary.paidCents > 0 ? html`<p class="field__help">Deze aanmelding is nog niet bevestigd; na het bevestigen schuift de status mee met de betalingen.</p>` : ''}
-          </section>
-          <section>
-            <h2>Aanmelding</h2>
-            <dl class="crm-facts">${facts.map(([label, value]) => html`<dt>${label}</dt><dd>${value}</dd>`)}</dl>
-          </section>
+          <section>${renderPaymentStatus(booking, summary)}</section>
+          <section>${renderBookingFacts(booking)}</section>
         </div>
-        <h2>Bedragen</h2>
-        <div class="crm-table-wrap" tabindex="0" role="region" aria-label="Bedragen"><table class="crm-table">
-          <thead><tr><th scope="col">Soort</th><th scope="col">Omschrijving</th><th scope="col">Bedrag</th><th scope="col">Toegevoegd</th><th scope="col"><span class="visually-hidden">Actie</span></th></tr></thead>
-          <tbody>${lines.charges.map((line) => html`<tr>
-            <td>${payments.CHARGE_KINDS[line.kind] || line.kind}</td>
-            <td>${line.description || '–'}</td>
-            <td>${payments.formatAmount(line.amount_cents)}</td>
-            <td>${formatDateTime(line.created_at)}${line.user_name ? ` · ${line.user_name}` : ' · bij aanmelden'}</td>
-            <td><form method="post" action="/app/betalingen/${booking.id}/bedragen/${line.id}/weg/">${hidden}<button class="btn btn--small btn--outline" type="submit">Weghalen</button></form></td>
-          </tr>`)}</tbody>
-          <tfoot><tr><th scope="row" colspan="2">Totaal</th><td>${payments.formatAmount(summary.totalCents)}</td><td colspan="2"></td></tr></tfoot>
-        </table></div>
-        ${lines.removedCharges.length ? html`<details class="crm-removed"><summary>Weggehaalde bedragen (${lines.removedCharges.length})</summary>
-          <ul>${lines.removedCharges.map((line) => html`<li>${payments.CHARGE_KINDS[line.kind] || line.kind}${line.description ? ` (${line.description})` : ''}: ${payments.formatAmount(line.amount_cents)}, weggehaald ${formatDateTime(line.removed_at)}${line.removed_by_name ? ` door ${line.removed_by_name}` : ''}</li>`)}</ul>
-        </details>` : ''}
-        <h2>Ontvangen betalingen</h2>
-        ${lines.payments.length ? html`<div class="crm-table-wrap" tabindex="0" role="region" aria-label="Ontvangen betalingen"><table class="crm-table">
-          <thead><tr><th scope="col">Ontvangen op</th><th scope="col">Bedrag</th><th scope="col">Wijze</th><th scope="col">Toelichting</th><th scope="col">Geregistreerd</th></tr></thead>
-          <tbody>${lines.payments.map((line) => html`<tr>
-            <td>${formatDate(line.received_on)}</td>
-            <td>${payments.formatAmount(line.amount_cents)}</td>
-            <td>${payments.PAYMENT_METHODS[line.method] || line.method}</td>
-            <td>${line.note || '–'}</td>
-            <td>${formatDateTime(line.created_at)}${line.user_name ? ` · ${line.user_name}` : ''}</td>
-          </tr>`)}</tbody>
-        </table></div>` : html`<p>Nog geen betalingen ontvangen.</p>`}
-        ${reminders ? html`<h2>Herinneringen</h2>
-          ${reminderKind(summary) && booking.status !== 'geannuleerd' ? html`<form method="post" action="/app/betalingen/${booking.id}/herinnering/">${hidden}
-            <p>Stuur de reiziger een mail met het openstaande bedrag voor de ${KIND_LABELS[reminderKind(summary)]}, de vervaldatum en de betaalinstructie.</p>
-            <p><button class="btn btn--small btn--outline" type="submit">Herinnering sturen</button></p>
-          </form>` : ''}
-          ${sentReminders.length ? html`<ul class="crm-reminders">${sentReminders.map((line) => html`<li>${formatDateTime(line.created_at)}: ${KIND_LABELS[line.kind] || line.kind},
-            ${line.trigger === 'automatisch' ? 'automatisch' : `door ${line.user_name || 'onbekend'}`}, ${line.sent ? 'verstuurd' : html`<strong>niet verstuurd</strong> (${line.error})`}</li>`)}</ul>`
-    : html`<p>Nog geen herinneringen verstuurd.</p>`}` : ''}
-        ${payLink || onlineLines.length ? html`<h2>Online betalen</h2>
-          ${payLink ? html`<p>Persoonlijke betaallink (staat ook in de herinnering): <a href="${payLink}" rel="noreferrer">${payLink}</a></p>` : ''}
-          ${onlineLines.length ? html`<ul class="crm-reminders">${onlineLines.map((line) => html`<li>${formatDateTime(line.created_at)}: ${KIND_LABELS[line.kind] || line.kind}
-            ${payments.formatAmount(line.amount_cents)}, ${ONLINE_STATES[line.status] || line.status}${line.paid_at ? ` op ${formatDateTime(line.paid_at)}` : ''}</li>`)}</ul>` : html`<p>Nog geen online betalingen gestart.</p>`}` : ''}
-        <div class="crm-columns">
-          <section>
-            <h2>Betaling registreren</h2>
-            <form class="form crm-narrow" method="post" action="/app/betalingen/${booking.id}/betaling/">${hidden}
-              <div class="field"><span class="field__label"><label for="veld-bedrag">Bedrag (€)</label></span>
-                <input id="veld-bedrag" name="bedrag" inputmode="decimal" maxlength="20" required value="${payment.amountText}"></div>
-              <div class="field"><span class="field__label"><label for="veld-wijze">Wijze</label></span>
-                <select id="veld-wijze" name="wijze">${Object.entries(payments.PAYMENT_METHODS).map(([key, label]) => html`<option value="${key}"${key === payment.method ? raw(' selected') : ''}>${label}</option>`)}</select></div>
-              <div class="field"><span class="field__label"><label for="veld-datum">Ontvangen op</label></span>
-                <input id="veld-datum" name="datum" type="date" max="${day}" required value="${payment.receivedOn}"></div>
-              <div class="field"><span class="field__label"><label for="veld-toelichting">Toelichting (verplicht bij een correctie)</label></span>
-                <input id="veld-toelichting" name="toelichting" maxlength="${payments.NOTE_MAX}" value="${payment.note}"></div>
-              <p class="field__help">Een betaling is niet te wijzigen of te verwijderen. Een vergissing of terugbetaling registreer je als correctie, met een minteken.</p>
-              <div><button class="btn" type="submit">Betaling registreren</button></div>
-            </form>
-          </section>
-          <section>
-            <h2>Bedrag toevoegen</h2>
-            <form class="form crm-narrow" method="post" action="/app/betalingen/${booking.id}/bedragen/">${hidden}
-              <div class="field"><span class="field__label"><label for="veld-soort">Soort</label></span>
-                <select id="veld-soort" name="soort">${payments.MANUAL_CHARGE_KINDS.map((kind) => html`<option value="${kind}"${kind === charge.kind ? raw(' selected') : ''}>${payments.CHARGE_KINDS[kind]}</option>`)}</select></div>
-              <div class="field"><span class="field__label"><label for="veld-bedrag-regel">Bedrag (€)</label></span>
-                <input id="veld-bedrag-regel" name="bedrag" inputmode="decimal" maxlength="20" required value="${charge.amountText}"></div>
-              <div class="field"><span class="field__label"><label for="veld-omschrijving">Omschrijving (verplicht bij overig)</label></span>
-                <input id="veld-omschrijving" name="omschrijving" maxlength="${payments.DESCRIPTION_MAX}" value="${charge.description}"></div>
-              <p class="field__help">Een korting gaat van het totaal af. Bij overig mag het bedrag ook negatief zijn.</p>
-              <div><button class="btn btn--outline" type="submit">Bedrag toevoegen</button></div>
-            </form>
-          </section>
-        </div>`,
+        ${renderCharges(booking, lines, summary, hidden)}
+        ${renderReceivedPayments(lines)}
+        ${reminders ? renderReminders(booking, summary, sentReminders, hidden) : ''}
+        ${payLink || onlineLines.length ? renderOnlinePayments(payLink, onlineLines) : ''}
+        ${renderPaymentForms(booking, { payment, charge, day, hidden })}`,
     });
   };
 
