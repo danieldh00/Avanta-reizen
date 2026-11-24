@@ -73,6 +73,32 @@ function formatUptime(seconds) {
 }
 
 /**
+ * Het invoerelement van één instelling, naar het type: vinkje, tekstvak, keuzelijst, geheim (nooit de waarde zelf,
+ * alleen de laatste vier tekens) of een gewoon invoerveld.
+ * @param {{key: string, definition: object, id: string, value: *, current: *, invalid: (object|string)}} field Naam en
+ *   definitie van de instelling, id van het veld, ingevulde of huidige waarde, de weergave van de huidige waarde
+ *   (`settings.view`) en de aria-attributen bij een fout.
+ * @returns {object} HTML.
+ */
+function renderSettingInput({ key, definition, id, value, current, invalid }) {
+  if (definition.type === 'bool') {
+    return html`<label class="choice"><input id="${id}" type="checkbox" name="${key}" value="ja"${value === true ? raw(' checked') : ''}> <span>${definition.label}</span></label>`;
+  }
+  if (definition.type === 'textarea') {
+    return html`<textarea id="${id}" name="${key}" rows="6" maxlength="${definition.max || 500}"${invalid}>${value}</textarea>`;
+  }
+  if (definition.type === 'enum') {
+    return html`<select id="${id}" name="${key}"${invalid}>${definition.values.map((option) => html`<option value="${option}"${option === value ? raw(' selected') : ''}>${(definition.labels && definition.labels[option]) || option}</option>`)}</select>`;
+  }
+  if (definition.type === 'secret') {
+    return html`<input id="${id}" type="password" name="${key}" value="" autocomplete="new-password" maxlength="${definition.max || 500}" placeholder="${current.set ? `Ingesteld (eindigt op ${current.last4})` : 'Niet ingesteld'}"${invalid}>
+      ${current.set ? html`<label class="choice"><input type="checkbox" name="_clear" value="${key}"> <span>Leegmaken</span></label>` : ''}`;
+  }
+  const type = { email: 'email', url: 'url', int: 'number' }[definition.type] || 'text';
+  return html`<input id="${id}" type="${type}" name="${key}" value="${value}"${definition.type === 'int' ? html` min="${definition.min}" max="${definition.max}"` : html` maxlength="${definition.max || 500}"`}${definition.required ? raw(' required') : ''}${invalid}>`;
+}
+
+/**
  * Maakt de routes van Beheer.
  * @param {{db: object, auth: object, settings: object, redirects?: object, mailer?: object, wanIp?: object, captcha?: object, passwordCheck?: object, backups?: object, drive?: object, restoreTests?: object, systemUpdate?: object, hostTasks?: object, appLog?: object, monitor?: object, retention?: object, siteContent?: {load: Function}, now?: () => number}} options
  *   Database, sessie- en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`), de mailer en
@@ -128,20 +154,7 @@ function createBeheerRoutes(options) {
     const current = settings.view(key);
     const value = Object.hasOwn(state.values, key) ? state.values[key] : current;
     const invalid = error ? html` aria-invalid="true" aria-describedby="${id}-fout"` : '';
-    let input;
-    if (definition.type === 'bool') {
-      input = html`<label class="choice"><input id="${id}" type="checkbox" name="${key}" value="ja"${value === true ? raw(' checked') : ''}> <span>${definition.label}</span></label>`;
-    } else if (definition.type === 'textarea') {
-      input = html`<textarea id="${id}" name="${key}" rows="6" maxlength="${definition.max || 500}"${invalid}>${value}</textarea>`;
-    } else if (definition.type === 'enum') {
-      input = html`<select id="${id}" name="${key}"${invalid}>${definition.values.map((option) => html`<option value="${option}"${option === value ? raw(' selected') : ''}>${(definition.labels && definition.labels[option]) || option}</option>`)}</select>`;
-    } else if (definition.type === 'secret') {
-      input = html`<input id="${id}" type="password" name="${key}" value="" autocomplete="new-password" maxlength="${definition.max || 500}" placeholder="${current.set ? `Ingesteld (eindigt op ${current.last4})` : 'Niet ingesteld'}"${invalid}>
-        ${current.set ? html`<label class="choice"><input type="checkbox" name="_clear" value="${key}"> <span>Leegmaken</span></label>` : ''}`;
-    } else {
-      const type = { email: 'email', url: 'url', int: 'number' }[definition.type] || 'text';
-      input = html`<input id="${id}" type="${type}" name="${key}" value="${value}"${definition.type === 'int' ? html` min="${definition.min}" max="${definition.max}"` : html` maxlength="${definition.max || 500}"`}${definition.required ? raw(' required') : ''}${invalid}>`;
-    }
+    const input = renderSettingInput({ key, definition, id, value, current, invalid });
     return html`<div class="field">
       ${definition.type === 'bool' ? '' : html`<span class="field__label"><label for="${id}">${definition.label}</label></span>`}
       ${input}
