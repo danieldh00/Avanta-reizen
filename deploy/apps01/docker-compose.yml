@@ -18,6 +18,8 @@ services:
       SITE_URL: ${SITE_URL:?zet SITE_URL in .env}
       SITE_INDEXABLE: "${SITE_INDEXABLE:-false}"
       AVANTA_MASTER_KEY: ${AVANTA_MASTER_KEY:-}
+      # Na een sleutelrotatie (servertaken.sh sleutel-roteren) de vorige sleutels, kommagescheiden, nieuwste eerst.
+      AVANTA_MASTER_KEY_PREVIOUS: ${AVANTA_MASTER_KEY_PREVIOUS:-}
       TRUST_PROXY: ${TRUST_PROXY:?zet TRUST_PROXY (IP van de cloudflared-container) in .env}
       # Updaten vanuit de app (Beheer > Systeem > Updates en onderhoud), zie update.sh: de status alleen-lezen, alleen de
       # aanvraagmap is schrijfbaar (uid 1000). install.sh maakt beide mappen aan en zet UPDATE_DIR in .env.

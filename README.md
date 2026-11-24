@@ -56,6 +56,11 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
   tenzij de deelnemer later zelf toestemming gaf; de oude regels blijven ingetrokken staan als bewijs. **Bewaar de
   hoofdsleutel** (`AVANTA_MASTER_KEY` of `/data/master-key`) apart van
   de database-back-up: zonder sleutel zijn die gegevens niet te lezen.
+  **Sleutelrotatie** (P7.5): de kluis schrijft `v2.<sleutel-id>.…` en leest ook met vorige sleutels
+  (`AVANTA_MASTER_KEY_PREVIOUS`, kommagescheiden, of `/data/master-key.previous`). `node src/security/key-rotation-cli.js
+  status|herversleutelen` versleutelt personen, oude aanmeldingen, tweestapsgeheimen en geheime instellingen opnieuw en
+  berekent de `match_key` opnieuw; back-ups en betaallinks van vóór de rotatie blijven bruikbaar. Op apps01:
+  `servertaken.sh sleutel-roteren` (procedure: `docs/DRAAIBOEK-VPS-VERHUIZING.md` §8).
 - **Reizigersaccount** onder `/account/` (CMS-pakket J2, `app/src/account/`, migratie 23): een reiziger maakt een
   account met e-mailadres en wachtwoord (minimaal 12 tekens, scrypt zoals het CRM) en bevestigt het via de link in de
   mail **plus** het wachtwoord (wie andermans adres registreert, kan het account zo nooit overnemen; opnieuw registreren

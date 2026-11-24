@@ -5,7 +5,8 @@ Indeling in modules en parallel werken: `docs/ARCHITECTUUR.md`. Wie in deze map 
 een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de root).
 
 ## Bestanden
-- `vault.js` (AES-256-GCM voor gevoelige velden)
+- `vault.js` (AES-256-GCM voor gevoelige velden; formaat `v2.<sleutel-id>`, vorige sleutels om te lezen)
+- `key-rotation.js` + `key-rotation-cli.js` (sleutelrotatie: alles opnieuw versleutelen, `match_key` herberekenen; een nieuwe kolom met `vault.seal` hoort hier een regel te krijgen)
 - `rate-limit.js`
 - `netguard.js` (alleen openbare adressen voor uitgaande verbindingen)
 - `captcha.js` (reCAPTCHA v3 op contact/aanmelden)

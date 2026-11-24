@@ -13,6 +13,9 @@
 #   bash servertaken.sh testdata [vullen|opnieuw|verwijderen]
 #                                        verzonnen testdata in de database (standaard vullen; app/src/dev/seed/cli.js);
 #                                        weigert op het productiedomein en als zoekmachines de site mogen indexeren
+#   bash servertaken.sh sleutel-roteren  nieuwe hoofdsleutel: eerst een back-up, dan een nieuwe AVANTA_MASTER_KEY in .env
+#                                        (de oude naar AVANTA_MASTER_KEY_PREVIOUS), app herstarten en alles opnieuw
+#                                        versleutelen (app/src/security/key-rotation-cli.js); toont nooit een sleutel
 #   bash servertaken.sh help             deze uitleg
 #
 # Het vaste commando voor Daniël staat in de app (Beheer > Systeem > Servertaken); het haalt de nieuwste commit van main
@@ -161,6 +164,51 @@ remote_testdata() {
   (cd "$STACK_DIR" && docker compose exec -T app node src/dev/seed/cli.js "$mode" --testomgeving)
 }
 
+# ---------- sleutel-roteren ----------
+# Nieuwe hoofdsleutel (P7.5, A13). Volgorde: back-up met de huidige sleutel, kopie van .env, nieuwe sleutel in .env met
+# de oude vooraan in AVANTA_MASTER_KEY_PREVIOUS, app opnieuw aanmaken, wachten op de health-check (anders .env terug),
+# dan alles opnieuw versleutelen. De app leest in de tussentijd met de vorige sleutels, dus er is geen onderhoudsvenster.
+# Geen sleutel in de uitvoer: Daniël zet de nieuwe sleutel daarna zelf in de wachtwoordkluis (draaiboek §1).
+remote_sleutel_roteren() {
+  local env_file="$STACK_DIR/.env" current previous new copy tmp
+  current="$(sed -n 's/^AVANTA_MASTER_KEY=//p' "$env_file" 2>/dev/null | tail -n1)"
+  [[ "$current" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FOUT: geen geldige AVANTA_MASTER_KEY in $env_file; niets veranderd." >&2; return 1; }
+  previous="$(sed -n 's/^AVANTA_MASTER_KEY_PREVIOUS=//p' "$env_file" | tail -n1)"
+  log "Back-up maken met de huidige sleutel"
+  (cd "$STACK_DIR" && docker compose exec -T app node src/backup/cli.js create) || { echo "FOUT: back-up mislukt; niets veranderd." >&2; return 1; }
+  copy="$env_file.voor-sleutelrotatie-$(date '+%Y%m%d-%H%M%S')"
+  cp -p -- "$env_file" "$copy" && chmod 600 -- "$copy"
+  new="$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
+  [[ "$new" =~ ^[0-9a-f]{64}$ ]] || { echo "FOUT: nieuwe sleutel maken mislukt; niets veranderd." >&2; return 1; }
+  tmp="$(mktemp "$STACK_DIR/.env.XXXXXX")"; chmod 600 -- "$tmp"
+  # grep geeft 1 als er geen regels over zijn (mag), 2 bij een leesfout: dan niets vervangen.
+  local status=0
+  grep -v -e '^AVANTA_MASTER_KEY=' -e '^AVANTA_MASTER_KEY_PREVIOUS=' "$env_file" > "$tmp" || status=$?
+  if (( status > 1 )) || [[ ! -s "$tmp" ]]; then
+    rm -f -- "$tmp"; echo "FOUT: $env_file lezen mislukt; niets veranderd." >&2; return 1
+  fi
+  printf 'AVANTA_MASTER_KEY=%s\nAVANTA_MASTER_KEY_PREVIOUS=%s\n' "$new" "$current${previous:+,$previous}" >> "$tmp"
+  mv -f -- "$tmp" "$env_file"
+  log "App opnieuw starten met de nieuwe sleutel"
+  (cd "$STACK_DIR" && docker compose up -d app) >/dev/null
+  local version="" i
+  for i in $(seq 1 45); do version="$(health_version)"; [[ -n "$version" ]] && break; sleep 2; done
+  if [[ -z "$version" ]]; then
+    echo "FOUT: de app start niet met de nieuwe sleutel; .env wordt teruggezet." >&2
+    cp -p -- "$copy" "$env_file"
+    (cd "$STACK_DIR" && docker compose up -d app) >/dev/null || true
+    return 1
+  fi
+  log "Gegevens opnieuw versleutelen (versie $version)"
+  (cd "$STACK_DIR" && docker compose exec -T app node src/security/key-rotation-cli.js herversleutelen) || {
+    echo "FOUT: niet alles is opnieuw versleuteld (zie hierboven). De app werkt gewoon door met de vorige sleutel erbij; draai dit commando later opnieuw." >&2
+    return 1
+  }
+  echo
+  echo "Klaar. Zet de nieuwe sleutel nu in de wachtwoordkluis (draaiboek §1, zelfde regel als eerst). De vorige sleutel"
+  echo "blijft in AVANTA_MASTER_KEY_PREVIOUS staan: nodig voor back-ups van vóór vandaag. Kopie van de oude .env: $copy"
+}
+
 # ---------- update ----------
 # Alleen lezen. Uitgangscode 10 = er staat een nieuwere commit klaar; 0 = niets te doen.
 remote_update_check() {
@@ -290,6 +338,7 @@ remote_main() {
     openstaand-run) remote_openstaand_run ;;
     beheerder-herstel) remote_beheerder_herstel "$@" ;;
     testdata) remote_testdata "$@" ;;
+    sleutel-roteren) remote_sleutel_roteren ;;
     *) echo "Onbekende opdracht: $action" >&2; exit 2 ;;
   esac
 }
@@ -304,7 +353,7 @@ fi
 # =====================================================================================================================
 NAME="${APPS01_NAME:-apps01}"
 die() { echo "FOUT: $*" >&2; exit 1; }
-usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 ARGS=()
 for argument in "$@"; do
@@ -316,7 +365,7 @@ for argument in "$@"; do
 done
 ACTION="${ARGS[0]:-status}"
 case "$ACTION" in
-  status | logs | update | openstaand | beheerder-herstel | testdata) ;;
+  status | logs | update | openstaand | beheerder-herstel | testdata | sleutel-roteren) ;;
   *) usage ;;
 esac
 [[ $(id -u) -eq 0 ]] || die "Draai dit als root op de Proxmox-host."
@@ -385,5 +434,8 @@ case "$ACTION" in
       verwijderen) confirm "Alle testdata (test-slugs en @example.com-adressen) wordt verwijderd; andere gegevens blijven staan." ;;
     esac
     remote testdata "$TESTDATA_MODE" ;;
+  sleutel-roteren)
+    confirm "Er komt een nieuwe hoofdsleutel. Eerst wordt een back-up gemaakt, daarna start de app opnieuw (enkele seconden) en worden alle versleutelde gegevens opnieuw versleuteld. Zet daarna de nieuwe sleutel in de wachtwoordkluis."
+    remote sleutel-roteren ;;
   openstaand) two_step openstaand "De openstaande servertaken worden nu uitgevoerd (ze staan hierboven; de app kan daarbij even herstarten). Elke gelukte taak wordt afgevinkt in de app." ;;
 esac
