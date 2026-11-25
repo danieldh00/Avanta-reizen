@@ -20,8 +20,8 @@ describe('module Beheer', () => {
 
   it('toont elke soort bouwsteen', () => {
     const wrapper = mount(BouwstenenScreen);
-    expect(wrapper.findAll('h2').map((heading) => heading.text())).toEqual([
-      'Lijst met filter, zoeken en bladeren', 'Formulier met tabbladen en opslaanbalk', 'Meldingen en bevestigen', 'Voorbeeld verwijderen?',
+    expect(wrapper.findAll('section > h2, dialog h2').map((heading) => heading.text())).toEqual([
+      'Lijst met filter, zoeken en bladeren', 'Formulier met tabbladen en opslaanbalk', 'Teksteditor, fotokiezer en uploaden', 'Meldingen en bevestigen', 'Voorbeeld verwijderen?',
     ]);
     expect(wrapper.findAll('tbody tr')).toHaveLength(3);
     expect(wrapper.find('.crm-pager').exists()).toBe(true);
