@@ -91,6 +91,13 @@ describe('save-bar', () => {
     expect(wrapper.find('button').attributes('aria-busy')).toBe('true');
     expect(wrapper.find('button').text()).toBe('Bezig met opslaan…');
   });
+
+  it('zet een tweede actie links in de balk, in plaats van de toelichting', () => {
+    const wrapper = mount(SaveBar, { props: { label: 'Opslaan', note: 'Let op' }, slots: { links: '<button type="button" class="btn btn--outline">Verwijderen</button>' } });
+    expect(wrapper.find('.crm-savebar-actions button').text()).toBe('Verwijderen');
+    expect(wrapper.find('.crm-savebar-note').exists()).toBe(false);
+    expect(wrapper.findAll('button').map((button) => button.text())).toEqual(['Verwijderen', 'Opslaan']);
+  });
 });
 
 describe('form-field en text-field', () => {

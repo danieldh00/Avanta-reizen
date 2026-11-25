@@ -134,79 +134,81 @@ onMounted(async () => {
     </p>
     <template v-else>
       <form
-        class="form crm-block"
         novalidate
         @submit.prevent="save"
       >
-        <StatusMessage
-          kind="fout"
-          :message="formError"
-        />
-        <TextField
-          v-model="question"
-          label="Vraag"
-          :maxlength="limits.vraag"
-          :error="errors.vraag"
-          required
-        />
-        <FormField
-          v-slot="field"
-          label="Categorie"
-          :error="errors.categorieId"
-          required
-        >
-          <select
-            :id="field.id"
-            v-model="categoryId"
+        <div class="crm-block form">
+          <StatusMessage
+            kind="fout"
+            :message="formError"
+          />
+          <TextField
+            v-model="question"
+            label="Vraag"
+            :maxlength="limits.vraag"
+            :error="errors.vraag"
             required
-            :aria-describedby="field.describedBy"
-            :aria-invalid="field.invalid"
+          />
+          <FormField
+            v-slot="field"
+            label="Categorie"
+            :error="errors.categorieId"
+            required
           >
-            <option value="">
-              Kies…
-            </option>
-            <option
-              v-for="category in categories"
-              :key="category.id"
-              :value="String(category.id)"
+            <select
+              :id="field.id"
+              v-model="categoryId"
+              required
+              :aria-describedby="field.describedBy"
+              :aria-invalid="field.invalid"
             >
-              {{ category.naam }}
-            </option>
-          </select>
-        </FormField>
-        <RichTextEditor
-          v-model="answer"
-          label="Antwoord"
-          help="Typ de tekst zoals hij op de site komt: Enter begint een nieuwe alinea, Shift+Enter een nieuwe regel. Kopjes, vet, cursief, lijsten en links maak je met de knoppen boven het vak; met HTML zie en wijzig je de code. Andere opmaak, scripts en stijlen verdwijnen bij het opslaan."
-          :maxlength="limits.antwoord"
-          :error="errors.antwoord"
-          required
-        />
-        <TextField
-          v-model="order"
-          label="Volgorde"
-          type="number"
-          help="Lager staat eerder binnen de categorie."
-          :error="errors.volgorde"
-        />
+              <option value="">
+                Kies…
+              </option>
+              <option
+                v-for="category in categories"
+                :key="category.id"
+                :value="String(category.id)"
+              >
+                {{ category.naam }}
+              </option>
+            </select>
+          </FormField>
+          <RichTextEditor
+            v-model="answer"
+            label="Antwoord"
+            help="Typ de tekst zoals hij op de site komt: Enter begint een nieuwe alinea, Shift+Enter een nieuwe regel. Kopjes, vet, cursief, lijsten en links maak je met de knoppen boven het vak; met HTML zie en wijzig je de code. Andere opmaak, scripts en stijlen verdwijnen bij het opslaan."
+            :maxlength="limits.antwoord"
+            :error="errors.antwoord"
+            required
+          />
+          <TextField
+            v-model="order"
+            label="Volgorde"
+            type="number"
+            help="Lager staat eerder binnen de categorie."
+            :error="errors.volgorde"
+          />
+        </div>
         <SaveBar
           :label="isNew ? 'Toevoegen' : 'Opslaan'"
           :busy="busy"
-        />
-      </form>
-      <div
-        v-if="!isNew"
-        class="crm-block crm-actions"
-      >
-        <button
-          class="btn btn--small btn--outline"
-          type="button"
-          :disabled="busy"
-          @click="confirmOpen = true"
         >
-          Verwijderen
-        </button>
-      </div>
+          <template
+            v-if="!isNew"
+            #links
+          >
+            <button
+              class="btn btn--outline"
+              type="button"
+              :disabled="busy"
+              @click="confirmOpen = true"
+            >
+              Verwijderen
+            </button>
+          </template>
+        </SaveBar>
+      </form>
       <ConfirmDialog
         :open="confirmOpen"
         title="Vraag verwijderen?"

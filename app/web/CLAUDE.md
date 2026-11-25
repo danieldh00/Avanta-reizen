@@ -27,7 +27,7 @@ gemaakt (Dockerfile, stap `web`) en staat niet in git. Alles wordt geserveerd on
   `data-table.vue` (lijst, op mobiel kaarten via `data-label`; eigen cel via slot `cel-<sleutel>`),
   `status-badge.vue`, `filter-tabs.vue` (links met de filter in het adres, gewone klik zonder herladen),
   `search-field.vue`, `pager-nav.vue`, `tab-panels.vue` (één paneel zichtbaar, stip bij een fout, slot
-  `tab-<sleutel>`), `save-bar.vue`, `form-field.vue` (label, hulp en fout gekoppeld via slot-eigenschappen),
+  `tab-<sleutel>`), `save-bar.vue` (opslaan rechts; slot `links` voor een tweede actie zoals Verwijderen), `form-field.vue` (label, hulp en fout gekoppeld via slot-eigenschappen),
   `text-field.vue` (`v-model`), `confirm-dialog.vue` (modaal `<dialog>`, focus op Annuleren en terug naar de knop),
   `status-message.vue` (`notice`/`form-alert`, `role` status of alert), `rich-text-editor.vue` (teksteditor zoals
   `public/js/rich-editor.js`, `v-model` is opgeschoonde HTML, link via een veld onder de knoppen; hulpfuncties en
