@@ -97,6 +97,13 @@ aan de coördinator vóór hij begint; twee threads werken nooit tegelijk in het
 - Een migratie die op `main` staat verandert nooit meer. Er loopt hoogstens één migratie-PR tegelijk, omdat twee
   migraties elkaars tabellen kunnen raken.
 
+## 3c. Frontend in Vue (in opbouw)
+
+Het CRM, Beheer en daarna de publieke site gaan module voor module naar Vue. De bron komt in `app/web/`, met per
+module een map `src/modules/<module>/` die dezelfde naam heeft als de module in `app/src/`; de JSON-routes van een
+onderwerp staan in `<onderwerp>-api.js` naast het bestaande routebestand. Een thread die een module heeft, heeft beide
+mappen. Besluiten, opbouw en de werkwijze met `develop` en staging: `docs/VUE-OMBOUW.md`.
+
 ## 4. Regels voor parallel werken
 
 1. Hoogstens drie codethreads tegelijk, elk in een eigen module uit §1. De opdracht aan een thread noemt de map(pen)
@@ -108,3 +115,5 @@ aan de coördinator vóór hij begint; twee threads werken nooit tegelijk in het
 4. Rebase op `main` vóór het openen van de PR en nog eens vlak voor de merge.
 5. Elke PR voegt alleen eigen bestanden toe waar dat kan: een eigen fragment in `changes/`, een eigen
    migratiebestand, een eigen testbestand. Versienummer en `app/CHANGELOG.md` raakt niemand aan.
+6. Tijdens de ombouw naar Vue werkt alleen de migratiethread naar `develop`; een module die daar wordt omgebouwd
+   krijgt tot de overschakeling geen nieuwe features op `main` (`docs/VUE-OMBOUW.md` §3).

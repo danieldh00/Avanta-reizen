@@ -5,7 +5,8 @@
 
 > **Werkwijze en context:** de algemene werkwijze (projectonafhankelijk) staat in
 > `docs/WERKWIJZE.md`; de Avanta-specifieke context (product, bedrijfsregels, omgeving) in `docs/AVANTA-CONTEXT.md`;
-> de indeling in modules, de gedeelde kernbestanden en de regels voor parallel werken in `docs/ARCHITECTUUR.md`.
+> de indeling in modules, de gedeelde kernbestanden en de regels voor parallel werken in `docs/ARCHITECTUUR.md`;
+> de ombouw naar Vue (besluiten, opbouw, `develop` en staging) in `docs/VUE-OMBOUW.md`.
 
 ## Product
 Avanta Reizen: christelijke, avontuurlijke groepsreizen (kamperen, verre reizen, jeugd/jongeren/plus). Fase 1: de
@@ -27,6 +28,10 @@ Details en open vragen: `docs/AVANTA-CONTEXT.md` en `docs/OPZET-WEBSITE.md`.
   oplossen of met reden beantwoorden) → auto-merge. Na het mergen de branch verwijderen.
 - **Harde regel: nooit mergen zonder geslaagde Claude code review én security review** op de huidige head. Geen
   admin-merge, geen bypass van de ruleset. Wat de workflow zelf bewust overslaat (docs/tests-only) valt erbuiten.
+- **`develop`** is de integratiebranch van de ombouw naar Vue (`docs/VUE-OMBOUW.md`): alleen de migratiethread werkt
+  erin (branch vers vanaf `origin/develop`, PR naar `develop`, zelfde controles en dezelfde harde reviewregel).
+  `develop-sync.yml` voegt `main` elke nacht en na elke release samen in `develop`; per geaccepteerde module gaat één PR
+  van `develop` naar `main`. Al het andere werk blijft direct naar `main` gaan.
 - Loopt `main` voor op je branch: `git fetch origin main && git rebase origin/main` vlak voor de merge.
 - **Versie en releasenotes zijn automatisch**: een PR verandert `version` in `app/package.json` en `app/CHANGELOG.md`
   **niet**. Elke PR die `app/` wijzigt voegt één bestand `changes/<korte-naam>.md` toe (formaat: `changes/README.md`).

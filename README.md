@@ -720,6 +720,12 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 
 Alleen docs/CI zonder effect op de app: label `geen-releasenotes`.
 
+### Ombouw naar Vue: `develop`
+De ombouw van het CRM (en daarna de site) naar Vue loopt via de integratiebranch `develop`; besluiten, opbouw en
+werkwijze staan in `docs/VUE-OMBOUW.md`. Kort: alleen de migratiethread werkt naar `develop`, met dezelfde controles en
+reviews als naar `main`; `develop-sync.yml` voegt `main` elke nacht en na elke release samen in `develop` (bij een
+conflict: issue met het label `develop-sync`); per geaccepteerde module gaat één PR van `develop` naar `main`.
+
 ### Toeleveringsketen (P7.2)
 - Elke GitHub Action staat op een volledige commit-SHA (`uses: owner/actie@<sha> # vX.Y.Z`) en elk container-image op
   een digest (`postgres:17@sha256:…`), in workflows, `app/Dockerfile`, beide `docker-compose.yml` en de deploy-scripts.
@@ -738,6 +744,7 @@ Alleen docs/CI zonder effect op de app: label `geen-releasenotes`.
 | Settings > Secrets and variables > Actions > *Variables* | `CLAUDE_REVIEW_MODEL` (eerste review) en `CLAUDE_REVIEW_MODEL_PUSH` (lichtere review per push); leeg = standaard |
 | Settings > Rules > Rulesets (branch `main`) | PR verplicht, geen force-push, bypass: *Repository admin* |
 | idem, *Require status checks* | `Claude code review`, `Claude security review`, `version-must-increase`, `test`, `image`, `secrets` (geheimenscan, sinds P7.2) |
+| Settings > Rules > Rulesets (branch `develop`) | de ruleset van `main` dupliceren met `develop` als doel: zelfde regels, zelfde verplichte controles, zelfde bypass (*Repository admin*, nodig voor `develop-sync.yml`); daarna de branch `develop` aanmaken vanaf `main` |
 | Settings > General | *Allow auto-merge* aan, *Automatically delete head branches* aan |
 | Settings > Code security | Secret scanning + push protection aan |
 | Issues > Labels | labels `geen-releasenotes` en `changelog-correctie` aanmaken |
