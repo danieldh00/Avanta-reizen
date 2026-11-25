@@ -559,7 +559,8 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     en *automatisch bijwerken* aan/uit (instelling `updateAuto`). De app rolt zelf niets uit: ze praat met
     `deploy/apps01/update.sh` via `/update/status` (alleen-lezen) en `/update/request` (`app/src/system/system-update.js`);
     de host bouwt eerst, zet dan de onderhoudsmodus aan, maakt een back-up, wisselt de container, controleert de versie
-    en valt bij een fout terug. Onderhoudsmodus (`app/src/system/maintenance.js`): tijdens een update of met de hand
+    en valt bij een fout terug. Op de stagingomgeving (`STAGING_STATUS_DIR`) toont het scherm in plaats daarvan de
+    gevolgde branch, de draaiende en de nieuwste commit en de laatste controle. Onderhoudsmodus (`app/src/system/maintenance.js`): tijdens een update of met de hand
     (instellingen `maintenanceMode`, `maintenanceMessage`) geeft elk schrijfverzoek 503 met een melding en staat er een
     balk op elke pagina; inloggen en uitloggen (en bij handmatig onderhoud het uitzetten) blijven werken. Alles in het
     auditlog, ook afgeronde uitrollen.

@@ -5,7 +5,7 @@ Indeling in modules en parallel werken: `docs/ARCHITECTUUR.md`. Wie in deze map 
 een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de root).
 
 ## Bestanden
-- `system-update.js` (koppeling met `deploy/apps01/update.sh` via `/update/status` en `/update/request`)
+- `system-update.js` (koppeling met `deploy/apps01/update.sh` via `/update/status` en `/update/request`; op de stagingomgeving leest het `staging.json` uit `STAGING_STATUS_DIR`: gevolgde branch, commit en laatste controle)
 - `maintenance.js` (503 op schrijven + balk)
 - `host-tasks.js` (`HOST_TASKS` + vast commando; gelijk houden met `deploy/apps01/servertaken.sh`)
 - `request-context.js` (AsyncLocalStorage per verzoek)
