@@ -1,9 +1,9 @@
 /**
  * Tests voor veelgestelde vragen in het CMS (pakket I3, migratie 21): velden controleren (zonder database), de migratie
- * die bestaande categorieën overneemt, en de routes onder `/app/faq/`: rechten (zonder sessie naar inloggen,
- * reisleider en boekhouding 403, redacteur wel), onbekend id → 404, CSRF, categorie en vraag toevoegen, wijzigen
- * (naam gaat mee naar de vragen, volgorde op de site), verwijderen (categorie alleen leeg), het antwoord zonder
- * scripts, de auditlog en de WordPress-import die vragen uit het CRM laat staan. Draait in een eigen schema.
+ * die bestaande categorieën overneemt, de pagina's onder `/app/faq/` (rechten: zonder sessie naar inloggen,
+ * reisleider en boekhouding 403, redacteur wel; onbekend id 404; de oude formulieren zijn weg), de volgorde en het
+ * opgeschoonde antwoord op de site, en de WordPress-import die vragen uit het CRM laat staan. Wijzigen zelf loopt via
+ * de API (`cms-faq-api.test.js`). Draait in een eigen schema.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -60,7 +60,7 @@ test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'avanta-faq-'));
   const mediaDir = path.join(dataDir, 'media');
   await fs.mkdir(mediaDir);
-  // Zonder bundel van de frontend (ook als `web/dist/` lokaal gebouwd is): deze tests gaan over de schermen van de server.
+  // Zonder bundel van de frontend (ook als `web/dist/` lokaal gebouwd is); met bundel: `web-bundle.test.js`.
   const app = createApp({ db, masterKey: MASTER_KEY, mediaDir, webDistDir: dataDir });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -118,80 +118,64 @@ test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     assert.deepEqual(rows.map((row) => [row.slug, row.category, row.name]), [['oud-1', 'Reizen', 'Reizen'], ['oud-2', 'Betalen', 'Betalen'], ['oud-3', 'Reizen', 'Reizen'], ['oud-4', 'Algemeen', 'Algemeen']]);
   });
 
-  await testContext.test('rechten: zonder sessie naar inloggen, reisleider en boekhouding 403, redacteur wel; menu', async () => {
+  await testContext.test('pagina\'s: zonder sessie naar inloggen, reisleider en boekhouding 403, redacteur wel; menu', async () => {
     const [question] = await db.query("SELECT id FROM faqs WHERE slug = 'oud-1'");
     const [category] = await db.query("SELECT id FROM faq_categories WHERE name = 'Reizen'");
-    assert.equal((await request('/app/faq/')).status, 303);
-    for (const session of [leider, boekhouding]) {
-      assert.equal((await request('/app/faq/', { cookie: session.cookie })).status, 403);
-      assert.equal((await request('/app/faq/nieuw/', { cookie: session.cookie })).status, 403);
-      assert.equal((await request(`/app/faq/${question.id}/`, { cookie: session.cookie })).status, 403);
-      assert.equal((await post('/app/faq/nieuw/', { question: 'X', category_id: String(category.id), answer: '<p>x</p>' }, session)).status, 403);
-      assert.equal((await post(`/app/faq/${question.id}/verwijderen/`, { zeker: 'ja' }, session)).status, 403);
-      assert.equal((await post('/app/faq/categorieen/nieuw/', { name: 'X' }, session)).status, 403);
-      assert.equal((await post(`/app/faq/categorieen/${category.id}/`, { name: 'X' }, session)).status, 403);
+    const pages = ['/app/faq/', '/app/faq/nieuw/', `/app/faq/${question.id}/`, `/app/faq/categorieen/${category.id}/`];
+    for (const url of pages) {
+      assert.equal((await request(url)).status, 303, url);
+      for (const session of [leider, boekhouding]) assert.equal((await request(url, { cookie: session.cookie })).status, 403, url);
+      const page = await request(url, { cookie: redactie.cookie });
+      assert.equal(page.status, 200, url);
+      assert.match(page.text, /href="\/app\/faq\/" aria-current="page"/);
+      assert.match(page.text, /niet beschikbaar/, 'zonder bundel: melding in plaats van het scherm');
+      assert.doesNotMatch(page.text, /Paspoort nodig\?/, 'de inhoud komt via de API');
     }
-    const overview = await request('/app/faq/', { cookie: redactie.cookie });
-    assert.equal(overview.status, 200);
-    assert.match(overview.text, /href="\/app\/faq\/" aria-current="page"/);
-    assert.match(overview.text, /Paspoort nodig\?/);
+    assert.match((await request(`/app/faq/categorieen/${category.id}/`, { cookie: redactie.cookie })).text, /<title>Categorie: Reizen - Avanta CRM<\/title>/);
     assert.equal((await request('/app/faq/999999/', { cookie: redactie.cookie })).status, 404);
     assert.equal((await request('/app/faq/categorieen/999999/', { cookie: redactie.cookie })).status, 404);
-    assert.equal((await post('/app/faq/999999/', { question: 'X', category_id: String(category.id), answer: '<p>x</p>' })).status, 404);
-    assert.equal((await post('/app/faq/categorieen/999999/verwijderen/', { zeker: 'ja' })).status, 404);
-    assert.equal((await request('/app/faq/categorieen/nieuw/', { cookie: redactie.cookie, form: { _csrf: 'fout', name: 'X' } })).status, 403, 'CSRF');
   });
 
-  await testContext.test('categorie en vraag toevoegen, wijzigen en verwijderen; volgorde op de site', async () => {
-    assert.equal((await post('/app/faq/categorieen/nieuw/', { name: 'betalen' })).status, 422, 'bestaat al (hoofdletters tellen niet)');
-    const created = await post('/app/faq/categorieen/nieuw/', { name: 'Voorbereiding', sort_order: '5' });
-    assert.equal(created.status, 303);
-    const [category] = await db.query("SELECT id FROM faq_categories WHERE name = 'Voorbereiding'");
-    assert.equal(created.headers.get('location'), `/app/faq/?melding=1#categorie-${category.id}`);
-
-    assert.equal((await post('/app/faq/nieuw/', { question: 'Wat neem ik mee?', category_id: '999999', answer: '<p>Veel</p>' })).status, 422, 'onbekende categorie');
-    const refused = await post('/app/faq/nieuw/', { question: '', category_id: String(category.id), answer: '' });
-    assert.equal(refused.status, 422);
-    assert.match(refused.text, /Vul een vraag in/);
-    for (const attempt of [1, 2]) {
-      assert.equal((await post('/app/faq/nieuw/', { question: 'Wat neem ik mee?', category_id: String(category.id), answer: '<p>Een <strong>slaapzak</strong><script>alert(1)</script></p>', sort_order: String(attempt) })).status, 303);
+  await testContext.test('de oude formulieren zijn weg: posten wijzigt niets', async () => {
+    const [question] = await db.query("SELECT id FROM faqs WHERE slug = 'oud-1'");
+    const [category] = await db.query("SELECT id FROM faq_categories WHERE name = 'Reizen'");
+    const before = (await db.query('SELECT count(*)::int AS count FROM faqs'))[0].count;
+    for (const url of ['/app/faq/nieuw/', `/app/faq/${question.id}/`, `/app/faq/${question.id}/verwijderen/`, '/app/faq/categorieen/nieuw/', `/app/faq/categorieen/${category.id}/`, `/app/faq/categorieen/${category.id}/verwijderen/`]) {
+      const response = await post(url, { question: 'X', category_id: String(category.id), answer: '<p>x</p>', name: 'X', zeker: 'ja' });
+      assert.equal(response.status, 404, url);
     }
-    const added = await db.query('SELECT id, slug, answer_html, category, managed_in_crm FROM faqs WHERE category_id = $1 ORDER BY sort_order', [category.id]);
-    assert.deepEqual(added.map((row) => row.slug), ['wat-neem-ik-mee', 'wat-neem-ik-mee-2'], 'unieke slug');
-    assert.ok(added.every((row) => row.managed_in_crm && row.category === 'Voorbereiding' && !/script/.test(row.answer_html)));
+    assert.equal((await db.query('SELECT count(*)::int AS count FROM faqs'))[0].count, before);
+    assert.equal((await db.query('SELECT name FROM faq_categories WHERE id = $1', [category.id]))[0].name, 'Reizen');
+  });
 
-    // Voorbereiding (5) staat op de site vóór Algemeen (10); de vragen op volgorde.
-    let site = await request('/faq/');
-    assert.ok(site.text.indexOf('Voorbereiding') < site.text.indexOf('Algemeen'));
-    assert.match(site.text, /<strong>slaapzak<\/strong>/);
-    assert.doesNotMatch(site.text, /alert\(1\)/);
-
-    // Vraag wijzigen naar een andere categorie; formulier toont de bestaande waarden.
+  await testContext.test('volgorde, opgeschoond antwoord en hernoemen (via de API)', async () => {
+    /**
+     * Doet een verzoek naar de JSON-API als redacteur.
+     * @param {string} method Methode.
+     * @param {string} url Pad binnen `/app/api`.
+     * @param {any} body JSON-inhoud.
+     * @returns {Promise<any>} JSON.
+     */
+    const api = async (method, url, body) => {
+      const response = await fetch(`${base}/app/api${url}`, { method, headers: { 'x-avanta-api': '1', 'content-type': 'application/json', cookie: `${COOKIE_NAME}=${redactie.cookie}` }, body: JSON.stringify(body) });
+      assert.ok(response.ok, `${method} ${url}: ${response.status}`);
+      return response.json();
+    };
+    const category = await api('POST', '/faq/categorieen/', { naam: 'Voorbereiding', volgorde: 5 });
+    await api('POST', '/faq/vragen/', { vraag: 'Wat neem ik mee?', categorieId: category.id, antwoord: '<p>Een <strong>slaapzak</strong><script>alert(1)</script></p>', volgorde: 1 });
+    // Voorbereiding (5) staat op de site vóór Algemeen (10).
+    const site = (await request('/faq/')).text;
+    assert.ok(site.indexOf('Voorbereiding') < site.indexOf('Algemeen'));
+    assert.match(site, /<strong>slaapzak<\/strong>/);
+    assert.doesNotMatch(site, /alert\(1\)/);
+    assert.ok(await audits('faq.vraag-nieuw') >= 1);
+    // Hernoemen: de vragen uit de import in die categorie worden van het CRM (de import hieronder laat ze staan).
     const [betalen] = await db.query("SELECT id FROM faq_categories WHERE name = 'Betalen'");
-    assert.match((await request(`/app/faq/${added[1].id}/`, { cookie: redactie.cookie })).text, /value="Wat neem ik mee\?"/);
-    assert.equal((await post(`/app/faq/${added[1].id}/`, { question: 'Wanneer betaal ik?', category_id: String(betalen.id), answer: '<p>Voor vertrek</p>', sort_order: '0' })).status, 303);
-    assert.deepEqual((await db.query('SELECT question, category FROM faqs WHERE id = $1', [added[1].id]))[0], { question: 'Wanneer betaal ik?', category: 'Betalen' });
-
-    // Categorie hernoemen: de naam gaat mee naar de vragen; ook de import-vragen worden dan van het CRM.
-    const renamed = await post(`/app/faq/categorieen/${betalen.id}/`, { name: 'Betalen en annuleren', sort_order: '1' });
-    assert.equal(renamed.headers.get('location'), `/app/faq/?melding=4#categorie-${betalen.id}`);
+    assert.equal((await api('PUT', `/faq/categorieen/${betalen.id}/`, { naam: 'Betalen en annuleren', volgorde: 1 })).hernoemd, true);
     assert.deepEqual((await db.query('SELECT DISTINCT category, managed_in_crm FROM faqs WHERE category_id = $1', [betalen.id])).map((row) => [row.category, row.managed_in_crm]), [['Betalen en annuleren', true]]);
-    assert.equal((await post(`/app/faq/categorieen/${betalen.id}/`, { name: 'Reizen' })).status, 422, 'naam bestaat al');
-    site = await request('/faq/');
-    assert.ok(site.text.indexOf('Betalen en annuleren') < site.text.indexOf('Voorbereiding'));
-
-    // Verwijderen: vinkje nodig; een categorie met vragen niet.
-    assert.equal((await post(`/app/faq/${added[0].id}/verwijderen/`, {})).status, 422);
-    assert.equal((await post(`/app/faq/${added[0].id}/verwijderen/`, { zeker: 'ja' })).status, 303);
-    assert.equal((await post(`/app/faq/categorieen/${category.id}/verwijderen/`, { zeker: 'ja' })).status, 303, 'nu leeg');
-    const full = await post(`/app/faq/categorieen/${betalen.id}/verwijderen/`, { zeker: 'ja' });
-    assert.equal(full.status, 422);
-    assert.match(full.text, /nog vragen/);
-    assert.equal((await db.query('SELECT count(*)::int AS count FROM faq_categories WHERE id = $1', [betalen.id]))[0].count, 1);
-
-    for (const action of ['faq.vraag-nieuw', 'faq.vraag-gewijzigd', 'faq.vraag-verwijderd', 'faq.categorie-nieuw', 'faq.categorie-gewijzigd', 'faq.categorie-verwijderd']) {
-      assert.ok(await audits(action) >= 1, action);
-    }
+    const renamedSite = (await request('/faq/')).text;
+    assert.ok(renamedSite.indexOf('Betalen en annuleren') < renamedSite.indexOf('Voorbereiding'), 'nieuwe naam en volgorde op de site');
+    assert.ok(await audits('faq.categorie-gewijzigd') >= 1);
   });
 
   await testContext.test('de WordPress-import laat vragen uit het CRM staan en vult categorieën', async () => {
