@@ -243,7 +243,6 @@ remote_update_run() {
 # Alle taken, oudste eerst. Zelfde id's als HOST_TASKS in app/src/system/host-tasks.js (een test bewaakt dat).
 HOST_TASK_IDS=(
   001-updaten-vanuit-app-inrichten
-  002-staging-inrichten
 )
 LEDGER="$STATUS_DIR/host-tasks.json"
 hosttask_function() { printf 'hosttask_%s' "${1//-/_}"; }
@@ -299,18 +298,6 @@ hosttask_001_updaten_vanuit_app_inrichten() {
   fi
   systemctl is-active --quiet avanta-update-now.path || { echo "FOUT: avanta-update-now.path is niet actief." >&2; return 1; }
   echo "Updaten vanuit de app is ingericht (avanta-update-now.path actief, mappen in $BASE_DIR/update)."
-}
-
-# Taak 002: de stagingomgeving van de ombouw naar Vue (docs/VUE-OMBOUW.md §4) naast de testomgeving zetten met
-# deploy/staging/install-staging.sh van TASKS_REF. Dat script leest van de testomgeving alleen de naam en het netwerk
-# van de bestaande cloudflared en raakt haar verder niet aan. Veilig herhaalbaar.
-hosttask_002_staging_inrichten() {
-  local dir status=0
-  dir="$(mktemp -d)"
-  fetch_task_file "$dir/install-staging.sh" deploy/staging/install-staging.sh || { rm -rf "$dir"; return 1; }
-  MAIN_ENV="$STACK_DIR/.env" bash "$dir/install-staging.sh" || status=$?
-  rm -rf "$dir"
-  return "$status"
 }
 
 # Toont wat er openstaat. Uitgangscode 10 = er is iets te doen (two_step vraagt dan om bevestiging).

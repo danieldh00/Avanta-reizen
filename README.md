@@ -728,8 +728,6 @@ De ombouw van het CRM (en daarna de site) naar Vue loopt via de integratiebranch
 werkwijze staan in `docs/VUE-OMBOUW.md`. Kort: alleen de migratiethread werkt naar `develop`, met dezelfde controles en
 reviews als naar `main`; `develop-sync.yml` voegt `main` elke nacht en na elke release samen in `develop` (bij een
 conflict: issue met het label `develop-sync`); per geaccepteerde module gaat één PR van `develop` naar `main`.
-Wat op `develop` staat is te bekijken op de stagingomgeving, een tweede opstelling naast de testomgeving met alleen
-testdata (`deploy/staging/`, servertaak `002-staging-inrichten`; uitleg in `deploy/apps01/README.md`, *Staging*).
 
 ### Toeleveringsketen (P7.2)
 - Elke GitHub Action staat op een volledige commit-SHA (`uses: owner/actie@<sha> # vX.Y.Z`) en elk container-image op
