@@ -128,6 +128,9 @@ jobs:
       - name: Frontend bouwen (Vite)
         working-directory: app/web
         run: npm run build
+      - name: Bundel controleren op de CSP (geen eval, geen HTML)
+        working-directory: app/web
+        run: npm run check:bundle
       - name: Kwetsbaarheden in afhankelijkheden frontend
         working-directory: app/web
         run: npm audit --omit=dev --audit-level=high
@@ -214,9 +217,15 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: app/package-lock.json
+          cache-dependency-path: |
+            app/package-lock.json
+            app/web/package-lock.json
       - name: Afhankelijkheden app
         run: npm ci
+      # Eerst de frontend bouwen: de schermen in Vue laden hun bundel uit web/dist/ (de controle wacht op data-klaar).
+      - name: Frontend bouwen
+        working-directory: app/web
+        run: npm ci && npm run build
       - name: Playwright met Chromium en axe-core (geen dependencies van de app)
         run: |
           npm install --no-save playwright@1.63.0 axe-core@4.14.1

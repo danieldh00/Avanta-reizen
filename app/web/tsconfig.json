@@ -18,5 +18,5 @@
     "resolveJsonModule": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts", "eslint.config.js"]
+  "include": ["src/**/*.ts", "src/**/*.vue", "tools/**/*.ts", "tools/**/*.js", "vite.config.ts", "eslint.config.js"]
 }

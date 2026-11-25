@@ -4,7 +4,8 @@ Besluiten van Daniël op 25-11-2026. Dit bestand bevat de regels waar code en PR
 met alle PR's, risico's en de inschatting staat in de projectbestanden (`plan/plan-vue-ombouw.md` en
 `plan/plan-vue-ombouw.xlsx`). Wie de werkwijze of de opbouw verandert, werkt dit bestand bij in dezelfde PR.
 
-Stand: fase V1 (fundament) op `develop`. V1.1: het Vite-project `app/web/` (zie §7). V1.2: het API-fundament (§8).
+Stand: fase V1 (fundament) op `develop`. V1.1: het Vite-project `app/web/` (zie §7). V1.2: het API-fundament (§8). V1.3: het
+koppelpunt in de schil en het eerste scherm in Vue (§9).
 
 ## 1. Besluiten
 
@@ -147,3 +148,24 @@ Het updatescript van de testomgeving volgt `main` in een andere map en kan stagi
 - **Invoer**: zod (besluit 4), alleen in de API-routes, met `.strict()` en een melding per veld.
 - **Client** (`app/web/src/api/client.ts`): de enige weg naar de server; `ApiError` met een nette melding per status.
 - `GET /app/api/sessie/` geeft naam, rol en rechten om knoppen te verbergen; de server controleert elk verzoek zelf.
+
+## 9. Koppelpunt in de schil
+
+- **Pagina**: de server levert de pagina met de bestaande opmaak (`crm/layout.js`) en zet in het midden het koppelpunt
+  `<div id="crm-app" data-module="<module>" data-base="/app/<pad>/">` (`crm/web-bundle.js`, `renderMountPoint`). In de
+  `<head>` staan de opmaak, de voorladers en het script van die module uit het manifest van Vite (`renderBundleHead`),
+  alleen als bestanden met `src`/`href`; de CSP blijft `BASE_CSP`. Ontbreekt de bundel, dan toont de pagina een
+  melding in plaats van een leeg scherm.
+- **Bestanden**: `server.js` serveert alleen `web/dist/assets/` onder `/bundel/assets/`, een jaar in de cache (namen
+  met een hash). Het manifest wordt nooit uitgeleverd.
+- **Eerste scherm**: Beheer > Systeem > Bouwstenen (`/app/beheer/bouwstenen/`, recht `systeem`) in de module
+  `beheer`; het toont elke bouwsteen met een voorbeeld en is zo het vaste scherm voor de design-controle en axe van de
+  bouwstenen.
+- **CSP-controle**: `npm run check:bundle` (CI) weigert `eval`, `new Function`, HTML en vreemde bestanden in de
+  uitvoer; de servertests controleren dat een pagina met een bundel geen inline script of opmaak heeft.
+- **Design-controle**: de job `design` bouwt eerst de frontend; `check.js` wacht tot het koppelpunt `data-klaar`
+  heeft. `changed-screens.js`: fundament en bouwstenen (`app/web/src/{components,shell,api}/`) wijzen naar het
+  overzicht van de bouwstenen en `/app/`; een module in `app/web/src/modules/<module>/` zonder eigen regel raakt dezelfde
+  schermen als `app/src/<module>/`.
+- **Een module overzetten** (vanaf V2): de route van het oude scherm geeft dezelfde pagina met `bundle` en
+  `renderMountPoint` in plaats van de HTML van de server; de API-routes staan er dan al.

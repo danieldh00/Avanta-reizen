@@ -12,7 +12,7 @@ const { buildSheets } = require('../tools/design-check/report');
 const { runPageChecks } = require('../tools/design-check/page-checks');
 const { assertLocalDatabase, assertLocalBaseUrl } = require('../tools/design-check/guards');
 const { accounts, designPassword } = require('../tools/design-check/credentials');
-const { screensFor, SITE_CORE, CRM_CORE, SMOKE } = require('../tools/design-check/changed-screens');
+const { screensFor, serverPathOf, SITE_CORE, CRM_CORE, SMOKE, BOUWSTENEN } = require('../tools/design-check/changed-screens');
 const { summaryMarkdown, cell, MAX_ROWS } = require('../tools/design-check/ci-summary');
 const { violationsToFindings, runAccessibilityChecks, PENDING_RULES } = require('../tools/design-check/accessibility');
 
@@ -114,6 +114,24 @@ test('gewijzigde schermen (CI): module en gedeelde opmaak naar hun schermen', ()
   // De controle zelf of de CI-opzet: alleen een rooktest.
   assert.deepEqual(new Set(screensFor(['app/tools/design-check/page-checks.js'])), new Set(SMOKE));
   assert.deepEqual(new Set(screensFor(['.github/workflows/ci.yml'])), new Set(SMOKE));
+});
+
+test('gewijzigde schermen (CI): frontend in Vue (app/web/)', () => {
+  // Fundament en bouwstenen: het overzicht van de bouwstenen en de schil.
+  assert.deepEqual(screensFor(['app/web/src/components/data-list.vue']), ['/app/', ...BOUWSTENEN]);
+  assert.deepEqual(screensFor(['app/web/src/shell/mount.ts', 'app/web/src/api/client.ts']), ['/app/', ...BOUWSTENEN]);
+  assert.deepEqual(new Set(screensFor(['app/web/package.json'])), new Set([...SMOKE, ...BOUWSTENEN]));
+  assert.deepEqual(screensFor(['app/src/crm/web-bundle.js']), BOUWSTENEN);
+  // De module Beheer heeft voorlopig alleen het overzicht van de bouwstenen.
+  assert.deepEqual(screensFor(['app/web/src/modules/beheer/bouwstenen-screen.vue']), BOUWSTENEN);
+  // Een andere module raakt dezelfde schermen als haar map op de server; tests raken geen scherm.
+  assert.deepEqual(screensFor(['app/web/src/modules/payments/list-screen.vue']), screensFor(['app/src/payments/index.js']));
+  assert.equal(serverPathOf('app/web/src/modules/trips/main.ts'), 'app/src/trips/index.js');
+  assert.equal(serverPathOf('app/web/src/modules/trips/routes.spec.ts'), '');
+  assert.equal(serverPathOf('app/src/trips/trips.js'), '');
+  assert.deepEqual(screensFor(['app/web/src/modules/trips/routes.spec.ts']), []);
+  // Het overzicht van de bouwstenen valt niet weg onder /app/beheer/*.
+  assert.ok(screensFor(['app/src/beheer/routes.js', 'app/web/src/components/a.vue']).includes(BOUWSTENEN[0]));
 });
 
 test('gewijzigde schermen (CI): samengevoegd, zonder dubbelen, exact pad onder een * vervalt, vaste volgorde', () => {

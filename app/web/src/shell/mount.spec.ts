@@ -57,7 +57,9 @@ describe('mountModule', () => {
     const mounted = mountModule({ name: 'faq', routes: [{ path: '/', component: ListScreen }, { path: '/:id/', component: DetailScreen }] });
     expect(mounted).not.toBeNull();
     await mounted!.router.isReady();
+    await Promise.resolve();
     expect(element.textContent).toBe('Lijst');
+    expect(element.dataset.klaar).toBe('ja');
     await mounted!.router.push('/12/');
     expect(element.textContent).toBe('Detail');
     expect(window.location.pathname).toBe('/app/faq/12/');
@@ -72,6 +74,18 @@ describe('mountModule', () => {
     const mounted = mountModule({ name: 'faq', routes: [{ path: '/', component: ListScreen }] });
     await mounted!.router.isReady();
     expect(element.querySelector('h1')?.textContent).toBe('Niet gevonden');
+    mounted!.app.unmount();
+  });
+});
+
+describe('mountModule bij een mislukte eerste navigatie', () => {
+  it('zet data-klaar op fout', async () => {
+    window.history.replaceState(null, '', '/app/faq/');
+    const element = addMountPoint({ module: 'faq', base: '/app/faq/' });
+    const mounted = mountModule({ name: 'faq', routes: [{ path: '/', component: ListScreen, beforeEnter: () => { throw new Error('kapot'); } }] });
+    await mounted!.router.isReady().catch(() => {});
+    await Promise.resolve();
+    expect(element.dataset.klaar).toBe('fout');
     mounted!.app.unmount();
   });
 });
