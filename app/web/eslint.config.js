@@ -60,7 +60,7 @@ export default tseslint.config(
   },
   {
     // Configuratie en tests draaien in Node.
-    files: ['vite.config.ts', 'eslint.config.js', 'src/**/*.spec.ts'],
+    files: ['vite.config.ts', 'eslint.config.js', 'src/**/*.spec.ts', 'tools/**'],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
     rules: { 'max-nested-callbacks': ['error', 5], 'vue/one-component-per-file': 'off' },
   },

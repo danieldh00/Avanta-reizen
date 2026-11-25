@@ -6,7 +6,8 @@
  *
  * `mountModule` zoekt dat koppelpunt, maakt de app van Vue met een router in history-modus onder `data-base` (de
  * adressen blijven gelijk aan de oude schermen) en koppelt hem. Wisselen tussen modules blijft een gewone paginalading;
- * binnen een module wisselt de router zonder te herladen.
+ * binnen een module wisselt de router zonder te herladen. Staat het eerste scherm er, dan krijgt het koppelpunt
+ * `data-klaar="ja"` (de design-controle wacht daarop).
  */
 import { createApp, type App, type Component } from 'vue';
 import { createRouter, createWebHistory, type RouteRecordRaw, type Router } from 'vue-router';
@@ -85,5 +86,10 @@ export function mountModule(options: ModuleOptions): MountedModule | null {
   const app = createApp(options.root || ModuleRoot);
   app.use(router);
   app.mount(element);
+  // Voor de design-controle en tests: het eerste scherm staat er (of het laden is mislukt).
+  router.isReady().then(
+    () => { element.dataset.klaar = 'ja'; },
+    () => { element.dataset.klaar = 'fout'; },
+  );
   return { app, router };
 }

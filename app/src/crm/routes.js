@@ -34,6 +34,7 @@ const { createInfobriefModuleRoutes } = require('../infobrief');
 const { createMenuCounters } = require('./menu-counters');
 const { createBeheerRoutes } = require('../beheer/routes');
 const { createApiRouter } = require('../api/router');
+const { createWebBundle } = require('./web-bundle');
 const { sendApiError } = require('../api/errors');
 
 /**
@@ -48,7 +49,7 @@ function isApiPath(requestPath) {
 
 /**
  * Bouwt de CRM-router.
- * @param {{db: any, masterKey: Buffer, vault?: any, settings: any, passwordCheck?: any, mailer?: any, wanIp?: any, notifications?: any, captcha?: any, backups?: any, drive?: any, restoreTests?: any, systemUpdate?: any, hostTasks?: any, appLog?: any, monitor?: any, auditExportMax?: number, setupCode?: string, secureCookies?: boolean, now?: () => number,
+ * @param {{db: any, masterKey: Buffer, webDistDir?: string, vault?: any, settings: any, passwordCheck?: any, mailer?: any, wanIp?: any, notifications?: any, captcha?: any, backups?: any, drive?: any, restoreTests?: any, systemUpdate?: any, hostTasks?: any, appLog?: any, monitor?: any, auditExportMax?: number, setupCode?: string, secureCookies?: boolean, now?: () => number,
  *   redirects?: any, retention?: any, paymentReminders?: any, onlinePayments?: any, infobriefSender?: any,
  *   mediaLibrary?: any, menus?: any, listHeaders?: any, mediaLimits?: any, paymentOverviewMaxRows?: number}} options
  *   Database, hoofdsleutel, de instellingen (`beheer/settings.js`), de wachtwoordcontrole (`security/password-check.js`,
@@ -66,6 +67,8 @@ function createCrmRouter(options) {
   const persons = createPersons({ vault });
   const passwordCheck = options.passwordCheck || createPasswordCheck({ settings: options.settings, appLog: options.appLog, now: options.now });
   const router = express.Router();
+  // Bundels van de nieuwe schermen in Vue (`web/`), per module opgezocht in het manifest van Vite.
+  const webBundle = createWebBundle({ distDir: options.webDistDir });
   // Algemene limiet op alles onder /app/ (ook de sessiecontrole kost een databasevraag per verzoek).
   const generalLimiter = createRateLimiter({ limit: 300, windowMs: 60 * 1000, now: options.now });
 
@@ -129,7 +132,7 @@ function createCrmRouter(options) {
   router.use(createCmsModuleRoutes(moduleContext));
   router.use(createContactModuleRoutes(moduleContext));
   router.use(createInfobriefModuleRoutes(moduleContext));
-  router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, passwordCheck, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, retention: options.retention, now: options.now }));
+  router.use(createBeheerRoutes({ db, auth, webBundle, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, passwordCheck, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, retention: options.retention, now: options.now }));
 
   router.use((req, res) => {
     res.status(404).send(renderCrmPage({

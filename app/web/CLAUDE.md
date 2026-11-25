@@ -20,13 +20,16 @@ gemaakt (Dockerfile, stap `web`) en staat niet in git. Alles wordt geserveerd on
 - `src/shell/`: koppeling met de schil van de server. `mount.ts` (`mountModule`: zoekt het koppelpunt `#crm-app` met
   `data-module` en `data-base`, maakt app en router in history-modus onder het pad van de module, focus naar
   `#inhoud` na elke navigatie), `module-root.vue` (standaard buitenste component), `not-found-screen.vue` (onbekend
-  pad binnen een module).
+  pad binnen een module). Na het eerste scherm krijgt het koppelpunt `data-klaar="ja"` (of `fout`); de
+  design-controle (`app/tools/design-check/check.js`) wacht daarop.
 - `src/components/`: bouwstenen (vanaf V1.4). `rich-text-clean.d.ts` geeft de typen van de opschoner van de
   teksteditor (`app/public/js/rich-text-clean.js`, gedeeld met de server); `rich-text-clean.spec.ts` bewijst dat die
   in de frontend te importeren is.
 - `src/api/`: `client.ts` (getypte client `api` en `createApiClient`: zelfde herkomst, kop `X-Avanta-Api: 1`, geen
   cache, 401 naar het inlogscherm dat de server noemt, `ApiError` met nette melding en meldingen per veld; paden via
   `checkPath` alleen binnen `/app/api/`), `types.ts` (foutformaat, `SessionInfo`).
+- `tools/check-bundle.js` (`npm run check:bundle`, CI na de bouw): geen `eval`/`new Function`, geen HTML en alleen JS
+  en CSS onder `assets/` in `dist/`.
 - `src/modules/<module>/`: ingang (`main.ts`), schermen (`routes.ts`) en schermen per module, zelfde naam als
   `app/src/<module>/`, met een eigen `CLAUDE.md`.
 
@@ -47,5 +50,6 @@ npm run typecheck       # vue-tsc
 npm test                # Vitest
 npm run test:coverage   # Vitest met dekkingsdrempel (zoals CI)
 npm run build           # bundels en manifest in dist/
+npm run check:bundle    # uitvoer controleren op wat de CSP niet toelaat
 npm run dev             # opnieuw bouwen bij elke wijziging (de app op poort 3400 serveert dist/)
 ```

@@ -19,7 +19,7 @@ import vue from '@vitejs/plugin-vue';
 /** Map van dit project (`app/web/`). */
 const WEB_DIR = fileURLToPath(new URL('.', import.meta.url));
 
-/** Publiek pad waaronder de server de bundels aanbiedt (`app/src/web-bundle.js`). */
+/** Publiek pad waaronder de server de bundels aanbiedt (`app/src/crm/web-bundle.js`, `BUNDLE_BASE`). */
 export const PUBLIC_BASE = '/bundel/';
 
 /**
@@ -59,11 +59,11 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.spec.ts'],
+    include: ['src/**/*.spec.ts', 'tools/**/*.spec.ts'],
     restoreMocks: true,
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.{ts,vue}'],
+      include: ['src/**/*.{ts,vue}', 'tools/**/*.js'],
       exclude: ['src/**/*.spec.ts', 'src/**/main.ts', 'src/**/*.d.ts'],
       // Zelfde drempel als de server (regels, takken, functies); verhoog hem als de dekking duurzaam hoger ligt,
       // verlaag hem nooit stil.
