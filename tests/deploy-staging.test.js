@@ -173,6 +173,14 @@ test('install-staging.sh --timer: niets bij dezelfde commit, develop zodra die b
   result = env.run('--timer');
   assert.equal(result.status, 0, result.output);
   assert.deepEqual(env.takeCalls(), []);
+
+  // Cloudflared draait even niet (geen adres): een gezonde staging op dezelfde commit blijft ongemoeid.
+  fs.writeFileSync(path.join(env.root, 'tunnel-ip'), '');
+  result = env.run('--timer');
+  assert.equal(result.status, 0, result.output);
+  assert.match(result.output, /Geen IP-adres van tunnel-cloudflared; staging blijft op/);
+  assert.deepEqual(env.takeCalls(), []);
+  assert.match(env.stagingEnv(), /^TRUST_PROXY=172\.20\.0\.14$/m);
   fs.rmSync(path.join(env.root, 'tunnel-ip'));
   assert.equal(env.run('--timer').status, 0);
   env.takeCalls();

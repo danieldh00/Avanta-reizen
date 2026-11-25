@@ -76,6 +76,11 @@ if [ "$TIMER" = 1 ]; then
   # Niets te doen bij dezelfde commit, een gezonde app en hetzelfde IP-adres van cloudflared. Is dat adres veranderd
   # (container opnieuw aangemaakt), dan gaat de opstelling opnieuw omhoog met de nieuwe TRUST_PROXY.
   if [ "$target" = "$current" ] && healthy && [ "$tunnel_ip" = "$(setting "$STACK_DIR/.env" TRUST_PROXY)" ]; then exit 0; fi
+  # Cloudflared draait even niet: een gezonde staging op de juiste commit blijft staan tot het adres er weer is.
+  if [ -z "$tunnel_ip" ] && [ "$target" = "$current" ] && healthy; then
+    log "Geen IP-adres van $tunnel_container; staging blijft op ${current:0:7}."
+    exit 0
+  fi
   if [ "$target" != "$current" ] && [ "$target" = "$(cat "$FAILED_FILE" 2>/dev/null || true)" ]; then
     log "Commit ${target:0:7} van $track faalde eerder; overslaan tot er een nieuwere is."
     exit 0
