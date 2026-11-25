@@ -28,8 +28,12 @@ gemaakt (Dockerfile, stap `web`) en staat niet in git. Alles wordt geserveerd on
   `search-field.vue`, `pager-nav.vue`, `tab-panels.vue` (één paneel zichtbaar, stip bij een fout, slot
   `tab-<sleutel>`), `save-bar.vue`, `form-field.vue` (label, hulp en fout gekoppeld via slot-eigenschappen),
   `text-field.vue` (`v-model`), `confirm-dialog.vue` (modaal `<dialog>`, focus op Annuleren en terug naar de knop),
-  `status-message.vue` (`notice`/`form-alert`, `role` status of alert). Tests: `list-components.spec.ts`,
-  `form-components.spec.ts`, `feedback-components.spec.ts`. Elke nieuwe bouwsteen krijgt een voorbeeld op het
+  `status-message.vue` (`notice`/`form-alert`, `role` status of alert), `rich-text-editor.vue` (teksteditor zoals
+  `public/js/rich-editor.js`, `v-model` is opgeschoonde HTML, link via een veld onder de knoppen; hulpfuncties en
+  knoppen in `rich-text-tools.ts`), `photo-picker.vue` (foto kiezen zoals `media/picker.js`; het scherm geeft `load`
+  mee, alleen adressen op de eigen site), `upload-field.vue` (soort, grootte en aantal vooraf gecontroleerd; het scherm
+  geeft `upload` mee, die via `api.upload` naar een pad in `multipartPaths` stuurt). Tests: `list-components.spec.ts`,
+  `form-components.spec.ts`, `feedback-components.spec.ts`, `editor-components.spec.ts`. Elke nieuwe bouwsteen krijgt een voorbeeld op het
   overzicht van de bouwstenen. `rich-text-clean.d.ts` geeft de typen van de opschoner van de
   teksteditor (`app/public/js/rich-text-clean.js`, gedeeld met de server); `rich-text-clean.spec.ts` bewijst dat die
   in de frontend te importeren is.

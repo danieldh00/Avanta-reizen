@@ -15,6 +15,9 @@ import SaveBar from '../../components/save-bar.vue';
 import TextField from '../../components/text-field.vue';
 import ConfirmDialog from '../../components/confirm-dialog.vue';
 import StatusMessage from '../../components/status-message.vue';
+import RichTextEditor from '../../components/rich-text-editor.vue';
+import PhotoPicker, { type PickerPage } from '../../components/photo-picker.vue';
+import UploadField from '../../components/upload-field.vue';
 
 /** Voorbeeldrijen voor de lijst. */
 const SAMPLE_ROWS = [
@@ -49,6 +52,37 @@ const saved = ref('');
 const busy = ref(false);
 const dialogOpen = ref(false);
 const removed = ref('');
+
+const story = ref('<h2>Voorbeeldreis</h2><p>Een <strong>avontuurlijke</strong> reis met een <a href="/contact/">link</a>.</p><ul><li>Kamperen</li><li>Wandelen</li></ul>');
+const photo = ref<number | number[] | null>(null);
+const uploaded = ref('');
+
+/** Voorbeeldfoto's uit de map met afbeeldingen van het thema (geen echte fotobibliotheek). */
+const SAMPLE_PHOTOS = [
+  { id: 1, url: '/images/theme/background-photo.jpg', title: 'Voorbeeld landschap', alt: 'Voorbeeldfoto van een landschap', meta: 'Noorwegen', width: 1600, height: 900 },
+  { id: 2, url: '/images/theme/background-footer.jpg', title: 'Voorbeeld voet', alt: 'Voorbeeldfoto van de voet van de site', meta: 'Geen land', width: 1600, height: 500 },
+  { id: 3, url: '/images/theme/texture-background.png', title: 'Voorbeeld textuur', alt: 'Voorbeeld van een textuur', meta: 'Zweden', width: 400, height: 400 },
+];
+
+/**
+ * Doet alsof er foto's worden opgehaald: zoekt in de voorbeeldfoto's, twee per pagina.
+ * @param query Zoekterm en pagina.
+ * @returns De pagina.
+ */
+async function loadSamplePhotos(query: { text: string; page: number }): Promise<PickerPage> {
+  const found = SAMPLE_PHOTOS.filter((sample) => sample.title.toLowerCase().includes(query.text.toLowerCase()));
+  const start = (query.page - 1) * 2;
+  return { photos: found.slice(start, start + 2), hasMore: found.length > start + 2 };
+}
+
+/**
+ * Doet alsof er wordt geüpload (er gaat niets naar de server).
+ * @param form De bestanden.
+ * @returns Het aantal bestanden.
+ */
+function fakeUpload(form: FormData): Promise<number> {
+  return new Promise((resolve) => { window.setTimeout(() => resolve(form.getAll('foto').length), 300); });
+}
 
 /** Doet alsof het formulier wordt opgeslagen (er gaat niets naar de server). */
 function save(): void {
@@ -159,6 +193,44 @@ function confirmRemove(): void {
           :busy="busy"
         />
       </form>
+    </section>
+
+    <section
+      class="crm-panel"
+      aria-labelledby="bouwsteen-tekst"
+    >
+      <h2 id="bouwsteen-tekst">
+        Teksteditor, fotokiezer en uploaden
+      </h2>
+      <div class="form">
+        <RichTextEditor
+          v-model="story"
+          label="Omschrijving"
+          help="Enter begint een nieuwe alinea, Shift+Enter een nieuwe regel."
+          :maxlength="2000"
+        />
+        <PhotoPicker
+          v-model="photo"
+          label="Kies een foto"
+          :load="loadSamplePhotos"
+          allow-none
+        />
+        <p>Gekozen foto: {{ photo ?? 'geen' }}</p>
+        <StatusMessage
+          kind="succes"
+          :message="uploaded"
+        />
+        <UploadField
+          label="Foto's uploaden"
+          help="JPEG, PNG of WebP, hoogstens 20 MB per foto. Voorbeeld: er wordt niets geüpload."
+          name="foto"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          :max-bytes="20 * 1024 * 1024"
+          :upload="fakeUpload"
+          @uploaded="(count) => { uploaded = `${count} bestand(en) ontvangen (voorbeeld, er is niets bewaard).`; }"
+        />
+      </div>
     </section>
 
     <section
