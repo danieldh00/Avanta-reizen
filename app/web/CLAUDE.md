@@ -45,8 +45,8 @@ gemaakt (Dockerfile, stap `web`) en staat niet in git. Alles wordt geserveerd on
 - `tools/check-bundle.js` (`npm run check:bundle`, CI na de bouw): geen `eval`/`new Function`, geen HTML en alleen JS
   en CSS onder `assets/` in `dist/`.
 - `src/modules/beheer/` (overzicht van de bouwstenen), `src/modules/faq/` (veelgestelde vragen, proef V2),
-  `src/modules/blog-indeling/` (categorieën en tags van het blog, V3), `src/modules/menus/` (menu's, V3) en
-  `src/modules/reistypes/` (reistypes en landen, V3).
+  `src/modules/blog-indeling/` (categorieën en tags van het blog, V3), `src/modules/menus/` (menu's, V3),
+  `src/modules/reistypes/` (reistypes en landen, V3) en `src/modules/lijstpaginas/` (koppen van de lijstpagina's, V3).
 - `src/modules/<module>/`: ingang (`main.ts`), schermen (`routes.ts`) en schermen per module, zelfde naam als
   `app/src/<module>/`, met een eigen `CLAUDE.md`.
 

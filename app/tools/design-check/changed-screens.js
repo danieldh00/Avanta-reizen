@@ -76,6 +76,8 @@ const SCREEN_RULES = [
   { pattern: /^app\/web\/src\/modules\/menus\//, screens: ['/app/menus/*'] },
   // Reistypes en landen in Vue (hoort bij `app/src/trips/`).
   { pattern: /^app\/web\/src\/modules\/reistypes\//, screens: ['/app/reistypes-en-landen/*'] },
+  // Koppen van de lijstpagina's in Vue (hoort bij `app/src/cms/`).
+  { pattern: /^app\/web\/src\/modules\/lijstpaginas\//, screens: ['/app/lijstpaginas/*'] },
   { pattern: /^app\/src\/crm\/web-bundle\.js$/, screens: BOUWSTENEN },
   { pattern: /^app\/src\/beheer\/bouwstenen-routes\.js$/, screens: BOUWSTENEN },
   // De controle zelf en de CI-opzet: alleen nagaan dat het nog draait.
