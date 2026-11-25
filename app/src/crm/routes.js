@@ -34,6 +34,7 @@ const { createInfobriefModuleRoutes } = require('../infobrief');
 const { createMenuCounters } = require('./menu-counters');
 const { createBeheerRoutes } = require('../beheer/routes');
 const { createApiRouter } = require('../api/router');
+const { createFaqApi } = require('../cms/faq-api');
 const { createWebBundle } = require('./web-bundle');
 const { sendApiError } = require('../api/errors');
 
@@ -109,7 +110,7 @@ function createCrmRouter(options) {
   router.use(auth.loadSession);
   // JSON-API voor de nieuwe schermen (`api/router.js`), vóór de tellers van het menu (die horen alleen bij pagina's).
   // Een module koppelt haar API-routes met een fabriek in `modules`.
-  router.use('/api', createApiRouter({ auth, appLog: options.appLog, modules: [] }));
+  router.use('/api', createApiRouter({ auth, db, appLog: options.appLog, now: options.now, modules: [createFaqApi] }));
   // Tellers naast menu-items (nieuwe berichten), alleen voor pagina's en met het recht (`crm/menu-counters.js`).
   router.use(createMenuCounters({ db }));
 
