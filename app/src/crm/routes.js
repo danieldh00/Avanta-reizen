@@ -33,6 +33,18 @@ const { createContactModuleRoutes } = require('../contact');
 const { createInfobriefModuleRoutes } = require('../infobrief');
 const { createMenuCounters } = require('./menu-counters');
 const { createBeheerRoutes } = require('../beheer/routes');
+const { createApiRouter } = require('../api/router');
+const { sendApiError } = require('../api/errors');
+
+/**
+ * Of een pad (binnen `/app`) bij de JSON-API hoort; Express routeert hoofdletterongevoelig.
+ * @param {string} requestPath Pad binnen de router.
+ * @returns {boolean} Waar voor `/api/…`.
+ */
+function isApiPath(requestPath) {
+  const lower = requestPath.toLowerCase();
+  return lower === '/api' || lower.startsWith('/api/');
+}
 
 /**
  * Bouwt de CRM-router.
@@ -60,6 +72,10 @@ function createCrmRouter(options) {
   router.use((req, res, next) => {
     res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' });
     if (!generalLimiter.hit(clientKey(req))) {
+      if (isApiPath(req.path)) {
+        res.set('Retry-After', '60');
+        return sendApiError(res, 'te-veel');
+      }
       return res.status(429).set('Retry-After', '60').type('text').send('Te veel verzoeken. Probeer het over een minuut opnieuw.');
     }
     return next();
@@ -88,6 +104,9 @@ function createCrmRouter(options) {
     return smallForms(req, res, next);
   });
   router.use(auth.loadSession);
+  // JSON-API voor de nieuwe schermen (`api/router.js`), vóór de tellers van het menu (die horen alleen bij pagina's).
+  // Een module koppelt haar API-routes met een fabriek in `modules`.
+  router.use('/api', createApiRouter({ auth, appLog: options.appLog, modules: [] }));
   // Tellers naast menu-items (nieuwe berichten), alleen voor pagina's en met het recht (`crm/menu-counters.js`).
   router.use(createMenuCounters({ db }));
 

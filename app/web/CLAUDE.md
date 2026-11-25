@@ -24,7 +24,9 @@ gemaakt (Dockerfile, stap `web`) en staat niet in git. Alles wordt geserveerd on
 - `src/components/`: bouwstenen (vanaf V1.4). `rich-text-clean.d.ts` geeft de typen van de opschoner van de
   teksteditor (`app/public/js/rich-text-clean.js`, gedeeld met de server); `rich-text-clean.spec.ts` bewijst dat die
   in de frontend te importeren is.
-- `src/api/`: getypte client voor `/app/api/` (vanaf V1.2).
+- `src/api/`: `client.ts` (getypte client `api` en `createApiClient`: zelfde herkomst, kop `X-Avanta-Api: 1`, geen
+  cache, 401 naar het inlogscherm dat de server noemt, `ApiError` met nette melding en meldingen per veld; paden via
+  `checkPath` alleen binnen `/app/api/`), `types.ts` (foutformaat, `SessionInfo`).
 - `src/modules/<module>/`: ingang (`main.ts`), schermen (`routes.ts`) en schermen per module, zelfde naam als
   `app/src/<module>/`, met een eigen `CLAUDE.md`.
 
@@ -33,7 +35,7 @@ gemaakt (Dockerfile, stap `web`) en staat niet in git. Alles wordt geserveerd on
 - Elk bestand een kopcommentaar en elke functie een `/** … */`-blok in het Nederlands; de typen staan in TypeScript,
   niet meer in `@param`.
 - Tests heten `*.spec.ts` en staan naast het bestand dat ze testen (de testrunner van de server zoekt `*.test.js`).
-- Geen losse `fetch` in schermen (vanaf V1.2 via `src/api/`), niets met persoonsgegevens in `localStorage` of
+- Geen losse `fetch` in schermen, altijd via `api` uit `src/api/client.ts`, niets met persoonsgegevens in `localStorage` of
   `sessionStorage`, geen inline stijlen of scripts (CSP).
 - Opmaak uit de bestaande klassen van `app/public/css/crm.css` en de `--av-*`-variabelen; het ontwerp verandert niet.
 
