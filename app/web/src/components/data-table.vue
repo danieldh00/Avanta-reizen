@@ -38,14 +38,15 @@ function cellClass(column: TableColumn): string[] {
 }
 
 /**
- * Sleutel van een rij: het veld `rowKey` (standaard `id`), anders de plaats in de lijst.
+ * Sleutel van een rij: het veld `rowKey` (standaard `id`), anders de plaats in de lijst met een voorvoegsel, zodat
+ * die nooit botst met een echte id.
  * @param row Rij.
  * @param index Plaats.
  * @returns Sleutel.
  */
 function keyOf(row: Row, index: number): string | number {
   const value = row[props.rowKey || 'id'];
-  return typeof value === 'string' || typeof value === 'number' ? value : index;
+  return typeof value === 'string' || typeof value === 'number' ? value : `i${index}`;
 }
 </script>
 

@@ -1,7 +1,9 @@
 <!--
   Filter als rij tabbladen boven een lijst, gelijk aan `renderFilterTabs` uit `app/src/crm/ui.js`. Elk tabblad is een
   gewone link met de filter in het adres (werkt ook met een nieuw tabblad of een bladwijzer); een gewone klik wisselt
-  zonder te herladen via `update:modelValue`.
+  zonder te herladen via `update:modelValue`. De overige parameters van het adres (zoekterm, sortering) geeft de ouder
+  mee in `query`, zodat de links ook na zoeken of bladeren zonder herladen kloppen; zonder `query` gelden de
+  parameters van het adres op het moment van tekenen.
 -->
 <script setup lang="ts">
 /** Eén keuze in het filter. */
@@ -20,6 +22,8 @@ const props = defineProps<{
   name: string;
   /** Omschrijving voor schermlezers. */
   label?: string;
+  /** Overige parameters van de lijst (zoals `q`); de filter zelf en `pagina` worden genegeerd. */
+  query?: Record<string, string>;
 }>();
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
@@ -30,7 +34,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
  * @returns Adres.
  */
 function hrefFor(value: string): string {
-  const params = new URLSearchParams(window.location.search);
+  const params = new URLSearchParams(props.query || window.location.search);
   if (value) params.set(props.name, value);
   else params.delete(props.name);
   params.delete('pagina');

@@ -2,7 +2,9 @@
   Tabbladen op een bewerkscherm, gelijk aan `renderTabNav`/`renderTabPanel` uit `app/src/crm/ui.js` en het gedrag van
   `public/js/crm.js`: één paneel tegelijk zichtbaar, het tabblad van het open paneel gemarkeerd, een tabblad met een
   fout krijgt een stip. De inhoud per paneel staat in de slot `tab-<sleutel>`. Alle panelen blijven in de pagina
-  (verborgen), zodat de velden van een formulier over meerdere panelen samen verstuurd worden.
+  (verborgen), zodat de velden van een formulier over meerdere panelen samen verstuurd worden. Weigert de browser het
+  versturen omdat een veld in een verborgen paneel ongeldig is (`invalid`), dan gaat het paneel met het eerste
+  ongeldige veld open, zodat de gebruiker ziet wat er mis is.
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
@@ -31,10 +33,31 @@ const emit = defineEmits<{ 'update:modelValue': [key: string] }>();
 const KEY = /^[a-z0-9-]{1,40}$/;
 const validTabs = computed(() => props.tabs.filter((tab) => KEY.test(tab.key)));
 const active = computed(() => (validTabs.value.some((tab) => tab.key === props.modelValue) ? props.modelValue : validTabs.value[0]?.key));
+
+/** Of er in deze ronde van controles al een paneel is geopend (de browser stuurt `invalid` per ongeldig veld). */
+let switched = false;
+
+/**
+ * Een ongeldig veld bij het versturen: open het paneel waarin het staat, als dat verborgen is. Alleen het eerste
+ * ongeldige veld telt.
+ * @param event Het `invalid`-event (vangt het op tijdens de capture-fase, want het bubbelt niet).
+ */
+function onInvalid(event: Event): void {
+  if (switched || !(event.target instanceof Element)) return;
+  const panel = event.target.closest('.crm-tabpanel');
+  const key = panel?.id.replace(/^tab-/, '');
+  if (!key || key === active.value || !validTabs.value.some((tab) => tab.key === key)) return;
+  switched = true;
+  queueMicrotask(() => { switched = false; });
+  emit('update:modelValue', key);
+}
 </script>
 
 <template>
-  <div class="crm-tabbed crm-tabbed--js">
+  <div
+    class="crm-tabbed crm-tabbed--js"
+    @invalid.capture="onInvalid"
+  >
     <nav
       class="crm-tabs crm-tabs--edit"
       :aria-label="label || 'Onderdelen'"

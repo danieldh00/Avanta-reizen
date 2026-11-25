@@ -84,6 +84,7 @@ function confirmRemove(): void {
         name="status"
         label="Filter op status"
         :options="filterOptions"
+        :query="search ? { q: search } : {}"
       />
       <SearchField
         v-model="search"

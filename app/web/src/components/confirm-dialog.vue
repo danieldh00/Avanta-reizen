@@ -4,7 +4,7 @@
   opende. Open met `open` (true/false); de keuze komt terug als `confirm` of `cancel`.
 -->
 <script setup lang="ts">
-import { nextTick, ref, watch, useId } from 'vue';
+import { nextTick, onMounted, ref, watch, useId } from 'vue';
 
 const props = defineProps<{
   open: boolean;
@@ -23,7 +23,11 @@ const cancelButton = ref<HTMLButtonElement | null>(null);
 const titleId = useId();
 let opener: HTMLElement | null = null;
 
-watch(() => props.open, async (open) => {
+/**
+ * Zet het venster open of dicht naar de waarde van `open`.
+ * @param open Of het venster open moet.
+ */
+async function syncOpen(open: boolean): Promise<void> {
   const element = dialog.value;
   if (!element) return;
   if (open && !element.open) {
@@ -36,7 +40,19 @@ watch(() => props.open, async (open) => {
     element.close();
     opener?.focus();
   }
-}, { flush: 'post' });
+}
+
+watch(() => props.open, syncOpen, { flush: 'post' });
+// Ook bij een venster dat meteen open moet (bijvoorbeeld met `v-if` en `open` tegelijk).
+onMounted(() => syncOpen(props.open));
+
+/** Het venster ging dicht zonder dat de ouder het vroeg (bijvoorbeeld via `form method="dialog"`): geldt als annuleren. */
+function onClose(): void {
+  if (props.open) {
+    opener?.focus();
+    emit('cancel');
+  }
+}
 
 /** Escape of de knop Annuleren. */
 function cancel(): void {
@@ -50,6 +66,7 @@ function cancel(): void {
     class="crm-dialog"
     :aria-labelledby="titleId"
     @cancel.prevent="cancel"
+    @close="onClose"
   >
     <h2 :id="titleId">
       {{ title }}

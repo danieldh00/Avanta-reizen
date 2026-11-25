@@ -35,6 +35,28 @@ describe('tab-panels', () => {
   });
 });
 
+describe('tab-panels bij een ongeldig veld', () => {
+  it('opent het verborgen paneel met het eerste ongeldige veld', async () => {
+    const wrapper = mount(TabPanels, {
+      props: { tabs: [{ key: 'een', label: 'Een' }, { key: 'twee', label: 'Twee' }, { key: 'drie', label: 'Drie' }], modelValue: 'een' },
+      slots: { 'tab-een': '<input name="a">', 'tab-twee': '<input name="b" required>', 'tab-drie': '<input name="c" required>' },
+      attachTo: document.body,
+    });
+    const inputs = wrapper.findAll('input');
+    inputs[0]!.element.dispatchEvent(new Event('invalid'));
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+    inputs[1]!.element.dispatchEvent(new Event('invalid'));
+    inputs[2]!.element.dispatchEvent(new Event('invalid'));
+    expect(wrapper.emitted('update:modelValue')).toEqual([['twee']]);
+    await Promise.resolve();
+    inputs[2]!.element.dispatchEvent(new Event('invalid'));
+    expect(wrapper.emitted('update:modelValue')!.at(-1)).toEqual(['drie']);
+    wrapper.find('.crm-tabbed').element.dispatchEvent(new Event('invalid'));
+    expect(wrapper.emitted('update:modelValue')).toHaveLength(2);
+    wrapper.unmount();
+  });
+});
+
 describe('save-bar', () => {
   it('toont de knop en tijdens opslaan een uitgeschakelde knop met melding', async () => {
     const wrapper = mount(SaveBar, { props: { label: 'Opslaan', note: 'Let op' } });

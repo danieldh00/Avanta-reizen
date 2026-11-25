@@ -45,6 +45,24 @@ describe('confirm-dialog', () => {
     expect(wrapper.emitted('cancel')).toHaveLength(2);
   });
 
+  it('opent meteen als het venster met open: true wordt getekend', async () => {
+    const wrapper = mount(ConfirmDialog, { props: { ...props, open: true }, attachTo: document.body });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(wrapper.find('dialog').attributes('open')).toBeDefined();
+    wrapper.unmount();
+  });
+
+  it('dicht zonder vraag van de ouder geldt als annuleren', async () => {
+    const wrapper = mount(ConfirmDialog, { props: { ...props, open: true }, attachTo: document.body });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await wrapper.find('dialog').trigger('close');
+    expect(wrapper.emitted('cancel')).toHaveLength(1);
+    await wrapper.setProps({ open: false });
+    await wrapper.find('dialog').trigger('close');
+    expect(wrapper.emitted('cancel')).toHaveLength(1);
+    wrapper.unmount();
+  });
+
   it('doet niets als de stand niet verandert of het venster er niet is', async () => {
     const wrapper = mount(ConfirmDialog, { props });
     await wrapper.setProps({ open: false, title: 'Anders' });

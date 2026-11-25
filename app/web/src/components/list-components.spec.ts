@@ -34,6 +34,12 @@ describe('data-table', () => {
     expect(wrapper.findAll('th').map((th) => th.attributes('scope'))).toEqual(['col', 'col']);
   });
 
+  it('een rij zonder id krijgt een sleutel die niet botst met een echte id', () => {
+    const wrapper = mount(DataTable, { props: { columns, rows: [{ naam: 'Zonder id' }, { id: 0, naam: 'Nul' }, { id: 1, naam: 'Een' }], empty: '-' } });
+    expect(wrapper.findAll('tbody tr')).toHaveLength(3);
+    expect(wrapper.findAll('tbody tr').map((row) => row.find('td').text())).toEqual(['Zonder id', 'Nul', 'Een']);
+  });
+
   it('gebruikt een eigen weergave per cel via de slot', () => {
     const wrapper = mount(DataTable, {
       props: { columns, rows: [{ id: 1, naam: 'Reis', aantal: 1 }], empty: '-', rowKey: 'id' },
@@ -62,6 +68,14 @@ describe('filter-tabs', () => {
     expect(links[0]!.attributes('aria-current')).toBeUndefined();
     expect(wrapper.findAll('.crm-tabs-count').map((count) => count.text())).toEqual(['3', '0']);
     expect(wrapper.find('nav').attributes('aria-label')).toBe('Filter');
+  });
+
+  it('neemt de overige parameters uit query, ook na een wijziging zonder herladen', async () => {
+    window.history.replaceState(null, '', '/app/berichten/?q=oud');
+    const wrapper = mount(FilterTabs, { props: { options, modelValue: '', name: 'status', query: { q: 'nieuw', status: 'x', pagina: '2' } } });
+    expect(wrapper.findAll('a').map((link) => link.attributes('href'))).toEqual(['?q=nieuw', '?q=nieuw&status=open', '?q=nieuw&status=dicht']);
+    await wrapper.setProps({ query: { q: 'later' } });
+    expect(wrapper.findAll('a')[1]!.attributes('href')).toBe('?q=later&status=open');
   });
 
   it('geeft zonder andere parameters het kale pad', () => {
