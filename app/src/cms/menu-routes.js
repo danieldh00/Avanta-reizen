@@ -9,6 +9,7 @@ const express = require('express');
 const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
+const { renderMountPoint } = require('../crm/web-bundle');
 const { createMenus, validateMenuItem, MENUS, MAX_ITEMS, MENU_LIMITS } = require('./menus');
 
 /** Basispad van het scherm. */
@@ -86,8 +87,12 @@ function renderItemFields(values, errors, rows, selfId, pageRows) {
 }
 
 /**
- * Maakt de routes voor menu's.
- * @param {{db: any, auth: any, menus?: any}} options Database, sessie- en rechtenlaag en de menu's.
+ * Maakt de routes voor menu's. Is de bundel van de schermen in Vue er (`app/web/src/modules/menus/`, in het image
+ * altijd), dan geven de GET-routes de pagina met het koppelpunt en praten de schermen met `menu-api.js`; zonder bundel
+ * (lokaal zonder bouwstap, de tests) blijven de schermen van de server werken. De oude schermen gaan weg na de
+ * overgang naar `main` (fase V3 van de ombouw, `docs/VUE-OMBOUW.md`).
+ * @param {{db: any, auth: any, menus?: any, webBundle?: {assetsFor: (name: string) => any}}} options Database, sessie-
+ *   en rechtenlaag, de menu's en de lezer van het manifest van de bundels.
  * @returns {express.Router} Router.
  */
 function createMenuRoutes(options) {
@@ -95,6 +100,20 @@ function createMenuRoutes(options) {
   const menus = options.menus || createMenus({ db });
   const router = express.Router();
   const guard = auth.requireRight('content');
+
+  /**
+   * Stuurt de pagina met het koppelpunt van de schermen in Vue, als de bundel er is.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
+   * @param {string} title Titel van de pagina (het scherm zet hem daarna zelf bij een wissel).
+   * @returns {boolean} Waar als de pagina is gestuurd; onwaar zonder bundel.
+   */
+  const sendVuePage = (req, res, title) => {
+    const bundle = options.webBundle ? options.webBundle.assetsFor('menus') : null;
+    if (!bundle) return false;
+    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, bundle, body: renderMountPoint({ name: 'menus', base: BASE, available: true }) }));
+    return true;
+  };
 
   /**
    * Pagina's voor de suggesties bij het adres.
@@ -202,6 +221,7 @@ function createMenuRoutes(options) {
 
   router.get('/menus/', guard, async (req, res, next) => {
     try {
+      if (sendVuePage(req, res, 'Menu\'s')) return undefined;
       return res.send(await renderOverview(req, { notice: NOTICES[req.query.melding] || '' }));
     } catch (error) {
       return next(error);
@@ -224,6 +244,7 @@ function createMenuRoutes(options) {
     try {
       const row = await findItem(req.params.id);
       if (!row) return notFound(req, res);
+      if (sendVuePage(req, res, `Menu-item: ${row.label}`)) return undefined;
       return res.send(await renderItem(req, row));
     } catch (error) {
       return next(error);

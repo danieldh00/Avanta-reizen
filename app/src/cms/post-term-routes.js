@@ -9,6 +9,7 @@ const express = require('express');
 const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
+const { renderMountPoint } = require('../crm/web-bundle');
 const { fieldRow, invalidAttributes } = require('./block-editor');
 const { createPostTerms, validateTermFields, TERM_KINDS, TERM_LIMITS } = require('./post-terms');
 const { MAX_SLUG_LENGTH } = require('../trips/slugs');
@@ -48,9 +49,13 @@ function termFields(values, errors, prefix) {
 }
 
 /**
- * Maakt de routes voor categorieën en tags.
- * @param {{db: any, auth: any, redirects?: any}} options Database, sessie- en rechtenlaag en doorverwijzingen
- *   (opnieuw laden na een nieuw adres).
+ * Maakt de routes voor categorieën en tags. Is de bundel van de schermen in Vue er
+ * (`app/web/src/modules/blog-indeling/`, in het image altijd), dan geven de GET-routes de pagina met het koppelpunt en
+ * praten de schermen met `post-term-api.js`; zonder bundel (lokaal zonder bouwstap, de tests) blijven de schermen van
+ * de server werken. De oude schermen gaan weg na de overgang naar `main` (fase V3 van de ombouw, `docs/VUE-OMBOUW.md`).
+ * @param {{db: any, auth: any, redirects?: any, webBundle?: {assetsFor: (name: string) => any}}} options Database,
+ *   sessie- en rechtenlaag, doorverwijzingen (opnieuw laden na een nieuw adres) en de lezer van het manifest van de
+ *   bundels.
  * @returns {express.Router} Router.
  */
 function createPostTermRoutes(options) {
@@ -58,6 +63,20 @@ function createPostTermRoutes(options) {
   const terms = createPostTerms({ db });
   const router = express.Router();
   const guard = auth.requireRight('content');
+
+  /**
+   * Stuurt de pagina met het koppelpunt van de schermen in Vue, als de bundel er is.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
+   * @param {string} title Titel van de pagina (het scherm zet hem daarna zelf bij een wissel).
+   * @returns {boolean} Waar als de pagina is gestuurd; onwaar zonder bundel.
+   */
+  const sendVuePage = (req, res, title) => {
+    const bundle = options.webBundle ? options.webBundle.assetsFor('blog-indeling') : null;
+    if (!bundle) return false;
+    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: '/app/blog/', bundle, body: renderMountPoint({ name: 'blog-indeling', base: BASE, available: true }) }));
+    return true;
+  };
 
   /**
    * Audit voor een actie.
@@ -155,6 +174,7 @@ function createPostTermRoutes(options) {
 
   router.get('/blog/categorieen-en-tags/', guard, async (req, res, next) => {
     try {
+      if (sendVuePage(req, res, 'Categorieën en tags')) return undefined;
       return res.send(await renderList(req, { notice: NOTICES[req.query.melding] || '' }));
     } catch (error) {
       return next(error);
@@ -177,6 +197,7 @@ function createPostTermRoutes(options) {
     try {
       const term = await terms.get(req.params.id);
       if (!term) return notFound(req, res);
+      if (sendVuePage(req, res, `${TERM_KINDS[term.kind].label}: ${term.name}`)) return undefined;
       return res.send(renderEdit(req, term));
     } catch (error) {
       return next(error);
