@@ -34,21 +34,18 @@ const KEY = /^[a-z0-9-]{1,40}$/;
 const validTabs = computed(() => props.tabs.filter((tab) => KEY.test(tab.key)));
 const active = computed(() => (validTabs.value.some((tab) => tab.key === props.modelValue) ? props.modelValue : validTabs.value[0]?.key));
 
-/** Of er in deze ronde van controles al een paneel is geopend (de browser stuurt `invalid` per ongeldig veld). */
-let switched = false;
-
 /**
  * Een ongeldig veld bij het versturen: open het paneel waarin het staat, als dat verborgen is. Alleen het eerste
- * ongeldige veld telt.
- * @param event Het `invalid`-event (vangt het op tijdens de capture-fase, want het bubbelt niet).
+ * ongeldige veld in de volgorde van de pagina telt (dat veld krijgt ook de focus van de browser); de browser stuurt
+ * `invalid` per veld vanuit een eigen taak, dus een vlag tussen de events werkt niet.
+ * @param event Het `invalid`-event (opgevangen in de capture-fase, want het bubbelt niet).
  */
 function onInvalid(event: Event): void {
-  if (switched || !(event.target instanceof Element)) return;
+  const root = event.currentTarget;
+  if (!(event.target instanceof Element) || !(root instanceof Element) || root.querySelector(':invalid') !== event.target) return;
   const panel = event.target.closest('.crm-tabpanel');
   const key = panel?.id.replace(/^tab-/, '');
   if (!key || key === active.value || !validTabs.value.some((tab) => tab.key === key)) return;
-  switched = true;
-  queueMicrotask(() => { switched = false; });
   emit('update:modelValue', key);
 }
 </script>

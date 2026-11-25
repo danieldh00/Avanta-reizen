@@ -36,7 +36,7 @@ describe('tab-panels', () => {
 });
 
 describe('tab-panels bij een ongeldig veld', () => {
-  it('opent het verborgen paneel met het eerste ongeldige veld', async () => {
+  it('opent het verborgen paneel met het eerste ongeldige veld, ook als de browser de events los stuurt', async () => {
     const wrapper = mount(TabPanels, {
       props: { tabs: [{ key: 'een', label: 'Een' }, { key: 'twee', label: 'Twee' }, { key: 'drie', label: 'Drie' }], modelValue: 'een' },
       slots: { 'tab-een': '<input name="a">', 'tab-twee': '<input name="b" required>', 'tab-drie': '<input name="c" required>' },
@@ -46,13 +46,25 @@ describe('tab-panels bij een ongeldig veld', () => {
     inputs[0]!.element.dispatchEvent(new Event('invalid'));
     expect(wrapper.emitted('update:modelValue')).toBeUndefined();
     inputs[1]!.element.dispatchEvent(new Event('invalid'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     inputs[2]!.element.dispatchEvent(new Event('invalid'));
     expect(wrapper.emitted('update:modelValue')).toEqual([['twee']]);
-    await Promise.resolve();
-    inputs[2]!.element.dispatchEvent(new Event('invalid'));
-    expect(wrapper.emitted('update:modelValue')!.at(-1)).toEqual(['drie']);
     wrapper.find('.crm-tabbed').element.dispatchEvent(new Event('invalid'));
-    expect(wrapper.emitted('update:modelValue')).toHaveLength(2);
+    expect(wrapper.emitted('update:modelValue')).toHaveLength(1);
+    wrapper.unmount();
+  });
+
+  it('blijft staan als het eerste ongeldige veld op het open paneel staat', async () => {
+    const wrapper = mount(TabPanels, {
+      props: { tabs: [{ key: 'een', label: 'Een' }, { key: 'twee', label: 'Twee' }], modelValue: 'een' },
+      slots: { 'tab-een': '<input name="a" required>', 'tab-twee': '<input name="b" required>' },
+      attachTo: document.body,
+    });
+    const inputs = wrapper.findAll('input');
+    inputs[0]!.element.dispatchEvent(new Event('invalid'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    inputs[1]!.element.dispatchEvent(new Event('invalid'));
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined();
     wrapper.unmount();
   });
 });
