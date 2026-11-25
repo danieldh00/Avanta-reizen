@@ -302,29 +302,32 @@ hosttask_001_updaten_vanuit_app_inrichten() {
 }
 
 # Taak 003: de stagingomgeving van de gestopte ombouw naar Vue weghalen (docs/VUE-OMBOUW.md): timer en service, de
-# containers en volumes van het compose-project avanta-staging, het image, de map en ongebruikte buildcache. Raakt de
-# testomgeving (project avanta) en het netwerk van cloudflared niet. Veilig herhaalbaar: wat er niet is, wordt
-# overgeslagen. Op een server zonder staging doet de taak niets.
-STAGING_DIR="/opt/apps/avanta-staging"
+# containers, volumes en het netwerk van het compose-project avanta-staging, het image en de map. Raakt de
+# testomgeving (project avanta) en het netwerk van cloudflared niet; de buildcache ruimt de taak schijf op. Veilig
+# herhaalbaar: wat er niet is, wordt overgeslagen. Op een server zonder staging doet de taak niets.
+STAGING_DIR="${STAGING_DIR:-/opt/apps/avanta-staging}"
+STAGING_LABEL="label=com.docker.compose.project=avanta-staging"
 hosttask_003_staging_verwijderen() {
   local ids
+  # Zonder bereikbare Docker zou een lege lijst als "weg" tellen; dan liever stoppen.
+  docker info >/dev/null 2>&1 || { echo "FOUT: Docker is niet bereikbaar; er is niets verwijderd." >&2; return 1; }
   systemctl disable --now avanta-staging-update.timer >/dev/null 2>&1 || true
   systemctl stop avanta-staging-update.service >/dev/null 2>&1 || true
   rm -f /etc/systemd/system/avanta-staging-update.timer /etc/systemd/system/avanta-staging-update.service /usr/local/sbin/avanta-staging-update
   systemctl daemon-reload || true
   # Alleen wat Docker Compose aan het project avanta-staging hangt (label), nooit iets van de testomgeving.
-  ids="$(docker ps -aq --filter label=com.docker.compose.project=avanta-staging)"
+  ids="$(docker ps -aq --filter "$STAGING_LABEL")"
   [[ -n "$ids" ]] && docker rm -f $ids >/dev/null || true
-  ids="$(docker volume ls -q --filter label=com.docker.compose.project=avanta-staging)"
+  ids="$(docker volume ls -q --filter "$STAGING_LABEL")"
   [[ -n "$ids" ]] && docker volume rm $ids >/dev/null || true
-  ids="$(docker network ls -q --filter label=com.docker.compose.project=avanta-staging)"
+  ids="$(docker network ls -q --filter "$STAGING_LABEL")"
   [[ -n "$ids" ]] && docker network rm $ids >/dev/null || true
   docker image rm avanta-reizen-staging:local >/dev/null 2>&1 || true
   docker image prune -f --filter label=nl.avantareizen.stack=avanta-staging >/dev/null || true
   [[ -d "$STAGING_DIR" ]] && rm -rf --one-file-system -- "$STAGING_DIR" || true
-  docker builder prune -f >/dev/null || true
-  if systemctl list-unit-files avanta-staging-update.timer 2>/dev/null | grep -q avanta-staging \
-    || [[ -n "$(docker ps -aq --filter label=com.docker.compose.project=avanta-staging)" ]] || [[ -e "$STAGING_DIR" ]]; then
+  # Eindcontrole: een fout van docker telt als "niet weg", nooit als succes.
+  if ! ids="$(docker ps -aq --filter "$STAGING_LABEL")" || [[ -n "$ids" ]] || [[ -e "$STAGING_DIR" ]] \
+    || systemctl list-unit-files avanta-staging-update.timer 2>/dev/null | grep -q avanta-staging; then
     echo "FOUT: staging is niet helemaal weg (timer, containers of $STAGING_DIR)." >&2
     return 1
   fi
