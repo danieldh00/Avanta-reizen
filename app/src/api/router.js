@@ -22,22 +22,31 @@ const { createApiGuard } = require('./guard');
 const { sendApiError } = require('./errors');
 const { validate } = require('./schema');
 
-/** Grootste JSON-body; een module met lange teksten krijgt later een eigen grens per pad. */
+/** Grootste JSON-body. */
 const JSON_LIMIT = '64kb';
 
 /**
+ * Grootste JSON-body op de paden met een lange opgemaakte tekst (`largeJsonPaths`): 100.000 tekens HTML, ook als die
+ * uit tekens van meerdere bytes bestaat, plus de overige velden. Gelijk aan de formulieren van die schermen.
+ */
+const LARGE_JSON_LIMIT = '512kb';
+
+/**
  * Bouwt de API-router.
- * @param {{auth: any, db?: any, appLog?: any, now?: () => number, redirects?: any, menus?: any, listHeaders?: any, mediaLibrary?: any, modules?: Array<(context: any) => any>, multipartPaths?: RegExp[]}} options
+ * @param {{auth: any, db?: any, appLog?: any, now?: () => number, redirects?: any, menus?: any, listHeaders?: any, mediaLibrary?: any, modules?: Array<(context: any) => any>, multipartPaths?: RegExp[], largeJsonPaths?: RegExp[]}} options
  *   De authenticatie van het CRM (`crm/auth.js`), de database (voor de modules), het logboek, de klok (tests), de
  *   gedeelde diensten die modules nodig hebben (doorverwijzingen, menu's, koppen van lijstpagina's, fotobibliotheek), de
- *   API-fabrieken van de modules en de paden waar een upload mag.
+ *   API-fabrieken van de modules, de paden waar een upload mag en de paden met een lange tekst (`LARGE_JSON_LIMIT`).
  * @returns {express.Router} Router, te koppelen op `/app/api`.
  */
 function createApiRouter(options) {
   const { auth, appLog } = options;
   const router = express.Router();
   router.use(createApiGuard({ multipartPaths: options.multipartPaths }));
-  router.use(express.json({ limit: JSON_LIMIT, strict: true, type: 'application/json' }));
+  const jsonParser = express.json({ limit: JSON_LIMIT, strict: true, type: 'application/json' });
+  const largeJsonParser = express.json({ limit: LARGE_JSON_LIMIT, strict: true, type: 'application/json' });
+  const largeJsonPaths = options.largeJsonPaths || [];
+  router.use((req, res, next) => (largeJsonPaths.some((pattern) => pattern.test(req.path)) ? largeJsonParser : jsonParser)(req, res, next));
 
   /**
    * Middleware: alleen met een volledige sessie; anders 401 met het pad om in te loggen (of de tweede stap).
@@ -94,4 +103,4 @@ function createApiRouter(options) {
   return router;
 }
 
-module.exports = { createApiRouter, JSON_LIMIT };
+module.exports = { createApiRouter, JSON_LIMIT, LARGE_JSON_LIMIT };
