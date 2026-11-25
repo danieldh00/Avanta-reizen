@@ -87,9 +87,7 @@ Het updatescript van de testomgeving volgt `main` in een andere map en kan stagi
 - Geen koppelingen: geen betaalprovider, geen externe opslag van back-ups, geen mailserver (de app eist een openbaar
   adres voor de mailserver, dus er is geen mailvanger; mail wordt op staging niet verstuurd).
 - Niet vindbaar (`SITE_INDEXABLE` staat vast op `false`) en achter een toegangsbeleid van Cloudflare.
-- Geen updaten vanuit de app en geen hersteltest: dat blijft bij de testomgeving. Beheer > Systeem > Updates en
-  onderhoud toont op staging de gevolgde branch, de draaiende en de nieuwste commit en de laatste controle. Het
-  versienummer verandert op staging niet per wijziging; de commit en het tijdstip zeggen of iets er staat.
+- Geen updaten vanuit de app en geen hersteltest: dat blijft bij de testomgeving.
 - Inrichten: servertaak `002-staging-inrichten` in Beheer > Systeem > Servertaken. Daarna één keer met de hand het
   stagingadres toevoegen in Cloudflare; de uitvoer van de taak zegt precies wat. Zie `deploy/apps01/README.md`,
   *Staging*.

@@ -23,15 +23,11 @@ services:
       SITE_INDEXABLE: "false"
       AVANTA_MASTER_KEY: ${AVANTA_MASTER_KEY:?zet AVANTA_MASTER_KEY in .env (install-staging.sh doet dat)}
       TRUST_PROXY: ${TRUST_PROXY:?zet TRUST_PROXY (IP van de cloudflared-container) in .env}
-      # Stand van het bijwerken (gevolgde branch, commit, laatste controle) voor Beheer > Updates en onderhoud.
-      STAGING_STATUS_DIR: /staging-status
     # Alleen op de server zelf (curl-test); cloudflared praat via het tunnelnetwerk met avanta-staging-app:3400.
     ports:
       - "127.0.0.1:${APP_PORT:-3401}:3400"
     volumes:
       - app-data:/data
-      # Alleen-lezen: install-staging.sh schrijft hier staging.json (de map `status` naast de clone van de repo).
-      - ../../../status:/staging-status:ro
     networks:
       default:
       tunnel:

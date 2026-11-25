@@ -106,9 +106,8 @@ function setup(testContext) {
     return text.split('\n').filter(Boolean);
   };
   const deployed = () => fs.readFileSync(path.join(base, '.deployed-commit'), 'utf8');
-  const status = () => JSON.parse(fs.readFileSync(path.join(base, 'status', 'staging.json'), 'utf8'));
   const stagingEnv = () => fs.readFileSync(path.join(base, 'repo', 'deploy', 'staging', '.env'), 'utf8');
-  return { root, base, mainEnv, systemRoot, commit, run, takeCalls, deployed, stagingEnv, status };
+  return { root, base, mainEnv, systemRoot, commit, run, takeCalls, deployed, stagingEnv };
 }
 
 test('install-staging.sh: eerste installatie met eigen geheimen, volgt main zolang develop niet bestaat', (testContext) => {
@@ -136,15 +135,6 @@ test('install-staging.sh: eerste installatie met eigen geheimen, volgt main zola
   assert.equal(fs.statSync(path.join(env.base, 'repo', 'deploy', 'staging', '.env')).mode & 0o077, 0);
   assert.equal(fs.readFileSync(env.mainEnv, 'utf8'), mainEnvBefore);
   assert.doesNotMatch(result.output, /[0-9a-f]{48}/);
-
-  // De stand voor het scherm in de app: branch, commit en tijdstippen, leesbaar voor de container.
-  const status = env.status();
-  assert.deepEqual({ track: status.track, commit: status.commit, available: status.available, failed: status.failed }, { track: 'main', commit: first, available: first, failed: '' });
-  assert.match(status.checkedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
-  assert.match(status.deployedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
-  assert.equal(fs.statSync(path.join(env.base, 'status', 'staging.json')).mode & 0o777, 0o644);
-  assert.match(result.output, /app\/inloggen\/ met een testgebruiker/);
-  assert.doesNotMatch(result.output, /installatiecode/);
 
   // Volgorde: bouwen, database, rol, starten; daarna de timer en (lege database) de testdata.
   const calls = env.takeCalls();
@@ -212,7 +202,6 @@ test('install-staging.sh --timer: niets bij dezelfde commit, develop zodra die b
   assert.match(result.output, /overgeslagen; staging draait weer op/);
   assert.equal(env.deployed(), second);
   assert.equal(git(path.join(env.base, 'repo'), 'rev-parse', 'HEAD'), second);
-  assert.deepEqual({ track: env.status().track, commit: env.status().commit, available: env.status().available, failed: env.status().failed }, { track: 'develop', commit: second, available: third, failed: third });
   env.takeCalls();
   result = env.run('--timer');
   assert.equal(result.status, 0, result.output);

@@ -78,12 +78,7 @@ verzonnen testdata. Bestanden: `deploy/staging/compose.yml`, `.env.example` en `
   `avanta-staging.den-hollander.com -> http://avanta-staging-app:3400` (zelfde stappen als hieronder), en een
   Access-toepassing op dat adres met een beleid dat alleen de beheerder toelaat.
 - **Bijwerken**: de timer volgt `develop`. Een commit die niet bouwt of niet gezond start, wordt teruggezet naar de
-  vorige en overgeslagen tot er een nieuwere is. Logboek: `journalctl -u avanta-staging-update`. Het script schrijft
-  bij elke run `/opt/apps/avanta-staging/status/staging.json` (branch, draaiende en nieuwste commit, tijdstippen); de
-  app toont dat onder Beheer > Systeem > Updates en onderhoud. Het versienummer verandert op staging niet per
-  wijziging (releasenotes worden pas op `main` verwerkt): de commit en het tijdstip zeggen of iets er staat.
-- **Inloggen**: `/app/inloggen/` met een testgebruiker (`<rol>@example.com`). De testdata bevat al gebruikers, dus
-  er is op staging geen installatiecode; het wachtwoord staat in de uitvoer van de servertaak.
+  vorige en overgeslagen tot er een nieuwere is. Logboek: `journalctl -u avanta-staging-update`.
 - **Niet aanwezig op staging**: updaten vanuit de app, de hersteltest, back-ups naar buiten, mail en online betalen.
 - **Weghalen**: `docker compose -p avanta-staging down -v`, de map `/opt/apps/avanta-staging` en de units
   `avanta-staging-update.{service,timer}` verwijderen.

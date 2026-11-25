@@ -33,8 +33,6 @@ const CACHE_MS = 2000;
 const CHECK_MIN_GAP_MS = 10 * 1000;
 const CHECK_MAX_MS = 3 * 60 * 1000;
 const LIMITS = { releases: 30, items: 20, title: 200, text: 1000, message: 300, name: 80 };
-/** Naam van een branch zoals het bijwerkscript van de stagingomgeving hem doorgeeft. */
-const BRANCH = /^[A-Za-z0-9._/-]{1,60}$/;
 
 /**
  * Vergelijkt twee versienummers ('0.9.0' < '0.10.0').
@@ -201,32 +199,12 @@ function sanitizeStatus(raw) {
 }
 
 /**
- * Saneert de stand van de stagingomgeving (`staging.json` van `deploy/staging/install-staging.sh`): die werkt zichzelf
- * bij vanaf een branch en heeft geen updates vanuit de app.
- * @param {any} source Inhoud van het bestand (of een leeg object als het er nog niet is).
- * @returns {{track: (string|null), commit: (string|null), available: (string|null), failed: (string|null),
- *   checkedAt: (string|null), deployedAt: (string|null)}} De gevolgde branch, de draaiende en de nieuwste commit, een
- *   commit die niet goed startte, en wanneer er voor het laatst is gecontroleerd en bijgewerkt.
- */
-function sanitizeStaging(source) {
-  return {
-    track: typeof source.track === 'string' && BRANCH.test(source.track) ? source.track : null,
-    commit: cleanCommit(source.commit),
-    available: cleanCommit(source.available),
-    failed: cleanCommit(source.failed),
-    checkedAt: cleanTime(source.checkedAt),
-    deployedAt: cleanTime(source.deployedAt),
-  };
-}
-
-/**
  * Maakt de koppeling met het hostscript.
- * @param {{statusDir?: string, requestDir?: string, stagingDir?: string, currentVersion: string, now?: () => number}} options
- *   De gedeelde mappen (leeg = niet ingericht op deze server, bijv. lokaal), de map met de stand van de
- *   stagingomgeving (leeg = dit is geen staging), de draaiende versie (package.json) en de klok (tests).
+ * @param {{statusDir?: string, requestDir?: string, currentVersion: string, now?: () => number}} options De gedeelde
+ *   mappen (leeg = niet ingericht op deze server, bijv. lokaal), de draaiende versie (package.json) en de klok (tests).
  * @returns {any} configured, hostMaintenance, view, request, requestCheck, cancel, setAuto, finishedRun en markAudited.
  */
-function createSystemUpdate({ statusDir = '', requestDir = '', stagingDir = '', currentVersion, now = () => Date.now() }) {
+function createSystemUpdate({ statusDir = '', requestDir = '', currentVersion, now = () => Date.now() }) {
   const configured = Boolean(statusDir && requestDir);
   let maintenanceCache = { at: -Infinity, value: { active: false } };
   /** Laatste handmatige controle (op de seconde afgerond, zoals checkedAt van de host). */
@@ -296,19 +274,11 @@ function createSystemUpdate({ statusDir = '', requestDir = '', stagingDir = '', 
   }
 
   /**
-   * De stand van de stagingomgeving, als dit er een is.
-   * @returns {(any|null)} Zie sanitizeStaging; null op elke andere server.
-   */
-  function staging() {
-    return stagingDir ? sanitizeStaging(readJsonFile(stagingDir, 'staging.json') || {}) : null;
-  }
-
-  /**
    * Alles voor het scherm in Beheer.
-   * @returns {any} configured, running, staging, status, newer, releases, pending, maintenance en checking.
+   * @returns {any} configured, running, status, newer, releases, pending, maintenance en checking.
    */
   function view() {
-    if (!configured) return { configured: false, running: currentVersion, staging: staging() };
+    if (!configured) return { configured: false, running: currentVersion };
     const status = hostStatus();
     const newer = Boolean(status.availableCommit && status.availableCommit !== status.currentCommit);
     // Alleen de notes tussen de draaiende en de beschikbare versie (nieuwste eerst, zoals de changelog).
@@ -320,7 +290,7 @@ function createSystemUpdate({ statusDir = '', requestDir = '', stagingDir = '', 
     const checkedAtMs = status.checkedAt ? Date.parse(status.checkedAt) : 0;
     const checking = Boolean(request && request.check) || (lastCheckAt > 0 && checkedAtMs < lastCheckAt && now() - lastCheckAt < CHECK_MAX_MS);
     return {
-      configured: true, running: currentVersion, staging: staging(), status, newer, releases,
+      configured: true, running: currentVersion, status, newer, releases,
       pending: request && !request.check ? request : null, maintenance: hostMaintenance(), checking,
     };
   }
