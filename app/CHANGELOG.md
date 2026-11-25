@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.4 — 2026-11-25 — Stagingomgeving voor de ombouw naar Vue
+
+- Beheer > Systeem > Servertaken heeft een nieuwe taak: de stagingomgeving voor de ombouw naar Vue inrichten. Dat is een tweede opstelling naast de testomgeving, met een eigen database en alleen testdata.
+
+- Servertaak `002-staging-inrichten` (`system/host-tasks.js`, `deploy/apps01/servertaken.sh`).
+- `deploy/staging/`: `compose.yml` (project `avanta-staging`, eigen database en volumes, eigen imagenaam, nooit vindbaar, geen updatemappen), `.env.example` en `install-staging.sh` (volgt `develop`, anders `main`; eigen geheimen; neemt alleen naam en netwerk van de bestaande cloudflared over van de testomgeving; timer elke 15 minuten; terugval en overslaan bij een commit die niet start; testdata bij een lege database).
+- Tests: `tests/deploy-staging.test.js` (nagebootste docker, curl en systemctl); het compose-bestand van staging valt onder de controle op vastgepinde images.
+
 ## 0.35.3 — 2026-11-24 — Typecontrole op alle bestanden (B08, deel 2)
 
 - `// @ts-check` in de laatste 28 bestanden van `src/` en `tools/` (de bestanden die W28 tegelijk aanpaste en wat op hun
