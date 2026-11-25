@@ -4,7 +4,7 @@ Besluiten van Daniël op 25-11-2026. Dit bestand bevat de regels waar code en PR
 met alle PR's, risico's en de inschatting staat in de projectbestanden (`plan/plan-vue-ombouw.md` en
 `plan/plan-vue-ombouw.xlsx`). Wie de werkwijze of de opbouw verandert, werkt dit bestand bij in dezelfde PR.
 
-Stand: fase V0 (voorbereiding). Er staat nog geen Vue-code in de repository.
+Stand: fase V1 (fundament) op `develop`. V1.1: het Vite-project `app/web/` (zie §7).
 
 ## 1. Besluiten
 
@@ -109,3 +109,24 @@ Het updatescript van de testomgeving volgt `main` in een andere map en kan stagi
 | V8 | schil en overzicht (alleen) | `develop` |
 | V9 | afronden CRM: oude weergave weg, volledige herbeoordeling | `develop` en `main` |
 | V10 | publieke site en reizigersaccount, met rendering op de server | `develop` |
+
+## 7. Bouwen, testen en ontwikkelen
+
+- **Project**: `app/web/` met een eigen `package.json` (vaste versies), `vite.config.ts`, `tsconfig.json` (strikt) en
+  `eslint.config.js`. Details per bestand: `app/web/CLAUDE.md`.
+- **Ingangen**: elke map `app/web/src/modules/<module>/` met een `main.ts` wordt vanzelf een eigen bundel; er is geen
+  lijst om bij te houden.
+- **Uitvoer**: `app/web/dist/` met het manifest van Vite (`dist/.vite/manifest.json`), alleen gemaakt bij het bouwen
+  van het image (Dockerfile, stap `web`) en niet in git. Het image krijgt alleen die uitvoer, niet de bron of de
+  afhankelijkheden van de frontend. De server biedt de bestanden aan onder `/bundel/`.
+- **CSP**: de runtime van Vue zonder compiler (sjablonen vooraf gecompileerd, geen `eval`), geen inline scripts (ook
+  geen polyfill voor modulepreload) en opmaak van componenten in losse CSS-bestanden. De policy blijft gelijk.
+- **CI** (job `test`): `npm ci`, lint, `vue-tsc`, Vitest met een eigen dekkingsdrempel (95/85/93, zoals de server),
+  een proefbouw en `npm audit` voor de afhankelijkheden van de frontend. De job `image` bouwt het image met de stap
+  `web` en doet de rooktest.
+- **Lint**: `v-html` is verboden (`vue/no-v-html`), net als `innerHTML`, `outerHTML`, `document.write` en `eval`.
+- **Ontwikkelen**: `npm run dev` in `app/web/` bouwt bij elke wijziging opnieuw naar `dist/`; de app op poort 3400
+  serveert die uitvoer, dus een scherm is te zien door de pagina te herladen. Bewust geen dev-server van Vite met
+  doorsturen: die zet opmaak als inline `<style>` in de pagina en dat laat de CSP (terecht) niet toe.
+- **Teksteditor**: de opschoner `app/public/js/rich-text-clean.js` (gedeeld met de server) is in de frontend te
+  importeren; de teksteditor in Vue (V1.5) gebruikt dus dezelfde regels.

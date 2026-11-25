@@ -694,6 +694,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `docs/CLAUDE-sjabloon.md` | sjabloon voor `CLAUDE.md` in een volgend project |
 | `.claude/agents/` | verkenners `map`, `callers`, `tests` |
 | `app/` | de applicatie (`src/`, `public/`, `tools/import-wordpress.js`, `tools/minify-public.js` (alleen bij het bouwen van het image), `test/`); versie in `app/package.json` |
+| `app/web/` | frontend van het CRM (ombouw naar Vue): Vue 3 + TypeScript + Vite met een ingang per module, eigen `package.json`; uitvoer alleen in het image; zie `app/web/CLAUDE.md` en `docs/VUE-OMBOUW.md` |
 | `app/src/beheer/` | Beheer: `instellingen/<groep>.js` (instellingen en secties per groep), `settings.js` (opslag en controle), `indeling.js` (zijbalk en zoeken), `routes.js` (`/app/beheer/`), `mail-routes.js` (testmail, WAN-IP), `backup-routes.js` (back-ups), `drive-routes.js` (Google Drive), `restore-test-routes.js` (hersteltest), `update-routes.js` (updates en onderhoud), `host-task-routes.js` (servertaken), `log-routes.js` (logboek), `monitor-routes.js` (bewaking), `go-live-check.js` + `go-live-routes.js` (livegang) |
 | `app/src/crm/` | schil van `/app/` (`routes.js`), toegang (`login-routes.js`, `auth.js`, `two-factor.js`), gebruikers, rechten, opmaak en het overzicht |
 | `app/src/persons/` | personen en deelnemers, samenvoegen, inzage en wissen, deelnemerslijsten, AVG-opschoning (`retention.js`) |
@@ -762,6 +763,8 @@ npm run typecheck                                                # JSDoc-typecon
 TEST_DATABASE_URL=… npm run test:coverage                        # tests met dekkingsdrempel, zoals in CI
 node --test "tests/*.test.js"                                    # releasescript (vanuit de root)
 node tools/release-notes.js --check                              # fragmenten controleren
+cd app/web && npm ci && npm run lint && npm run typecheck        # frontend: ESLint (v-html verboden) en vue-tsc
+npm run test:coverage && npm run build                           # frontend: Vitest met dekkingsdrempel en Vite-bouw
 ```
 
 ### Testdata (alleen testomgeving)

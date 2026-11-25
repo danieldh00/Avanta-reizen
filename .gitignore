@@ -10,3 +10,7 @@ data/
 
 # Kopie van .env die servertaken.sh sleutel-roteren maakt (bevat sleutels).
 .env.voor-sleutelrotatie-*
+
+# Uitvoer van de frontend: wordt bij het bouwen van het image gemaakt (app/web/, `npm run build`).
+app/web/dist/
+app/web/coverage/

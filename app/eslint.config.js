@@ -13,7 +13,8 @@ const security = require('eslint-plugin-security');
 
 module.exports = [
   {
-    ignores: ['node_modules/**', 'public/**/*.min.js', 'coverage/**'],
+    // De frontend (`web/`) heeft een eigen configuratie met de regels voor TypeScript en Vue (`web/eslint.config.js`).
+    ignores: ['node_modules/**', 'public/**/*.min.js', 'coverage/**', 'web/**'],
   },
   js.configs.recommended,
   security.configs.recommended,
