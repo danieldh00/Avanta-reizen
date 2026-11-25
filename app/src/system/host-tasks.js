@@ -37,6 +37,12 @@ const HOST_TASKS = [
     description: 'Werkt de testomgeving bij naar de nieuwste versie en controleert dat de mappen en de systemd-units voor "Nu updaten" en de onderhoudsmodus bestaan. Normaal regelt de automatische update dit al zelf; deze taak is de controle daarop.',
     addedAt: '2026-11-20',
   },
+  {
+    id: '003-staging-verwijderen',
+    title: 'Stagingomgeving verwijderen',
+    description: 'De ombouw naar Vue is gestopt; de stagingomgeving die daarvoor naast de testomgeving stond, gaat weg: de timer en service voor het bijwerken, de containers, volumes en het image van staging, de map /opt/apps/avanta-staging en ongebruikte buildcache. De testomgeving zelf verandert niet. Op een server zonder staging doet de taak niets. Daarna nog met de hand: in Cloudflare de hostname van staging en de Access-applicatie van staging verwijderen.',
+    addedAt: '2026-11-25',
+  },
 ];
 
 /** Formaat van een taak-id. */

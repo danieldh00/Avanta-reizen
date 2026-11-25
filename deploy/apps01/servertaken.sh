@@ -243,6 +243,7 @@ remote_update_run() {
 # Alle taken, oudste eerst. Zelfde id's als HOST_TASKS in app/src/system/host-tasks.js (een test bewaakt dat).
 HOST_TASK_IDS=(
   001-updaten-vanuit-app-inrichten
+  003-staging-verwijderen
 )
 LEDGER="$STATUS_DIR/host-tasks.json"
 hosttask_function() { printf 'hosttask_%s' "${1//-/_}"; }
@@ -298,6 +299,37 @@ hosttask_001_updaten_vanuit_app_inrichten() {
   fi
   systemctl is-active --quiet avanta-update-now.path || { echo "FOUT: avanta-update-now.path is niet actief." >&2; return 1; }
   echo "Updaten vanuit de app is ingericht (avanta-update-now.path actief, mappen in $BASE_DIR/update)."
+}
+
+# Taak 003: de stagingomgeving van de gestopte ombouw naar Vue weghalen (docs/VUE-OMBOUW.md): timer en service, de
+# containers en volumes van het compose-project avanta-staging, het image, de map en ongebruikte buildcache. Raakt de
+# testomgeving (project avanta) en het netwerk van cloudflared niet. Veilig herhaalbaar: wat er niet is, wordt
+# overgeslagen. Op een server zonder staging doet de taak niets.
+STAGING_DIR="/opt/apps/avanta-staging"
+hosttask_003_staging_verwijderen() {
+  local ids
+  systemctl disable --now avanta-staging-update.timer >/dev/null 2>&1 || true
+  systemctl stop avanta-staging-update.service >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/avanta-staging-update.timer /etc/systemd/system/avanta-staging-update.service /usr/local/sbin/avanta-staging-update
+  systemctl daemon-reload || true
+  # Alleen wat Docker Compose aan het project avanta-staging hangt (label), nooit iets van de testomgeving.
+  ids="$(docker ps -aq --filter label=com.docker.compose.project=avanta-staging)"
+  [[ -n "$ids" ]] && docker rm -f $ids >/dev/null || true
+  ids="$(docker volume ls -q --filter label=com.docker.compose.project=avanta-staging)"
+  [[ -n "$ids" ]] && docker volume rm $ids >/dev/null || true
+  ids="$(docker network ls -q --filter label=com.docker.compose.project=avanta-staging)"
+  [[ -n "$ids" ]] && docker network rm $ids >/dev/null || true
+  docker image rm avanta-reizen-staging:local >/dev/null 2>&1 || true
+  docker image prune -f --filter label=nl.avantareizen.stack=avanta-staging >/dev/null || true
+  [[ -d "$STAGING_DIR" ]] && rm -rf --one-file-system -- "$STAGING_DIR" || true
+  docker builder prune -f >/dev/null || true
+  if systemctl list-unit-files avanta-staging-update.timer 2>/dev/null | grep -q avanta-staging \
+    || [[ -n "$(docker ps -aq --filter label=com.docker.compose.project=avanta-staging)" ]] || [[ -e "$STAGING_DIR" ]]; then
+    echo "FOUT: staging is niet helemaal weg (timer, containers of $STAGING_DIR)." >&2
+    return 1
+  fi
+  echo "Staging is weg: timer, service, containers, volumes, image en $STAGING_DIR. De testomgeving draait door."
+  echo "Nog met de hand: in Cloudflare de hostname van staging in de tunnel en de Access-applicatie van staging verwijderen."
 }
 
 # Toont wat er openstaat. Uitgangscode 10 = er is iets te doen (two_step vraagt dan om bevestiging).
