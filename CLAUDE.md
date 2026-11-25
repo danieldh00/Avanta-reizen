@@ -5,8 +5,7 @@
 
 > **Werkwijze en context:** de algemene werkwijze (projectonafhankelijk) staat in
 > `docs/WERKWIJZE.md`; de Avanta-specifieke context (product, bedrijfsregels, omgeving) in `docs/AVANTA-CONTEXT.md`;
-> de indeling in modules, de gedeelde kernbestanden en de regels voor parallel werken in `docs/ARCHITECTUUR.md`;
-> de ombouw naar Vue (besluiten, opbouw, `develop` en staging) in `docs/VUE-OMBOUW.md`.
+> de indeling in modules, de gedeelde kernbestanden en de regels voor parallel werken in `docs/ARCHITECTUUR.md`.
 
 ## Product
 Avanta Reizen: christelijke, avontuurlijke groepsreizen (kamperen, verre reizen, jeugd/jongeren/plus). Fase 1: de
@@ -28,10 +27,6 @@ Details en open vragen: `docs/AVANTA-CONTEXT.md` en `docs/OPZET-WEBSITE.md`.
   oplossen of met reden beantwoorden) → auto-merge. Na het mergen de branch verwijderen.
 - **Harde regel: nooit mergen zonder geslaagde Claude code review én security review** op de huidige head. Geen
   admin-merge, geen bypass van de ruleset. Wat de workflow zelf bewust overslaat (docs/tests-only) valt erbuiten.
-- **`develop`** is de integratiebranch van de ombouw naar Vue (`docs/VUE-OMBOUW.md`): alleen de migratiethread werkt
-  erin (branch vers vanaf `origin/develop`, PR naar `develop`, zelfde controles en dezelfde harde reviewregel).
-  `develop-sync.yml` voegt `main` elke nacht en na elke release samen in `develop`; per geaccepteerde module gaat één PR
-  van `develop` naar `main`. Al het andere werk blijft direct naar `main` gaan.
 - Loopt `main` voor op je branch: `git fetch origin main && git rebase origin/main` vlak voor de merge.
 - **Versie en releasenotes zijn automatisch**: een PR verandert `version` in `app/package.json` en `app/CHANGELOG.md`
   **niet**. Elke PR die `app/` wijzigt voegt één bestand `changes/<korte-naam>.md` toe (formaat: `changes/README.md`).
@@ -44,6 +39,9 @@ Details en open vragen: `docs/AVANTA-CONTEXT.md` en `docs/OPZET-WEBSITE.md`.
   gereviewd, een volgende push wordt alleen op het nieuwe deel beoordeeld; het model komt uit de repository-variabelen
   `CLAUDE_REVIEW_MODEL` (eerste review) en `CLAUDE_REVIEW_MODEL_PUSH` (per push). De reviews draaien op het
   Claude-abonnement (secret `CLAUDE_CODE_OAUTH_TOKEN`, aanmaken met `claude setup-token`).
+
+- **Geen Vue**: de ombouw naar Vue is op 25-11-2026 gestopt en helemaal teruggedraaid (besluit Daniël: trager dan de
+  schermen van de server; `docs/VUE-OMBOUW.md`). Schermen blijven server-gerenderd; niet opnieuw beginnen zonder zijn besluit.
 
 ## Stack en mappen
 Node 22 + Express 5 (routes met een patroon per parameter via `routePath`, `app/src/route-path.js`), server-gerenderde HTML, PostgreSQL 17 (enige database), geen CDN's. Eén bouwstap, alleen in het image: `app/tools/minify-public.js`
@@ -74,8 +72,6 @@ niet deze tabel (alleen een nieuwe map krijgt hier een regel).
 | `app/src/mail/` | mailer, opmaak en meldingen aan kantoor; details per bestand: `app/src/mail/CLAUDE.md` |
 | `app/src/security/` | kluis, limieten, netguard, captcha, CSP; details per bestand: `app/src/security/CLAUDE.md` |
 | `app/src/dev/seed/` | testdata voor de testomgeving (alleen via `servertaken.sh testdata`); details per bestand: `app/src/dev/seed/CLAUDE.md` |
-| `app/src/api/` | JSON-API onder `/app/api/` voor de nieuwe schermen: bescherming, foutformaat, invoer met zod, rechten in JSON; details per bestand: `app/src/api/CLAUDE.md` |
-| `app/web/` | frontend van het CRM (ombouw naar Vue, `docs/VUE-OMBOUW.md`): Vue 3 + TypeScript + Vite, eigen `package.json`, ingang per module in `src/modules/<module>/main.ts`, uitvoer `dist/` alleen in het image (stap `web`), geserveerd onder `/bundel/`; details: `app/web/CLAUDE.md` |
 | `app/public/` | `css/site.css` (huisstijl van de huidige site via `--av-*`-variabelen, breekpunten 1024/768), `css/crm.css` (opmaak van het CRM en Beheer, bouwstenen voor lijsten uit `crm/ui.js`, alleen daar geladen na `site.css`; breekpunt 800), `js/site.js` (kop, mobiel menu, zoekvenster), `js/rich-editor.js` + `js/rich-text-clean.js` (teksteditor van het CRM op elk `textarea.cms-richtext`), `images/theme/` (texturen uit het oude thema), fonts en logo lokaal |
 | `app/tools/import-wordpress.js` | import van de huidige site (`tools/import/parse.js`, `sanitize.js`) |
 | `app/tools/design-check/` | design-controle met Playwright op 1440/375: `seed.js` (testgegevens), `check.js` (`--full` of `--paths=`), `changed-screens.js` (gewijzigde bestanden → schermen voor de CI-job `design`; nieuwe module met schermen = regel in `SCREEN_RULES`), `ci-summary.js` (samenvatting bij de job), `page-checks.js` (metingen in de browser), `accessibility.js` (axe, `--axe`), `report.js` (.xlsx), `overview.js` (schermafbeeldingen per soort scherm), `login.js`, `credentials.js` (alleen lokaal), `guards.js` (alleen lokale database en app) |

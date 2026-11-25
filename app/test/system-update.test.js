@@ -11,11 +11,10 @@ const os = require('node:os');
 const path = require('node:path');
 const { createDatabase } = require('../src/database/db');
 const { createApp } = require('../src/server');
-const { recordFinishedRun, startUpdateSync, renderStagingFacts } = require('../src/beheer/update-routes');
+const { recordFinishedRun, startUpdateSync } = require('../src/beheer/update-routes');
 const { createSystemUpdate, parseChangelog, compareVersions, MAINTENANCE_MAX_MS } = require('../src/system/system-update');
 const { createHostTasks, HOST_TASKS, HOST_COMMAND } = require('../src/system/host-tasks');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { toString: toHtml } = require('../src/site/html');
 const { loginWithTwoFactor } = require('./helpers/two-factor');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -86,7 +85,7 @@ test('koppeling met het hostscript: status, aanvragen, controleren, intrekken en
   const requestDir = tempDir(testContext);
   let clock = Date.parse('2026-11-22T10:00:00Z');
   const update = createSystemUpdate({ statusDir, requestDir, currentVersion: '0.5.0', now: () => clock });
-  assert.deepEqual(createSystemUpdate({ currentVersion: '0.5.0' }).view(), { configured: false, running: '0.5.0', staging: null });
+  assert.deepEqual(createSystemUpdate({ currentVersion: '0.5.0' }).view(), { configured: false, running: '0.5.0' });
 
   // Niets van de host: geen nieuwere versie.
   assert.equal(update.view().newer, false);
@@ -166,39 +165,6 @@ test('koppeling met het hostscript: status, aanvragen, controleren, intrekken en
   writeJson(statusDir, 'maintenance.json', { since: new Date(clock - MAINTENANCE_MAX_MS - 1000).toISOString() });
   clock += 2500;
   assert.equal(update.hostMaintenance().active, false, 'te oud');
-});
-
-test('stagingomgeving: de stand van het bijwerken uit staging.json, gesaneerd', (testContext) => {
-  // Geen map: dit is geen staging.
-  assert.equal(createSystemUpdate({ currentVersion: '0.5.0' }).view().staging, null);
-
-  // Wel een map maar nog geen bestand: staging, alles nog onbekend.
-  const stagingDir = tempDir(testContext);
-  const update = createSystemUpdate({ stagingDir, currentVersion: '0.5.0' });
-  assert.deepEqual(update.view(), { configured: false, running: '0.5.0', staging: { track: null, commit: null, available: null, failed: null, checkedAt: null, deployedAt: null } });
-  const unknown = toHtml(renderStagingFacts(update.view()));
-  assert.match(unknown, /Volgt de branch<\/th><td>nog onbekend/);
-  assert.match(unknown, /de server controleert elk kwartier/);
-
-  // Bijgewerkt en gelijk aan de branch.
-  writeJson(stagingDir, 'staging.json', { track: 'develop', commit: CURRENT, available: CURRENT, failed: '', checkedAt: '2026-11-25T07:30:00Z', deployedAt: '2026-11-25T07:16:00Z' });
-  const current = update.view().staging;
-  assert.deepEqual(current, { track: 'develop', commit: CURRENT, available: CURRENT, failed: null, checkedAt: '2026-11-25T07:30:00.000Z', deployedAt: '2026-11-25T07:16:00.000Z' });
-  const upToDate = toHtml(renderStagingFacts(update.view()));
-  assert.match(upToDate, /0\.5\.0 <span class="field__help">\(aaaaaaa\)/);
-  assert.match(upToDate, /Volgt de branch<\/th><td>develop/);
-  assert.match(upToDate, /aaaaaaa <span class="field__help">\(draait al\)/);
-  assert.match(upToDate, /25 november 2026|25-11-2026/);
-
-  // Een nieuwere commit staat klaar, of start niet goed.
-  writeJson(stagingDir, 'staging.json', { track: 'develop', commit: CURRENT, available: AVAILABLE, failed: '' });
-  assert.match(toHtml(renderStagingFacts(update.view())), /bbbbbbb <span class="field__help">\(wordt binnen een kwartier geïnstalleerd\)/);
-  writeJson(stagingDir, 'staging.json', { track: 'develop', commit: CURRENT, available: AVAILABLE, failed: AVAILABLE });
-  assert.match(toHtml(renderStagingFacts(update.view())), /start niet goed en is overgeslagen/);
-
-  // Onzin in het bestand komt niet op het scherm.
-  writeJson(stagingDir, 'staging.json', { track: '<script>', commit: 'kort', available: 5, failed: null, checkedAt: 'gisteren', deployedAt: {} });
-  assert.deepEqual(update.view().staging, { track: null, commit: null, available: null, failed: null, checkedAt: null, deployedAt: null });
 });
 
 test('servertaken: afvinken door de server en met de hand', (testContext) => {
@@ -373,16 +339,6 @@ test('updates, onderhoudsmodus en servertaken in Beheer', { skip: !DATABASE_URL 
   assert.equal((await request('/app/beheer/updates/onderhoud/', { cookie, form: { _csrf: csrf, maintenanceMessage: '' } })).status, 303);
   assert.doesNotMatch((await request('/')).text, /maintenance-banner/);
   assert.equal((await request('/app/beheer/updates/onderhoud/', { cookie, form: { _csrf: csrf, maintenanceMessage: 'x'.repeat(301) } })).status, 422);
-
-  // Op de stagingomgeving toont het scherm de gevolgde branch en commit in plaats van de knoppen.
-  const normalView = systemUpdate.view;
-  systemUpdate.view = () => ({ ...normalView(), staging: { track: 'develop', commit: CURRENT, available: CURRENT, failed: null, checkedAt: null, deployedAt: null } });
-  const stagingPage = await request('/app/beheer/updates/', { cookie });
-  systemUpdate.view = normalView;
-  assert.equal(stagingPage.status, 200);
-  assert.match(stagingPage.text, /Dit is de stagingomgeving/);
-  assert.match(stagingPage.text, /Volgt de branch<\/th><td>develop/);
-  assert.doesNotMatch(stagingPage.text, /Nu updaten|komen van de branch main/);
 
   // Servertaken: vast commando, afvinken met de hand (audit), onbekende taak 404, server-afvinking telt.
   const tasksPage = await request('/app/beheer/servertaken/', { cookie });

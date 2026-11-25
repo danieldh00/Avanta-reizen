@@ -16,14 +16,13 @@ Korte ingang voor AI-agents. Details: `CLAUDE.md` (volledig werkgeheugen), `app/
 | `app/src/database/` | `db.js`, `migrations.js` (lader), `migrations/NNN-korte-naam.js` (één bestand per migratie, positioneel) |
 | `app/src/security/` | versleuteling gevoelige velden, rate limit |
 | `app/src/beheer/` | Beheer `/app/beheer/`: instellingen en secties per groep (`instellingen/<groep>.js`), opslag (`settings.js`), zoeken (`indeling.js`), routes |
-| `app/web/` | frontend van het CRM: Vue 3 + TypeScript + Vite, eigen `package.json`, lint/typecheck/tests in `app/web/` (`app/web/CLAUDE.md`) |
 | `app/tools/import-wordpress.js` | import van www.avantareizen.nl |
 | `app/test/` | `node --test`; DB-tests met `TEST_DATABASE_URL` |
 | `app/package.json`, `app/CHANGELOG.md` | versie en changelog (beide automatisch, nooit zelf) |
 | `changes/` | releasenotes-fragmenten (zie `changes/README.md`) |
 | `tools/release-notes.js` | verwerkt fragmenten na de merge; controleert PR's (`--pull-request`) |
 | `tests/` | `node --test` voor de hulpmiddelen |
-| `docs/` | `WERKWIJZE.md` (projectonafhankelijk), `AVANTA-CONTEXT.md` (product), `ARCHITECTUUR.md` (modules, kernbestanden, parallel werken), `VUE-OMBOUW.md` (ombouw naar Vue: besluiten, opbouw, `develop` en staging), `CLAUDE-sjabloon.md` |
+| `docs/` | `WERKWIJZE.md` (projectonafhankelijk), `AVANTA-CONTEXT.md` (product), `ARCHITECTUUR.md` (modules, kernbestanden, parallel werken), `CLAUDE-sjabloon.md` |
 | `.claude/agents/` | verkenners `map`, `callers`, `tests` |
 | `.github/workflows/` | `ci.yml`, `version.yml`, `release.yml`, `claude-review.yml`, `security.yml` |
 

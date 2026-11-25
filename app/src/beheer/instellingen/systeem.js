@@ -65,7 +65,6 @@ const GROUP = {
       words: 'bewaking monitoring incident incidenten melding alarm webhook heartbeat healthchecks uptime kuma teams slack discord ntfy schijf schijfruimte disk back-up hersteltest mail fouten',
     },
     { id: 'servertaken', label: 'Servertaken', view: 'servertaken', words: 'server servertaak taken commando proxmox pve apps01 host script afvinken' },
-    { id: 'bouwstenen', label: 'Bouwstenen', view: 'bouwstenen', words: 'bouwstenen vue frontend componenten voorbeeld schermen ombouw' },
   ],
 };
 

@@ -324,8 +324,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     met categorie, opgemaakt antwoord (veilige HTML, zoals een tekstblok) en volgorde. Wijzigingen staan meteen op
     `/faq/`, zonder concept. Een categorie hernoemen past de vragen aan (`faqs.category` is een afgeleide kopie, die het
     FAQ-blok gebruikt: kies in zo'n blok de categorie daarna opnieuw); verwijderen kan alleen bij een lege categorie.
-    Een vraag uit het CRM laat de WordPress-import staan. Audit `faq.*`. De schermen staan in Vue
-    (`app/web/src/modules/faq/`) en praten met de JSON-API `cms/faq-api.js`; de oude schermen van de server zijn weg.
+    Een vraag uit het CRM laat de WordPress-import staan. Audit `faq.*`.
   - **Reisleiders** op `/app/reisleiders/` (recht `reizen`, `app/src/trips/guides.js` en `guide-routes.js`, migratie
     22): voornaam, achternaam, adres (`/reisleider/<slug>/`; wijzigen geeft een 301), woonplaats, sinds, citaat,
     inleiding en tekst (veilige HTML), portret en tweede foto uit de fotobibliotheek, online/offline, nieuw (offline) en
@@ -560,8 +559,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     en *automatisch bijwerken* aan/uit (instelling `updateAuto`). De app rolt zelf niets uit: ze praat met
     `deploy/apps01/update.sh` via `/update/status` (alleen-lezen) en `/update/request` (`app/src/system/system-update.js`);
     de host bouwt eerst, zet dan de onderhoudsmodus aan, maakt een back-up, wisselt de container, controleert de versie
-    en valt bij een fout terug. Op de stagingomgeving (`STAGING_STATUS_DIR`) toont het scherm in plaats daarvan de
-    gevolgde branch, de draaiende en de nieuwste commit en de laatste controle. Onderhoudsmodus (`app/src/system/maintenance.js`): tijdens een update of met de hand
+    en valt bij een fout terug. Onderhoudsmodus (`app/src/system/maintenance.js`): tijdens een update of met de hand
     (instellingen `maintenanceMode`, `maintenanceMessage`) geeft elk schrijfverzoek 503 met een melding en staat er een
     balk op elke pagina; inloggen en uitloggen (en bij handmatig onderhoud het uitzetten) blijven werken. Alles in het
     auditlog, ook afgeronde uitrollen.
@@ -696,8 +694,7 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 | `docs/CLAUDE-sjabloon.md` | sjabloon voor `CLAUDE.md` in een volgend project |
 | `.claude/agents/` | verkenners `map`, `callers`, `tests` |
 | `app/` | de applicatie (`src/`, `public/`, `tools/import-wordpress.js`, `tools/minify-public.js` (alleen bij het bouwen van het image), `test/`); versie in `app/package.json` |
-| `app/web/` | frontend van het CRM (ombouw naar Vue): Vue 3 + TypeScript + Vite met een ingang per module, eigen `package.json`; uitvoer alleen in het image; zie `app/web/CLAUDE.md` en `docs/VUE-OMBOUW.md` |
-| `app/src/beheer/` | Beheer: `instellingen/<groep>.js` (instellingen en secties per groep), `settings.js` (opslag en controle), `indeling.js` (zijbalk en zoeken), `routes.js` (`/app/beheer/`), `mail-routes.js` (testmail, WAN-IP), `backup-routes.js` (back-ups), `drive-routes.js` (Google Drive), `restore-test-routes.js` (hersteltest), `update-routes.js` (updates en onderhoud), `host-task-routes.js` (servertaken), `bouwstenen-routes.js` (eerste scherm in Vue), `log-routes.js` (logboek), `monitor-routes.js` (bewaking), `go-live-check.js` + `go-live-routes.js` (livegang) |
+| `app/src/beheer/` | Beheer: `instellingen/<groep>.js` (instellingen en secties per groep), `settings.js` (opslag en controle), `indeling.js` (zijbalk en zoeken), `routes.js` (`/app/beheer/`), `mail-routes.js` (testmail, WAN-IP), `backup-routes.js` (back-ups), `drive-routes.js` (Google Drive), `restore-test-routes.js` (hersteltest), `update-routes.js` (updates en onderhoud), `host-task-routes.js` (servertaken), `log-routes.js` (logboek), `monitor-routes.js` (bewaking), `go-live-check.js` + `go-live-routes.js` (livegang) |
 | `app/src/crm/` | schil van `/app/` (`routes.js`), toegang (`login-routes.js`, `auth.js`, `two-factor.js`), gebruikers, rechten, opmaak en het overzicht |
 | `app/src/persons/` | personen en deelnemers, samenvoegen, inzage en wissen, deelnemerslijsten, AVG-opschoning (`retention.js`) |
 | `app/src/payments/` | betalingen per aanmelding, betalingsoverzicht, herinneringen, online betalen via Mollie |
@@ -723,14 +720,6 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 
 Alleen docs/CI zonder effect op de app: label `geen-releasenotes`.
 
-### Ombouw naar Vue: `develop`
-De ombouw van het CRM (en daarna de site) naar Vue loopt via de integratiebranch `develop`; besluiten, opbouw en
-werkwijze staan in `docs/VUE-OMBOUW.md`. Kort: alleen de migratiethread werkt naar `develop`, met dezelfde controles en
-reviews als naar `main`; `develop-sync.yml` voegt `main` elke nacht en na elke release samen in `develop` (bij een
-conflict: issue met het label `develop-sync`); per geaccepteerde module gaat één PR van `develop` naar `main`.
-Wat op `develop` staat is te bekijken op de stagingomgeving, een tweede opstelling naast de testomgeving met alleen
-testdata (`deploy/staging/`, servertaak `002-staging-inrichten`; uitleg in `deploy/apps01/README.md`, *Staging*).
-
 ### Toeleveringsketen (P7.2)
 - Elke GitHub Action staat op een volledige commit-SHA (`uses: owner/actie@<sha> # vX.Y.Z`) en elk container-image op
   een digest (`postgres:17@sha256:…`), in workflows, `app/Dockerfile`, beide `docker-compose.yml` en de deploy-scripts.
@@ -749,7 +738,6 @@ testdata (`deploy/staging/`, servertaak `002-staging-inrichten`; uitleg in `depl
 | Settings > Secrets and variables > Actions > *Variables* | `CLAUDE_REVIEW_MODEL` (eerste review) en `CLAUDE_REVIEW_MODEL_PUSH` (lichtere review per push); leeg = standaard |
 | Settings > Rules > Rulesets (branch `main`) | PR verplicht, geen force-push, bypass: *Repository admin* |
 | idem, *Require status checks* | `Claude code review`, `Claude security review`, `version-must-increase`, `test`, `image`, `secrets` (geheimenscan, sinds P7.2) |
-| Settings > Rules > Rulesets (branch `develop`) | de ruleset van `main` dupliceren met `develop` als doel: zelfde regels, zelfde verplichte controles, zelfde bypass (*Repository admin*, nodig voor `develop-sync.yml`); daarna de branch `develop` aanmaken vanaf `main` |
 | Settings > General | *Allow auto-merge* aan, *Automatically delete head branches* aan |
 | Settings > Code security | Secret scanning + push protection aan |
 | Issues > Labels | labels `geen-releasenotes` en `changelog-correctie` aanmaken |
@@ -765,8 +753,6 @@ npm run typecheck                                                # JSDoc-typecon
 TEST_DATABASE_URL=… npm run test:coverage                        # tests met dekkingsdrempel, zoals in CI
 node --test "tests/*.test.js"                                    # releasescript (vanuit de root)
 node tools/release-notes.js --check                              # fragmenten controleren
-cd app/web && npm ci && npm run lint && npm run typecheck        # frontend: ESLint (v-html verboden) en vue-tsc
-npm run test:coverage && npm run build                           # frontend: Vitest met dekkingsdrempel en Vite-bouw
 ```
 
 ### Testdata (alleen testomgeving)

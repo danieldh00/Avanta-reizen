@@ -38,9 +38,9 @@ const HOST_TASKS = [
     addedAt: '2026-11-20',
   },
   {
-    id: '002-staging-inrichten',
-    title: 'Stagingomgeving voor de ombouw naar Vue inrichten',
-    description: 'Zet naast de testomgeving een tweede opstelling neer (eigen map, eigen database, eigen geheimen, alleen verzonnen testdata) die de branch develop volgt en zich elke 15 minuten bijwerkt. De testomgeving zelf verandert niet. Daarna nog één keer met de hand: het stagingadres toevoegen in Cloudflare; de uitvoer van de taak zegt precies wat. Alleen bedoeld voor de testserver: vink de taak op een andere server met de hand af.',
+    id: '003-staging-verwijderen',
+    title: 'Stagingomgeving verwijderen',
+    description: 'De ombouw naar Vue is gestopt; de stagingomgeving die daarvoor naast de testomgeving stond, gaat weg: de timer en service voor het bijwerken, de containers, volumes en het image van staging en de map /opt/apps/avanta-staging (de buildcache ruimt de taak schijf op). De testomgeving zelf verandert niet. Op een server zonder staging doet de taak niets. Daarna nog met de hand: in Cloudflare de hostname van staging en de Access-applicatie van staging verwijderen.',
     addedAt: '2026-11-25',
   },
 ];

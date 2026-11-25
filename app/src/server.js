@@ -14,7 +14,6 @@ const { createBookingRouter } = require('./booking/routes');
 const { createAccountRouter } = require('./account/routes');
 const { createContactForm } = require('./contact/routes');
 const { createCrmRouter, generateSetupCode } = require('./crm/routes');
-const { WEB_DIST_DIR } = require('./crm/web-bundle');
 const seo = require('./site/seo');
 const { loadMasterKey, loadPreviousKeys } = require('./security/vault');
 const { siteSettingsOf } = require('./site/site-settings');
@@ -116,7 +115,7 @@ function parseTrustProxy(value) {
 
 /**
  * Bouwt de Express-app.
- * @param {{db: any, masterKey: Buffer, webDistDir?: string, previousKeys?: Buffer[], settings?: any, appLog?: any, systemUpdate?: any, updateStatusDir?: string, updateRequestDir?: string, mailer?: any, wanIp?: any, captcha?: any, captchaFetch?: Function, backups?: any, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, statfs?: Function, monitorRequest?: Function, monitorDataDir?: string, retentionToday?: () => string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, passwordCheckFetch?: Function, now?: () => number,
+ * @param {{db: any, masterKey: Buffer, previousKeys?: Buffer[], settings?: any, appLog?: any, systemUpdate?: any, updateStatusDir?: string, updateRequestDir?: string, mailer?: any, wanIp?: any, captcha?: any, captchaFetch?: Function, backups?: any, databaseUrl?: string, backupDir?: string, pgDumpPath?: string, googleFetch?: Function, statfs?: Function, monitorRequest?: Function, monitorDataDir?: string, retentionToday?: () => string, indexable?: boolean, siteUrl?: string, trustProxy?: string, setupCode?: string, secureCookies?: boolean, passwordCheckFetch?: Function, now?: () => number,
  *   mediaLimits?: any, paymentOverviewMaxRows?: number, auditExportMax?: number}} options Database,
  *   hoofdsleutel, de instellingen (standaard uit de database, `beheer/settings.js`), het logboek (standaard
  *   `system/app-log.js`; wegschrijven start pas met `appLog.start()` in `start()`), de koppeling met het updatescript
@@ -217,9 +216,6 @@ function createApp(options) {
   });
 
   app.use(express.static(PUBLIC_DIR, { maxAge: '7d', index: false, redirect: false }));
-  // Bundels van de nieuwe schermen (Vue, `web/`): alleen de map `assets/` (namen met een hash, dus een jaar in de cache);
-  // het manifest staat erbuiten en wordt nooit uitgeleverd.
-  app.use('/bundel/assets', express.static(path.join(options.webDistDir || WEB_DIST_DIR, 'assets'), { maxAge: '365d', immutable: true, index: false, redirect: false }));
   // Afbeeldingen: import en fotobibliotheek (tests geven een eigen map mee).
   // Importfoto's: de lichtere JPEG onder hetzelfde adres, als die er al is; `srcset` op de site via dezelfde index.
   useImageIndex(imageFormats.index);
@@ -227,7 +223,7 @@ function createApp(options) {
   app.use('/media', express.static(mediaDir, { maxAge: '30d', index: false, redirect: false, fallthrough: true }));
 
 
-  app.use('/app', createCrmRouter({ webDistDir: options.webDistDir, db: options.db, masterKey: options.masterKey, vault, settings, passwordCheck, redirects, mailer, wanIp, notifications, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, infobriefSender, mediaLibrary, menus, listHeaders, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, auditExportMax: options.auditExportMax, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
+  app.use('/app', createCrmRouter({ db: options.db, masterKey: options.masterKey, vault, settings, passwordCheck, redirects, mailer, wanIp, notifications, captcha, backups, drive, restoreTests, systemUpdate, hostTasks, appLog, monitor, retention, paymentReminders, onlinePayments, infobriefSender, mediaLibrary, menus, listHeaders, mediaLimits: options.mediaLimits, paymentOverviewMaxRows: options.paymentOverviewMaxRows, auditExportMax: options.auditExportMax, setupCode: options.setupCode, secureCookies: options.secureCookies, now: options.now }));
 
   const formKey = crypto.createHmac('sha256', options.masterKey).update('formulier-token').digest();
   // Eén lezer van `site-content.json` voor de site en het aanmeldformulier (kop van /aanmelden/).

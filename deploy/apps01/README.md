@@ -62,32 +62,6 @@ Beheer > Systeem > Servertaken, met één vast commando voor de Proxmox-host (al
 staan daarna afgevinkt in de app. Alleen kijken: `servertaken.sh status` (containers, updates, timers, schijf,
 geheugen, back-ups); verder `logs [uren]` en `update`.
 
-## Staging (ombouw naar Vue)
-
-Naast de testomgeving draait een tweede opstelling voor de ombouw naar Vue (`docs/VUE-OMBOUW.md` §4): map
-`/opt/apps/avanta-staging`, Docker-project `avanta-staging`, eigen PostgreSQL, eigen `.env` met eigen geheimen, alleen
-verzonnen testdata. Bestanden: `deploy/staging/compose.yml`, `.env.example` en `install-staging.sh`.
-
-- **Inrichten**: servertaak `002-staging-inrichten` (Beheer > Systeem > Servertaken, het vaste commando). De taak
-  draait `install-staging.sh`: code van `develop` (of `main` zolang `develop` niet bestaat), bouwen, database en
-  databaserol, starten, gezondheidscheck, de timer `avanta-staging-update.timer` (elke 15 minuten) en bij een lege
-  database de testdata. Weigert bij minder dan 6 GB vrije schijfruimte (eerst `servertaken.sh schijf`).
-- **Van de testomgeving** leest het script alleen de naam en het netwerk van de bestaande cloudflared uit haar `.env`.
-  Het wijzigt daar niets en kopieert geen gegevens of sleutels.
-- **Cloudflare, één keer met de hand**: bij dezelfde tunnel een public hostname
-  `avanta-staging.den-hollander.com -> http://avanta-staging-app:3400` (zelfde stappen als hieronder), en een
-  Access-toepassing op dat adres met een beleid dat alleen de beheerder toelaat.
-- **Bijwerken**: de timer volgt `develop`. Een commit die niet bouwt of niet gezond start, wordt teruggezet naar de
-  vorige en overgeslagen tot er een nieuwere is. Logboek: `journalctl -u avanta-staging-update`. Het script schrijft
-  bij elke run `/opt/apps/avanta-staging/status/staging.json` (branch, draaiende en nieuwste commit, tijdstippen); de
-  app toont dat onder Beheer > Systeem > Updates en onderhoud. Het versienummer verandert op staging niet per
-  wijziging (releasenotes worden pas op `main` verwerkt): de commit en het tijdstip zeggen of iets er staat.
-- **Inloggen**: `/app/inloggen/` met een testgebruiker (`<rol>@example.com`). De testdata bevat al gebruikers, dus
-  er is op staging geen installatiecode; het wachtwoord staat in de uitvoer van de servertaak.
-- **Niet aanwezig op staging**: updaten vanuit de app, de hersteltest, back-ups naar buiten, mail en online betalen.
-- **Weghalen**: `docker compose -p avanta-staging down -v`, de map `/opt/apps/avanta-staging` en de units
-  `avanta-staging-update.{service,timer}` verwijderen.
-
 ## Handmatige binding in Cloudflare (zonder API-token)
 
 **Zero Trust > Networks > Tunnels** > de tunnel van de cloudflared-container > **Public Hostname** (nieuw dashboard:

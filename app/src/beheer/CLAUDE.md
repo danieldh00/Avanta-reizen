@@ -17,7 +17,6 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `restore-test-routes.js` (hersteltest)
 - `update-routes.js` (updates, onderhoudsmodus)
 - `host-task-routes.js` (servertaken)
-- `bouwstenen-routes.js` (`/app/beheer/bouwstenen/`: het eerste scherm in Vue, koppelpunt van de module `beheer` in `app/web/src/modules/beheer/`; overzicht van de bouwstenen voor de design-controle)
 - `log-routes.js` (logboek)
 - `monitor-routes.js` (bewaking: stand, incidenten, testmelding)
 - `retention-routes.js` (AVG-opschoning: rondes, voorbeeld, Nu opschonen)

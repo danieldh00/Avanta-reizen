@@ -33,24 +33,10 @@ const { createContactModuleRoutes } = require('../contact');
 const { createInfobriefModuleRoutes } = require('../infobrief');
 const { createMenuCounters } = require('./menu-counters');
 const { createBeheerRoutes } = require('../beheer/routes');
-const { createApiRouter } = require('../api/router');
-const { createFaqApi } = require('../cms/faq-api');
-const { createWebBundle } = require('./web-bundle');
-const { sendApiError } = require('../api/errors');
-
-/**
- * Of een pad (binnen `/app`) bij de JSON-API hoort; Express routeert hoofdletterongevoelig.
- * @param {string} requestPath Pad binnen de router.
- * @returns {boolean} Waar voor `/api/…`.
- */
-function isApiPath(requestPath) {
-  const lower = requestPath.toLowerCase();
-  return lower === '/api' || lower.startsWith('/api/');
-}
 
 /**
  * Bouwt de CRM-router.
- * @param {{db: any, masterKey: Buffer, webDistDir?: string, vault?: any, settings: any, passwordCheck?: any, mailer?: any, wanIp?: any, notifications?: any, captcha?: any, backups?: any, drive?: any, restoreTests?: any, systemUpdate?: any, hostTasks?: any, appLog?: any, monitor?: any, auditExportMax?: number, setupCode?: string, secureCookies?: boolean, now?: () => number,
+ * @param {{db: any, masterKey: Buffer, vault?: any, settings: any, passwordCheck?: any, mailer?: any, wanIp?: any, notifications?: any, captcha?: any, backups?: any, drive?: any, restoreTests?: any, systemUpdate?: any, hostTasks?: any, appLog?: any, monitor?: any, auditExportMax?: number, setupCode?: string, secureCookies?: boolean, now?: () => number,
  *   redirects?: any, retention?: any, paymentReminders?: any, onlinePayments?: any, infobriefSender?: any,
  *   mediaLibrary?: any, menus?: any, listHeaders?: any, mediaLimits?: any, paymentOverviewMaxRows?: number}} options
  *   Database, hoofdsleutel, de instellingen (`beheer/settings.js`), de wachtwoordcontrole (`security/password-check.js`,
@@ -68,18 +54,12 @@ function createCrmRouter(options) {
   const persons = createPersons({ vault });
   const passwordCheck = options.passwordCheck || createPasswordCheck({ settings: options.settings, appLog: options.appLog, now: options.now });
   const router = express.Router();
-  // Bundels van de nieuwe schermen in Vue (`web/`), per module opgezocht in het manifest van Vite.
-  const webBundle = createWebBundle({ distDir: options.webDistDir });
   // Algemene limiet op alles onder /app/ (ook de sessiecontrole kost een databasevraag per verzoek).
   const generalLimiter = createRateLimiter({ limit: 300, windowMs: 60 * 1000, now: options.now });
 
   router.use((req, res, next) => {
     res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' });
     if (!generalLimiter.hit(clientKey(req))) {
-      if (isApiPath(req.path)) {
-        res.set('Retry-After', '60');
-        return sendApiError(res, 'te-veel');
-      }
       return res.status(429).set('Retry-After', '60').type('text').send('Te veel verzoeken. Probeer het over een minuut opnieuw.');
     }
     return next();
@@ -108,9 +88,6 @@ function createCrmRouter(options) {
     return smallForms(req, res, next);
   });
   router.use(auth.loadSession);
-  // JSON-API voor de nieuwe schermen (`api/router.js`), vóór de tellers van het menu (die horen alleen bij pagina's).
-  // Een module koppelt haar API-routes met een fabriek in `modules`.
-  router.use('/api', createApiRouter({ auth, db, appLog: options.appLog, now: options.now, modules: [createFaqApi] }));
   // Tellers naast menu-items (nieuwe berichten), alleen voor pagina's en met het recht (`crm/menu-counters.js`).
   router.use(createMenuCounters({ db }));
 
@@ -124,7 +101,7 @@ function createCrmRouter(options) {
   router.use(createAuditRoutes({ db, auth, now: options.now, exportMax: options.auditExportMax }));
   // De modules met een eigen ingang: elk koppelt zijn eigen routes (`<module>/index.js`). Elke module heeft eigen
   // adressen (`/deelnemers/`, `/aanmeldingen/`, `/betalingen/`, …), dus de volgorde tussen modules maakt niet uit.
-  const moduleContext = { ...options, db, auth, persons, webBundle };
+  const moduleContext = { ...options, db, auth, persons };
   router.use(createPersonsModuleRoutes(moduleContext));
   router.use(createBookingModuleRoutes(moduleContext));
   router.use(createPaymentsModuleRoutes(moduleContext));
@@ -133,7 +110,7 @@ function createCrmRouter(options) {
   router.use(createCmsModuleRoutes(moduleContext));
   router.use(createContactModuleRoutes(moduleContext));
   router.use(createInfobriefModuleRoutes(moduleContext));
-  router.use(createBeheerRoutes({ db, auth, webBundle, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, passwordCheck, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, retention: options.retention, now: options.now }));
+  router.use(createBeheerRoutes({ db, auth, settings: options.settings, redirects: options.redirects, mailer: options.mailer, wanIp: options.wanIp, captcha: options.captcha, passwordCheck, backups: options.backups, drive: options.drive, restoreTests: options.restoreTests, systemUpdate: options.systemUpdate, hostTasks: options.hostTasks, appLog: options.appLog, monitor: options.monitor, retention: options.retention, now: options.now }));
 
   router.use((req, res) => {
     res.status(404).send(renderCrmPage({

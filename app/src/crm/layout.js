@@ -18,7 +18,6 @@ const { roleHasRight, roleHasGlobalRight, roleLabel } = require('./rights');
 const { renderMaintenanceBanner } = require('../site/layout');
 const { GROUPS: BEHEER_GROUPS, normalizeSearch } = require('../beheer/indeling');
 const { canSearch } = require('./search');
-const { renderBundleHead } = require('./web-bundle');
 
 /** Versie van de statische bestanden, tegen verouderde caches. */
 const ASSET_VERSION = require('../../package.json').version;
@@ -377,12 +376,11 @@ function renderPageHead(page) {
 
 /**
  * Maakt een volledige CRM-pagina.
- * @param {{title: string, body: any, user?: (any|null), csrf?: string, path?: string, beheer?: any, actions?: any, search?: string, bundle?: any}} page
+ * @param {{title: string, body: any, user?: (any|null), csrf?: string, path?: string, beheer?: any, actions?: any, search?: string}} page
  *   Titel, inhoud, de ingelogde gebruiker (zonder: geen zijbalk), het CSRF-token voor de uitlogknop, het huidige pad
  *   (een menu-item is actief op zijn eigen pad en alles eronder; het langste item wint; een pad van Beheer krijgt de
  *   tweede zijbalk), op instellingenpagina's de gefilterde groepen en zoekterm (`{groups, query}`) en op de zoekpagina
- *   de zoekterm voor het zoekveld in de kopbalk. `bundle`: de bestanden van een module in Vue (`crm/web-bundle.js`,
- *   `assetsFor`); de body is dan het koppelpunt (`renderMountPoint`).
+ *   de zoekterm voor het zoekveld in de kopbalk.
  * @returns {string} De HTML.
  */
 function renderCrmPage(page) {
@@ -397,7 +395,7 @@ function renderCrmPage(page) {
   <title>${page.title} - Avanta CRM</title>
   <link rel="icon" type="image/png" href="/images/favicon.png">
   <link rel="stylesheet" href="/css/site.css?v=${ASSET_VERSION}">
-  <link rel="stylesheet" href="/css/crm.css?v=${ASSET_VERSION}">${renderBundleHead(page.bundle)}
+  <link rel="stylesheet" href="/css/crm.css?v=${ASSET_VERSION}">
 </head>
 <body class="crm${user ? ' crm--nav' : ''}${inBeheer ? ' crm--beheer' : ''}">
   <a class="skip-link" href="#inhoud">Naar de inhoud</a>

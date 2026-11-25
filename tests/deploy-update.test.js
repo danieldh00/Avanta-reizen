@@ -220,6 +220,61 @@ exit 0
   assert.doesNotMatch(calls, /volume (rm|prune)|system prune|container prune/, 'volumes en containers blijven staan');
 });
 
+test('servertaak 003: verwijdert alleen staging en faalt als iets blijft staan of Docker weg is', (testContext) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'staging-weg-'));
+  testContext.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, 'bin'));
+  const callsFile = path.join(dir, 'calls');
+  // Nep-docker: geeft per lijst een id terug zolang LEFT niet leeg is; DOWN=1 = daemon onbereikbaar.
+  fs.writeFileSync(path.join(dir, 'bin', 'docker'), `#!/bin/bash
+echo "$*" >> "${callsFile}"
+[[ "$DOWN" == 1 ]] && exit 1
+case "$1" in
+  ps|volume|network) [[ "$*" == *avanta-staging* && -n "$LEFT" ]] && echo "$LEFT" ;;
+esac
+exit 0
+`, { mode: 0o755 });
+  fs.writeFileSync(path.join(dir, 'bin', 'systemctl'), `#!/bin/bash\necho "systemctl $*" >> "${callsFile}"\nexit 0\n`, { mode: 0o755 });
+  const script = fs.readFileSync(path.join(DEPLOY, 'servertaken.sh'), 'utf8');
+  const taskCode = script.slice(script.indexOf('STAGING_DIR='), script.indexOf('\n}\n', script.indexOf('hosttask_003_staging_verwijderen()')) + 3);
+  const run = (extra) => {
+    fs.rmSync(callsFile, { force: true });
+    const out = spawnSync('bash', ['-c', `set -euo pipefail\n${taskCode}\nhosttask_003_staging_verwijderen`], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${path.join(dir, 'bin')}:${process.env.PATH}`, ...extra },
+    });
+    return { ...out, calls: fs.existsSync(callsFile) ? fs.readFileSync(callsFile, 'utf8') : '' };
+  };
+  const stagingDir = path.join(dir, 'avanta-staging');
+
+  fs.mkdirSync(path.join(stagingDir, 'repo'), { recursive: true });
+  const done = run({ STAGING_DIR: stagingDir, LEFT: '' });
+  assert.equal(done.status, 0, done.stderr);
+  assert.match(done.stdout, /Staging is weg/);
+  assert.equal(fs.existsSync(stagingDir), false, 'de map van staging is weg');
+  assert.match(done.calls, /^systemctl disable --now avanta-staging-update\.timer$/m);
+  for (const line of done.calls.split('\n').filter((call) => /^(ps|volume|network|image prune)/.test(call))) {
+    assert.match(line, /avanta-staging/, `alleen staging: ${line}`);
+  }
+  assert.doesNotMatch(done.calls, /builder prune|system prune|project=avanta(?!-staging)/, 'testomgeving en buildcache blijven');
+
+  const left = run({ STAGING_DIR: stagingDir, LEFT: 'abc123' });
+  assert.equal(left.status, 1);
+  assert.match(left.stderr, /niet helemaal weg/);
+  assert.match(left.calls, /^rm -f abc123$/m);
+
+  const down = run({ STAGING_DIR: stagingDir, DOWN: '1' });
+  assert.equal(down.status, 1);
+  assert.match(down.stderr, /Docker is niet bereikbaar/);
+  assert.doesNotMatch(down.calls, /systemctl/, 'zonder Docker verandert er niets');
+
+  // Alleen een volume blijft staan: ook dat telt als "niet weg".
+  fs.writeFileSync(path.join(dir, 'bin', 'docker'), `#!/bin/bash\necho "$*" >> "${callsFile}"\n[[ "$1" == volume && "$2" == ls ]] && echo vol1\nexit 0\n`, { mode: 0o755 });
+  const volume = run({ STAGING_DIR: stagingDir });
+  assert.equal(volume.status, 1);
+  assert.match(volume.stderr, /niet helemaal weg/);
+});
+
 test('alle hostscripts zijn geldige bash', () => {
   for (const name of fs.readdirSync(DEPLOY).filter((file) => file.endsWith('.sh'))) {
     const out = spawnSync('bash', ['-n', path.join(DEPLOY, name)], { encoding: 'utf8' });
