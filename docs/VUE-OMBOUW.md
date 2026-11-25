@@ -5,7 +5,8 @@ met alle PR's, risico's en de inschatting staat in de projectbestanden (`plan/pl
 `plan/plan-vue-ombouw.xlsx`). Wie de werkwijze of de opbouw verandert, werkt dit bestand bij in dezelfde PR.
 
 Stand: fase V1 (fundament) op `develop`. V1.1: het Vite-project `app/web/` (zie §7). V1.2: het API-fundament (§8). V1.3: het
-koppelpunt in de schil en het eerste scherm in Vue (§9).
+koppelpunt in de schil en het eerste scherm in Vue (§9). V1.4: de bouwstenen voor lijsten, formulieren en meldingen
+(`app/web/CLAUDE.md`).
 
 ## 1. Besluiten
 

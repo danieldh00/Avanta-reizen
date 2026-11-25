@@ -22,7 +22,15 @@ gemaakt (Dockerfile, stap `web`) en staat niet in git. Alles wordt geserveerd on
   `#inhoud` na elke navigatie), `module-root.vue` (standaard buitenste component), `not-found-screen.vue` (onbekend
   pad binnen een module). Na het eerste scherm krijgt het koppelpunt `data-klaar="ja"` (of `fout`); de
   design-controle (`app/tools/design-check/check.js`) wacht daarop.
-- `src/components/`: bouwstenen (vanaf V1.4). `rich-text-clean.d.ts` geeft de typen van de opschoner van de
+- `src/components/`: bouwstenen, elk met de klassen van de bestaande schermen (`crm.css`, `app/src/crm/ui.js`):
+  `data-table.vue` (lijst, op mobiel kaarten via `data-label`; eigen cel via slot `cel-<sleutel>`),
+  `status-badge.vue`, `filter-tabs.vue` (links met de filter in het adres, gewone klik zonder herladen),
+  `search-field.vue`, `pager-nav.vue`, `tab-panels.vue` (één paneel zichtbaar, stip bij een fout, slot
+  `tab-<sleutel>`), `save-bar.vue`, `form-field.vue` (label, hulp en fout gekoppeld via slot-eigenschappen),
+  `text-field.vue` (`v-model`), `confirm-dialog.vue` (modaal `<dialog>`, focus op Annuleren en terug naar de knop),
+  `status-message.vue` (`notice`/`form-alert`, `role` status of alert). Tests: `list-components.spec.ts`,
+  `form-components.spec.ts`, `feedback-components.spec.ts`. Elke nieuwe bouwsteen krijgt een voorbeeld op het
+  overzicht van de bouwstenen. `rich-text-clean.d.ts` geeft de typen van de opschoner van de
   teksteditor (`app/public/js/rich-text-clean.js`, gedeeld met de server); `rich-text-clean.spec.ts` bewijst dat die
   in de frontend te importeren is.
 - `src/api/`: `client.ts` (getypte client `api` en `createApiClient`: zelfde herkomst, kop `X-Avanta-Api: 1`, geen

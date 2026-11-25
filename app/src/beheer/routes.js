@@ -366,8 +366,8 @@ function createBeheerRoutes(options) {
 
   if (options.systemUpdate) router.use(createUpdateRoutes({ db, auth, guard, settings, systemUpdate: options.systemUpdate, renderBeheerPage, now: options.now }).router);
   if (options.hostTasks) router.use(createHostTaskRoutes({ auth, guard, settings, hostTasks: options.hostTasks, renderBeheerPage, notFound, now: options.now }));
-  // De lezer van site-content.json is dezelfde als die van de publieke site (`services.js`), zodat de controle toont wat de site uitlevert.
   if (options.webBundle) router.use(createBouwstenenRoutes({ guard, webBundle: options.webBundle, renderBeheerPage }));
+  // De lezer van site-content.json is dezelfde als die van de publieke site (`services.js`), zodat de controle toont wat de site uitlevert.
   router.use(createGoLiveRoutes({ db, guard, settings, renderBeheerPage, now: options.now }));
   router.use(createLogRoutes({ db, guard, settings, appLog: options.appLog, renderBeheerPage, now: options.now }));
   if (options.restoreTests) router.use(createRestoreTestRoutes({ auth, guard, settings, restoreTests: options.restoreTests, renderBeheerPage, now: options.now }));
