@@ -253,9 +253,11 @@ function createFaqs(options) {
    */
   const updateQuestion = (id, values, context) => db.transaction(async (client) => {
     if (!validId(id)) return { status: 'weg' };
+    // Eerst de categorie, dan de vraag: dezelfde volgorde als `updateCategory` en `reorderQuestions`, zodat gelijktijdig
+    // werk op dezelfde categorie op elkaar wacht in plaats van vast te lopen.
+    const category = await lockCategory(client, values.categoryId);
     const [question] = await client.query('SELECT id FROM faqs WHERE id = $1 FOR UPDATE', [Number(id)]);
     if (!question) return { status: 'weg' };
-    const category = await lockCategory(client, values.categoryId);
     if (!category) return { status: 'fout', errors: { category_id: 'Kies een categorie.' } };
     await client.query(
       `UPDATE faqs SET question = $2, answer_html = $3, category = $4, category_id = $5, sort_order = $6, managed_in_crm = true,
@@ -309,10 +311,10 @@ function createFaqs(options) {
    */
   const reorderQuestions = (categoryId, ids, context) => db.transaction(async (client) => {
     if (!validId(categoryId)) return { status: 'weg' };
-    // Zelfde volgorde van vergrendelen als `updateQuestion`: eerst de vragen, dan de categorie (geen deadlock).
-    const rows = await client.query('SELECT id FROM faqs WHERE category_id = $1 ORDER BY id FOR UPDATE', [Number(categoryId)]);
+    // Volgorde van vergrendelen overal gelijk: eerst de categorie, dan de vragen (zoals `updateCategory` en `updateQuestion`).
     const category = await lockCategory(client, String(categoryId));
     if (!category) return { status: 'weg' };
+    const rows = await client.query('SELECT id FROM faqs WHERE category_id = $1 ORDER BY id FOR UPDATE', [category.id]);
     if (!sameIds(rows.map((row) => row.id), ids)) return { status: 'fout' };
     await client.query(
       `UPDATE faqs f SET sort_order = n.position * 10, managed_in_crm = true, updated_at = now(), updated_by = $2

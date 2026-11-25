@@ -190,12 +190,17 @@ test('FAQ-API in de echte app', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     assert.deepEqual(betalen.vragen.map((question) => [question.id, question.volgorde]), [[ids.betaal, 10], [ids.paspoort, 20]]);
     assert.equal(await audits('faq.volgorde-gewijzigd'), 2);
 
-    // Tegelijk een vraag wijzigen en de volgorde zetten: beide lukken (zelfde volgorde van vergrendelen).
-    const [edit, order] = await Promise.all([
-      editor.put(`/faq/vragen/${ids.betaal}/`, { vraag: 'Hoe betaal ik?', antwoord: '<p>Via de bank</p>', categorieId: ids.betalen }),
-      editor.put(`/faq/categorieen/${ids.betalen}/volgorde/`, { vragen: [ids.betaal, ids.paspoort] }),
-    ]);
-    assert.deepEqual([edit.status, order.status], [200, 200]);
+    // Gelijktijdig werk op dezelfde categorie (vraag wijzigen, categorie hernoemen en volgorde zetten) wacht op elkaar
+    // en loopt nooit vast: overal eerst de categorie, dan de vragen. Een paar rondes, want het moment verschilt.
+    for (let round = 0; round < 5; round += 1) {
+      const responses = await Promise.all([
+        editor.put(`/faq/vragen/${ids.betaal}/`, { vraag: 'Hoe betaal ik?', antwoord: '<p>Via de bank</p>', categorieId: ids.betalen }),
+        editor.put(`/faq/categorieen/${ids.betalen}/`, { naam: round % 2 ? 'Betalen' : 'Betalen nu' }),
+        editor.put(`/faq/categorieen/${ids.betalen}/volgorde/`, { vragen: [ids.betaal, ids.paspoort] }),
+      ]);
+      assert.deepEqual(responses.map((response) => response.status), [200, 200, 200], `ronde ${round}`);
+    }
+    await editor.put(`/faq/categorieen/${ids.betalen}/`, { naam: 'Betalen' });
   });
 
   await testContext.test('categorie hernoemen gaat mee naar de vragen; verwijderen alleen leeg', async () => {
