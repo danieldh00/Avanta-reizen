@@ -324,8 +324,7 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     met categorie, opgemaakt antwoord (veilige HTML, zoals een tekstblok) en volgorde. Wijzigingen staan meteen op
     `/faq/`, zonder concept. Een categorie hernoemen past de vragen aan (`faqs.category` is een afgeleide kopie, die het
     FAQ-blok gebruikt: kies in zo'n blok de categorie daarna opnieuw); verwijderen kan alleen bij een lege categorie.
-    Een vraag uit het CRM laat de WordPress-import staan. Audit `faq.*`. De schermen staan in Vue
-    (`app/web/src/modules/faq/`) en praten met de JSON-API `cms/faq-api.js`; de oude schermen van de server zijn weg.
+    Een vraag uit het CRM laat de WordPress-import staan. Audit `faq.*`.
   - **Reisleiders** op `/app/reisleiders/` (recht `reizen`, `app/src/trips/guides.js` en `guide-routes.js`, migratie
     22): voornaam, achternaam, adres (`/reisleider/<slug>/`; wijzigen geeft een 301), woonplaats, sinds, citaat,
     inleiding en tekst (veilige HTML), portret en tweede foto uit de fotobibliotheek, online/offline, nieuw (offline) en

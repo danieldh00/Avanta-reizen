@@ -155,7 +155,7 @@ test('scherm Bouwstenen in de echte app: koppelpunt in de schil, CSP gelijk, bes
   assert.match(missing.text, /niet beschikbaar/);
   assert.doesNotMatch(missing.text, /id="crm-app"|type="module"/);
 
-  // De FAQ (fase V2): met bundel het koppelpunt van de module `faq` op dezelfde adressen; zonder bundel een melding.
+  // De FAQ (fase V2): met bundel het koppelpunt van de module `faq` op dezelfde adressen; zonder bundel de oude schermen.
   const [category] = await db.query("INSERT INTO faq_categories (name, sort_order) VALUES ('Reizen & meer', 10) RETURNING id");
   const [question] = await db.query("INSERT INTO faqs (slug, question, answer_html, category, category_id) VALUES ('paspoort', 'Paspoort nodig?', '<p>Ja</p>', 'Reizen & meer', $1) RETURNING id", [category.id]);
   const redacteur = await login('redacteur');
@@ -173,7 +173,7 @@ test('scherm Bouwstenen in de echte app: koppelpunt in de schil, CSP gelijk, bes
   assert.equal((await get(`${base}/app/faq/999999/`, redacteur)).status, 404, 'onbekende vraag: 404 van de server');
   assert.equal((await get(`${base}/app/faq/categorieen/999999/`, redacteur)).status, 404);
   assert.equal((await get(`${base}/app/faq/`, beheerder)).status, 200);
-  const withoutBundle = await get(`${emptyBase}/app/faq/`, redacteur);
-  assert.match(withoutBundle.text, /niet beschikbaar/, 'zonder bundel een melding, geen oud scherm');
-  assert.doesNotMatch(withoutBundle.text, /id="crm-app"|Paspoort nodig\?/);
+  const oldScreen = await get(`${emptyBase}/app/faq/`, redacteur);
+  assert.match(oldScreen.text, /Paspoort nodig\?/, 'zonder bundel het scherm van de server');
+  assert.doesNotMatch(oldScreen.text, /id="crm-app"/);
 });
