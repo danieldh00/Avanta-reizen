@@ -78,9 +78,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: |
-            app/package-lock.json
-            app/web/package-lock.json
+          cache-dependency-path: app/package-lock.json
       - name: Tests (hulpmiddelen)
         run: node --test "tests/*.test.js"
       - name: Releasenotes-fragmenten controleren
@@ -110,29 +108,6 @@ jobs:
         run: npm run test:coverage
       - name: Kwetsbaarheden in afhankelijkheden
         working-directory: app
-        run: npm audit --omit=dev --audit-level=high
-      # Frontend van het CRM (Vue + TypeScript, app/web/, eigen package.json): lint met het verbod op v-html,
-      # typecontrole met vue-tsc, tests met een eigen dekkingsdrempel (vite.config.ts) en een proefbouw.
-      - name: Afhankelijkheden frontend
-        working-directory: app/web
-        run: npm ci
-      - name: Lint frontend (ESLint met Vue en TypeScript)
-        working-directory: app/web
-        run: npm run lint
-      - name: Typecontrole frontend (vue-tsc)
-        working-directory: app/web
-        run: npm run typecheck
-      - name: Tests frontend (Vitest) met dekkingsdrempel
-        working-directory: app/web
-        run: npm run test:coverage
-      - name: Frontend bouwen (Vite)
-        working-directory: app/web
-        run: npm run build
-      - name: Bundel controleren op de CSP (geen eval, geen HTML)
-        working-directory: app/web
-        run: npm run check:bundle
-      - name: Kwetsbaarheden in afhankelijkheden frontend
-        working-directory: app/web
         run: npm audit --omit=dev --audit-level=high
 
   # Bouwt het image en controleert of het start (health-check tegen een echte PostgreSQL).
@@ -217,15 +192,9 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: |
-            app/package-lock.json
-            app/web/package-lock.json
+          cache-dependency-path: app/package-lock.json
       - name: Afhankelijkheden app
         run: npm ci
-      # Eerst de frontend bouwen: de schermen in Vue laden hun bundel uit web/dist/ (de controle wacht op data-klaar).
-      - name: Frontend bouwen
-        working-directory: app/web
-        run: npm ci && npm run build
       - name: Playwright met Chromium en axe-core (geen dependencies van de app)
         run: |
           npm install --no-save playwright@1.63.0 axe-core@4.14.1

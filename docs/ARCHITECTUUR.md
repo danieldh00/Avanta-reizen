@@ -50,7 +50,6 @@ aan de coördinator vóór hij begint; twee threads werken nooit tegelijk in het
 | `crm/routes.js` | schil van `/app/` (limiet, formuliergrootte, sessie) en de lijst van modules | **opgesplitst**: zie §3a; alleen een nieuwe module of een andere formuliergrootte raakt dit bestand |
 | `beheer/settings.js`, `beheer/indeling.js` | elke nieuwe instelling | **opgesplitst**: instellingen en secties per groep in `beheer/instellingen/<groep>.js`, zie §3b |
 | `server.js`, `services.js` | Express-app en volgorde van de middleware; alle diensten en achtergrondtaken | **opgesplitst**: `server.js` koppelt, `services.js` maakt de diensten per module aan en start de timers; een nieuwe dienst is een paar regels bij zijn module in `services.js` |
-| `api/` (router, bescherming, foutformaat, schema) en `app/web/src/shell/`, `app/web/src/api/` | fundament van de JSON-API en de frontend voor alle modules | blijft gedeeld: een module koppelt haar API met één regel in `crm/routes.js` en raakt deze bestanden verder niet |
 | `crm/layout.js` | menu van het CRM (`CRM_MENU`) | blijft gedeeld: één regel per nieuw scherm |
 | `public/css/site.css`, `public/css/crm.css` | alle opmaak | blijft gedeeld: één bestand per soort pagina; in het image verkleind door `tools/minify-public.js`, de bron blijft leesbaar |
 | `CLAUDE.md` | werkgeheugen | **opgesplitst**: per map een eigen `app/src/<map>/CLAUDE.md` met de bestanden van die map; de root bevat de algemene regels en één regel per map |
@@ -103,9 +102,7 @@ aan de coördinator vóór hij begint; twee threads werken nooit tegelijk in het
 Het CRM, Beheer en daarna de publieke site gaan module voor module naar Vue. De bron komt in `app/web/`, met per
 module een map `src/modules/<module>/` die dezelfde naam heeft als de module in `app/src/`; de JSON-routes van een
 onderwerp staan in `<onderwerp>-api.js` naast het bestaande routebestand. Een thread die een module heeft, heeft beide
-mappen. Een module koppelt haar JSON-routes met een fabriek in de lijst `modules` bij `createApiRouter` in
-`crm/routes.js` (regels: `app/src/api/CLAUDE.md`). Besluiten, opbouw en de werkwijze met `develop` en staging:
-`docs/VUE-OMBOUW.md`.
+mappen. Besluiten, opbouw en de werkwijze met `develop` en staging: `docs/VUE-OMBOUW.md`.
 
 ## 4. Regels voor parallel werken
 

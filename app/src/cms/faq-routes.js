@@ -8,7 +8,6 @@ const express = require('express');
 const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
-const { renderMountPoint } = require('../crm/web-bundle');
 const { fieldRow, invalidAttributes, RICHTEXT_HELP } = require('./block-editor');
 const { createFaqs, validateCategoryFields, validateQuestionFields, FAQ_LIMITS } = require('./faqs');
 
@@ -23,7 +22,6 @@ const FAQ_ACTION_LABELS = {
   'faq.categorie-nieuw': 'FAQ-categorie toegevoegd',
   'faq.categorie-gewijzigd': 'FAQ-categorie gewijzigd',
   'faq.categorie-verwijderd': 'FAQ-categorie verwijderd',
-  'faq.volgorde-gewijzigd': 'Volgorde van de FAQ gewijzigd',
 };
 
 /** Meldingen op het overzicht (`?melding=<n>`). */
@@ -67,12 +65,8 @@ function questionForm(form) {
 }
 
 /**
- * Maakt de routes voor de FAQ. Is de bundel van de schermen in Vue er (`app/web/src/modules/faq/`, in het image
- * altijd), dan geven de GET-routes de pagina met het koppelpunt en praten de schermen met `faq-api.js`; zonder bundel
- * (lokaal zonder bouwstap, de tests) blijven de schermen van de server werken. De oude schermen gaan weg na de
- * overgang naar `main` (fase V2 van de ombouw, `docs/VUE-OMBOUW.md` §5).
- * @param {{db: any, auth: any, webBundle?: {assetsFor: (name: string) => any}}} options Database, sessie- en
- *   rechtenlaag en de lezer van het manifest van de bundels.
+ * Maakt de routes voor de FAQ.
+ * @param {{db: any, auth: any}} options Database en sessie- en rechtenlaag.
  * @returns {express.Router} Router.
  */
 function createFaqRoutes(options) {
@@ -99,20 +93,6 @@ function createFaqRoutes(options) {
    * @returns {string} HTML.
    */
   const page = (req, title, body) => renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, body });
-
-  /**
-   * Stuurt de pagina met het koppelpunt van de schermen in Vue, als de bundel er is.
-   * @param {any} req Express-verzoek.
-   * @param {any} res Express-antwoord.
-   * @param {string} title Titel van de pagina (het scherm in Vue zet hem bij elke wissel opnieuw).
-   * @returns {boolean} Waar als de pagina is gestuurd; onwaar zonder bundel.
-   */
-  const sendVuePage = (req, res, title) => {
-    const bundle = options.webBundle ? options.webBundle.assetsFor('faq') : null;
-    if (!bundle) return false;
-    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, bundle, body: renderMountPoint({ name: 'faq', base: BASE, available: true }) }));
-    return true;
-  };
 
   /**
    * Het overzicht: per categorie de vragen, en een formulier voor een nieuwe categorie.
@@ -233,15 +213,9 @@ function createFaqRoutes(options) {
     }
   };
 
-  router.get('/faq/', guard, handle(async (req, res) => {
-    if (sendVuePage(req, res, 'Veelgestelde vragen')) return undefined;
-    return res.send(await renderOverview(req, { notice: NOTICES[req.query.melding] || '' }));
-  }));
+  router.get('/faq/', guard, handle(async (req, res) => res.send(await renderOverview(req, { notice: NOTICES[req.query.melding] || '' }))));
 
-  router.get('/faq/nieuw/', guard, handle(async (req, res) => {
-    if (sendVuePage(req, res, 'Vraag toevoegen')) return undefined;
-    return res.send(await renderQuestion(req, null));
-  }));
+  router.get('/faq/nieuw/', guard, handle(async (req, res) => res.send(await renderQuestion(req, null))));
 
   router.post('/faq/nieuw/', guard, auth.checkCsrf, handle(async (req, res) => {
     const { values, errors } = validateQuestionFields(req.body);
@@ -253,7 +227,6 @@ function createFaqRoutes(options) {
   router.get(routePath('/faq/:id(\\d{1,9})/'), guard, handle(async (req, res) => {
     const question = await faqs.getQuestion(req.params.id);
     if (!question) return notFound(req, res);
-    if (sendVuePage(req, res, 'Vraag wijzigen')) return undefined;
     return res.send(await renderQuestion(req, question));
   }));
 
@@ -286,7 +259,6 @@ function createFaqRoutes(options) {
   router.get(routePath('/faq/categorieen/:id(\\d{1,9})/'), guard, handle(async (req, res) => {
     const category = await faqs.getCategory(req.params.id);
     if (!category) return notFound(req, res);
-    if (sendVuePage(req, res, `Categorie: ${category.name}`)) return undefined;
     return res.send(renderCategory(req, category));
   }));
 

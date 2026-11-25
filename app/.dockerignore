@@ -3,7 +3,3 @@ data
 test
 *.log
 .env
-# De frontend wordt in het image zelf gebouwd (Dockerfile, stap `web`); lokale afhankelijkheden en uitvoer niet meesturen.
-web/node_modules
-web/dist
-web/coverage

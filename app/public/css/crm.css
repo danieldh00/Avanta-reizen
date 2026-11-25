@@ -145,8 +145,6 @@
 .crm-edit-side h2 { margin: 0; font-size: 1.05rem; }
 .crm-savebar { position: sticky; bottom: .5rem; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1rem 0 0; padding: .6rem 1rem; background: var(--av-white); border: 1px solid var(--crm-line); border-radius: 8px; box-shadow: 0 4px 16px rgba(47, 46, 51, .12); }
 .crm-savebar-note { min-width: 0; font-size: 14px; color: var(--crm-text); overflow-wrap: anywhere; }
-.crm-savebar-actions { display: flex; flex-wrap: wrap; gap: .5rem; min-width: 0; }
-.crm-savebar:has(.crm-savebar-actions) { justify-content: space-between; }
 .crm-savebar .btn { flex: 0 0 auto; }
 @media (max-width: 800px) {
   .crm-edit-cols { grid-template-columns: minmax(0, 1fr); gap: 1rem; }

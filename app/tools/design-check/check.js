@@ -142,20 +142,6 @@ async function bookingFormPath(context) {
 }
 
 /**
- * Wacht tot een scherm in Vue klaar is met tekenen: het koppelpunt `#crm-app` krijgt dan `data-klaar` (zie
- * `web/src/shell/mount.ts`). Een pagina zonder koppelpunt gaat meteen door; na tien seconden gaat de controle toch
- * door (het scherm wordt dan gemeten zoals het er staat).
- * @param {any} page Playwright-pagina.
- * @returns {Promise<void>}
- */
-async function waitForVue(page) {
-  await page.waitForFunction(() => {
-    const mount = document.getElementById('crm-app');
-    return !mount || Boolean(mount.dataset.klaar);
-  }, null, { timeout: 10000 }).catch(() => {});
-}
-
-/**
  * Controleert één URL op alle vensterbreedtes.
  * @param {any} context Playwright-context.
  * @param {string} url Pad.
@@ -176,7 +162,6 @@ async function checkUrl(context, url, options = {}) {
     const response = await page.goto(`${BASE_URL}${url}`, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => null);
     status = response ? response.status() : 0;
     await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
-    await waitForVue(page);
     await page.evaluate(() => document.fonts && document.fonts.ready).catch(() => {});
     // Lui ladende afbeeldingen laden: één keer naar beneden scrollen en terug.
     await page.evaluate(async () => {
@@ -214,7 +199,6 @@ async function screenshotFindings(context, url, viewportName, shots) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto(`${BASE_URL}${url}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
-    await waitForVue(page);
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     const size = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight }));
     for (const { group, file } of shots) {

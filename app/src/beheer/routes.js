@@ -28,7 +28,6 @@ const { createLogRoutes } = require('./log-routes');
 const { createRetentionRoutes } = require('./retention-routes');
 const { createPasswordCheckPanel } = require('./password-check-panel');
 const { createGoLiveRoutes } = require('./go-live-routes');
-const { createBouwstenenRoutes } = require('./bouwstenen-routes');
 
 /** Versie van de app (voor het systeemoverzicht). */
 const APP_VERSION = require('../../package.json').version;
@@ -102,7 +101,7 @@ function renderSettingInput({ key, definition, id, value, current, invalid }) {
 
 /**
  * Maakt de routes van Beheer.
- * @param {{db: any, auth: any, settings: any, webBundle?: any, redirects?: any, mailer?: any, wanIp?: any, captcha?: any, passwordCheck?: any, backups?: any, drive?: any, restoreTests?: any, systemUpdate?: any, hostTasks?: any, appLog?: any, monitor?: any, retention?: any, now?: () => number}} options
+ * @param {{db: any, auth: any, settings: any, redirects?: any, mailer?: any, wanIp?: any, captcha?: any, passwordCheck?: any, backups?: any, drive?: any, restoreTests?: any, systemUpdate?: any, hostTasks?: any, appLog?: any, monitor?: any, retention?: any, now?: () => number}} options
  *   Database, sessie- en rechtenlaag, de instellingen, de laag voor doorverwijzingen (`site/redirects.js`), de mailer en
  *   WAN-IP-opzoeker (`mail/`), de captcha (`security/captcha.js`), de wachtwoordcontrole (`security/password-check.js`), de back-updienst (`backup/backups.js`), de Drive-koppeling (`backup/drive.js`), de hersteltests
  *   (`backup/restore-test.js`), de koppeling met het updatescript (`system/system-update.js`), de servertaken
@@ -127,8 +126,7 @@ function createBeheerRoutes(options) {
    * Een volledige Beheer-pagina. De groepen en secties staan in de tweede zijbalk van Beheer (`crm/layout.js`); met een
    * zoekterm (`?zoek=`, werkt zonder JavaScript via een GET) toont die alleen de secties die erbij passen.
    * @param {any} req Express-verzoek.
-   * @param {{title: string, sectionId: string, body: any, bundle?: any}} page Titel, open sectie, inhoud en eventueel de
-   *   bundel van een scherm in Vue (`crm/web-bundle.js`).
+   * @param {{title: string, sectionId: string, body: any}} page Titel, open sectie en inhoud.
    * @returns {string} HTML-pagina.
    */
   const renderBeheerPage = (req, page) => {
@@ -140,7 +138,6 @@ function createBeheerRoutes(options) {
       path: page.sectionId ? `/app/beheer/${page.sectionId}/` : '/app/beheer/',
       beheer: { groups: filterGroups(query, settings.fields), query },
       body: html`<div class="beheer-content">${page.body}</div>`,
-      bundle: page.bundle,
     });
   };
 
@@ -366,7 +363,6 @@ function createBeheerRoutes(options) {
 
   if (options.systemUpdate) router.use(createUpdateRoutes({ db, auth, guard, settings, systemUpdate: options.systemUpdate, renderBeheerPage, now: options.now }).router);
   if (options.hostTasks) router.use(createHostTaskRoutes({ auth, guard, settings, hostTasks: options.hostTasks, renderBeheerPage, notFound, now: options.now }));
-  if (options.webBundle) router.use(createBouwstenenRoutes({ guard, webBundle: options.webBundle, renderBeheerPage }));
   // De lezer van site-content.json is dezelfde als die van de publieke site (`services.js`), zodat de controle toont wat de site uitlevert.
   router.use(createGoLiveRoutes({ db, guard, settings, renderBeheerPage, now: options.now }));
   router.use(createLogRoutes({ db, guard, settings, appLog: options.appLog, renderBeheerPage, now: options.now }));

@@ -17,8 +17,7 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `qr-code.js`
 - `rights.js`
 - `passwords.js`
-- `layout.js` (met `page.bundle`: de koppen van een scherm in Vue in de `<head>`)
-- `web-bundle.js` (bundels van de frontend: `createWebBundle().assetsFor(module)` leest het manifest van Vite, `renderBundleHead` en `renderMountPoint` voor het koppelpunt `#crm-app`; de bestanden serveert `server.js` onder `/bundel/assets/`)
+- `layout.js`
 - `menu-counters.js` (tellers naast menu-items, bijv. nieuwe berichten; `counter` in `CRM_MENU`)
 - `search.js` (zoeken over het hele CRM: bronnen met hun recht en vaste SQL) en `search-routes.js` (`/app/zoeken/`; zoekveld in de kopbalk in `layout.js`)
 - `ui.js` (bouwstenen voor lijsten; `renderTable` wordt op mobiel kaarten via `data-label`)

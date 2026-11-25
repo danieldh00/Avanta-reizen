@@ -60,8 +60,7 @@ test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'avanta-faq-'));
   const mediaDir = path.join(dataDir, 'media');
   await fs.mkdir(mediaDir);
-  // Zonder bundel van de frontend (ook als `web/dist/` lokaal gebouwd is): deze tests gaan over de schermen van de server.
-  const app = createApp({ db, masterKey: MASTER_KEY, mediaDir, webDistDir: dataDir });
+  const app = createApp({ db, masterKey: MASTER_KEY, mediaDir });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   testContext.after(async () => { server.close(); await db.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
