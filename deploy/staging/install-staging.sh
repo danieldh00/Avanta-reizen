@@ -30,6 +30,7 @@ MIN_FREE_GB="${MIN_FREE_GB:-6}"
 REPO_DIR="$BASE_DIR/repo"
 STACK_DIR="$REPO_DIR/deploy/staging"
 FAILED_FILE="$BASE_DIR/.failed-commit"
+STATUS_DIR="$BASE_DIR/status"
 TIMER=0
 [ "${1:-}" = "--timer" ] && TIMER=1
 
@@ -64,6 +65,23 @@ target="$(git -C "$REPO_DIR" rev-parse "origin/$track")"
 current="$(cat "$BASE_DIR/.deployed-commit" 2>/dev/null || true)"
 port="$(setting "$STACK_DIR/.env" APP_PORT)"; port="${port:-3401}"
 healthy() { curl -fsS -m 10 "http://127.0.0.1:$port/api/health" >/dev/null 2>&1; }
+
+# Stand van het bijwerken voor het scherm Updates en onderhoud in de app (alleen-lezen in de container): de gevolgde
+# branch, de draaiende en de nieuwste commit, een commit die niet goed startte en de tijdstippen. Alleen vaste
+# tekens (branch main of develop, commits van git, tijden van date); in één keer geschreven via een tijdelijk bestand.
+write_status() {
+  local deployed="" deployed_at="" failed=""
+  mkdir -p "$STATUS_DIR" && chmod 755 "$STATUS_DIR" || return 0
+  if [ -f "$BASE_DIR/.deployed-commit" ]; then
+    deployed="$(cat "$BASE_DIR/.deployed-commit")"
+    deployed_at="$(date -u -r "$BASE_DIR/.deployed-commit" '+%FT%TZ')"
+  fi
+  failed="$(cat "$FAILED_FILE" 2>/dev/null || true)"
+  printf '{"track":"%s","commit":"%s","available":"%s","failed":"%s","checkedAt":"%s","deployedAt":"%s"}\n' \
+    "$track" "$deployed" "$target" "$failed" "$(date -u '+%FT%TZ')" "$deployed_at" > "$STATUS_DIR/.staging.json.new" \
+    && chmod 644 "$STATUS_DIR/.staging.json.new" && mv -f "$STATUS_DIR/.staging.json.new" "$STATUS_DIR/staging.json" || true
+}
+write_status
 
 # ---------- Bestaande cloudflared: naam en netwerk van de testomgeving, het IP-adres elke keer opnieuw ----------
 tunnel_container="${TUNNEL_CONTAINER:-$(setting "$MAIN_ENV" TUNNEL_CONTAINER)}"
@@ -136,9 +154,11 @@ log "Staging: ${current:0:7} -> ${target:0:7} ($track)"
 if deploy "$target"; then
   printf '%s' "$target" > "$BASE_DIR/.deployed-commit"
   rm -f "$FAILED_FILE"
+  write_status
   log "Staging draait op ${target:0:7} ($track)."
 else
   printf '%s' "$target" > "$FAILED_FILE"
+  write_status
   if [ -n "$current" ] && [ "$current" != "$target" ]; then
     log "Commit ${target:0:7} start niet goed; terug naar ${current:0:7}."
     deploy "$current" || die "ook de vorige commit ${current:0:7} start niet; controleer de server (journalctl -u avanta-staging-update)"
@@ -206,8 +226,10 @@ Nog één keer met de hand, in Cloudflare (Zero Trust > Networks > Tunnels > de 
   Service  : http://avanta-staging-app:3400
 Zet daarna een Access-toepassing op $host (Zero Trust > Access > Applications) met een beleid dat alleen je eigen
 e-mailadres toelaat: staging is niet bedoeld voor bezoekers.
-De installatiecode voor de eerste beheerder staat in het logboek van de app:
-  sudo docker logs avanta-staging-app-1 2>&1 | grep -o 'installatiecode .*' | tail -1
+Inloggen op $STAGING_URL/app/inloggen/ met een testgebruiker (<rol>@example.com: beheerder, kantoor, reisleider,
+boekhouding, redacteur). Hun wachtwoord staat hierboven als de testdata nu is gevuld; een nieuw wachtwoord komt met:
+  sudo docker exec avanta-staging-app-1 node src/dev/seed/cli.js opnieuw --testomgeving
+Of staging bij is, staat in de app onder Beheer > Systeem > Updates en onderhoud.
 TEXT
 }
 

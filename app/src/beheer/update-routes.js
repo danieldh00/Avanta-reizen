@@ -13,6 +13,8 @@ const { createRateLimiter } = require('../security/rate-limit');
 const { SettingsError } = require('./settings');
 const { DEFAULT_MESSAGE } = require('../system/maintenance');
 
+/** Inleiding van het scherm op de stagingomgeving. */
+const STAGING_INTRO = 'Dit is de stagingomgeving. Ze werkt zichzelf elk kwartier bij vanaf haar eigen branch (na de Claude-reviews en de tests in GitHub); je hoeft hier niets te starten.';
 /** Omschrijving van de stand van een uitrol. */
 const STATE_LABELS = { idle: 'Nog geen uitrol vanuit de app', bezig: 'Bezig', geslaagd: 'Geslaagd', mislukt: 'Mislukt', geweigerd: 'Geweigerd' };
 /** Omschrijving van de stappen van een uitrol. */
@@ -99,6 +101,34 @@ function renderVersionFacts(view) {
 }
 
 /**
+ * Wat er met de nieuwste commit van de gevolgde branch gebeurt, in woorden.
+ * @param {any} staging Stand van de stagingomgeving (`view.staging`).
+ * @returns {string} Bijv. 'draait al'.
+ */
+function stagingAvailableLabel(staging) {
+  if (staging.available === staging.commit) return 'draait al';
+  if (staging.available === staging.failed) return 'start niet goed en is overgeslagen tot er een nieuwere is';
+  return 'wordt binnen een kwartier geïnstalleerd';
+}
+
+/**
+ * De stand van de stagingomgeving: ze werkt zichzelf bij vanaf een branch, dus er valt hier niets te starten.
+ * @param {any} view Weergave uit `systemUpdate.view()` met `staging`.
+ * @returns {any} HTML.
+ */
+function renderStagingFacts(view) {
+  const { staging } = view;
+  return html`<p>Het versienummer verandert op staging niet bij elke wijziging; kijk naar de commit en het tijdstip om te zien of een wijziging er al staat.</p>
+      <div class="crm-table-wrap"><table class="crm-table beheer-facts"><tbody>
+        <tr><th scope="row">Draaiende versie</th><td>${view.running}${staging.commit ? html` <span class="field__help">(${shortCommit(staging.commit)})</span>` : ''}</td></tr>
+        <tr><th scope="row">Volgt de branch</th><td>${staging.track || 'nog onbekend'}</td></tr>
+        <tr><th scope="row">Bijgewerkt op</th><td>${staging.deployedAt ? formatDateTime(staging.deployedAt) : 'nog onbekend'}</td></tr>
+        <tr><th scope="row">Nieuwste commit</th><td>${staging.available ? html`${shortCommit(staging.available)} <span class="field__help">(${stagingAvailableLabel(staging)})</span>` : 'nog onbekend'}</td></tr>
+        <tr><th scope="row">Laatst gecontroleerd</th><td>${staging.checkedAt ? formatDateTime(staging.checkedAt) : 'nog niet; de server controleert elk kwartier'}</td></tr>
+      </tbody></table></div>`;
+}
+
+/**
  * Het blok om een nieuwere versie te installeren: releasenotes en het formulier met het wachtwoord.
  * @param {any} req Express-verzoek.
  * @param {any} status Stand van de updates (`view.status`).
@@ -157,6 +187,7 @@ function createUpdateRoutes(options) {
    * @returns {any} HTML.
    */
   const renderUpdateBlock = (req, view, state) => {
+    if (view.staging) return renderStagingFacts(view);
     if (!view.configured) {
       return html`<p>Updaten vanuit de app is op deze server niet ingericht. Dat werkt alleen op de server met het hostscript (<code>deploy/apps01</code>); daar richt de installatie het vanzelf in.</p>
         <div class="crm-table-wrap"><table class="crm-table beheer-facts"><tbody><tr><th scope="row">Draaiende versie</th><td>${view.running}</td></tr></tbody></table></div>`;
@@ -193,7 +224,7 @@ function createUpdateRoutes(options) {
     return options.renderBeheerPage(req, {
       title: 'Updates en onderhoud',
       sectionId: 'updates',
-      body: html`<p>Nieuwe versies komen van de branch main (na de Claude-reviews en de tests in GitHub). Hier zie je wat er klaarstaat en start je de update.</p>
+      body: html`<p>${view.staging ? STAGING_INTRO : 'Nieuwe versies komen van de branch main (na de Claude-reviews en de tests in GitHub). Hier zie je wat er klaarstaat en start je de update.'}</p>
         ${renderResult(state.result)}
         ${renderUpdateBlock(req, view, state)}
         <h2>Onderhoudsmodus</h2>
@@ -322,4 +353,4 @@ function createUpdateRoutes(options) {
   return { router };
 }
 
-module.exports = { createUpdateRoutes, recordFinishedRun, startUpdateSync };
+module.exports = { createUpdateRoutes, recordFinishedRun, startUpdateSync, renderStagingFacts };
