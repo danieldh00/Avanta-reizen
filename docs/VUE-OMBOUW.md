@@ -4,7 +4,14 @@ Besluiten van Daniël op 25-11-2026. Dit bestand bevat de regels waar code en PR
 met alle PR's, risico's en de inschatting staat in de projectbestanden (`plan/plan-vue-ombouw.md` en
 `plan/plan-vue-ombouw.xlsx`). Wie de werkwijze of de opbouw verandert, werkt dit bestand bij in dezelfde PR.
 
-Stand: fase V0 (voorbereiding). Er staat nog geen Vue-code in de repository.
+**Stand: gestopt op 25-11-2026 (besluit Daniël).** Fase V0 tot en met V3 zijn gebouwd: fundament, bouwstenen, FAQ in
+Vue en daarna op `develop` ook categorieën en tags, menu's, reistypes en landen en lijstpagina's. Op staging voelden de
+schermen voor Daniël duidelijk trager dan de server-gerenderde schermen, ook na het meesturen van de eerste gegevens in
+de pagina (lokaal met 60 ms vertraging: oud ~95 ms, Vue eerst ~150 ms, daarna ~100 ms). De winst woog niet op tegen het
+verschil, dus alle Vue-code is teruggedraaid: `main` staat weer op de schermen van de server (de FAQ weer met de oude
+schermen), en `develop` is weer gelijk aan `main`. Wat los van Vue staat blijft: de stagingomgeving, servertaak 002, de
+stand van staging in Beheer > Updates en onderhoud (#146) en `develop-sync.yml`. De rest van dit bestand beschrijft
+het plan zoals het was; het geldt niet meer voor nieuwe code. Wie later opnieuw begint, leest eerst deze stand.
 
 ## 1. Besluiten
 

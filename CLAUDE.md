@@ -28,7 +28,8 @@ Details en open vragen: `docs/AVANTA-CONTEXT.md` en `docs/OPZET-WEBSITE.md`.
   oplossen of met reden beantwoorden) → auto-merge. Na het mergen de branch verwijderen.
 - **Harde regel: nooit mergen zonder geslaagde Claude code review én security review** op de huidige head. Geen
   admin-merge, geen bypass van de ruleset. Wat de workflow zelf bewust overslaat (docs/tests-only) valt erbuiten.
-- **`develop`** is de integratiebranch van de ombouw naar Vue (`docs/VUE-OMBOUW.md`): alleen de migratiethread werkt
+- **`develop`** was de integratiebranch van de ombouw naar Vue; die ombouw is op 25-11-2026 gestopt en teruggedraaid
+  (`docs/VUE-OMBOUW.md`, *Stand*). `develop` is weer gelijk aan `main`; werk niet meer naar `develop`. Oude regels: alleen de migratiethread werkte
   erin (branch vers vanaf `origin/develop`, PR naar `develop`, zelfde controles en dezelfde harde reviewregel).
   `develop-sync.yml` voegt `main` elke nacht en na elke release samen in `develop`; per geaccepteerde module gaat één PR
   van `develop` naar `main`. Al het andere werk blijft direct naar `main` gaan.

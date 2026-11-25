@@ -721,7 +721,10 @@ automatisch bijgewerkt uit releasenotes-fragmenten.
 
 Alleen docs/CI zonder effect op de app: label `geen-releasenotes`.
 
-### Ombouw naar Vue: `develop`
+### Ombouw naar Vue: `develop` (gestopt)
+De ombouw naar Vue is op 25-11-2026 gestopt en teruggedraaid; alle schermen komen weer van de server. Zie
+`docs/VUE-OMBOUW.md`, *Stand*. Wat hieronder staat, beschrijft de opzet zoals die was.
+
 De ombouw van het CRM (en daarna de site) naar Vue loopt via de integratiebranch `develop`; besluiten, opbouw en
 werkwijze staan in `docs/VUE-OMBOUW.md`. Kort: alleen de migratiethread werkt naar `develop`, met dezelfde controles en
 reviews als naar `main`; `develop-sync.yml` voegt `main` elke nacht en na elke release samen in `develop` (bij een
