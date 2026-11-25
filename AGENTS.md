@@ -22,7 +22,7 @@ Korte ingang voor AI-agents. Details: `CLAUDE.md` (volledig werkgeheugen), `app/
 | `changes/` | releasenotes-fragmenten (zie `changes/README.md`) |
 | `tools/release-notes.js` | verwerkt fragmenten na de merge; controleert PR's (`--pull-request`) |
 | `tests/` | `node --test` voor de hulpmiddelen |
-| `docs/` | `WERKWIJZE.md` (projectonafhankelijk), `AVANTA-CONTEXT.md` (product), `ARCHITECTUUR.md` (modules, kernbestanden, parallel werken), `CLAUDE-sjabloon.md` |
+| `docs/` | `WERKWIJZE.md` (projectonafhankelijk), `AVANTA-CONTEXT.md` (product), `ARCHITECTUUR.md` (modules, kernbestanden, parallel werken), `VUE-OMBOUW.md` (ombouw naar Vue: besluiten, opbouw, `develop` en staging), `CLAUDE-sjabloon.md` |
 | `.claude/agents/` | verkenners `map`, `callers`, `tests` |
 | `.github/workflows/` | `ci.yml`, `version.yml`, `release.yml`, `claude-review.yml`, `security.yml` |
 
