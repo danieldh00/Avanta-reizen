@@ -38,6 +38,7 @@ const { createFaqApi } = require('../cms/faq-api');
 const { createPostTermApi } = require('../cms/post-term-api');
 const { createMenuApi } = require('../cms/menu-api');
 const { createCategoryApi } = require('../trips/category-api');
+const { createListHeaderApi } = require('../cms/list-header-api');
 const { createWebBundle } = require('./web-bundle');
 const { sendApiError } = require('../api/errors');
 
@@ -116,7 +117,7 @@ function createCrmRouter(options) {
   router.use('/api', createApiRouter({
     auth, db, appLog: options.appLog, now: options.now,
     redirects: options.redirects, menus: options.menus, listHeaders: options.listHeaders, mediaLibrary: options.mediaLibrary,
-    modules: [createFaqApi, createPostTermApi, createMenuApi, createCategoryApi],
+    modules: [createFaqApi, createPostTermApi, createMenuApi, createCategoryApi, createListHeaderApi],
     // Paden met een lange opgemaakte tekst (antwoord van een vraag, tekst van een reistype of land).
     largeJsonPaths: [/^\/faq\/vragen\//i, /^\/reistypes-en-landen\//i],
   }));

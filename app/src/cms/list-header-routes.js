@@ -8,6 +8,7 @@ const express = require('express');
 const { routePath } = require('../route-path');
 const { html } = require('../site/html');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
+const { renderMountPoint } = require('../crm/web-bundle');
 const ui = require('../crm/ui');
 const { createMediaLibrary } = require('../media/library');
 const { pickerFilter, pickerPhotos, renderPhotoPicker } = require('../media/picker');
@@ -33,10 +34,13 @@ const NOTICES = { 1: 'Opgeslagen.', 2: 'De foto is opgeslagen.' };
 const SOURCE_LABELS = { standaard: 'Standaardtekst', bestand: 'Overgenomen van de huidige site', crm: 'Gewijzigd in het CRM' };
 
 /**
- * Maakt de routes voor de koppen van de lijstpagina's.
- * @param {{db: any, auth: any, listHeaders?: any, library?: any, mediaDir?: string}} options Database,
- *   sessie- en rechtenlaag, de gedeelde koppen (`createListHeaders`, zodat de site meteen de nieuwe tekst toont) en de
- *   fotobibliotheek.
+ * Maakt de routes voor de koppen van de lijstpagina's. Is de bundel van de schermen in Vue er
+ * (`app/web/src/modules/lijstpaginas/`, in het image altijd), dan geven de GET-routes de pagina met het koppelpunt en
+ * praten de schermen met `list-header-api.js`; zonder bundel (lokaal zonder bouwstap, de tests) blijven de schermen van
+ * de server werken. De oude schermen gaan weg na de overgang naar `main` (fase V3 van de ombouw, `docs/VUE-OMBOUW.md`).
+ * @param {{db: any, auth: any, listHeaders?: any, library?: any, mediaDir?: string, webBundle?: {assetsFor: (name: string) => any}}} options
+ *   Database, sessie- en rechtenlaag, de gedeelde koppen (`createListHeaders`, zodat de site meteen de nieuwe tekst
+ *   toont), de fotobibliotheek en de lezer van het manifest van de bundels.
  * @returns {express.Router} Router.
  */
 function createListHeaderRoutes(options) {
@@ -45,6 +49,20 @@ function createListHeaderRoutes(options) {
   const library = options.library || createMediaLibrary({ db, mediaDir: options.mediaDir || '' });
   const router = express.Router();
   const guard = auth.requireRight('content');
+
+  /**
+   * Stuurt de pagina met het koppelpunt van de schermen in Vue, als de bundel er is.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
+   * @param {string} title Titel van de pagina (het scherm zet hem daarna zelf bij een wissel).
+   * @returns {boolean} Waar als de pagina is gestuurd; onwaar zonder bundel.
+   */
+  const sendVuePage = (req, res, title) => {
+    const bundle = options.webBundle ? options.webBundle.assetsFor('lijstpaginas') : null;
+    if (!bundle) return false;
+    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, bundle, body: renderMountPoint({ name: 'lijstpaginas', base: BASE, available: true }) }));
+    return true;
+  };
 
   /**
    * Een CRM-pagina binnen de lijstpagina's.
@@ -144,6 +162,7 @@ function createListHeaderRoutes(options) {
   };
 
   router.get('/lijstpaginas/', guard, handle(async (req, res) => {
+    if (sendVuePage(req, res, 'Lijstpagina\'s')) return undefined;
     const rows = await headers.list();
     return res.send(page(req, 'Lijstpagina\'s', html`<p>De kop bovenaan de pagina's met reizen, reisleiders, blog en veelgestelde vragen, en boven het aanmeldformulier.</p>
       ${ui.renderTable({
@@ -158,7 +177,10 @@ function createListHeaderRoutes(options) {
       })}`));
   }));
 
-  router.get(routePath(`/lijstpaginas/${KEY_PATTERN}/`), guard, handle(async (req, res) => res.send(await renderEdit(req))));
+  router.get(routePath(`/lijstpaginas/${KEY_PATTERN}/`), guard, handle(async (req, res) => {
+    if (sendVuePage(req, res, `Lijstpagina: ${(await headerOf(req.params.key)).label}`)) return undefined;
+    return res.send(await renderEdit(req));
+  }));
 
   router.post(routePath(`/lijstpaginas/${KEY_PATTERN}/`), guard, auth.checkCsrf, handle(async (req, res) => {
     const { values, errors } = validateListHeaderFields(req.body);
@@ -167,7 +189,10 @@ function createListHeaderRoutes(options) {
     return res.redirect(303, `${BASE}${req.params.key}/?opgeslagen=1`);
   }));
 
-  router.get(routePath(`/lijstpaginas/${KEY_PATTERN}/foto/`), guard, handle(async (req, res) => res.send(await renderPhoto(req))));
+  router.get(routePath(`/lijstpaginas/${KEY_PATTERN}/foto/`), guard, handle(async (req, res) => {
+    if (sendVuePage(req, res, `Foto: ${(await headerOf(req.params.key)).label}`)) return undefined;
+    return res.send(await renderPhoto(req));
+  }));
 
   router.post(routePath(`/lijstpaginas/${KEY_PATTERN}/foto/`), guard, auth.checkCsrf, handle(async (req, res) => {
     const choice = chosenPhoto(req.body);
