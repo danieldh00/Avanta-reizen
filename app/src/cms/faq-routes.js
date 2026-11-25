@@ -22,6 +22,7 @@ const FAQ_ACTION_LABELS = {
   'faq.categorie-nieuw': 'FAQ-categorie toegevoegd',
   'faq.categorie-gewijzigd': 'FAQ-categorie gewijzigd',
   'faq.categorie-verwijderd': 'FAQ-categorie verwijderd',
+  'faq.volgorde-gewijzigd': 'Volgorde van de FAQ gewijzigd',
 };
 
 /** Meldingen op het overzicht (`?melding=<n>`). */

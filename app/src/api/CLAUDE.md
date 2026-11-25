@@ -19,7 +19,7 @@ module staan niet hier maar in `app/src/<module>/<onderwerp>-api.js`.
 
 ## Regels voor een API-route van een module
 - Een fabriek `(context) => express.Router()` in `<onderwerp>-api.js`; koppelen in `crm/routes.js` (lijst `modules`
-  bij `createApiRouter`).
+  bij `createApiRouter`). De context bevat ook `db`, `auth` en `now`. Voorbeeld: `cms/faq-api.js` (de eerste module).
 - Elke route een recht via `context.requireRight` (of `requireGlobalRight`); een id uit de URL via `idParam` en samen
   met zijn eigenaar opzoeken; een onbekend of andermans id is `niet-gevonden` (404).
 - Invoer altijd via `context.validate(schema)` met `.strict()`; daarna de bestaande logica van de module (geen dubbele

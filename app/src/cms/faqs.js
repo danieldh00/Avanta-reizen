@@ -80,6 +80,18 @@ function validateQuestionFields(body) {
 const validId = (id) => /^\d{1,9}$/.test(String(id));
 
 /**
+ * Of een nieuwe volgorde precies dezelfde id's bevat als er zijn (geen dubbele, geen ontbrekende, geen vreemde).
+ * @param {number[]} existing Id's die er zijn.
+ * @param {number[]} ordered Id's in de nieuwe volgorde.
+ * @returns {boolean} Waar als het dezelfde verzameling is.
+ */
+function sameIds(existing, ordered) {
+  if (existing.length !== ordered.length || new Set(ordered).size !== ordered.length) return false;
+  const known = new Set(existing);
+  return ordered.every((id) => known.has(id));
+}
+
+/**
  * Maakt de functies voor de FAQ.
  * @param {{db: any}} options Database.
  * @returns {any} Functies.
@@ -268,7 +280,52 @@ function createFaqs(options) {
     return { status: 'ok' };
   });
 
-  return { overview, getCategory, getQuestion, createCategory, updateCategory, removeCategory, createQuestion, updateQuestion, removeQuestion };
+  /**
+   * Zet de volgorde van alle categorieën: de opgegeven id's moeten precies alle categorieën zijn. De volgorde wordt
+   * 10, 20, 30, … (zoals de migratie), zodat er later iets tussen kan met het veld Volgorde.
+   * @param {number[]} ids Alle id's van de categorieën, in de nieuwe volgorde.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
+   * @returns {Promise<{status: ('ok'|'fout')}>} Uitkomst (`fout`: de lijst klopt niet met wat er is).
+   */
+  const reorderCategories = (ids, context) => db.transaction(async (client) => {
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['faq-categorieen']);
+    const rows = await client.query('SELECT id FROM faq_categories ORDER BY id FOR UPDATE');
+    if (!sameIds(rows.map((row) => row.id), ids)) return { status: 'fout' };
+    await client.query(
+      `UPDATE faq_categories c SET sort_order = n.position * 10, updated_at = now(), updated_by = $2
+       FROM unnest($1::int[]) WITH ORDINALITY AS n(id, position) WHERE c.id = n.id AND c.sort_order <> n.position * 10`,
+      [ids, context.userId],
+    );
+    await context.audit(client);
+    return { status: 'ok' };
+  });
+
+  /**
+   * Zet de volgorde van de vragen in één categorie: de opgegeven id's moeten precies de vragen van die categorie zijn.
+   * @param {(number|string)} categoryId Id van de categorie.
+   * @param {number[]} ids Alle id's van de vragen in die categorie, in de nieuwe volgorde.
+   * @param {{userId: number, audit: Function}} context Gebruiker en audit.
+   * @returns {Promise<{status: ('ok'|'weg'|'fout')}>} Uitkomst (`weg`: geen categorie; `fout`: de lijst klopt niet).
+   */
+  const reorderQuestions = (categoryId, ids, context) => db.transaction(async (client) => {
+    if (!validId(categoryId)) return { status: 'weg' };
+    const category = await lockCategory(client, String(categoryId));
+    if (!category) return { status: 'weg' };
+    const rows = await client.query('SELECT id FROM faqs WHERE category_id = $1 ORDER BY id FOR UPDATE', [category.id]);
+    if (!sameIds(rows.map((row) => row.id), ids)) return { status: 'fout' };
+    await client.query(
+      `UPDATE faqs f SET sort_order = n.position * 10, managed_in_crm = true, updated_at = now(), updated_by = $2
+       FROM unnest($1::int[]) WITH ORDINALITY AS n(id, position) WHERE f.id = n.id AND f.sort_order <> n.position * 10`,
+      [ids, context.userId],
+    );
+    await context.audit(client);
+    return { status: 'ok' };
+  });
+
+  return {
+    overview, getCategory, getQuestion, createCategory, updateCategory, removeCategory, createQuestion, updateQuestion, removeQuestion,
+    reorderCategories, reorderQuestions,
+  };
 }
 
 module.exports = { createFaqs, validateCategoryFields, validateQuestionFields, FAQ_LIMITS };
