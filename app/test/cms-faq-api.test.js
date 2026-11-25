@@ -189,6 +189,13 @@ test('FAQ-API in de echte app', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontb
     const betalen = (await editor.get('/faq/')).body.categorieen.find((category) => category.id === ids.betalen);
     assert.deepEqual(betalen.vragen.map((question) => [question.id, question.volgorde]), [[ids.betaal, 10], [ids.paspoort, 20]]);
     assert.equal(await audits('faq.volgorde-gewijzigd'), 2);
+
+    // Tegelijk een vraag wijzigen en de volgorde zetten: beide lukken (zelfde volgorde van vergrendelen).
+    const [edit, order] = await Promise.all([
+      editor.put(`/faq/vragen/${ids.betaal}/`, { vraag: 'Hoe betaal ik?', antwoord: '<p>Via de bank</p>', categorieId: ids.betalen }),
+      editor.put(`/faq/categorieen/${ids.betalen}/volgorde/`, { vragen: [ids.betaal, ids.paspoort] }),
+    ]);
+    assert.deepEqual([edit.status, order.status], [200, 200]);
   });
 
   await testContext.test('categorie hernoemen gaat mee naar de vragen; verwijderen alleen leeg', async () => {

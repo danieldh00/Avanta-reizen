@@ -309,9 +309,10 @@ function createFaqs(options) {
    */
   const reorderQuestions = (categoryId, ids, context) => db.transaction(async (client) => {
     if (!validId(categoryId)) return { status: 'weg' };
+    // Zelfde volgorde van vergrendelen als `updateQuestion`: eerst de vragen, dan de categorie (geen deadlock).
+    const rows = await client.query('SELECT id FROM faqs WHERE category_id = $1 ORDER BY id FOR UPDATE', [Number(categoryId)]);
     const category = await lockCategory(client, String(categoryId));
     if (!category) return { status: 'weg' };
-    const rows = await client.query('SELECT id FROM faqs WHERE category_id = $1 ORDER BY id FOR UPDATE', [category.id]);
     if (!sameIds(rows.map((row) => row.id), ids)) return { status: 'fout' };
     await client.query(
       `UPDATE faqs f SET sort_order = n.position * 10, managed_in_crm = true, updated_at = now(), updated_by = $2
