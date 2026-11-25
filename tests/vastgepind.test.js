@@ -74,6 +74,7 @@ test('elk container-image staat op een digest', () => {
     path.join(ROOT, 'app', 'Dockerfile'),
     path.join(ROOT, 'docker-compose.yml'),
     path.join(ROOT, 'deploy', 'apps01', 'docker-compose.yml'),
+    path.join(ROOT, 'deploy', 'staging', 'compose.yml'),
     path.join(ROOT, 'deploy', 'apps01', 'restore-test.sh'),
   ];
   const unpinned = files.flatMap(unpinnedImages);

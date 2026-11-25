@@ -37,6 +37,12 @@ const HOST_TASKS = [
     description: 'Werkt de testomgeving bij naar de nieuwste versie en controleert dat de mappen en de systemd-units voor "Nu updaten" en de onderhoudsmodus bestaan. Normaal regelt de automatische update dit al zelf; deze taak is de controle daarop.',
     addedAt: '2026-11-20',
   },
+  {
+    id: '002-staging-inrichten',
+    title: 'Stagingomgeving voor de ombouw naar Vue inrichten',
+    description: 'Zet naast de testomgeving een tweede opstelling neer (eigen map, eigen database, eigen geheimen, alleen verzonnen testdata) die de branch develop volgt en zich elke 15 minuten bijwerkt. De testomgeving zelf verandert niet. Daarna nog één keer met de hand: het stagingadres toevoegen in Cloudflare; de uitvoer van de taak zegt precies wat. Alleen bedoeld voor de testserver: vink de taak op een andere server met de hand af.',
+    addedAt: '2026-11-25',
+  },
 ];
 
 /** Formaat van een taak-id. */
