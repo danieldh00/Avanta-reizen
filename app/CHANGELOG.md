@@ -1,5 +1,89 @@
 # Changelog
 
+## 0.36.3 — 2026-11-25 — Opslaan en Verwijderen in één balk bij de FAQ
+
+- Bij een vraag of categorie in de nieuwe FAQ-schermen staan Opslaan en Verwijderen nu samen in de balk onder het formulier: Verwijderen links, Opslaan rechts.
+
+- `save-bar.vue` krijgt een slot `links` voor een tweede actie (`.crm-savebar-actions` in `crm.css`); de schermen
+  `faq-question-screen.vue` en `faq-category-screen.vue` gebruiken het in plaats van een los blok Verwijderen, en de
+  balk staat niet meer binnen het kader van de velden.
+
+## 0.36.2 — 2026-11-25 — Veelgestelde vragen in de nieuwe schermen
+
+- De veelgestelde vragen in het CRM werken nu met de nieuwe schermen: zelfde adressen en opmaak, wisselen zonder de pagina te herladen, en categorieën en vragen zet je met Omhoog en Omlaag op hun plaats.
+
+- Nieuw: module `faq` in `app/web/src/modules/faq/` (overzicht, vraag toevoegen/wijzigen, categorie wijzigen) op de
+  API uit `cms/faq-api.js`, met de bouwstenen uit V1. Proef van fase V2 van de ombouw naar Vue.
+- `faq-routes.js`: de GET-routes geven het koppelpunt van de bundel `faq` als die er is (in het image altijd); zonder
+  bundel blijven de schermen van de server werken. Een onbekend id blijft een 404 van de server.
+- `web/src/shell/page-title.ts`: titel in tabblad en kop bij een wissel binnen een module.
+- Design-controle: `app/web/src/modules/faq/` raakt alleen de schermen onder `/app/faq/`.
+
+## 0.36.1 — 2026-11-25 — JSON-API voor de veelgestelde vragen
+
+- Nieuw: `app/src/cms/faq-api.js`, de eerste module op de JSON-API (fase V2 van de ombouw naar Vue): onder
+  `/app/api/faq/` het overzicht, vragen en categorieën lezen, toevoegen, wijzigen en verwijderen (categorie alleen
+  leeg) en de volgorde van categorieën en van de vragen in een categorie (`PUT /faq/volgorde/`,
+  `PUT /faq/categorieen/:id/volgorde/`). Recht `content`, dezelfde veldcontrole, opschoning en audit als de oude
+  schermen, invoer eerst via een schema met `.strict()`, en een limiet van 60 wijzigingen per minuut per gebruiker.
+- `faqs.js`: `reorderCategories` en `reorderQuestions` (alleen een volledige lijst zonder dubbele of vreemde id's;
+  volgorde 10, 20, 30, …). Nieuwe auditactie `faq.volgorde-gewijzigd`.
+- `createApiRouter` krijgt de database en de klok mee voor de modules.
+
+## 0.36.0 — 2026-11-25 — Bouwstenen voor de nieuwe schermen (teksteditor, fotokiezer, uploaden)
+
+- Het scherm Beheer > Systeem > Bouwstenen toont nu ook de teksteditor, de fotokiezer en het uploadveld van de nieuwe schermen.
+
+- Frontend (`app/web/src/components/`): `rich-text-editor` (zelfde knoppen en opschoner als `public/js/rich-editor.js`
+  via `rich-text-tools.ts`; geen `v-html`, inhoud alleen via DOM-knopen na `DOMParser` en de opschoner; link via een
+  veld in plaats van een venster van de browser; HTML-code wijzigen; teller bij `maxlength`), `photo-picker`
+  (keuzerondjes of vinkjes, zoeken zonder eigen formulier, bladeren, *Geen foto*, oude antwoorden genegeerd, alleen
+  lokale adressen) en `upload-field` (soort, grootte en aantal vooraf, melding per veld van de server).
+
+## 0.35.9 — 2026-11-25 — Bouwstenen voor de nieuwe schermen (lijsten, formulieren, meldingen)
+
+- Het scherm Beheer > Systeem > Bouwstenen toont nu voorbeelden van de lijst, het filter, zoeken, bladeren, tabbladen, de opslaanbalk, formuliervelden, meldingen en het bevestigvenster.
+
+- Frontend (`app/web/src/components/`): `data-table`, `status-badge`, `filter-tabs`, `search-field`, `pager-nav`,
+  `tab-panels`, `save-bar`, `form-field`, `text-field`, `confirm-dialog` (modaal `<dialog>`) en `status-message`, met
+  de opmaak en het gedrag van de bestaande schermen (`crm.css`, `crm/ui.js`, `public/js/crm.js`): kaarten op mobiel,
+  `aria-current`, gekoppelde labels, hulp en fouten, focus terug na het venster, `role` alert of status.
+- `beheer/routes.js`: commentaar weer bij de juiste regel (review van de vorige PR).
+
+## 0.35.8 — 2026-11-25 — Eerste scherm in Vue in de bestaande schil (Bouwstenen)
+
+- Nieuw onder Beheer > Systeem: *Bouwstenen*, het eerste scherm van de nieuwe opbouw van het CRM. Het toont de bouwstenen van de nieuwe schermen; verder verandert er niets.
+
+- `crm/web-bundle.js`: leest het manifest van Vite per module (script, opmaak, voorladers) en tekent het koppelpunt
+  `#crm-app`; `renderCrmPage` zet de koppen van de bundel in de `<head>` (`page.bundle`). De CSP blijft gelijk.
+- `server.js` serveert `web/dist/assets/` onder `/bundel/assets/` (een jaar in de cache, het manifest nooit).
+- `beheer/bouwstenen-routes.js`: `/app/beheer/bouwstenen/` (recht `systeem`) met de module `beheer`.
+- Frontend: het koppelpunt krijgt `data-klaar` als het eerste scherm er staat; `npm run check:bundle` weigert `eval`,
+  `new Function` en HTML in de uitvoer.
+- Design-controle: de job `design` bouwt eerst de frontend en `check.js` wacht op `data-klaar`; `changed-screens.js`
+  kent `app/web/` (fundament en bouwstenen, en modules via hun map op de server).
+
+## 0.35.7 — 2026-11-25 — JSON-API als fundament voor de nieuwe schermen
+
+- Nieuw: `app/src/api/` met de router voor `/app/api/` (in de schil van het CRM, na de sessie): vaste kop
+  `X-Avanta-Api: 1`, herkomstcontrole en `application/json` bij schrijven tegen CSRF, `Cache-Control: no-store`,
+  401/403 in JSON in plaats van een doorverwijzing, één foutformaat (ook 404, 413, 415, 429, 500 met foutcode en 503
+  bij onderhoud) en invoer via zod met een melding per veld. `GET /app/api/sessie/` geeft naam, rol en rechten.
+- Nieuwe afhankelijkheid: `zod` (alleen in de API-routes).
+- Frontend: getypte client `app/web/src/api/client.ts` (zelfde herkomst, vaste kop, geen cache, 401 naar het
+  inlogscherm, nette meldingen bij 403/404/429/503).
+
+## 0.35.6 — 2026-11-25 — Fundament voor de nieuwe schermen van het CRM (Vue)
+
+- Nieuw project `app/web/` voor de frontend van het CRM: Vue 3 + TypeScript, gebouwd met Vite, met een eigen bundel
+  per module (`src/modules/<module>/main.ts`) en een manifest. `mountModule` start een module op het koppelpunt van de
+  schil, met vue-router in history-modus onder het pad van de module (adressen blijven gelijk).
+- Het image krijgt de bouwstap `web`; alleen de uitvoer (`web/dist/`) gaat het image in. Nog geen scherm gebruikt
+  de bundel.
+- CI controleert de frontend: ESLint met TypeScript en Vue (`v-html`, `innerHTML` en `eval` verboden), `vue-tsc`,
+  Vitest met een dekkingsdrempel, een proefbouw en `npm audit`.
+- Proef: de opschoner van de teksteditor (`public/js/rich-text-clean.js`) is in de frontend te importeren.
+
 ## 0.35.5 — 2026-11-25 — Staging toont zelf of ze is bijgewerkt
 
 - Op de stagingomgeving toont Beheer > Systeem > Updates en onderhoud nu welke branch ze volgt, welke commit er draait, wanneer ze is bijgewerkt en wanneer er voor het laatst is gecontroleerd. Eerder stond daar de tekst van een server zonder updates.
