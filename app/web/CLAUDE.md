@@ -20,7 +20,8 @@ gemaakt (Dockerfile, stap `web`) en staat niet in git. Alles wordt geserveerd on
 - `src/shell/`: koppeling met de schil van de server. `mount.ts` (`mountModule`: zoekt het koppelpunt `#crm-app` met
   `data-module` en `data-base`, maakt app en router in history-modus onder het pad van de module, focus naar
   `#inhoud` na elke navigatie), `module-root.vue` (standaard buitenste component), `not-found-screen.vue` (onbekend
-  pad binnen een module). Na het eerste scherm krijgt het koppelpunt `data-klaar="ja"` (of `fout`); de
+  pad binnen een module), `page-title.ts` (`setPageTitle`: titel in het tabblad en de kop van de schil bij een wissel
+  binnen een module, alleen tekst). Na het eerste scherm krijgt het koppelpunt `data-klaar="ja"` (of `fout`); de
   design-controle (`app/tools/design-check/check.js`) wacht daarop.
 - `src/components/`: bouwstenen, elk met de klassen van de bestaande schermen (`crm.css`, `app/src/crm/ui.js`):
   `data-table.vue` (lijst, op mobiel kaarten via `data-label`; eigen cel via slot `cel-<sleutel>`),
@@ -42,6 +43,7 @@ gemaakt (Dockerfile, stap `web`) en staat niet in git. Alles wordt geserveerd on
   `checkPath` alleen binnen `/app/api/`), `types.ts` (foutformaat, `SessionInfo`).
 - `tools/check-bundle.js` (`npm run check:bundle`, CI na de bouw): geen `eval`/`new Function`, geen HTML en alleen JS
   en CSS onder `assets/` in `dist/`.
+- `src/modules/beheer/` (overzicht van de bouwstenen) en `src/modules/faq/` (veelgestelde vragen, proef V2).
 - `src/modules/<module>/`: ingang (`main.ts`), schermen (`routes.ts`) en schermen per module, zelfde naam als
   `app/src/<module>/`, met een eigen `CLAUDE.md`.
 

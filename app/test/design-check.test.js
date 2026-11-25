@@ -124,6 +124,7 @@ test('gewijzigde schermen (CI): frontend in Vue (app/web/)', () => {
   assert.deepEqual(screensFor(['app/src/crm/web-bundle.js']), BOUWSTENEN);
   // De module Beheer heeft voorlopig alleen het overzicht van de bouwstenen.
   assert.deepEqual(screensFor(['app/web/src/modules/beheer/bouwstenen-screen.vue']), BOUWSTENEN);
+  assert.deepEqual(screensFor(['app/web/src/modules/faq/faq-overview-screen.vue']), ['/app/faq/*'], 'de FAQ in Vue raakt alleen de FAQ');
   // Een andere module raakt dezelfde schermen als haar map op de server; tests raken geen scherm.
   assert.deepEqual(screensFor(['app/web/src/modules/payments/list-screen.vue']), screensFor(['app/src/payments/index.js']));
   assert.equal(serverPathOf('app/web/src/modules/trips/main.ts'), 'app/src/trips/index.js');

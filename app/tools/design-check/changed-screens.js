@@ -69,6 +69,8 @@ const SCREEN_RULES = [
   { pattern: /^app\/web\/src\/(components|shell|api)\//, screens: [...BOUWSTENEN, '/app/'] },
   { pattern: /^app\/web\/(package(-lock)?\.json|vite\.config\.ts|tsconfig\.json)$/, screens: [...BOUWSTENEN, ...SMOKE] },
   { pattern: /^app\/web\/src\/modules\/beheer\//, screens: BOUWSTENEN },
+  // De FAQ in Vue (fase V2) staat in `app/src/cms/`, maar raakt alleen de schermen van de FAQ.
+  { pattern: /^app\/web\/src\/modules\/faq\//, screens: ['/app/faq/*'] },
   { pattern: /^app\/src\/crm\/web-bundle\.js$/, screens: BOUWSTENEN },
   { pattern: /^app\/src\/beheer\/bouwstenen-routes\.js$/, screens: BOUWSTENEN },
   // De controle zelf en de CI-opzet: alleen nagaan dat het nog draait.
