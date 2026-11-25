@@ -4,7 +4,7 @@ Besluiten van Daniël op 25-11-2026. Dit bestand bevat de regels waar code en PR
 met alle PR's, risico's en de inschatting staat in de projectbestanden (`plan/plan-vue-ombouw.md` en
 `plan/plan-vue-ombouw.xlsx`). Wie de werkwijze of de opbouw verandert, werkt dit bestand bij in dezelfde PR.
 
-Stand: fase V1 (fundament) op `develop`. V1.1: het Vite-project `app/web/` (zie §7).
+Stand: fase V1 (fundament) op `develop`. V1.1: het Vite-project `app/web/` (zie §7). V1.2: het API-fundament (§8).
 
 ## 1. Besluiten
 
@@ -122,7 +122,9 @@ Het updatescript van de testomgeving volgt `main` in een andere map en kan stagi
 - **CSP**: de runtime van Vue zonder compiler (sjablonen vooraf gecompileerd, geen `eval`), geen inline scripts (ook
   geen polyfill voor modulepreload) en opmaak van componenten in losse CSS-bestanden. De policy blijft gelijk.
 - **CI** (job `test`): `npm ci`, lint, `vue-tsc`, Vitest met een eigen dekkingsdrempel (95/85/93, zoals de server),
-  een proefbouw en `npm audit` voor de afhankelijkheden van de frontend. De job `image` bouwt het image met de stap
+  een proefbouw en `npm audit --omit=dev` voor de afhankelijkheden van de frontend. Dat dekt bewust alleen wat in de
+  bundel komt (Vue en de router); het bouwgereedschap (Vite, Vitest, ESLint) draait alleen in CI en in de bouwstap en
+  komt niet in het image. Renovate houdt ook die versies bij. De job `image` bouwt het image met de stap
   `web` en doet de rooktest.
 - **Lint**: `v-html` is verboden (`vue/no-v-html`), net als `innerHTML`, `outerHTML`, `document.write` en `eval`.
 - **Ontwikkelen**: `npm run dev` in `app/web/` bouwt bij elke wijziging opnieuw naar `dist/`; de app op poort 3400
@@ -130,3 +132,18 @@ Het updatescript van de testomgeving volgt `main` in een andere map en kan stagi
   doorsturen: die zet opmaak als inline `<style>` in de pagina en dat laat de CSP (terecht) niet toe.
 - **Teksteditor**: de opschoner `app/public/js/rich-text-clean.js` (gedeeld met de server) is in de frontend te
   importeren; de teksteditor in Vue (V1.5) gebruikt dus dezelfde regels.
+
+## 8. API-fundament
+
+- **Server** (`app/src/api/`, regels in `app/src/api/CLAUDE.md`): de router onder `/app/api/` hangt in de schil van
+  het CRM ná het laden van de sessie, dus de algemene limiet (300 per minuut), de sessie en 2FA gelden ongewijzigd.
+  Zonder sessie volgt 401 (met het pad naar inloggen of de tweede stap), zonder recht 403, beide in JSON.
+- **CSRF**: vaste kop `X-Avanta-Api: 1` op elk verzoek (een andere site kan die niet zonder CORS-voorcontrole
+  meesturen, en die beantwoordt de server niet), herkomstcontrole en `application/json` bij schrijven. Uploads alleen
+  als `multipart/form-data` op de paden die daarvoor zijn opgegeven.
+- **Antwoorden**: `Cache-Control: no-store`, dezelfde CSP als de rest. Fouten altijd als
+  `{ fout: { code, melding, velden?, foutcode?, naar? } }`; ook onderhoud (503), de limiet (429), een onbekend pad (404)
+  en een onverwachte fout (500, foutcode in het logboek).
+- **Invoer**: zod (besluit 4), alleen in de API-routes, met `.strict()` en een melding per veld.
+- **Client** (`app/web/src/api/client.ts`): de enige weg naar de server; `ApiError` met een nette melding per status.
+- `GET /app/api/sessie/` geeft naam, rol en rechten om knoppen te verbergen; de server controleert elk verzoek zelf.
