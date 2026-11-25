@@ -1,0 +1,62 @@
+# Stagingomgeving van de ombouw naar Vue (docs/VUE-OMBOUW.md §4): een tweede opstelling naast de testomgeving op
+# dezelfde server, gebouwd uit de branch `develop`. Eigen projectnaam, eigen database en eigen volumes: niets wordt
+# gedeeld met de testomgeving (stack "avanta"). Geen eigen tunnel: de bestaande cloudflared stuurt het stagingadres door
+# naar http://avanta-staging-app:3400 via zijn Docker-netwerk.
+# Bewust weggelaten: updaten vanuit de app, de hersteltest en elke koppeling (betalen, externe back-ups, mail).
+# Instellingen in .env naast dit bestand (zie .env.example); install-staging.sh vult die zelf in.
+name: avanta-staging
+
+services:
+  app:
+    # Eigen imagenaam: het updatescript van de testomgeving bouwt en start alleen "avanta-reizen:local".
+    image: avanta-reizen-staging:local
+    build:
+      context: ../../app
+      labels:
+        nl.avantareizen.stack: avanta-staging
+    restart: unless-stopped
+    environment:
+      # Eigen rol zonder superuser-rechten, net als op de testomgeving (deploy/apps01/app-rol.sql).
+      DATABASE_URL: postgres://avanta_app:${APP_DB_PASSWORD:?zet APP_DB_PASSWORD in .env (install-staging.sh doet dat)}@db:5432/avanta
+      SITE_URL: ${SITE_URL:?zet SITE_URL in .env}
+      # Staging is nooit vindbaar.
+      SITE_INDEXABLE: "false"
+      AVANTA_MASTER_KEY: ${AVANTA_MASTER_KEY:?zet AVANTA_MASTER_KEY in .env (install-staging.sh doet dat)}
+      TRUST_PROXY: ${TRUST_PROXY:?zet TRUST_PROXY (IP van de cloudflared-container) in .env}
+    # Alleen op de server zelf (curl-test); cloudflared praat via het tunnelnetwerk met avanta-staging-app:3400.
+    ports:
+      - "127.0.0.1:${APP_PORT:-3401}:3400"
+    volumes:
+      - app-data:/data
+    networks:
+      default:
+      tunnel:
+        aliases: [avanta-staging-app]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17@sha256:223efeb196329b55b3b9a13db144956411dbc18e727e59f681c3e0aede6475cf
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: avanta
+      POSTGRES_DB: avanta
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?zet POSTGRES_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U avanta -d avanta"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  app-data:
+  db-data:
+
+networks:
+  # Het netwerk van de bestaande cloudflared-container; install-staging.sh neemt het over van de testomgeving.
+  tunnel:
+    external: true
+    name: ${TUNNEL_NETWORK:?zet TUNNEL_NETWORK in .env (netwerk van de bestaande cloudflared)}

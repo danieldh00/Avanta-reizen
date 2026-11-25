@@ -71,10 +71,20 @@ aanmaken vanaf `main`.
 
 ## 4. Staging
 
-Uit `develop` wordt een eigen image gebouwd, met een andere naam dan het gewone image, zodat het updatescript van de
-testomgeving het nooit kan installeren. Staging draait als tweede opstelling naast de testomgeving, met een eigen
-database, alleen testdata, geen koppelingen (geen betaalprovider, geen externe opslag van back-ups) en mail naar een
-mailvanger. Inrichten gaat via een servertaak in Beheer > Servertaken, niet via losse commando's.
+Staging is een tweede opstelling naast de testomgeving op dezelfde server (`deploy/staging/`): eigen map
+(`/opt/apps/avanta-staging`), eigen Docker-project `avanta-staging`, eigen database, eigen geheimen en alleen
+verzonnen testdata. Ze wordt op de server gebouwd uit de branch `develop` (zolang die niet bestaat uit `main`) onder
+een eigen imagenaam, en werkt zich elke 15 minuten bij; een commit die niet start wordt teruggedraaid en overgeslagen.
+Het updatescript van de testomgeving volgt `main` in een andere map en kan staging dus nooit installeren, en omgekeerd.
+
+- Geen koppelingen: geen betaalprovider, geen externe opslag van back-ups, geen mailserver (de app eist een openbaar
+  adres voor de mailserver, dus er is geen mailvanger; mail wordt op staging niet verstuurd).
+- Niet vindbaar (`SITE_INDEXABLE` staat vast op `false`) en achter een toegangsbeleid van Cloudflare.
+- Geen updaten vanuit de app en geen hersteltest: dat blijft bij de testomgeving.
+- Inrichten: servertaak `002-staging-inrichten` in Beheer > Systeem > Servertaken. Daarna één keer met de hand het
+  stagingadres toevoegen in Cloudflare; de uitvoer van de taak zegt precies wat. Zie `deploy/apps01/README.md`,
+  *Staging*.
+- Vanaf de livegang verhuist staging naar een eigen machine, los van de server met echte gegevens.
 
 ## 5. Per module
 
