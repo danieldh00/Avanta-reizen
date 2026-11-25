@@ -54,6 +54,17 @@ describe('tab-panels bij een ongeldig veld', () => {
     wrapper.unmount();
   });
 
+  it('opent ook een paneel waarin het ongeldige veld in een fieldset staat', () => {
+    const wrapper = mount(TabPanels, {
+      props: { tabs: [{ key: 'een', label: 'Een' }, { key: 'twee', label: 'Twee' }], modelValue: 'een' },
+      slots: { 'tab-twee': '<fieldset><legend>Groep</legend><input name="b" required></fieldset>' },
+      attachTo: document.body,
+    });
+    wrapper.find('input').element.dispatchEvent(new Event('invalid'));
+    expect(wrapper.emitted('update:modelValue')).toEqual([['twee']]);
+    wrapper.unmount();
+  });
+
   it('blijft staan als het eerste ongeldige veld op het open paneel staat', async () => {
     const wrapper = mount(TabPanels, {
       props: { tabs: [{ key: 'een', label: 'Een' }, { key: 'twee', label: 'Twee' }], modelValue: 'een' },

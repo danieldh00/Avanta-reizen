@@ -41,8 +41,10 @@ const active = computed(() => (validTabs.value.some((tab) => tab.key === props.m
  * @param event Het `invalid`-event (opgevangen in de capture-fase, want het bubbelt niet).
  */
 function onInvalid(event: Event): void {
-  const root = event.currentTarget;
-  if (!(event.target instanceof Element) || !(root instanceof Element) || root.querySelector(':invalid') !== event.target) return;
+  // Alleen velden: een `<fieldset>` met een ongeldig veld matcht `:invalid` ook en staat vóór dat veld.
+  const root = event.currentTarget instanceof Element ? event.currentTarget : null;
+  const firstInvalid = root?.querySelector('input:invalid, select:invalid, textarea:invalid');
+  if (!(event.target instanceof Element) || event.target !== firstInvalid) return;
   const panel = event.target.closest('.crm-tabpanel');
   const key = panel?.id.replace(/^tab-/, '');
   if (!key || key === active.value || !validTabs.value.some((tab) => tab.key === key)) return;
