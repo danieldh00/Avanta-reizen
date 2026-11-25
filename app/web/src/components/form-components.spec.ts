@@ -1,0 +1,82 @@
+/**
+ * Tests van de bouwstenen voor formulieren: tabbladen, opslaanbalk, veld met label en tekstveld.
+ */
+import { describe, expect, it } from 'vitest';
+import { mount } from '@vue/test-utils';
+import TabPanels from './tab-panels.vue';
+import SaveBar from './save-bar.vue';
+import FormField from './form-field.vue';
+import TextField from './text-field.vue';
+
+describe('tab-panels', () => {
+  const tabs = [{ key: 'gegevens', label: 'Gegevens' }, { key: 'fotos', label: "Foto's", count: 4, error: true }, { key: 'Fout!', label: 'Ongeldig' }];
+
+  it('toont één paneel, markeert het tabblad en laat ongeldige sleutels weg', () => {
+    const wrapper = mount(TabPanels, { props: { tabs }, slots: { 'tab-gegevens': 'Paneel 1', 'tab-fotos': 'Paneel 2' } });
+    const links = wrapper.findAll('a');
+    expect(links).toHaveLength(2);
+    expect(links[0]!.attributes('aria-current')).toBe('true');
+    const panels = wrapper.findAll('.crm-tabpanel');
+    expect(panels[0]!.attributes('hidden')).toBeUndefined();
+    expect(panels[1]!.attributes('hidden')).toBeDefined();
+    expect(links[1]!.classes()).toContain('crm-tabs-error');
+    expect(links[1]!.text()).toContain('(bevat een fout)');
+    expect(links[1]!.find('.crm-tabs-count').text()).toBe('4');
+  });
+
+  it('wisselt van paneel via v-model en valt terug op het eerste bij een onbekende sleutel', async () => {
+    const wrapper = mount(TabPanels, { props: { tabs, modelValue: 'fotos', label: 'Delen' } });
+    expect(wrapper.findAll('a')[1]!.attributes('aria-current')).toBe('true');
+    expect(wrapper.find('nav').attributes('aria-label')).toBe('Delen');
+    await wrapper.findAll('a')[0]!.trigger('click');
+    expect(wrapper.emitted('update:modelValue')).toEqual([['gegevens']]);
+    await wrapper.setProps({ modelValue: 'bestaat-niet' });
+    expect(wrapper.findAll('a')[0]!.attributes('aria-current')).toBe('true');
+  });
+});
+
+describe('save-bar', () => {
+  it('toont de knop en tijdens opslaan een uitgeschakelde knop met melding', async () => {
+    const wrapper = mount(SaveBar, { props: { label: 'Opslaan', note: 'Let op' } });
+    expect(wrapper.find('button').text()).toBe('Opslaan');
+    expect(wrapper.find('button').attributes('type')).toBe('submit');
+    expect(wrapper.find('.crm-savebar-note').text()).toBe('Let op');
+    await wrapper.setProps({ busy: true, note: undefined });
+    expect(wrapper.find('button').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('button').attributes('aria-busy')).toBe('true');
+    expect(wrapper.find('button').text()).toBe('Bezig met opslaan…');
+  });
+});
+
+describe('form-field en text-field', () => {
+  it('koppelt label, hulp en fout aan het veld', () => {
+    const wrapper = mount(TextField, { props: { label: 'Titel', help: 'Zoals op de site.', error: 'Vul een titel in.', required: true, maxlength: 20, modelValue: '' } });
+    const input = wrapper.find('input');
+    const id = input.attributes('id')!;
+    expect(wrapper.find('label').attributes('for')).toBe(id);
+    expect(input.attributes('aria-describedby')).toBe(`${id}-hulp ${id}-fout`);
+    expect(input.attributes('aria-invalid')).toBe('true');
+    expect(input.attributes('maxlength')).toBe('20');
+    expect(input.attributes('type')).toBe('text');
+    expect(wrapper.find('.required').exists()).toBe(true);
+    expect(wrapper.find('.field__error').attributes('id')).toBe(`${id}-fout`);
+  });
+
+  it('zonder hulp en fout geen beschrijving en geen ongeldig-markering', () => {
+    const wrapper = mount(FormField, { props: { label: 'Naam' }, slots: { default: '<input>' } });
+    expect(wrapper.find('.field__help').exists()).toBe(false);
+    expect(wrapper.find('.field__error').exists()).toBe(false);
+    const field = mount(TextField, { props: { label: 'Naam', type: 'email' } });
+    expect(field.find('input').attributes('aria-describedby')).toBeUndefined();
+    expect(field.find('input').attributes('aria-invalid')).toBeUndefined();
+    expect(field.find('input').attributes('type')).toBe('email');
+  });
+
+  it('werkt met v-model, ook als tekstvak', async () => {
+    const wrapper = mount(TextField, { props: { label: 'Tekst', multiline: true, modelValue: 'begin', 'onUpdate:modelValue': (value: string) => wrapper.setProps({ modelValue: value }) } });
+    const area = wrapper.find('textarea');
+    expect((area.element as HTMLTextAreaElement).value).toBe('begin');
+    await area.setValue('nieuw');
+    expect(wrapper.props('modelValue')).toBe('nieuw');
+  });
+});
