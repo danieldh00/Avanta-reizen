@@ -136,6 +136,18 @@ describe('rich-text-editor', () => {
     expect(markupOf(box.element)).toBe('<p><br></p>');
   });
 
+  it('van buiten terug naar de eerder getypte waarde: bewerkvak en model blijven gelijk', async () => {
+    const wrapper = mount(RichTextEditor, { props: { label: 'Tekst', modelValue: '<p>Begin</p>', 'onUpdate:modelValue': (value: string) => wrapper.setProps({ modelValue: value }) } });
+    const box = wrapper.find('.rich-editor__content');
+    box.element.replaceChildren(...nodesFromHtml('<p>Getypt</p>'));
+    await box.trigger('input');
+    expect(wrapper.props('modelValue')).toBe('<p>Getypt</p>');
+    await wrapper.setProps({ modelValue: '<p>A</p>' });
+    expect(box.text()).toBe('A');
+    await wrapper.setProps({ modelValue: '<p>Getypt</p>' });
+    expect(box.text()).toBe('Getypt');
+  });
+
   it('een nieuwe waarde van buiten vult het bewerkvak opnieuw', async () => {
     const wrapper = mount(RichTextEditor, { props: { label: 'Tekst', modelValue: '<p>Een</p>' } });
     await wrapper.setProps({ modelValue: '<p>Twee</p>' });

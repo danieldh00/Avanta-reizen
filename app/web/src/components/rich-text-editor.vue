@@ -44,8 +44,6 @@ const linkOpen = ref(false);
 const linkAddress = ref('/');
 const linkError = ref('');
 let savedRange: Range | null = null;
-/** De laatste HTML die de editor zelf doorgaf; een andere waarde van buiten vult het bewerkvak opnieuw. */
-let lastEmitted: string | null = null;
 
 const length = computed(() => model.value.length);
 const tooLong = computed(() => Boolean(props.maxlength) && length.value > (props.maxlength || 0));
@@ -58,8 +56,8 @@ function fillEditor(): void {
 /** Zet de opgeschoonde HTML uit het bewerkvak in het model. */
 function sync(): void {
   if (sourceMode.value || !editor.value) return;
-  lastEmitted = htmlFromEditor(editor.value);
-  if (lastEmitted !== model.value) model.value = lastEmitted;
+  const html = htmlFromEditor(editor.value);
+  if (html !== model.value) model.value = html;
 }
 
 /** Een leeg bewerkvak krijgt een lege alinea, zodat de eerste tekst meteen in een `<p>` komt. */
@@ -225,8 +223,10 @@ function focusEditor(): void {
   else editor.value?.focus();
 }
 
+// Een waarde van buiten (bijvoorbeeld na Annuleren of opnieuw laden) die afwijkt van wat het bewerkvak toont, vult het
+// bewerkvak opnieuw; een waarde die de editor zelf doorgaf, is gelijk en laat de cursor staan.
 watch(model, (value) => {
-  if (value !== lastEmitted && !sourceMode.value) fillEditor();
+  if (!sourceMode.value && editor.value && value !== htmlFromEditor(editor.value)) fillEditor();
 });
 
 onMounted(fillEditor);
