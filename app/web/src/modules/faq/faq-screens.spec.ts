@@ -196,7 +196,7 @@ describe('vraag', () => {
     const { wrapper, router } = await open('/nieuw/?categorie=2');
     expect(document.title).toBe('Vraag toevoegen - Avanta CRM');
     expect((wrapper.find('select').element as HTMLSelectElement).value).toBe('2');
-    expect(wrapper.find('.crm-actions').exists()).toBe(false);
+    expect(wrapper.find('.crm-savebar-actions').exists()).toBe(false);
     await wrapper.find('input').setValue('Mag mijn hond mee?');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
@@ -239,7 +239,7 @@ describe('vraag', () => {
     fake.question.mockResolvedValue({ id: 11, vraag: 'Paspoort nodig?', antwoord: '<p>Ja</p>', categorieId: 1, volgorde: 10, gewijzigd: '' });
     fake.removeQuestion.mockResolvedValue(undefined);
     const { wrapper, router } = await open('/11/');
-    await wrapper.find('.crm-actions button').trigger('click');
+    await wrapper.find('.crm-savebar-actions button').trigger('click');
     await flushPromises();
     expect(wrapper.find('dialog').attributes('open')).toBeDefined();
     await wrapper.find('dialog .btn--danger, dialog button:last-of-type').trigger('click');
@@ -271,7 +271,7 @@ describe('vraag', () => {
     fake.question.mockResolvedValue({ id: 11, vraag: 'V', antwoord: '<p>A</p>', categorieId: 1, volgorde: 0, gewijzigd: '' });
     fake.removeQuestion.mockRejectedValue(new Error('kapot'));
     const { wrapper } = await open('/11/');
-    await wrapper.find('.crm-actions button').trigger('click');
+    await wrapper.find('.crm-savebar-actions button').trigger('click');
     await wrapper.find('dialog button:last-of-type').trigger('click');
     await flushPromises();
     expect(wrapper.find('[role="alert"]').text()).toContain('Opslaan lukte niet.');
@@ -284,7 +284,7 @@ describe('categorie', () => {
     fake.updateCategory.mockResolvedValue({ id: 1, hernoemd: true });
     const { wrapper, router } = await open('/categorieen/1/');
     expect(document.title).toBe('Categorie: Reizen - Avanta CRM');
-    expect(wrapper.text()).toContain('Deze categorie heeft 2 vragen.');
+    expect(wrapper.find('.crm-savebar-actions').text()).toBe('Verwijderen kan als de categorie leeg is (2 vragen).');
     await wrapper.find('input').setValue('Op reis');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
@@ -297,7 +297,7 @@ describe('categorie', () => {
     fake.category.mockResolvedValue({ id: 2, naam: 'Betalen', volgorde: 20, aantalVragen: 1 });
     fake.updateCategory.mockRejectedValueOnce(apiError(400, { naam: 'Deze categorie bestaat al.' })).mockResolvedValueOnce({ id: 2, hernoemd: false });
     const { wrapper, router } = await open('/categorieen/2/');
-    expect(wrapper.text()).toContain('Deze categorie heeft 1 vraag.');
+    expect(wrapper.find('.crm-savebar-actions').text()).toBe('Verwijderen kan als de categorie leeg is (1 vraag).');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
     expect(wrapper.find('.field__error').text()).toBe('Deze categorie bestaat al.');
@@ -311,7 +311,7 @@ describe('categorie', () => {
     fake.category.mockResolvedValue({ id: 2, naam: 'Betalen', volgorde: 20, aantalVragen: 0 });
     fake.removeCategory.mockResolvedValue(undefined);
     const { wrapper, router } = await open('/categorieen/2/');
-    await wrapper.find('.crm-actions button').trigger('click');
+    await wrapper.find('.crm-savebar-actions button').trigger('click');
     await wrapper.find('dialog button:last-of-type').trigger('click');
     await flushPromises();
     expect(fake.removeCategory).toHaveBeenCalledWith(2);
@@ -323,7 +323,7 @@ describe('categorie', () => {
     fake.category.mockResolvedValueOnce({ id: 2, naam: 'Betalen', volgorde: 20, aantalVragen: 0 });
     fake.removeCategory.mockRejectedValue(new ApiError(400, 'ongeldig', 'Er staan nog vragen in deze categorie.'));
     const { wrapper } = await open('/categorieen/2/');
-    await wrapper.find('.crm-actions button').trigger('click');
+    await wrapper.find('.crm-savebar-actions button').trigger('click');
     await wrapper.find('dialog button:last-of-type').trigger('click');
     await flushPromises();
     expect(wrapper.find('[role="alert"]').text()).toContain('Er staan nog vragen');

@@ -111,57 +111,56 @@ onMounted(async () => {
     </p>
     <template v-else>
       <form
-        class="form crm-narrow crm-block"
         novalidate
         @submit.prevent="save"
       >
-        <StatusMessage
-          kind="fout"
-          :message="formError"
-        />
-        <TextField
-          v-model="name"
-          label="Naam"
-          :maxlength="NAME_MAX"
-          :error="errors.naam"
-          required
-        />
-        <TextField
-          v-model="order"
-          label="Volgorde"
-          type="number"
-          help="Lager staat eerder op de FAQ-pagina."
-          :error="errors.volgorde"
-        />
-        <p class="field__help">
-          Een FAQ-blok op een pagina kiest een categorie op naam: wijzig je de naam, kies de categorie in dat blok dan
-          opnieuw.
-        </p>
+        <div class="crm-block form">
+          <StatusMessage
+            kind="fout"
+            :message="formError"
+          />
+          <TextField
+            v-model="name"
+            label="Naam"
+            :maxlength="NAME_MAX"
+            :error="errors.naam"
+            required
+          />
+          <TextField
+            v-model="order"
+            label="Volgorde"
+            type="number"
+            help="Lager staat eerder op de FAQ-pagina."
+            :error="errors.volgorde"
+          />
+          <p class="field__help">
+            Een FAQ-blok op een pagina kiest een categorie op naam: wijzig je de naam, kies de categorie in dat blok dan
+            opnieuw.
+          </p>
+        </div>
         <SaveBar
           label="Opslaan"
           :busy="busy"
-        />
-      </form>
-      <p
-        v-if="category.aantalVragen"
-        class="crm-block"
-      >
-        Deze categorie heeft {{ category.aantalVragen }} {{ category.aantalVragen === 1 ? 'vraag' : 'vragen' }}.
-        Verplaats of verwijder ze om de categorie te kunnen verwijderen.
-      </p>
-      <div
-        v-else
-        class="crm-block crm-actions"
-      >
-        <button
-          class="btn btn--small btn--outline"
-          type="button"
-          :disabled="busy"
-          @click="confirmOpen = true"
         >
-          Verwijderen
-        </button>
-      </div>
+          <template #links>
+            <button
+              v-if="!category.aantalVragen"
+              class="btn btn--outline"
+              type="button"
+              :disabled="busy"
+              @click="confirmOpen = true"
+            >
+              Verwijderen
+            </button>
+            <span
+              v-else
+              class="crm-savebar-note"
+            >
+              Verwijderen kan als de categorie leeg is ({{ category.aantalVragen }} {{ category.aantalVragen === 1 ? 'vraag' : 'vragen' }}).
+            </span>
+          </template>
+        </SaveBar>
+      </form>
       <ConfirmDialog
         :open="confirmOpen"
         title="Categorie verwijderen?"
