@@ -9,6 +9,7 @@ const express = require('express');
 const { routePath } = require('../route-path');
 const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
+const { renderMountPoint } = require('../crm/web-bundle');
 const { categoryPath } = require('../site/format');
 const { icon, categoryIconName } = require('../site/icons');
 const { createMediaLibrary } = require('../media/library');
@@ -32,10 +33,13 @@ const CATEGORY_ACTION_LABELS = {
 const KIND_TITLES = { type: 'Reistypes', bestemming: 'Landen', overig: 'Overige categorieën' };
 
 /**
- * Maakt de routes voor reistypes en landen.
- * @param {{db: any, auth: any, redirects?: any, library?: any, mediaDir?: string}} options Database, sessie- en
- *   rechtenlaag, doorverwijzingen (om na een nieuwe 301 opnieuw te laden) en de fotobibliotheek (of de map met
- *   bestanden om er een te maken).
+ * Maakt de routes voor reistypes en landen. Is de bundel van de schermen in Vue er (`app/web/src/modules/reistypes/`,
+ * in het image altijd), dan geven de GET-routes de pagina met het koppelpunt en praten de schermen met
+ * `category-api.js`; zonder bundel (lokaal zonder bouwstap, de tests) blijven de schermen van de server werken. De oude
+ * schermen gaan weg na de overgang naar `main` (fase V3 van de ombouw, `docs/VUE-OMBOUW.md`).
+ * @param {{db: any, auth: any, redirects?: any, library?: any, mediaDir?: string, webBundle?: {assetsFor: (name: string) => any}}} options
+ *   Database, sessie- en rechtenlaag, doorverwijzingen (om na een nieuwe 301 opnieuw te laden), de fotobibliotheek (of
+ *   de map met bestanden om er een te maken) en de lezer van het manifest van de bundels.
  * @returns {express.Router} Router.
  */
 function createCategoryRoutes(options) {
@@ -44,6 +48,20 @@ function createCategoryRoutes(options) {
   const library = options.library || createMediaLibrary({ db, mediaDir: options.mediaDir || '' });
   const router = express.Router();
   const guard = auth.requireRight('reizen');
+
+  /**
+   * Stuurt de pagina met het koppelpunt van de schermen in Vue, als de bundel er is.
+   * @param {any} req Express-verzoek.
+   * @param {any} res Express-antwoord.
+   * @param {string} title Titel van de pagina (het scherm zet hem daarna zelf bij een wissel).
+   * @returns {boolean} Waar als de pagina is gestuurd; onwaar zonder bundel.
+   */
+  const sendVuePage = (req, res, title) => {
+    const bundle = options.webBundle ? options.webBundle.assetsFor('reistypes') : null;
+    if (!bundle) return false;
+    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, bundle, body: renderMountPoint({ name: 'reistypes', base: BASE, available: true }) }));
+    return true;
+  };
 
   /**
    * Laadt de doorverwijzingen opnieuw na een nieuwe 301 (een fout daarin laat de wijziging zelf staan).
@@ -136,6 +154,7 @@ function createCategoryRoutes(options) {
 
   router.get('/reistypes-en-landen/', guard, async (req, res, next) => {
     try {
+      if (sendVuePage(req, res, 'Reistypes en landen')) return undefined;
       return res.send(await renderList(req, { notice: req.query.klaar === '1' ? 'Verwijderd.' : '' }));
     } catch (error) {
       return next(error);
@@ -238,6 +257,7 @@ function createCategoryRoutes(options) {
     try {
       const category = await loadOr404(req, res);
       if (!category) return undefined;
+      if (sendVuePage(req, res, category.name)) return undefined;
       const notices = { 1: 'Opgeslagen.', 2: 'Opgeslagen. Het oude adres verwijst automatisch door naar het nieuwe.', 3: 'De foto is opgeslagen.', 4: 'Samengevoegd. Het oude adres verwijst automatisch door naar deze categorie.' };
       return res.send(await renderItem(req, category, { notice: notices[req.query.opgeslagen] || '' }));
     } catch (error) {

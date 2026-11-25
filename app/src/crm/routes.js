@@ -37,6 +37,7 @@ const { createApiRouter } = require('../api/router');
 const { createFaqApi } = require('../cms/faq-api');
 const { createPostTermApi } = require('../cms/post-term-api');
 const { createMenuApi } = require('../cms/menu-api');
+const { createCategoryApi } = require('../trips/category-api');
 const { createWebBundle } = require('./web-bundle');
 const { sendApiError } = require('../api/errors');
 
@@ -115,7 +116,9 @@ function createCrmRouter(options) {
   router.use('/api', createApiRouter({
     auth, db, appLog: options.appLog, now: options.now,
     redirects: options.redirects, menus: options.menus, listHeaders: options.listHeaders, mediaLibrary: options.mediaLibrary,
-    modules: [createFaqApi, createPostTermApi, createMenuApi],
+    modules: [createFaqApi, createPostTermApi, createMenuApi, createCategoryApi],
+    // Paden met een lange opgemaakte tekst (antwoord van een vraag, tekst van een reistype of land).
+    largeJsonPaths: [/^\/faq\/vragen\//i, /^\/reistypes-en-landen\//i],
   }));
   // Tellers naast menu-items (nieuwe berichten), alleen voor pagina's en met het recht (`crm/menu-counters.js`).
   router.use(createMenuCounters({ db }));

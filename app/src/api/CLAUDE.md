@@ -8,14 +8,16 @@ Gedeeld fundament voor de JSON-routes onder `/app/api/` waar de nieuwe schermen 
 module staan niet hier maar in `app/src/<module>/<onderwerp>-api.js`.
 
 ## Bestanden
-- `router.js` (`createApiRouter`): bescherming, JSON-parser (grens `JSON_LIMIT`), `requireLogin`/`requireRight`/
+- `router.js` (`createApiRouter`): bescherming, JSON-parser (grens `JSON_LIMIT`, op `largeJsonPaths` met een lange
+  opgemaakte tekst `LARGE_JSON_LIMIT`), `requireLogin`/`requireRight`/
   `requireGlobalRight` met 401/403 in JSON, `GET /app/api/sessie/` (naam, rol, rechten; geen e-mailadres), de
   API-fabrieken van de modules, 404 en een foutafhandelaar met foutcode in het logboek (bron `fout`).
 - `guard.js` (`createApiGuard`): vaste kop `X-Avanta-Api: 1`, herkomstcontrole (`security/form-guard.js`),
   `application/json` bij schrijven (`multipart/form-data` alleen op opgegeven paden), `Cache-Control: no-store`.
 - `errors.js` (`sendApiError`, `API_ERRORS`): één foutformaat `{ fout: { code, melding, velden?, foutcode?, naar? } }`.
 - `module-helpers.js` (`createWriteLimit`: eigen limiet op schrijven per gebruiker; `apiFieldNames`: veldnamen van een
-  formuliercontrole naar die van de API; `sortOrderSchema`): gedeelde stukken voor de API van een module.
+  formuliercontrole naar die van de API; `sortOrderSchema`; `photoQuerySchema` + `photoPickerPage`: foto's voor de
+  fotokiezer van een module): gedeelde stukken voor de API van een module.
 - `schema.js` (`validate`, `parseInput`, `idParam`, `z`): invoer met zod (`.strict()`), Nederlandse meldingen, één
   melding per veld.
 

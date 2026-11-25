@@ -74,6 +74,8 @@ const SCREEN_RULES = [
   // Fase V3: categorieën en tags van het blog en de menu's (ook `app/src/cms/`), elk alleen de eigen schermen.
   { pattern: /^app\/web\/src\/modules\/blog-indeling\//, screens: ['/app/blog/categorieen-en-tags/*'] },
   { pattern: /^app\/web\/src\/modules\/menus\//, screens: ['/app/menus/*'] },
+  // Reistypes en landen in Vue (hoort bij `app/src/trips/`).
+  { pattern: /^app\/web\/src\/modules\/reistypes\//, screens: ['/app/reistypes-en-landen/*'] },
   { pattern: /^app\/src\/crm\/web-bundle\.js$/, screens: BOUWSTENEN },
   { pattern: /^app\/src\/beheer\/bouwstenen-routes\.js$/, screens: BOUWSTENEN },
   // De controle zelf en de CI-opzet: alleen nagaan dat het nog draait.
