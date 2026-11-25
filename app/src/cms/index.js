@@ -23,10 +23,10 @@ function createCmsModuleRoutes(context) {
   const library = context.mediaLibrary;
   const router = express.Router();
   router.use(createPageRoutes({ db, auth, library, redirects, menus }));
-  router.use(createMenuRoutes({ db, auth, menus }));
+  router.use(createMenuRoutes({ db, auth, menus, webBundle: context.webBundle }));
   router.use(createFaqRoutes({ db, auth, webBundle: context.webBundle }));
   router.use(createListHeaderRoutes({ db, auth, library, listHeaders: context.listHeaders }));
-  router.use(createPostTermRoutes({ db, auth, redirects }));
+  router.use(createPostTermRoutes({ db, auth, redirects, webBundle: context.webBundle }));
   router.use(createPostRoutes({ db, auth, library, redirects, menus }));
   return router;
 }

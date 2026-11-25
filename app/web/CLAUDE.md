@@ -33,7 +33,8 @@ gemaakt (Dockerfile, stap `web`) en staat niet in git. Alles wordt geserveerd on
   `public/js/rich-editor.js`, `v-model` is opgeschoonde HTML, link via een veld onder de knoppen; hulpfuncties en
   knoppen in `rich-text-tools.ts`), `photo-picker.vue` (foto kiezen zoals `media/picker.js`; het scherm geeft `load`
   mee, alleen adressen op de eigen site), `upload-field.vue` (soort, grootte en aantal vooraf gecontroleerd; het scherm
-  geeft `upload` mee, die via `api.upload` naar een pad in `multipartPaths` stuurt). Tests: `list-components.spec.ts`,
+  geeft `upload` mee, die via `api.upload` naar een pad in `multipartPaths` stuurt). `order-tools.ts` (`moveId`, `readOrder`: volgorde verschuiven en het veld Volgorde lezen, gedeeld
+  door de modules). Tests: `list-components.spec.ts`,
   `form-components.spec.ts`, `feedback-components.spec.ts`, `editor-components.spec.ts`. Elke nieuwe bouwsteen krijgt een voorbeeld op het
   overzicht van de bouwstenen. `rich-text-clean.d.ts` geeft de typen van de opschoner van de
   teksteditor (`app/public/js/rich-text-clean.js`, gedeeld met de server); `rich-text-clean.spec.ts` bewijst dat die
@@ -43,7 +44,8 @@ gemaakt (Dockerfile, stap `web`) en staat niet in git. Alles wordt geserveerd on
   `checkPath` alleen binnen `/app/api/`), `types.ts` (foutformaat, `SessionInfo`).
 - `tools/check-bundle.js` (`npm run check:bundle`, CI na de bouw): geen `eval`/`new Function`, geen HTML en alleen JS
   en CSS onder `assets/` in `dist/`.
-- `src/modules/beheer/` (overzicht van de bouwstenen) en `src/modules/faq/` (veelgestelde vragen, proef V2).
+- `src/modules/beheer/` (overzicht van de bouwstenen), `src/modules/faq/` (veelgestelde vragen, proef V2),
+  `src/modules/blog-indeling/` (categorieën en tags van het blog, V3) en `src/modules/menus/` (menu's, V3).
 - `src/modules/<module>/`: ingang (`main.ts`), schermen (`routes.ts`) en schermen per module, zelfde naam als
   `app/src/<module>/`, met een eigen `CLAUDE.md`.
 

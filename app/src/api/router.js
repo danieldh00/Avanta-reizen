@@ -27,8 +27,9 @@ const JSON_LIMIT = '64kb';
 
 /**
  * Bouwt de API-router.
- * @param {{auth: any, db?: any, appLog?: any, now?: () => number, modules?: Array<(context: any) => any>, multipartPaths?: RegExp[]}} options
+ * @param {{auth: any, db?: any, appLog?: any, now?: () => number, redirects?: any, menus?: any, listHeaders?: any, mediaLibrary?: any, modules?: Array<(context: any) => any>, multipartPaths?: RegExp[]}} options
  *   De authenticatie van het CRM (`crm/auth.js`), de database (voor de modules), het logboek, de klok (tests), de
+ *   gedeelde diensten die modules nodig hebben (doorverwijzingen, menu's, koppen van lijstpagina's, fotobibliotheek), de
  *   API-fabrieken van de modules en de paden waar een upload mag.
  * @returns {express.Router} Router, te koppelen op `/app/api`.
  */

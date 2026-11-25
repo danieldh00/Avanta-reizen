@@ -71,6 +71,9 @@ const SCREEN_RULES = [
   { pattern: /^app\/web\/src\/modules\/beheer\//, screens: BOUWSTENEN },
   // De FAQ in Vue (fase V2) staat in `app/src/cms/`, maar raakt alleen de schermen van de FAQ.
   { pattern: /^app\/web\/src\/modules\/faq\//, screens: ['/app/faq/*'] },
+  // Fase V3: categorieën en tags van het blog en de menu's (ook `app/src/cms/`), elk alleen de eigen schermen.
+  { pattern: /^app\/web\/src\/modules\/blog-indeling\//, screens: ['/app/blog/categorieen-en-tags/*'] },
+  { pattern: /^app\/web\/src\/modules\/menus\//, screens: ['/app/menus/*'] },
   { pattern: /^app\/src\/crm\/web-bundle\.js$/, screens: BOUWSTENEN },
   { pattern: /^app\/src\/beheer\/bouwstenen-routes\.js$/, screens: BOUWSTENEN },
   // De controle zelf en de CI-opzet: alleen nagaan dat het nog draait.

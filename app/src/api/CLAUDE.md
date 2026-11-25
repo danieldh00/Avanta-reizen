@@ -14,12 +14,15 @@ module staan niet hier maar in `app/src/<module>/<onderwerp>-api.js`.
 - `guard.js` (`createApiGuard`): vaste kop `X-Avanta-Api: 1`, herkomstcontrole (`security/form-guard.js`),
   `application/json` bij schrijven (`multipart/form-data` alleen op opgegeven paden), `Cache-Control: no-store`.
 - `errors.js` (`sendApiError`, `API_ERRORS`): één foutformaat `{ fout: { code, melding, velden?, foutcode?, naar? } }`.
+- `module-helpers.js` (`createWriteLimit`: eigen limiet op schrijven per gebruiker; `apiFieldNames`: veldnamen van een
+  formuliercontrole naar die van de API; `sortOrderSchema`): gedeelde stukken voor de API van een module.
 - `schema.js` (`validate`, `parseInput`, `idParam`, `z`): invoer met zod (`.strict()`), Nederlandse meldingen, één
   melding per veld.
 
 ## Regels voor een API-route van een module
 - Een fabriek `(context) => express.Router()` in `<onderwerp>-api.js`; koppelen in `crm/routes.js` (lijst `modules`
-  bij `createApiRouter`). De context bevat ook `db`, `auth` en `now`. Voorbeeld: `cms/faq-api.js` (de eerste module).
+  bij `createApiRouter`). De context bevat ook `db`, `auth` en `now`. Voorbeeld: `cms/faq-api.js` (de eerste module); vanaf V3 met `module-helpers.js` (`cms/post-term-api.js`, `cms/menu-api.js`).
+- Tests met de testhulp `test/helpers/api-app.js` (`startApiApp`: app in een eigen schema met ingelogde gebruikers, `checkAccess` voor 401/403).
 - Elke route een recht via `context.requireRight` (of `requireGlobalRight`); een id uit de URL via `idParam` en samen
   met zijn eigenaar opzoeken; een onbekend of andermans id is `niet-gevonden` (404).
 - Invoer altijd via `context.validate(schema)` met `.strict()`; daarna de bestaande logica van de module (geen dubbele
