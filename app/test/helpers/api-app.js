@@ -28,7 +28,8 @@ function withSchema(url, schema) {
  * Start de app met een leeg schema, maakt de gebruikers en logt ze in.
  * @param {{url: string, schema: string, testContext: any, users?: Record<string, string>, appOptions?: any}} options
  *   Database, naam van het schema, de testcontext (om af te sluiten), gebruikers (naam → rol) en extra opties voor de app.
- * @returns {Promise<any>} `db`, `base`, `cookies` (per naam), `call`, `as(cookie)` en `audits(actie)`.
+ * @returns {Promise<any>} `db`, `base`, `cookies` (per naam), `call`, `as(cookie)`, `audits(actie)`, `checkAccess` en
+ *   `checkPreload`.
  */
 async function startApiApp(options) {
   const admin = createDatabase(options.url);
@@ -111,7 +112,40 @@ async function startApiApp(options) {
     }
   };
 
-  return { db, base, cookies, call, as, audits, checkAccess };
+  /**
+   * Controleert dat een scherm in Vue de antwoorden van zijn eerste GET-verzoeken meestuurt in de pagina
+   * (`data-voorgeladen`), precies gelijk aan wat de API op die paden teruggeeft.
+   * @param {string} pagePath Pad van de pagina (`/app/…/`).
+   * @param {string} cookie Sessiecookie.
+   * @param {string[]} apiPaths Paden binnen `/app/api` die voorgeladen moeten zijn.
+   * @param {any} assert `node:assert/strict`.
+   * @returns {Promise<Record<string, any>>} De voorgeladen antwoorden.
+   */
+  const checkPreload = async (pagePath, cookie, apiPaths, assert) => {
+    const page = await (await fetch(`${base}${pagePath}`, { headers: { cookie } })).text();
+    const preloaded = readPreloaded(page);
+    assert.deepEqual(Object.keys(preloaded).sort(), [...apiPaths].sort(), pagePath);
+    for (const apiPath of apiPaths) {
+      const response = await call('GET', apiPath, { cookie });
+      assert.equal(response.status, 200, apiPath);
+      assert.deepEqual(preloaded[apiPath], response.body, `${pagePath}: ${apiPath} gelijk aan de API`);
+    }
+    return preloaded;
+  };
+
+  return { db, base, cookies, call, as, audits, checkAccess, checkPreload };
 }
 
-module.exports = { startApiApp };
+/**
+ * Leest de voorgeladen antwoorden uit de HTML van een pagina (attribuut `data-voorgeladen` van `#crm-app`).
+ * @param {string} page HTML van de pagina.
+ * @returns {Record<string, any>} Antwoorden per pad; leeg zonder attribuut.
+ */
+function readPreloaded(page) {
+  const match = page.match(/<div id="crm-app"[^>]* data-voorgeladen="([^"]*)"/);
+  if (!match) return {};
+  const entities = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
+  return JSON.parse(match[1].replace(/&(amp|lt|gt|quot|#39);/g, (entity) => entities[entity]));
+}
+
+module.exports = { startApiApp, readPreloaded };

@@ -13,6 +13,7 @@ import { createApp, type App, type Component } from 'vue';
 import { createRouter, createWebHistory, type RouteRecordRaw, type Router } from 'vue-router';
 import ModuleRoot from './module-root.vue';
 import NotFoundScreen from './not-found-screen.vue';
+import { clearPreloaded, loadPreloaded } from '../api/preload';
 
 /** Id van het koppelpunt dat de server in de pagina zet. */
 export const MOUNT_ID = 'crm-app';
@@ -64,6 +65,8 @@ export function createModuleRouter(base: string, routes: RouteRecordRaw[]): Rout
   router.afterEach((to, from) => {
     // Bij de eerste weergave niet: de pagina is net geladen en de browser zet de focus zelf.
     if (from.matched.length === 0) return;
+    // Wat de server voor het eerste scherm meestuurde, geldt niet voor een volgend scherm.
+    clearPreloaded();
     const main = document.getElementById('inhoud');
     if (main) {
       main.setAttribute('tabindex', '-1');
@@ -83,6 +86,7 @@ export function mountModule(options: ModuleOptions): MountedModule | null {
   const element = doc.getElementById(MOUNT_ID);
   if (!element || element.dataset.module !== options.name) return null;
   const router = createModuleRouter(readBase(element), options.routes);
+  loadPreloaded(element);
   const app = createApp(options.root || ModuleRoot);
   app.use(router);
   app.mount(element);

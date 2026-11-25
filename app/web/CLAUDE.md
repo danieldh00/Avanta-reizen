@@ -41,7 +41,9 @@ gemaakt (Dockerfile, stap `web`) en staat niet in git. Alles wordt geserveerd on
   in de frontend te importeren is.
 - `src/api/`: `client.ts` (getypte client `api` en `createApiClient`: zelfde herkomst, kop `X-Avanta-Api: 1`, geen
   cache, 401 naar het inlogscherm dat de server noemt, `ApiError` met nette melding en meldingen per veld; paden via
-  `checkPath` alleen binnen `/app/api/`), `types.ts` (foutformaat, `SessionInfo`).
+  `checkPath` alleen binnen `/app/api/`; een GET neemt eerst een voorgeladen antwoord), `preload.ts` (antwoorden die de
+  server voor het eerste scherm in `data-voorgeladen` meestuurt: `loadPreloaded` bij het starten in `mount.ts`, elk
+  antwoord één keer via `takePreloaded`, `clearPreloaded` na de eerste wissel), `types.ts` (foutformaat, `SessionInfo`).
 - `tools/check-bundle.js` (`npm run check:bundle`, CI na de bouw): geen `eval`/`new Function`, geen HTML en alleen JS
   en CSS onder `assets/` in `dist/`.
 - `src/modules/beheer/` (overzicht van de bouwstenen), `src/modules/faq/` (veelgestelde vragen, proef V2),

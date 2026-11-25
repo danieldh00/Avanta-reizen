@@ -106,6 +106,9 @@ test('API van de menu\'s in de echte app', { skip: !DATABASE_URL && 'TEST_DATABA
     assert.match(page, /id="crm-app" data-module="menus" data-base="\/app\/menus\/"/);
     page = await (await fetch(`${app.base}/app/menus/${ids.privacy}/`, { headers: { cookie: cookies.redactie } })).text();
     assert.match(page, /<title>Menu-item: Privacy/);
+    // Het eerste scherm krijgt zijn gegevens mee in de pagina, gelijk aan de API: geen extra verzoek vooraf.
+    await app.checkPreload('/app/menus/', cookies.redactie, ['/menus/'], assert);
+    await app.checkPreload(`/app/menus/${ids.privacy}/`, cookies.redactie, [`/menus/${ids.privacy}/`, '/menus/'], assert);
     assert.equal((await fetch(`${app.base}/app/menus/999999/`, { headers: { cookie: cookies.redactie } })).status, 404);
   });
 

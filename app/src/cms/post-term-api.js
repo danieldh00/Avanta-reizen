@@ -51,6 +51,38 @@ const checkTerm = (input) => validateTermFields({
 });
 
 /**
+ * Leesfuncties: dezelfde antwoorden als de GET-routes hieronder. Ook gebruikt door `post-term-routes.js` om het eerste
+ * scherm mee te sturen in de pagina (`renderMountPoint`, `preload`), zodat dat scherm niet op een extra verzoek wacht.
+ * @param {{db: any}} options Database.
+ * @returns {{overview: () => Promise<any>, term: (id: number|string) => Promise<any|null>}} Antwoorden; null als het
+ *   id niet bestaat.
+ */
+function createPostTermReads(options) {
+  const terms = createPostTerms({ db: options.db });
+  return {
+    overview: async () => {
+      const rows = await terms.list();
+      return {
+        soorten: Object.entries(TERM_KINDS).map(([kind, definition]) => ({
+          soort: kind, naam: definition.label, meervoud: definition.plural, voorvoegsel: definition.prefix,
+          items: rows.filter((row) => row.kind === kind).map((row) => ({ id: row.id, naam: row.name, adres: row.slug, berichten: row.post_count, volgorde: row.sort_order })),
+        })),
+        grenzen: { naam: TERM_LIMITS.name, inleiding: TERM_LIMITS.intro, adres: MAX_SLUG_LENGTH, aantal: TERM_LIMITS.terms },
+      };
+    },
+    term: async (id) => {
+      const term = await terms.get(id);
+      if (!term) return null;
+      const definition = TERM_KINDS[term.kind];
+      return {
+        id: term.id, soort: term.kind, soortNaam: definition.label, voorvoegsel: definition.prefix, naam: term.name,
+        adres: term.slug, inleiding: term.intro || '', volgorde: term.sort_order, gewijzigd: term.updated_at,
+      };
+    },
+  };
+}
+
+/**
  * Maakt de API-routes van de categorieën en tags.
  * @param {any} context Context van de API-router (`api/router.js`): `db`, `auth`, `requireRight`, `validate`,
  *   `sendApiError`, eventueel `redirects` (opnieuw laden na een nieuw adres) en `now` (tests).
@@ -59,6 +91,7 @@ const checkTerm = (input) => validateTermFields({
 function createPostTermApi(context) {
   const { auth, sendApiError } = context;
   const terms = createPostTerms({ db: context.db });
+  const reads = createPostTermReads({ db: context.db });
   const router = express.Router();
   const guard = context.requireRight('content');
   const write = [guard, createWriteLimit({ name: 'blog-indeling', limit: WRITE_LIMIT, now: context.now, sendApiError })];
@@ -81,14 +114,7 @@ function createPostTermApi(context) {
   const invalid = (res, errors) => sendApiError(res, 'ongeldig', { fields: apiFieldNames(errors, FIELD_NAMES) });
 
   router.get('/blog-indeling/', guard, async (req, res) => {
-    const rows = await terms.list();
-    res.json({
-      soorten: Object.entries(TERM_KINDS).map(([kind, definition]) => ({
-        soort: kind, naam: definition.label, meervoud: definition.plural, voorvoegsel: definition.prefix,
-        items: rows.filter((row) => row.kind === kind).map((row) => ({ id: row.id, naam: row.name, adres: row.slug, berichten: row.post_count, volgorde: row.sort_order })),
-      })),
-      grenzen: { naam: TERM_LIMITS.name, inleiding: TERM_LIMITS.intro, adres: MAX_SLUG_LENGTH, aantal: TERM_LIMITS.terms },
-    });
+    res.json(await reads.overview());
   });
 
   router.post('/blog-indeling/', write, context.validate(createSchema), async (req, res) => {
@@ -100,13 +126,8 @@ function createPostTermApi(context) {
   });
 
   router.get(routePath('/blog-indeling/:id(\\d{1,9})/'), guard, async (req, res) => {
-    const term = await terms.get(req.params.id);
-    if (!term) return sendApiError(res, 'niet-gevonden');
-    const definition = TERM_KINDS[term.kind];
-    return res.json({
-      id: term.id, soort: term.kind, soortNaam: definition.label, voorvoegsel: definition.prefix, naam: term.name,
-      adres: term.slug, inleiding: term.intro || '', volgorde: term.sort_order, gewijzigd: term.updated_at,
-    });
+    const term = await reads.term(req.params.id);
+    return term ? res.json(term) : sendApiError(res, 'niet-gevonden');
   });
 
   router.put(routePath('/blog-indeling/:id(\\d{1,9})/'), write, context.validate(updateSchema), async (req, res) => {
@@ -128,4 +149,4 @@ function createPostTermApi(context) {
   return router;
 }
 
-module.exports = { createPostTermApi, WRITE_LIMIT };
+module.exports = { createPostTermApi, createPostTermReads, WRITE_LIMIT };

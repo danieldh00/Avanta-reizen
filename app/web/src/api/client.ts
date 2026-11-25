@@ -5,10 +5,13 @@
  * - Altijd naar dezelfde herkomst, met de sessiecookie, de vaste kop `X-Avanta-Api: 1` (zonder die kop weigert de
  *   server, zie `app/src/api/guard.js`) en zonder cache.
  * - 401: de sessie is verlopen; de browser gaat naar het inlogscherm (of de tweede stap) dat de server noemt.
+ * - Een GET-verzoek gebruikt eerst een antwoord dat de server voor het eerste scherm in de pagina meestuurde
+ *   (`preload.ts`), zodat dat scherm niet op een extra verzoek wacht.
  * - Elke andere fout wordt een `ApiError` met een nette melding voor het scherm (403, 404, 429, 503 en de rest), en bij
  *   ongeldige invoer de melding per veld.
  */
 import type { ApiErrorBody, ApiErrorCode, SessionInfo } from './types';
+import { takePreloaded } from './preload';
 
 /** Begin van elk adres van de API. */
 export const API_BASE = '/app/api';
@@ -53,12 +56,15 @@ export interface ClientEnvironment {
   fetch: typeof fetch;
   /** Gaat naar een ander adres (bij een verlopen sessie). */
   navigate: (path: string) => void;
+  /** Geeft een voorgeladen antwoord voor een GET-verzoek, één keer (`preload.ts`); zonder deze functie nooit. */
+  preloaded?: (path: string) => { value: unknown } | undefined;
 }
 
 /** Standaardomgeving: de echte `fetch` en navigatie van de browser. */
 const browserEnvironment: ClientEnvironment = {
   fetch: (...args) => window.fetch(...args),
   navigate: (path) => window.location.assign(path),
+  preloaded: takePreloaded,
 };
 
 /**
@@ -147,9 +153,20 @@ export function createApiClient(environment: ClientEnvironment = browserEnvironm
     });
   }
 
+  /**
+   * Een GET-verzoek; eerst een antwoord dat de server in de pagina meestuurde (`preload.ts`), één keer per pad.
+   * @param path Pad binnen `/app/api`.
+   * @param options Afbreken.
+   * @returns De JSON van het antwoord.
+   */
+  async function get<T>(path: string, options?: RequestOptions): Promise<T> {
+    const preloaded = environment.preloaded ? environment.preloaded(checkPath(path)) : undefined;
+    return preloaded ? preloaded.value as T : request<T>('GET', path, options);
+  }
+
   return {
     request,
-    get: <T>(path: string, options?: RequestOptions) => request<T>('GET', path, options),
+    get,
     post: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('POST', path, { ...options, body }),
     put: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('PUT', path, { ...options, body }),
     patch: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('PATCH', path, { ...options, body }),

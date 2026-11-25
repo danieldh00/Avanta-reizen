@@ -14,6 +14,7 @@ const { createMediaLibrary } = require('../media/library');
 const { pickerFilter, pickerPhotos, renderPhotoPicker } = require('../media/picker');
 const { fieldRow, invalidAttributes, chosenPhoto } = require('./block-editor');
 const { createListHeaders, validateListHeaderFields, isListKey, LIST_HEADER_LIMITS } = require('./list-headers');
+const { createListHeaderReads } = require('./list-header-api');
 
 /** Basispad van het scherm. */
 const BASE = '/app/lijstpaginas/';
@@ -47,6 +48,7 @@ function createListHeaderRoutes(options) {
   const { db, auth } = options;
   const headers = options.listHeaders || createListHeaders({ db });
   const library = options.library || createMediaLibrary({ db, mediaDir: options.mediaDir || '' });
+  const reads = createListHeaderReads({ db, listHeaders: headers, mediaLibrary: library });
   const router = express.Router();
   const guard = auth.requireRight('content');
 
@@ -55,12 +57,14 @@ function createListHeaderRoutes(options) {
    * @param {any} req Express-verzoek.
    * @param {any} res Express-antwoord.
    * @param {string} title Titel van de pagina (het scherm zet hem daarna zelf bij een wissel).
-   * @returns {boolean} Waar als de pagina is gestuurd; onwaar zonder bundel.
+   * @param {() => Promise<Record<string, any>>} [preload] Antwoorden van de API voor het eerste scherm, per pad (alleen
+   *   opgehaald als de bundel er is): het scherm tekent dan meteen, zonder extra verzoek.
+   * @returns {Promise<boolean>} Waar als de pagina is gestuurd; onwaar zonder bundel.
    */
-  const sendVuePage = (req, res, title) => {
+  const sendVuePage = async (req, res, title, preload) => {
     const bundle = options.webBundle ? options.webBundle.assetsFor('lijstpaginas') : null;
     if (!bundle) return false;
-    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, bundle, body: renderMountPoint({ name: 'lijstpaginas', base: BASE, available: true }) }));
+    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, bundle, body: renderMountPoint({ name: 'lijstpaginas', base: BASE, available: true, preload: preload ? await preload() : undefined }) }));
     return true;
   };
 
@@ -162,7 +166,7 @@ function createListHeaderRoutes(options) {
   };
 
   router.get('/lijstpaginas/', guard, handle(async (req, res) => {
-    if (sendVuePage(req, res, 'Lijstpagina\'s')) return undefined;
+    if (await sendVuePage(req, res, 'Lijstpagina\'s', async () => ({ '/lijstpaginas/': await reads.overview() }))) return undefined;
     const rows = await headers.list();
     return res.send(page(req, 'Lijstpagina\'s', html`<p>De kop bovenaan de pagina's met reizen, reisleiders, blog en veelgestelde vragen, en boven het aanmeldformulier.</p>
       ${ui.renderTable({
@@ -178,7 +182,7 @@ function createListHeaderRoutes(options) {
   }));
 
   router.get(routePath(`/lijstpaginas/${KEY_PATTERN}/`), guard, handle(async (req, res) => {
-    if (sendVuePage(req, res, `Lijstpagina: ${(await headerOf(req.params.key)).label}`)) return undefined;
+    if (await sendVuePage(req, res, `Lijstpagina: ${(await headerOf(req.params.key)).label}`, async () => ({ [`/lijstpaginas/${req.params.key}/`]: await reads.header(req.params.key), '/lijstpaginas/': await reads.overview() }))) return undefined;
     return res.send(await renderEdit(req));
   }));
 
@@ -190,7 +194,7 @@ function createListHeaderRoutes(options) {
   }));
 
   router.get(routePath(`/lijstpaginas/${KEY_PATTERN}/foto/`), guard, handle(async (req, res) => {
-    if (sendVuePage(req, res, `Foto: ${(await headerOf(req.params.key)).label}`)) return undefined;
+    if (await sendVuePage(req, res, `Foto: ${(await headerOf(req.params.key)).label}`, async () => ({ [`/lijstpaginas/${req.params.key}/`]: await reads.header(req.params.key), [`/lijstpaginas/${req.params.key}/fotos/?pagina=1`]: await reads.photos({ page: 1 }) }))) return undefined;
     return res.send(await renderPhoto(req));
   }));
 

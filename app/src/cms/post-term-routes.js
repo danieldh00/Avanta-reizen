@@ -13,6 +13,7 @@ const { renderMountPoint } = require('../crm/web-bundle');
 const { fieldRow, invalidAttributes } = require('./block-editor');
 const { createPostTerms, validateTermFields, TERM_KINDS, TERM_LIMITS } = require('./post-terms');
 const { MAX_SLUG_LENGTH } = require('../trips/slugs');
+const { createPostTermReads } = require('./post-term-api');
 
 /** Basispad van het scherm. */
 const BASE = '/app/blog/categorieen-en-tags/';
@@ -61,6 +62,7 @@ function termFields(values, errors, prefix) {
 function createPostTermRoutes(options) {
   const { db, auth } = options;
   const terms = createPostTerms({ db });
+  const reads = createPostTermReads({ db });
   const router = express.Router();
   const guard = auth.requireRight('content');
 
@@ -69,12 +71,14 @@ function createPostTermRoutes(options) {
    * @param {any} req Express-verzoek.
    * @param {any} res Express-antwoord.
    * @param {string} title Titel van de pagina (het scherm zet hem daarna zelf bij een wissel).
-   * @returns {boolean} Waar als de pagina is gestuurd; onwaar zonder bundel.
+   * @param {() => Promise<Record<string, any>>} [preload] Antwoorden van de API voor het eerste scherm, per pad (alleen
+   *   opgehaald als de bundel er is): het scherm tekent dan meteen, zonder extra verzoek.
+   * @returns {Promise<boolean>} Waar als de pagina is gestuurd; onwaar zonder bundel.
    */
-  const sendVuePage = (req, res, title) => {
+  const sendVuePage = async (req, res, title, preload) => {
     const bundle = options.webBundle ? options.webBundle.assetsFor('blog-indeling') : null;
     if (!bundle) return false;
-    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: '/app/blog/', bundle, body: renderMountPoint({ name: 'blog-indeling', base: BASE, available: true }) }));
+    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: '/app/blog/', bundle, body: renderMountPoint({ name: 'blog-indeling', base: BASE, available: true, preload: preload ? await preload() : undefined }) }));
     return true;
   };
 
@@ -174,7 +178,7 @@ function createPostTermRoutes(options) {
 
   router.get('/blog/categorieen-en-tags/', guard, async (req, res, next) => {
     try {
-      if (sendVuePage(req, res, 'Categorieën en tags')) return undefined;
+      if (await sendVuePage(req, res, 'Categorieën en tags', async () => ({ '/blog-indeling/': await reads.overview() }))) return undefined;
       return res.send(await renderList(req, { notice: NOTICES[req.query.melding] || '' }));
     } catch (error) {
       return next(error);
@@ -197,7 +201,7 @@ function createPostTermRoutes(options) {
     try {
       const term = await terms.get(req.params.id);
       if (!term) return notFound(req, res);
-      if (sendVuePage(req, res, `${TERM_KINDS[term.kind].label}: ${term.name}`)) return undefined;
+      if (await sendVuePage(req, res, `${TERM_KINDS[term.kind].label}: ${term.name}`, async () => ({ [`/blog-indeling/${term.id}/`]: await reads.term(term.id) }))) return undefined;
       return res.send(renderEdit(req, term));
     } catch (error) {
       return next(error);

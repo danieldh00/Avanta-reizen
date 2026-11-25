@@ -54,6 +54,27 @@ const apiHeader = (header) => ({
 });
 
 /**
+ * Leesfuncties: dezelfde antwoorden als de GET-routes hieronder. Ook gebruikt door `list-header-routes.js` om het
+ * eerste scherm mee te sturen in de pagina (`renderMountPoint`, `preload`), zodat dat scherm niet op een extra verzoek
+ * wacht.
+ * @param {{db: any, listHeaders?: any, mediaLibrary?: any}} options Database, de gedeelde koppen en de fotobibliotheek.
+ * @returns {{overview: () => Promise<any>, header: (key: string) => Promise<any>, photos: (query: {text?: string, page?: number}) => Promise<any>}}
+ *   Antwoorden (alleen voor de vaste sleutels).
+ */
+function createListHeaderReads(options) {
+  const headers = options.listHeaders || createListHeaders({ db: options.db });
+  const library = options.mediaLibrary || createMediaLibrary({ db: options.db, mediaDir: '' });
+  return {
+    overview: async () => ({
+      koppen: (await headers.list()).map(apiHeader),
+      grenzen: { pretitel: LIST_HEADER_LIMITS.pretitle, titel: LIST_HEADER_LIMITS.title, inleiding: LIST_HEADER_LIMITS.introduction },
+    }),
+    header: async (key) => apiHeader((await headers.list()).find((/** @type {any} */ item) => item.key === key)),
+    photos: (query) => photoPickerPage(library, { text: query.text, page: query.page, countryId: null }),
+  };
+}
+
+/**
  * Maakt de API-routes van de koppen van de lijstpagina's.
  * @param {any} context Context van de API-router (`api/router.js`): `db`, `auth`, `requireRight`, `validate`,
  *   `sendApiError`, `listHeaders` (de gedeelde koppen van de site), eventueel `mediaLibrary` en `now` (tests).
@@ -62,7 +83,7 @@ const apiHeader = (header) => ({
 function createListHeaderApi(context) {
   const { db, auth, sendApiError } = context;
   const headers = context.listHeaders || createListHeaders({ db });
-  const library = context.mediaLibrary || createMediaLibrary({ db, mediaDir: '' });
+  const reads = createListHeaderReads({ db, listHeaders: headers, mediaLibrary: context.mediaLibrary });
   const router = express.Router();
   const guard = context.requireRight('content');
   const write = [guard, createWriteLimit({ name: 'lijstpaginas', limit: WRITE_LIMIT, now: context.now, sendApiError })];
@@ -87,11 +108,11 @@ function createListHeaderApi(context) {
   const headerOf = async (key) => (await headers.list()).find((/** @type {any} */ item) => item.key === key);
 
   router.get('/lijstpaginas/', guard, async (req, res) => {
-    res.json({ koppen: (await headers.list()).map(apiHeader), grenzen: { pretitel: LIST_HEADER_LIMITS.pretitle, titel: LIST_HEADER_LIMITS.title, inleiding: LIST_HEADER_LIMITS.introduction } });
+    res.json(await reads.overview());
   });
 
   router.get(one(), guard, async (req, res) => {
-    res.json(apiHeader(await headerOf(req.params.key)));
+    res.json(await reads.header(req.params.key));
   });
 
   router.put(one(), write, context.validate(headerSchema), async (req, res) => {
@@ -108,10 +129,10 @@ function createListHeaderApi(context) {
   });
 
   router.get(one('fotos/'), guard, context.validate(photoQuerySchema, 'query'), async (req, res) => {
-    res.json(await photoPickerPage(library, { text: req.input.zoek, page: req.input.pagina, countryId: null }));
+    res.json(await reads.photos({ text: req.input.zoek, page: req.input.pagina }));
   });
 
   return router;
 }
 
-module.exports = { createListHeaderApi, WRITE_LIMIT };
+module.exports = { createListHeaderApi, createListHeaderReads, WRITE_LIMIT };

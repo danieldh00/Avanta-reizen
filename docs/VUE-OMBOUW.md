@@ -95,7 +95,8 @@ Het updatescript van de testomgeving volgt `main` in een andere map en kan stagi
 
 ## 5. Per module
 
-1. API-routes met tests.
+1. API-routes met tests, met een leesfunctie (`create<Onderwerp>Reads`) die de GET-route van het scherm gebruikt om de
+   eerste gegevens mee te sturen (§ 9).
 2. Schermen in Vue met tests, op de bouwstenen.
 3. Design-controle en axe op 1440 en 375 px tegen de baseline van het oude scherm.
 4. Op staging bekijken en goedkeuren.
@@ -162,6 +163,15 @@ Het updatescript van de testomgeving volgt `main` in een andere map en kan stagi
   `<head>` staan de opmaak, de voorladers en het script van die module uit het manifest van Vite (`renderBundleHead`),
   alleen als bestanden met `src`/`href`; de CSP blijft `BASE_CSP`. Ontbreekt de bundel, dan toont de pagina een
   melding in plaats van een leeg scherm.
+- **Eerste gegevens mee in de pagina** (25-11-2026, na Daniëls opmerking dat de schermen trager aanvoelden): de
+  GET-route van een scherm zet de antwoorden van de GET-verzoeken van het eerste scherm in het koppelpunt
+  (`data-voorgeladen`, JSON per pad binnen `/app/api`, ge-escapet door `html`; `renderMountPoint` met `preload`). De
+  route en de API delen één leesfunctie per module (`create<Onderwerp>Reads` in het `*-api.js`-bestand), met hetzelfde
+  recht. De client (`web/src/api/preload.ts`) gebruikt elk antwoord één keer en laat de rest vallen na de eerste wissel
+  binnen de module. Zo wacht het eerste scherm niet op een extra verzoek nadat de JavaScript geladen is. Meting lokaal
+  met 60 ms vertraging (mediaan): oud ~95 ms, Vue eerst ~150 ms, met voorladen ~100 ms; zonder vertraging gelijk. Elke
+  nieuwe module doet dit ook; de servertests controleren met `checkPreload` (`test/helpers/api-app.js`) dat het
+  voorgeladen antwoord gelijk is aan dat van de API.
 - **Bestanden**: `server.js` serveert alleen `web/dist/assets/` onder `/bundel/assets/`, een jaar in de cache (namen
   met een hash). Het manifest wordt nooit uitgeleverd.
 - **Eerste scherm**: Beheer > Systeem > Bouwstenen (`/app/beheer/bouwstenen/`, recht `systeem`) in de module

@@ -11,6 +11,7 @@ const { html, raw } = require('../site/html');
 const { renderCrmPage, renderAlert } = require('../crm/layout');
 const { renderMountPoint } = require('../crm/web-bundle');
 const { createMenus, validateMenuItem, MENUS, MAX_ITEMS, MENU_LIMITS } = require('./menus');
+const { createMenuReads } = require('./menu-api');
 
 /** Basispad van het scherm. */
 const BASE = '/app/menus/';
@@ -98,6 +99,7 @@ function renderItemFields(values, errors, rows, selfId, pageRows) {
 function createMenuRoutes(options) {
   const { db, auth } = options;
   const menus = options.menus || createMenus({ db });
+  const reads = createMenuReads({ db, menus });
   const router = express.Router();
   const guard = auth.requireRight('content');
 
@@ -106,12 +108,14 @@ function createMenuRoutes(options) {
    * @param {any} req Express-verzoek.
    * @param {any} res Express-antwoord.
    * @param {string} title Titel van de pagina (het scherm zet hem daarna zelf bij een wissel).
-   * @returns {boolean} Waar als de pagina is gestuurd; onwaar zonder bundel.
+   * @param {() => Promise<Record<string, any>>} [preload] Antwoorden van de API voor het eerste scherm, per pad (alleen
+   *   opgehaald als de bundel er is): het scherm tekent dan meteen, zonder extra verzoek.
+   * @returns {Promise<boolean>} Waar als de pagina is gestuurd; onwaar zonder bundel.
    */
-  const sendVuePage = (req, res, title) => {
+  const sendVuePage = async (req, res, title, preload) => {
     const bundle = options.webBundle ? options.webBundle.assetsFor('menus') : null;
     if (!bundle) return false;
-    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, bundle, body: renderMountPoint({ name: 'menus', base: BASE, available: true }) }));
+    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, bundle, body: renderMountPoint({ name: 'menus', base: BASE, available: true, preload: preload ? await preload() : undefined }) }));
     return true;
   };
 
@@ -221,7 +225,7 @@ function createMenuRoutes(options) {
 
   router.get('/menus/', guard, async (req, res, next) => {
     try {
-      if (sendVuePage(req, res, 'Menu\'s')) return undefined;
+      if (await sendVuePage(req, res, 'Menu\'s', async () => ({ '/menus/': await reads.overview() }))) return undefined;
       return res.send(await renderOverview(req, { notice: NOTICES[req.query.melding] || '' }));
     } catch (error) {
       return next(error);
@@ -244,7 +248,7 @@ function createMenuRoutes(options) {
     try {
       const row = await findItem(req.params.id);
       if (!row) return notFound(req, res);
-      if (sendVuePage(req, res, `Menu-item: ${row.label}`)) return undefined;
+      if (await sendVuePage(req, res, `Menu-item: ${row.label}`, async () => ({ [`/menus/${row.id}/`]: await reads.item(row.id), '/menus/': await reads.overview() }))) return undefined;
       return res.send(await renderItem(req, row));
     } catch (error) {
       return next(error);

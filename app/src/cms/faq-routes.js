@@ -10,7 +10,7 @@ const { routePath } = require('../route-path');
 const { html } = require('../site/html');
 const { renderCrmPage } = require('../crm/layout');
 const { renderMountPoint } = require('../crm/web-bundle');
-const { createFaqs } = require('./faqs');
+const { createFaqReads } = require('./faq-api');
 
 /** Basispad van het scherm. */
 const BASE = '/app/faq/';
@@ -35,7 +35,7 @@ const FAQ_ACTION_LABELS = {
  */
 function createFaqRoutes(options) {
   const { db, auth } = options;
-  const faqs = createFaqs({ db });
+  const reads = createFaqReads({ db });
   const router = express.Router();
   const guard = auth.requireRight('content');
 
@@ -44,11 +44,12 @@ function createFaqRoutes(options) {
    * @param {any} req Express-verzoek.
    * @param {any} res Express-antwoord.
    * @param {string} title Titel van de pagina (het scherm in Vue zet hem bij elke wissel opnieuw).
+   * @param {Record<string, any>} [preload] Antwoorden van de API voor het eerste scherm, per pad (`createFaqReads`).
    * @returns {void}
    */
-  const sendPage = (req, res, title) => {
+  const sendPage = (req, res, title, preload) => {
     const bundle = options.webBundle ? options.webBundle.assetsFor('faq') : null;
-    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, bundle, body: renderMountPoint({ name: 'faq', base: BASE, available: Boolean(bundle) }) }));
+    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, bundle, body: renderMountPoint({ name: 'faq', base: BASE, available: Boolean(bundle), preload: bundle ? preload : undefined }) }));
   };
 
   /**
@@ -74,18 +75,19 @@ function createFaqRoutes(options) {
     }
   };
 
-  router.get('/faq/', guard, (req, res) => sendPage(req, res, 'Veelgestelde vragen'));
-  router.get('/faq/nieuw/', guard, (req, res) => sendPage(req, res, 'Vraag toevoegen'));
+  router.get('/faq/', guard, handle(async (req, res) => sendPage(req, res, 'Veelgestelde vragen', { '/faq/': await reads.overview() })));
+  router.get('/faq/nieuw/', guard, handle(async (req, res) => sendPage(req, res, 'Vraag toevoegen', { '/faq/': await reads.overview() })));
 
   router.get(routePath('/faq/:id(\\d{1,9})/'), guard, handle(async (req, res) => {
-    if (!await faqs.getQuestion(req.params.id)) return notFound(req, res);
-    return sendPage(req, res, 'Vraag wijzigen');
+    const question = await reads.question(req.params.id);
+    if (!question) return notFound(req, res);
+    return sendPage(req, res, 'Vraag wijzigen', { '/faq/': await reads.overview(), [`/faq/vragen/${question.id}/`]: question });
   }));
 
   router.get(routePath('/faq/categorieen/:id(\\d{1,9})/'), guard, handle(async (req, res) => {
-    const category = await faqs.getCategory(req.params.id);
+    const category = await reads.category(req.params.id);
     if (!category) return notFound(req, res);
-    return sendPage(req, res, `Categorie: ${category.name}`);
+    return sendPage(req, res, `Categorie: ${category.naam}`, { [`/faq/categorieen/${category.id}/`]: category });
   }));
 
   return router;

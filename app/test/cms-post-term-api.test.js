@@ -122,6 +122,9 @@ test('API van categorieën en tags in de echte app', { skip: !DATABASE_URL && 'T
     page = await response.text();
     assert.match(page, /<title>Tag: Noorwegen/);
     assert.match(page, /data-module="blog-indeling"/);
+    // Het eerste scherm krijgt zijn gegevens mee in de pagina, gelijk aan de API: geen extra verzoek vooraf.
+    await app.checkPreload('/app/blog/categorieen-en-tags/', cookies.redactie, ['/blog-indeling/'], assert);
+    await app.checkPreload(`/app/blog/categorieen-en-tags/${ids.noorwegen}/`, cookies.redactie, [`/blog-indeling/${ids.noorwegen}/`], assert);
     response = await fetch(`${app.base}/app/blog/categorieen-en-tags/999999/`, { headers: { cookie: cookies.redactie } });
     assert.equal(response.status, 404);
     response = await fetch(`${app.base}/app/blog/categorieen-en-tags/`, { headers: { cookie: cookies.leider }, redirect: 'manual' });
