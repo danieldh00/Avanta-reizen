@@ -74,7 +74,7 @@ function setup(testContext) {
   fs.writeFileSync(path.join(bin, 'docker'), [
     '#!/usr/bin/env bash',
     'case "$1" in',
-    '  inspect) echo "172.20.0.9"; exit 0 ;;',
+    '  inspect) cat "$TEST_STATE/tunnel-ip" 2>/dev/null || echo "172.20.0.9"; exit 0 ;;',
     '  info) echo "$TEST_DOCKER_ROOT"; exit 0 ;;',
     'esac',
     '[ "$1 $2" = "compose version" ] && exit 0',
@@ -163,13 +163,27 @@ test('install-staging.sh --timer: niets bij dezelfde commit, develop zodra die b
   assert.equal(result.status, 0, result.output);
   assert.deepEqual(env.takeCalls(), []);
 
+  // Zelfde commit, maar cloudflared heeft een ander IP-adres: de opstelling gaat opnieuw omhoog met de nieuwe waarde.
+  fs.writeFileSync(path.join(env.root, 'tunnel-ip'), '172.20.0.14\n');
+  result = env.run('--timer');
+  assert.equal(result.status, 0, result.output);
+  assert.match(env.stagingEnv(), /^TRUST_PROXY=172\.20\.0\.14$/m);
+  assert.ok(env.takeCalls().some((line) => /compose up -d --remove-orphans/.test(line)));
+  assert.equal(env.deployed(), first);
+  result = env.run('--timer');
+  assert.equal(result.status, 0, result.output);
+  assert.deepEqual(env.takeCalls(), []);
+  fs.rmSync(path.join(env.root, 'tunnel-ip'));
+  assert.equal(env.run('--timer').status, 0);
+  env.takeCalls();
+
   // develop bestaat: staging stapt over, met dezelfde geheimen en zonder testdata te vullen.
   const second = env.commit('develop', 'tweede');
   result = env.run('--timer');
   assert.equal(result.status, 0, result.output);
   assert.equal(env.deployed(), second);
   assert.match(result.output, /\(develop\)/);
-  assert.equal(env.stagingEnv(), secrets);
+  assert.equal(env.stagingEnv(), secrets.replace(/^TRUST_PROXY=.*$/m, 'TRUST_PROXY=172.20.0.9'));
   assert.ok(!env.takeCalls().some((line) => /seed\/cli\.js/.test(line)));
 
   // Een commit die niet bouwt: terug naar de vorige, en de timer slaat hem daarna over.

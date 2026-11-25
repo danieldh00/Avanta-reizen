@@ -65,13 +65,23 @@ current="$(cat "$BASE_DIR/.deployed-commit" 2>/dev/null || true)"
 port="$(setting "$STACK_DIR/.env" APP_PORT)"; port="${port:-3401}"
 healthy() { curl -fsS -m 10 "http://127.0.0.1:$port/api/health" >/dev/null 2>&1; }
 
+# ---------- Bestaande cloudflared: naam en netwerk van de testomgeving, het IP-adres elke keer opnieuw ----------
+tunnel_container="${TUNNEL_CONTAINER:-$(setting "$MAIN_ENV" TUNNEL_CONTAINER)}"
+tunnel_network="${TUNNEL_NETWORK:-$(setting "$MAIN_ENV" TUNNEL_NETWORK)}"
+[ -n "$tunnel_container" ] && [ -n "$tunnel_network" ] \
+  || die "naam of netwerk van de cloudflared-container niet gevonden in $MAIN_ENV; installeer eerst de testomgeving of geef TUNNEL_CONTAINER en TUNNEL_NETWORK mee"
+tunnel_ip="$(docker inspect -f "{{with index .NetworkSettings.Networks \"$tunnel_network\"}}{{.IPAddress}}{{end}}" "$tunnel_container" 2>/dev/null || true)"
+
 if [ "$TIMER" = 1 ]; then
-  if [ "$target" = "$current" ] && healthy; then exit 0; fi
+  # Niets te doen bij dezelfde commit, een gezonde app en hetzelfde IP-adres van cloudflared. Is dat adres veranderd
+  # (container opnieuw aangemaakt), dan gaat de opstelling opnieuw omhoog met de nieuwe TRUST_PROXY.
+  if [ "$target" = "$current" ] && healthy && [ "$tunnel_ip" = "$(setting "$STACK_DIR/.env" TRUST_PROXY)" ]; then exit 0; fi
   if [ "$target" != "$current" ] && [ "$target" = "$(cat "$FAILED_FILE" 2>/dev/null || true)" ]; then
     log "Commit ${target:0:7} van $track faalde eerder; overslaan tot er een nieuwere is."
     exit 0
   fi
 fi
+[[ "$tunnel_ip" =~ ^[0-9a-fA-F.:]+$ ]] || die "geen IP-adres van $tunnel_container in netwerk $tunnel_network (draait de container?)"
 git -C "$REPO_DIR" cat-file -e "$target:deploy/staging/compose.yml" 2>/dev/null \
   || die "origin/$track (${target:0:7}) heeft nog geen deploy/staging; wacht tot main in develop is samengevoegd"
 
@@ -81,14 +91,6 @@ free_gb="$(df -BG --output=avail "$docker_root" 2>/dev/null | tail -n 1 | tr -dc
 if [ -z "$current" ] && [ -n "$free_gb" ] && [ "$free_gb" -lt "$MIN_FREE_GB" ]; then
   die "te weinig schijfruimte voor staging: $free_gb GB vrij, minstens $MIN_FREE_GB GB nodig. Draai eerst de servertaak 'schijf' of vergroot de schijf."
 fi
-
-# ---------- Bestaande cloudflared: naam en netwerk van de testomgeving, het IP-adres elke keer opnieuw ----------
-tunnel_container="${TUNNEL_CONTAINER:-$(setting "$MAIN_ENV" TUNNEL_CONTAINER)}"
-tunnel_network="${TUNNEL_NETWORK:-$(setting "$MAIN_ENV" TUNNEL_NETWORK)}"
-[ -n "$tunnel_container" ] && [ -n "$tunnel_network" ] \
-  || die "naam of netwerk van de cloudflared-container niet gevonden in $MAIN_ENV; installeer eerst de testomgeving of geef TUNNEL_CONTAINER en TUNNEL_NETWORK mee"
-tunnel_ip="$(docker inspect -f "{{with index .NetworkSettings.Networks \"$tunnel_network\"}}{{.IPAddress}}{{end}}" "$tunnel_container" 2>/dev/null || true)"
-[[ "$tunnel_ip" =~ ^[0-9a-fA-F.:]+$ ]] || die "geen IP-adres van $tunnel_container in netwerk $tunnel_network (draait de container?)"
 
 # Zet de code op een commit, schrijft de instellingen en bouwt en start de opstelling. Uitgangscode 0 = gezond.
 deploy() { # <commit>
