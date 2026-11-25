@@ -16,6 +16,7 @@ const { createMediaLibrary } = require('../media/library');
 const { pickerFilter, pickerPhotos, renderPhotoPicker } = require('../media/picker');
 const { createCategories, validateCategory, KINDS, ICON_CHOICES, LIMITS } = require('./categories');
 const { RICHTEXT_HELP } = require('../cms/block-editor');
+const { createCategoryReads } = require('./category-api');
 
 /** Basispad van het scherm. */
 const BASE = '/app/reistypes-en-landen/';
@@ -46,6 +47,7 @@ function createCategoryRoutes(options) {
   const { db, auth } = options;
   const categories = createCategories({ db });
   const library = options.library || createMediaLibrary({ db, mediaDir: options.mediaDir || '' });
+  const reads = createCategoryReads({ db, mediaLibrary: library });
   const router = express.Router();
   const guard = auth.requireRight('reizen');
 
@@ -54,13 +56,27 @@ function createCategoryRoutes(options) {
    * @param {any} req Express-verzoek.
    * @param {any} res Express-antwoord.
    * @param {string} title Titel van de pagina (het scherm zet hem daarna zelf bij een wissel).
-   * @returns {boolean} Waar als de pagina is gestuurd; onwaar zonder bundel.
+   * @param {() => Promise<Record<string, any>>} [preload] Antwoorden van de API voor het eerste scherm, per pad (alleen
+   *   opgehaald als de bundel er is): het scherm tekent dan meteen, zonder extra verzoek.
+   * @returns {Promise<boolean>} Waar als de pagina is gestuurd; onwaar zonder bundel.
    */
-  const sendVuePage = (req, res, title) => {
+  const sendVuePage = async (req, res, title, preload) => {
     const bundle = options.webBundle ? options.webBundle.assetsFor('reistypes') : null;
     if (!bundle) return false;
-    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, bundle, body: renderMountPoint({ name: 'reistypes', base: BASE, available: true }) }));
+    res.send(renderCrmPage({ title, user: req.user, csrf: req.session.csrf, path: BASE, bundle, body: renderMountPoint({ name: 'reistypes', base: BASE, available: true, preload: preload ? await preload() : undefined }) }));
     return true;
+  };
+
+  /**
+   * Wat het bewerkscherm van een reistype of land bij het openen vraagt: de categorie, het overzicht (soorten, iconen,
+   * grenzen) en de eerste pagina van de fotokiezer, met dezelfde paden als `web/src/modules/reistypes/category-api.ts`.
+   * @param {number} id Id van de categorie (bestaat).
+   * @returns {Promise<Record<string, any>>} Antwoorden per pad.
+   */
+  const preloadCategory = async (id) => {
+    const [details, overview] = await Promise.all([reads.category(id), reads.overview()]);
+    const photos = await reads.photos(details, { page: 1 });
+    return { [`/reistypes-en-landen/${id}/`]: details, '/reistypes-en-landen/': overview, [`/reistypes-en-landen/${id}/fotos/?pagina=1`]: photos };
   };
 
   /**
@@ -154,7 +170,7 @@ function createCategoryRoutes(options) {
 
   router.get('/reistypes-en-landen/', guard, async (req, res, next) => {
     try {
-      if (sendVuePage(req, res, 'Reistypes en landen')) return undefined;
+      if (await sendVuePage(req, res, 'Reistypes en landen', async () => ({ '/reistypes-en-landen/': await reads.overview() }))) return undefined;
       return res.send(await renderList(req, { notice: req.query.klaar === '1' ? 'Verwijderd.' : '' }));
     } catch (error) {
       return next(error);
@@ -257,7 +273,7 @@ function createCategoryRoutes(options) {
     try {
       const category = await loadOr404(req, res);
       if (!category) return undefined;
-      if (sendVuePage(req, res, category.name)) return undefined;
+      if (await sendVuePage(req, res, category.name, () => preloadCategory(category.id))) return undefined;
       const notices = { 1: 'Opgeslagen.', 2: 'Opgeslagen. Het oude adres verwijst automatisch door naar het nieuwe.', 3: 'De foto is opgeslagen.', 4: 'Samengevoegd. Het oude adres verwijst automatisch door naar deze categorie.' };
       return res.send(await renderItem(req, category, { notice: notices[req.query.opgeslagen] || '' }));
     } catch (error) {

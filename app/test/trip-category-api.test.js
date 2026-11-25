@@ -158,6 +158,11 @@ test('API van reistypes en landen in de echte app', { skip: !DATABASE_URL && 'TE
     assert.match(page, /id="crm-app" data-module="reistypes" data-base="\/app\/reistypes-en-landen\/"/);
     page = await (await fetch(`${app.base}/app/reistypes-en-landen/${ids.norway}/`, { headers: { cookie: cookies.planner } })).text();
     assert.match(page, /<title>Noorwegen/);
+    // Het eerste scherm krijgt zijn gegevens mee in de pagina, gelijk aan de API: geen extra verzoek vooraf.
+    await app.checkPreload('/app/reistypes-en-landen/', cookies.planner, ['/reistypes-en-landen/'], assert);
+    const one = `/reistypes-en-landen/${ids.norway}/`;
+    const preloaded = await app.checkPreload(`/app${one}`, cookies.planner, [one, '/reistypes-en-landen/', `${one}fotos/?pagina=1`], assert);
+    assert.equal(preloaded[one].naam, 'Noorwegen');
     assert.equal((await fetch(`${app.base}/app/reistypes-en-landen/999999/`, { headers: { cookie: cookies.planner } })).status, 404);
   });
 

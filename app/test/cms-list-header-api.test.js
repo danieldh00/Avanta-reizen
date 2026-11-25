@@ -104,6 +104,11 @@ test('API van de lijstpagina\'s in de echte app', { skip: !DATABASE_URL && 'TEST
     }
     const page = await (await fetch(`${app.base}/app/lijstpaginas/blog/foto/`, { headers: { cookie: cookies.redactie } })).text();
     assert.match(page, /<title>Foto: Blog/);
+    // Het eerste scherm krijgt zijn gegevens mee in de pagina, gelijk aan de API: geen extra verzoek vooraf.
+    await app.checkPreload('/app/lijstpaginas/', cookies.redactie, ['/lijstpaginas/'], assert);
+    await app.checkPreload('/app/lijstpaginas/blog/', cookies.redactie, ['/lijstpaginas/blog/', '/lijstpaginas/'], assert);
+    const preloaded = await app.checkPreload('/app/lijstpaginas/blog/foto/', cookies.redactie, ['/lijstpaginas/blog/', '/lijstpaginas/blog/fotos/?pagina=1'], assert);
+    assert.match(preloaded['/lijstpaginas/blog/'].titel, /Verhalen <van> reizigers/, 'tekens komen ongeschonden door de escaping');
   });
 
   await testContext.test('limiet op schrijven per gebruiker', async () => {

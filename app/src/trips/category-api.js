@@ -77,6 +77,47 @@ const listItem = (row) => ({
 });
 
 /**
+ * Leesfuncties: dezelfde antwoorden als de GET-routes hieronder. Ook gebruikt door `category-routes.js` om het eerste
+ * scherm mee te sturen in de pagina (`renderMountPoint`, `preload`), zodat dat scherm niet op een extra verzoek wacht.
+ * @param {{db: any, mediaLibrary?: any}} options Database en eventueel de fotobibliotheek.
+ * @returns {{overview: () => Promise<any>, category: (id: number|string) => Promise<any|null>,
+ *   photos: (category: any, query: {text?: string, page?: number, all?: boolean}) => Promise<any>}} Antwoorden; null
+ *   als het id niet bestaat. `photos` krijgt de categorie uit `category`.
+ */
+function createCategoryReads(options) {
+  const { db } = options;
+  const categories = createCategories({ db });
+  const library = options.mediaLibrary || createMediaLibrary({ db, mediaDir: '' });
+  return {
+    overview: async () => {
+      const rows = await categories.list();
+      return {
+        soorten: Object.entries(KINDS).map(([kind, label]) => ({ soort: kind, naam: label, meervoud: KIND_TITLES[kind] })),
+        items: rows.map(listItem),
+        iconen: Object.fromEntries(ICON_CHOICES.map((name) => [name, ICONS[name] || []])),
+        grenzen: { naam: LIMITS.name, inleiding: LIMITS.intro, tekst: LIMITS.body },
+      };
+    },
+    category: async (id) => {
+      const category = await categories.get(id);
+      if (!category) return null;
+      const others = await categories.list({ kind: category.kind });
+      return {
+        id: category.id, naam: category.name, adres: category.slug, pad: categoryPath(category.slug), soort: category.kind,
+        icoon: category.icon || '', code: category.iso_code || null, inleiding: category.intro || '', tekst: category.body_html || '',
+        volgorde: category.sort_order, homepage: Boolean(category.show_on_home), foto: category.image_url || null,
+        reizen: category.trip_count, fotos: category.photo_count, gewijzigd: category.updated_at,
+        samenvoegenMet: others.filter((row) => row.id !== category.id).map((row) => ({ id: row.id, naam: row.name, adres: row.slug })),
+      };
+    },
+    photos: (category, query) => {
+      const countryId = category.soort === 'bestemming' && !query.all ? category.id : null;
+      return photoPickerPage(library, { text: query.text, page: query.page, countryId });
+    },
+  };
+}
+
+/**
  * Maakt de API-routes van de reistypes en landen.
  * @param {any} context Context van de API-router (`api/router.js`): `db`, `auth`, `requireRight`, `validate`,
  *   `sendApiError`, eventueel `redirects` (opnieuw laden na een 301), `mediaLibrary` en `now` (tests).
@@ -85,7 +126,7 @@ const listItem = (row) => ({
 function createCategoryApi(context) {
   const { db, auth, sendApiError } = context;
   const categories = createCategories({ db });
-  const library = context.mediaLibrary || createMediaLibrary({ db, mediaDir: '' });
+  const reads = createCategoryReads({ db, mediaLibrary: context.mediaLibrary });
   const router = express.Router();
   const guard = context.requireRight('reizen');
   const write = [guard, createWriteLimit({ name: 'reistypes-en-landen', limit: WRITE_LIMIT, now: context.now, sendApiError })];
@@ -116,13 +157,7 @@ function createCategoryApi(context) {
   const invalid = (res, errors) => sendApiError(res, 'ongeldig', { fields: apiFieldNames(errors, FIELD_NAMES) });
 
   router.get('/reistypes-en-landen/', guard, async (req, res) => {
-    const rows = await categories.list();
-    res.json({
-      soorten: Object.entries(KINDS).map(([kind, label]) => ({ soort: kind, naam: label, meervoud: KIND_TITLES[kind] })),
-      items: rows.map(listItem),
-      iconen: Object.fromEntries(ICON_CHOICES.map((name) => [name, ICONS[name] || []])),
-      grenzen: { naam: LIMITS.name, inleiding: LIMITS.intro, tekst: LIMITS.body },
-    });
+    res.json(await reads.overview());
   });
 
   router.post('/reistypes-en-landen/', write, context.validate(categorySchema), async (req, res) => {
@@ -135,16 +170,8 @@ function createCategoryApi(context) {
   });
 
   router.get(one(), guard, async (req, res) => {
-    const category = await categories.get(req.params.id);
-    if (!category) return sendApiError(res, 'niet-gevonden');
-    const others = await categories.list({ kind: category.kind });
-    return res.json({
-      id: category.id, naam: category.name, adres: category.slug, pad: categoryPath(category.slug), soort: category.kind,
-      icoon: category.icon || '', code: category.iso_code || null, inleiding: category.intro || '', tekst: category.body_html || '',
-      volgorde: category.sort_order, homepage: Boolean(category.show_on_home), foto: category.image_url || null,
-      reizen: category.trip_count, fotos: category.photo_count, gewijzigd: category.updated_at,
-      samenvoegenMet: others.filter((row) => row.id !== category.id).map((row) => ({ id: row.id, naam: row.name, adres: row.slug })),
-    });
+    const category = await reads.category(req.params.id);
+    return category ? res.json(category) : sendApiError(res, 'niet-gevonden');
   });
 
   router.put(one(), write, context.validate(categorySchema), async (req, res) => {
@@ -173,10 +200,9 @@ function createCategoryApi(context) {
   });
 
   router.get(one('fotos/'), guard, context.validate(photoQuerySchema, 'query'), async (req, res) => {
-    const category = await categories.get(req.params.id);
+    const category = await reads.category(req.params.id);
     if (!category) return sendApiError(res, 'niet-gevonden');
-    const countryId = category.kind === 'bestemming' && req.input.alle !== '1' ? category.id : null;
-    return res.json(await photoPickerPage(library, { text: req.input.zoek, page: req.input.pagina, countryId }));
+    return res.json(await reads.photos(category, { text: req.input.zoek, page: req.input.pagina, all: req.input.alle === '1' }));
   });
 
   router.post(one('samenvoegen/'), write, context.validate(mergeSchema), async (req, res) => {
@@ -195,4 +221,4 @@ function createCategoryApi(context) {
   return router;
 }
 
-module.exports = { createCategoryApi, WRITE_LIMIT };
+module.exports = { createCategoryApi, createCategoryReads, WRITE_LIMIT };

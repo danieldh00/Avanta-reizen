@@ -10,6 +10,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { readPreloaded } = require('./helpers/api-app');
 const { toString } = require('../src/site/html');
 const { createWebBundle, renderBundleHead, renderMountPoint, BUNDLE_BASE } = require('../src/crm/web-bundle');
 const { createDatabase } = require('../src/database/db');
@@ -84,6 +85,13 @@ test('koppen en koppelpunt: alleen bestanden met src, alles geëscapet, melding 
   const mount = toString(renderMountPoint({ name: 'beheer"><x', base: '/app/beheer/', available: true }));
   assert.match(mount, /<div id="crm-app" data-module="beheer&quot;&gt;&lt;x" data-base="\/app\/beheer\/">/);
   assert.match(toString(renderMountPoint({ name: 'beheer', base: '/app/beheer/', available: false })), /niet beschikbaar/);
+  // Voorgeladen antwoorden: als JSON in één attribuut, alles geëscapet, en heel terug te lezen.
+  const preload = { '/faq/': { vraag: '"><script>alert(1)</script> & \'x\'' } };
+  const withData = toString(renderMountPoint({ name: 'faq', base: '/app/faq/', available: true, preload }));
+  assert.doesNotMatch(withData, /<script/);
+  assert.deepEqual(readPreloaded(withData), preload);
+  assert.doesNotMatch(toString(renderMountPoint({ name: 'faq', base: '/app/faq/', available: true, preload: {} })), /data-voorgeladen/);
+  assert.doesNotMatch(toString(renderMountPoint({ name: 'faq', base: '/app/faq/', available: false, preload })), /voorgeladen|alert\(/);
 });
 
 /**
@@ -159,15 +167,23 @@ test('scherm Bouwstenen in de echte app: koppelpunt in de schil, CSP gelijk, bes
   const [category] = await db.query("INSERT INTO faq_categories (name, sort_order) VALUES ('Reizen & meer', 10) RETURNING id");
   const [question] = await db.query("INSERT INTO faqs (slug, question, answer_html, category, category_id) VALUES ('paspoort', 'Paspoort nodig?', '<p>Ja</p>', 'Reizen & meer', $1) RETURNING id", [category.id]);
   const redacteur = await login('redacteur');
-  const faqPages = [['/app/faq/', 'Veelgestelde vragen'], ['/app/faq/nieuw/', 'Vraag toevoegen'], [`/app/faq/${question.id}/`, 'Vraag wijzigen'], [`/app/faq/categorieen/${category.id}/`, 'Categorie: Reizen &amp; meer']];
-  for (const [url, title] of faqPages) {
+  const faqPages = [
+    ['/app/faq/', 'Veelgestelde vragen', ['/faq/']], ['/app/faq/nieuw/', 'Vraag toevoegen', ['/faq/']],
+    [`/app/faq/${question.id}/`, 'Vraag wijzigen', ['/faq/', `/faq/vragen/${question.id}/`]],
+    [`/app/faq/categorieen/${category.id}/`, 'Categorie: Reizen &amp; meer', [`/faq/categorieen/${category.id}/`]],
+  ];
+  for (const [url, title, preloadPaths] of faqPages) {
     const faqPage = await get(`${base}${url}`, redacteur);
     assert.equal(faqPage.status, 200, url);
     assert.equal(faqPage.headers.get('content-security-policy'), BASE_CSP);
     assert.ok(faqPage.text.includes(`<title>${title} - Avanta CRM</title>`), url);
-    assert.match(faqPage.text, /<div id="crm-app" data-module="faq" data-base="\/app\/faq\/">/);
+    assert.match(faqPage.text, /<div id="crm-app" data-module="faq" data-base="\/app\/faq\/" data-voorgeladen="[^"<>]+">/);
     assert.match(faqPage.text, /<script type="module" src="\/bundel\/assets\/faq-DDDD\.js"><\/script>/);
-    assert.doesNotMatch(faqPage.text, /Paspoort nodig\?/, 'de inhoud komt via de API');
+    assert.doesNotMatch(faqPage.text, /<[^>]*>[^<]*Paspoort nodig\?/, 'de inhoud staat niet als HTML in de pagina, alleen voorgeladen');
+    // Het eerste scherm krijgt de antwoorden van zijn GET-verzoeken mee (`createFaqReads`), zonder extra verzoek.
+    const preloaded = readPreloaded(faqPage.text);
+    assert.deepEqual(Object.keys(preloaded).sort(), [...preloadPaths].sort(), url);
+    if (preloaded[`/faq/vragen/${question.id}/`]) assert.equal(preloaded[`/faq/vragen/${question.id}/`].vraag, 'Paspoort nodig?');
     assert.deepEqual(faqPage.text.match(/<script(?![^>]*\bsrc=)[^>]*>/g) || [], [], 'geen inline script');
   }
   assert.equal((await get(`${base}/app/faq/999999/`, redacteur)).status, 404, 'onbekende vraag: 404 van de server');

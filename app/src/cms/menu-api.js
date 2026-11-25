@@ -56,6 +56,34 @@ const checkItem = (input) => validateMenuItem({
 const apiItem = (row) => ({ id: row.id, menu: row.menu, ouderId: row.parent_id, tekst: row.label, adres: row.href, volgorde: row.sort_order });
 
 /**
+ * Leesfuncties: dezelfde antwoorden als de GET-routes hieronder. Ook gebruikt door `menu-routes.js` om het eerste
+ * scherm mee te sturen in de pagina (`renderMountPoint`, `preload`), zodat dat scherm niet op een extra verzoek wacht.
+ * @param {{db: any, menus?: any}} options Database en eventueel de gedeelde menu's van de site.
+ * @returns {{overview: () => Promise<any>, item: (id: number|string) => Promise<any|null>}} Antwoorden; null als het
+ *   id niet bestaat.
+ */
+function createMenuReads(options) {
+  const { db } = options;
+  const menus = options.menus || createMenus({ db });
+  return {
+    overview: async () => {
+      const [rows, pages] = await Promise.all([menus.list(), db.query('SELECT path, title FROM pages WHERE published ORDER BY path LIMIT 500')]);
+      return {
+        menus: Object.entries(MENUS).map(([menu, label]) => ({ menu, naam: label, items: rows.filter((row) => row.menu === menu).map(apiItem) })),
+        suggesties: [...FIXED_PATHS.map((path) => ({ pad: path, titel: '' })), ...pages.map((page) => ({ pad: page.path, titel: page.title }))],
+        grenzen: { tekst: MENU_LIMITS.label, adres: MENU_LIMITS.href, items: MAX_ITEMS },
+      };
+    },
+    item: async (id) => {
+      const [row] = await db.query('SELECT id, menu, parent_id, label, href, sort_order FROM menu_items WHERE id = $1', [Number(id)]);
+      if (!row) return null;
+      const [child] = await db.query('SELECT count(*)::int AS count FROM menu_items WHERE parent_id = $1', [row.id]);
+      return { ...apiItem(row), aantalSubitems: child.count };
+    },
+  };
+}
+
+/**
  * Maakt de API-routes van de menu's.
  * @param {any} context Context van de API-router (`api/router.js`): `db`, `auth`, `requireRight`, `validate`,
  *   `sendApiError`, `menus` (de menu's van de site, die na een wijziging opnieuw laden) en eventueel `now` (tests).
@@ -64,6 +92,7 @@ const apiItem = (row) => ({ id: row.id, menu: row.menu, ouderId: row.parent_id, 
 function createMenuApi(context) {
   const { db, auth, sendApiError } = context;
   const menus = context.menus || createMenus({ db });
+  const reads = createMenuReads({ db, menus });
   const router = express.Router();
   const guard = context.requireRight('content');
   const write = [guard, createWriteLimit({ name: 'menus', limit: WRITE_LIMIT, now: context.now, sendApiError })];
@@ -85,12 +114,7 @@ function createMenuApi(context) {
   const invalid = (res, errors) => sendApiError(res, 'ongeldig', { fields: apiFieldNames(errors, FIELD_NAMES) });
 
   router.get('/menus/', guard, async (req, res) => {
-    const [rows, pages] = await Promise.all([menus.list(), db.query('SELECT path, title FROM pages WHERE published ORDER BY path LIMIT 500')]);
-    res.json({
-      menus: Object.entries(MENUS).map(([menu, label]) => ({ menu, naam: label, items: rows.filter((row) => row.menu === menu).map(apiItem) })),
-      suggesties: [...FIXED_PATHS.map((path) => ({ pad: path, titel: '' })), ...pages.map((page) => ({ pad: page.path, titel: page.title }))],
-      grenzen: { tekst: MENU_LIMITS.label, adres: MENU_LIMITS.href, items: MAX_ITEMS },
-    });
+    res.json(await reads.overview());
   });
 
   router.post('/menus/', write, context.validate(itemSchema), async (req, res) => {
@@ -102,10 +126,8 @@ function createMenuApi(context) {
   });
 
   router.get(routePath('/menus/:id(\\d{1,9})/'), guard, async (req, res) => {
-    const [row] = await db.query('SELECT id, menu, parent_id, label, href, sort_order FROM menu_items WHERE id = $1', [Number(req.params.id)]);
-    if (!row) return sendApiError(res, 'niet-gevonden');
-    const [child] = await db.query('SELECT count(*)::int AS count FROM menu_items WHERE parent_id = $1', [row.id]);
-    return res.json({ ...apiItem(row), aantalSubitems: child.count });
+    const item = await reads.item(req.params.id);
+    return item ? res.json(item) : sendApiError(res, 'niet-gevonden');
   });
 
   router.put(routePath('/menus/:id(\\d{1,9})/'), write, context.validate(itemSchema), async (req, res) => {
@@ -126,4 +148,4 @@ function createMenuApi(context) {
   return router;
 }
 
-module.exports = { createMenuApi, WRITE_LIMIT };
+module.exports = { createMenuApi, createMenuReads, WRITE_LIMIT };

@@ -73,6 +73,38 @@ function apiFields(errors) {
 const listQuestion = (row) => ({ id: row.id, vraag: row.question, volgorde: row.sort_order });
 
 /**
+ * Leesfuncties: dezelfde antwoorden als de GET-routes hieronder. Ook gebruikt door `faq-routes.js` om het eerste scherm
+ * mee te sturen in de pagina (`renderMountPoint`, `preload`), zodat dat scherm niet op een extra verzoek wacht.
+ * @param {{db: any}} options Database.
+ * @returns {{overview: () => Promise<any>, question: (id: number|string) => Promise<any|null>, category: (id: number|string) => Promise<any|null>}}
+ *   Antwoorden; null als het id niet bestaat.
+ */
+function createFaqReads(options) {
+  const faqs = createFaqs({ db: options.db });
+  return {
+    overview: async () => {
+      const { categories, loose } = await faqs.overview();
+      return {
+        categorieen: categories.map((category) => ({ id: category.id, naam: category.name, volgorde: category.sort_order, vragen: category.questions.map(listQuestion) })),
+        los: loose.map(listQuestion),
+        grenzen: { categorieen: FAQ_LIMITS.categories, vragen: FAQ_LIMITS.questions, naam: FAQ_LIMITS.category, vraag: FAQ_LIMITS.question, antwoord: FAQ_LIMITS.answer },
+      };
+    },
+    question: async (id) => {
+      const question = await faqs.getQuestion(id);
+      return question && {
+        id: question.id, vraag: question.question, antwoord: question.answer_html, categorieId: question.category_id,
+        volgorde: question.sort_order, gewijzigd: question.updated_at,
+      };
+    },
+    category: async (id) => {
+      const category = await faqs.getCategory(id);
+      return category && { id: category.id, naam: category.name, volgorde: category.sort_order, aantalVragen: category.question_count };
+    },
+  };
+}
+
+/**
  * Maakt de API-routes van de FAQ.
  * @param {any} context Context van de API-router (`api/router.js`): `db`, `auth`, `requireRight`, `validate`,
  *   `sendApiError` en eventueel `now` (tests).
@@ -81,6 +113,7 @@ const listQuestion = (row) => ({ id: row.id, vraag: row.question, volgorde: row.
 function createFaqApi(context) {
   const { auth, sendApiError } = context;
   const faqs = createFaqs({ db: context.db });
+  const reads = createFaqReads({ db: context.db });
   const router = express.Router();
   const guard = context.requireRight('content');
   const writeLimiter = createRateLimiter({ limit: WRITE_LIMIT, windowMs: 60 * 1000, now: context.now });
@@ -137,21 +170,12 @@ function createFaqApi(context) {
   const invalid = (res, errors) => sendApiError(res, 'ongeldig', { fields: apiFields(errors) });
 
   router.get('/faq/', guard, async (req, res) => {
-    const { categories, loose } = await faqs.overview();
-    res.json({
-      categorieen: categories.map((category) => ({ id: category.id, naam: category.name, volgorde: category.sort_order, vragen: category.questions.map(listQuestion) })),
-      los: loose.map(listQuestion),
-      grenzen: { categorieen: FAQ_LIMITS.categories, vragen: FAQ_LIMITS.questions, naam: FAQ_LIMITS.category, vraag: FAQ_LIMITS.question, antwoord: FAQ_LIMITS.answer },
-    });
+    res.json(await reads.overview());
   });
 
   router.get(routePath('/faq/vragen/:id(\\d{1,9})/'), guard, async (req, res) => {
-    const question = await faqs.getQuestion(req.params.id);
-    if (!question) return sendApiError(res, 'niet-gevonden');
-    return res.json({
-      id: question.id, vraag: question.question, antwoord: question.answer_html, categorieId: question.category_id,
-      volgorde: question.sort_order, gewijzigd: question.updated_at,
-    });
+    const question = await reads.question(req.params.id);
+    return question ? res.json(question) : sendApiError(res, 'niet-gevonden');
   });
 
   router.post('/faq/vragen/', write, context.validate(questionSchema), async (req, res) => {
@@ -184,9 +208,8 @@ function createFaqApi(context) {
   });
 
   router.get(routePath('/faq/categorieen/:id(\\d{1,9})/'), guard, async (req, res) => {
-    const category = await faqs.getCategory(req.params.id);
-    if (!category) return sendApiError(res, 'niet-gevonden');
-    return res.json({ id: category.id, naam: category.name, volgorde: category.sort_order, aantalVragen: category.question_count });
+    const category = await reads.category(req.params.id);
+    return category ? res.json(category) : sendApiError(res, 'niet-gevonden');
   });
 
   router.post('/faq/categorieen/', write, context.validate(categorySchema), async (req, res) => {
@@ -223,4 +246,4 @@ function createFaqApi(context) {
   return router;
 }
 
-module.exports = { createFaqApi, WRITE_LIMIT };
+module.exports = { createFaqApi, createFaqReads, WRITE_LIMIT };

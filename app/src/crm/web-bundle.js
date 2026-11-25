@@ -109,14 +109,20 @@ function renderBundleHead(assets) {
 
 /**
  * Het koppelpunt van een module in het midden van de pagina. Zonder bundel een melding in plaats van een leeg scherm.
- * @param {{name: string, base: string, available: boolean}} mount Naam, basispad (onder `/app/`, eindigt op `/`) en of de bundel er is.
+ *
+ * Met `preload` gaan de antwoorden van de GET-verzoeken van het eerste scherm mee in de pagina (attribuut
+ * `data-voorgeladen`, JSON per pad binnen `/app/api`, ge-escapet door `html`): het scherm hoeft dan niet eerst op een
+ * extra verzoek te wachten (`web/src/api/preload.ts`). Alleen voor wat de route zelf met hetzelfde recht mag lezen.
+ * @param {{name: string, base: string, available: boolean, preload?: Record<string, any>}} mount Naam, basispad (onder
+ *   `/app/`, eindigt op `/`), of de bundel er is en eventueel de voorgeladen antwoorden.
  * @returns {any} HTML.
  */
 function renderMountPoint(mount) {
   if (!mount.available) {
     return html`<p class="form-alert" role="alert">Dit scherm is niet beschikbaar: de nieuwe schermen zijn niet meegebouwd. Meld dit aan de beheerder.</p>`;
   }
-  return html`<div id="crm-app" data-module="${mount.name}" data-base="${mount.base}"><p class="crm-empty">Laden…</p></div>
+  const preload = mount.preload && Object.keys(mount.preload).length ? html` data-voorgeladen="${JSON.stringify(mount.preload)}"` : '';
+  return html`<div id="crm-app" data-module="${mount.name}" data-base="${mount.base}"${preload}><p class="crm-empty">Laden…</p></div>
     <noscript><p class="form-alert">Dit scherm werkt alleen met JavaScript.</p></noscript>`;
 }
 
