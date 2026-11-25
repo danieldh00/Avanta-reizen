@@ -70,6 +70,8 @@ function createServices(options) {
   const updateStatusDir = options.updateStatusDir ?? process.env.UPDATE_STATUS_DIR ?? '';
   const systemUpdate = options.systemUpdate || createSystemUpdate({
     statusDir: updateStatusDir, requestDir: options.updateRequestDir ?? process.env.UPDATE_REQUEST_DIR ?? '',
+    // Alleen de stagingomgeving heeft deze map: haar bijwerkscript schrijft er de gevolgde branch en commit in.
+    stagingDir: options.stagingStatusDir ?? process.env.STAGING_STATUS_DIR ?? '',
     currentVersion: require('../package.json').version, now: options.now,
   });
   const hostTasks = createHostTasks({ statusDir: updateStatusDir, settings });
