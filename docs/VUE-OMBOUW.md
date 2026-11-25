@@ -4,7 +4,11 @@ Besluiten van Daniël op 25-11-2026. Dit bestand bevat de regels waar code en PR
 met alle PR's, risico's en de inschatting staat in de projectbestanden (`plan/plan-vue-ombouw.md` en
 `plan/plan-vue-ombouw.xlsx`). Wie de werkwijze of de opbouw verandert, werkt dit bestand bij in dezelfde PR.
 
-Stand: fase V0 (voorbereiding). Er staat nog geen Vue-code in de repository.
+Stand: fase V1 (fundament) op `develop`. V1.1: het Vite-project `app/web/` (zie §7). V1.2: het API-fundament (§8). V1.3: het
+koppelpunt in de schil en het eerste scherm in Vue (§9). V1.4: de bouwstenen voor lijsten, formulieren en meldingen
+(`app/web/CLAUDE.md`). V1.5: teksteditor, fotokiezer en uploadveld; daarmee is het fundament klaar en kan een module
+worden omgebouwd (V2: FAQ als proef). V2.1: de JSON-API van de FAQ (`cms/faq-api.js`). V2.2: de schermen van de FAQ in
+Vue (`app/web/src/modules/faq/`); de GET-routes van de oude schermen geven het koppelpunt zolang de bundel er is.
 
 ## 1. Besluiten
 
@@ -111,3 +115,62 @@ Het updatescript van de testomgeving volgt `main` in een andere map en kan stagi
 | V8 | schil en overzicht (alleen) | `develop` |
 | V9 | afronden CRM: oude weergave weg, volledige herbeoordeling | `develop` en `main` |
 | V10 | publieke site en reizigersaccount, met rendering op de server | `develop` |
+
+## 7. Bouwen, testen en ontwikkelen
+
+- **Project**: `app/web/` met een eigen `package.json` (vaste versies), `vite.config.ts`, `tsconfig.json` (strikt) en
+  `eslint.config.js`. Details per bestand: `app/web/CLAUDE.md`.
+- **Ingangen**: elke map `app/web/src/modules/<module>/` met een `main.ts` wordt vanzelf een eigen bundel; er is geen
+  lijst om bij te houden.
+- **Uitvoer**: `app/web/dist/` met het manifest van Vite (`dist/.vite/manifest.json`), alleen gemaakt bij het bouwen
+  van het image (Dockerfile, stap `web`) en niet in git. Het image krijgt alleen die uitvoer, niet de bron of de
+  afhankelijkheden van de frontend. De server biedt de bestanden aan onder `/bundel/`.
+- **CSP**: de runtime van Vue zonder compiler (sjablonen vooraf gecompileerd, geen `eval`), geen inline scripts (ook
+  geen polyfill voor modulepreload) en opmaak van componenten in losse CSS-bestanden. De policy blijft gelijk.
+- **CI** (job `test`): `npm ci`, lint, `vue-tsc`, Vitest met een eigen dekkingsdrempel (95/85/93, zoals de server),
+  een proefbouw en `npm audit --omit=dev` voor de afhankelijkheden van de frontend. Dat dekt bewust alleen wat in de
+  bundel komt (Vue en de router); het bouwgereedschap (Vite, Vitest, ESLint) draait alleen in CI en in de bouwstap en
+  komt niet in het image. Renovate houdt ook die versies bij. De job `image` bouwt het image met de stap
+  `web` en doet de rooktest.
+- **Lint**: `v-html` is verboden (`vue/no-v-html`), net als `innerHTML`, `outerHTML`, `document.write` en `eval`.
+- **Ontwikkelen**: `npm run dev` in `app/web/` bouwt bij elke wijziging opnieuw naar `dist/`; de app op poort 3400
+  serveert die uitvoer, dus een scherm is te zien door de pagina te herladen. Bewust geen dev-server van Vite met
+  doorsturen: die zet opmaak als inline `<style>` in de pagina en dat laat de CSP (terecht) niet toe.
+- **Teksteditor**: de opschoner `app/public/js/rich-text-clean.js` (gedeeld met de server) is in de frontend te
+  importeren; de teksteditor in Vue (V1.5) gebruikt dus dezelfde regels.
+
+## 8. API-fundament
+
+- **Server** (`app/src/api/`, regels in `app/src/api/CLAUDE.md`): de router onder `/app/api/` hangt in de schil van
+  het CRM ná het laden van de sessie, dus de algemene limiet (300 per minuut), de sessie en 2FA gelden ongewijzigd.
+  Zonder sessie volgt 401 (met het pad naar inloggen of de tweede stap), zonder recht 403, beide in JSON.
+- **CSRF**: vaste kop `X-Avanta-Api: 1` op elk verzoek (een andere site kan die niet zonder CORS-voorcontrole
+  meesturen, en die beantwoordt de server niet), herkomstcontrole en `application/json` bij schrijven. Uploads alleen
+  als `multipart/form-data` op de paden die daarvoor zijn opgegeven.
+- **Antwoorden**: `Cache-Control: no-store`, dezelfde CSP als de rest. Fouten altijd als
+  `{ fout: { code, melding, velden?, foutcode?, naar? } }`; ook onderhoud (503), de limiet (429), een onbekend pad (404)
+  en een onverwachte fout (500, foutcode in het logboek).
+- **Invoer**: zod (besluit 4), alleen in de API-routes, met `.strict()` en een melding per veld.
+- **Client** (`app/web/src/api/client.ts`): de enige weg naar de server; `ApiError` met een nette melding per status.
+- `GET /app/api/sessie/` geeft naam, rol en rechten om knoppen te verbergen; de server controleert elk verzoek zelf.
+
+## 9. Koppelpunt in de schil
+
+- **Pagina**: de server levert de pagina met de bestaande opmaak (`crm/layout.js`) en zet in het midden het koppelpunt
+  `<div id="crm-app" data-module="<module>" data-base="/app/<pad>/">` (`crm/web-bundle.js`, `renderMountPoint`). In de
+  `<head>` staan de opmaak, de voorladers en het script van die module uit het manifest van Vite (`renderBundleHead`),
+  alleen als bestanden met `src`/`href`; de CSP blijft `BASE_CSP`. Ontbreekt de bundel, dan toont de pagina een
+  melding in plaats van een leeg scherm.
+- **Bestanden**: `server.js` serveert alleen `web/dist/assets/` onder `/bundel/assets/`, een jaar in de cache (namen
+  met een hash). Het manifest wordt nooit uitgeleverd.
+- **Eerste scherm**: Beheer > Systeem > Bouwstenen (`/app/beheer/bouwstenen/`, recht `systeem`) in de module
+  `beheer`; het toont elke bouwsteen met een voorbeeld en is zo het vaste scherm voor de design-controle en axe van de
+  bouwstenen.
+- **CSP-controle**: `npm run check:bundle` (CI) weigert `eval`, `new Function`, HTML en vreemde bestanden in de
+  uitvoer; de servertests controleren dat een pagina met een bundel geen inline script of opmaak heeft.
+- **Design-controle**: de job `design` bouwt eerst de frontend; `check.js` wacht tot het koppelpunt `data-klaar`
+  heeft. `changed-screens.js`: fundament en bouwstenen (`app/web/src/{components,shell,api}/`) wijzen naar het
+  overzicht van de bouwstenen en `/app/`; een module in `app/web/src/modules/<module>/` zonder eigen regel raakt dezelfde
+  schermen als `app/src/<module>/`.
+- **Een module overzetten** (vanaf V2): de route van het oude scherm geeft dezelfde pagina met `bundle` en
+  `renderMountPoint` in plaats van de HTML van de server; de API-routes staan er dan al.

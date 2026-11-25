@@ -22,6 +22,12 @@ const CRM_CORE = ['/app/inloggen/', '/app/', '/app/aanmeldingen/', '/app/deelnem
 /** Een klein vast setje om te controleren dat de design-controle zelf nog werkt. */
 const SMOKE = ['/', '/app/'];
 
+/** Het overzicht van de bouwstenen in Vue (Beheer > Systeem > Bouwstenen): elke bouwsteen met een voorbeeld. */
+const BOUWSTENEN = ['/app/beheer/bouwstenen/'];
+
+/** Een bestand van een module in de frontend: `app/web/src/modules/<module>/…`. */
+const WEB_MODULE = /^app\/web\/src\/modules\/([a-z0-9-]+)\//;
+
 /**
  * Koppeling van gewijzigde bestanden aan schermen. Elke regel die past telt mee (een bestand kan dus meerdere regels
  * raken); paden zijn vanaf de root van de repository.
@@ -58,10 +64,32 @@ const SCREEN_RULES = [
   { pattern: /^app\/src\/cms\//, screens: ['/app/paginas/*', '/app/blog/*', '/app/faq/*', '/app/lijstpaginas/*', '/app/menus/', '/'] },
   { pattern: /^app\/src\/media\//, screens: ['/app/fotobibliotheek/*'] },
   { pattern: /^app\/src\/(beheer|system|backup)\//, screens: ['/app/beheer/*'] },
+  // Frontend in Vue (`app/web/`): het fundament en de bouwstenen raken elk scherm in Vue (het overzicht van de
+  // bouwstenen) en de schil; een module raakt dezelfde schermen als haar map in `app/src/` (zie `serverPathOf`).
+  { pattern: /^app\/web\/src\/(components|shell|api)\//, screens: [...BOUWSTENEN, '/app/'] },
+  { pattern: /^app\/web\/(package(-lock)?\.json|vite\.config\.ts|tsconfig\.json)$/, screens: [...BOUWSTENEN, ...SMOKE] },
+  { pattern: /^app\/web\/src\/modules\/beheer\//, screens: BOUWSTENEN },
+  // De FAQ in Vue (fase V2) staat in `app/src/cms/`, maar raakt alleen de schermen van de FAQ.
+  { pattern: /^app\/web\/src\/modules\/faq\//, screens: ['/app/faq/*'] },
+  { pattern: /^app\/src\/crm\/web-bundle\.js$/, screens: BOUWSTENEN },
+  { pattern: /^app\/src\/beheer\/bouwstenen-routes\.js$/, screens: BOUWSTENEN },
   // De controle zelf en de CI-opzet: alleen nagaan dat het nog draait.
   { pattern: /^app\/tools\/design-check\//, screens: SMOKE },
   { pattern: /^\.github\/workflows\/ci\.yml$/, screens: SMOKE },
 ];
+
+/**
+ * Een bestand van een module in de frontend telt als een bestand van dezelfde module op de server: een wijziging in
+ * `app/web/src/modules/trips/…` raakt dezelfde schermen als `app/src/trips/`. Testbestanden (`*.spec.ts`) raken geen
+ * scherm.
+ * @param {string} file Gewijzigd bestand.
+ * @returns {string} Het overeenkomstige pad op de server, of leeg.
+ */
+function serverPathOf(file) {
+  const match = WEB_MODULE.exec(file);
+  if (!match || /\.spec\.ts$/.test(file)) return '';
+  return `app/src/${match[1]}/index.js`;
+}
 
 /**
  * Zet de gewijzigde bestanden om naar de paden voor `check.js --paths`. Een exact pad dat al onder een pad met `*`
@@ -73,12 +101,14 @@ function screensFor(files) {
   const screens = new Set();
   // Documentatie (zoals de CLAUDE.md per map) verandert geen scherm, ook niet als die in een map met schermen staat.
   for (const file of files.map((entry) => entry.trim()).filter((entry) => entry && !/\.md$/i.test(entry))) {
-    for (const rule of SCREEN_RULES) {
-      if (rule.pattern.test(file)) rule.screens.forEach((screen) => screens.add(screen));
-    }
+    // Een module in de frontend zonder eigen regel telt als dezelfde module op de server (`serverPathOf`).
+    let rules = SCREEN_RULES.filter((rule) => rule.pattern.test(file));
+    if (!rules.length && serverPathOf(file)) rules = SCREEN_RULES.filter((rule) => rule.pattern.test(serverPathOf(file)));
+    for (const rule of rules) rule.screens.forEach((screen) => screens.add(screen));
   }
   const prefixes = [...screens].filter((screen) => screen.endsWith('*')).map((screen) => screen.slice(0, -1));
-  const kept = [...screens].filter((screen) => screen.endsWith('*') || !prefixes.some((prefix) => screen.startsWith(prefix)));
+  // Het overzicht van de bouwstenen blijft altijd staan: het volgen van links onder `/app/beheer/*` komt er niet vanzelf.
+  const kept = [...screens].filter((screen) => screen.endsWith('*') || BOUWSTENEN.includes(screen) || !prefixes.some((prefix) => screen.startsWith(prefix)));
   /**
    * Volgorde: publieke site, reizigersaccount, CRM; binnen een groep alfabetisch.
    * @param {string} screen Pad.
@@ -93,4 +123,4 @@ if (require.main === module) {
   process.stdout.write(`${screensFor(files).join(',')}\n`);
 }
 
-module.exports = { screensFor, SCREEN_RULES, SITE_CORE, CRM_CORE, SMOKE };
+module.exports = { screensFor, serverPathOf, SCREEN_RULES, SITE_CORE, CRM_CORE, SMOKE, BOUWSTENEN };

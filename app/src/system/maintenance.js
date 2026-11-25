@@ -11,6 +11,7 @@
  */
 const { html } = require('../site/html');
 const { renderPage, renderPageHeader } = require('../site/layout');
+const { sendApiError } = require('../api/errors');
 
 /** Paden waar een schrijfverzoek altijd mag (sessie beginnen of beëindigen, zodat de beheerder kan blijven volgen). */
 const ALWAYS_OPEN = ['/app/inloggen/', '/app/uitloggen/'];
@@ -48,6 +49,8 @@ function maintenanceGuard(stateOf) {
     if (ALWAYS_OPEN.includes(lowerPath)) return next();
     if (state.source === 'handmatig' && MANUAL_OPEN.includes(lowerPath)) return next();
     res.set({ 'Retry-After': '60', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' });
+    // De JSON-API van het CRM krijgt het foutformaat van de API, met de melding van het onderhoud.
+    if (lowerPath.startsWith('/app/api/')) return sendApiError(res, 'onderhoud', { message: state.message });
     return res.status(503).send(renderPage({
       title: 'Even geduld',
       path: req.path,
