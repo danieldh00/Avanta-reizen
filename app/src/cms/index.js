@@ -14,8 +14,8 @@ const { createListHeaderRoutes } = require('./list-header-routes');
 /**
  * Bouwt de routes van de module Website-inhoud. De volgorde telt: categorieën en tags (`/blog/categorieen-en-tags/`)
  * staan vóór de blogberichten (`/blog/…`).
- * @param {any} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` (sessies en rechten) en
- *   de gedeelde diensten uit `server.js`.
+ * @param {any} context Wat de schil van het CRM meegeeft (`crm/routes.js`): `db`, `auth` (sessies en rechten),
+ *   `webBundle` (bundels van de schermen in Vue) en de gedeelde diensten uit `server.js`.
  * @returns {express.Router} Router, te koppelen binnen `/app`.
  */
 function createCmsModuleRoutes(context) {
@@ -24,7 +24,7 @@ function createCmsModuleRoutes(context) {
   const router = express.Router();
   router.use(createPageRoutes({ db, auth, library, redirects, menus }));
   router.use(createMenuRoutes({ db, auth, menus }));
-  router.use(createFaqRoutes({ db, auth }));
+  router.use(createFaqRoutes({ db, auth, webBundle: context.webBundle }));
   router.use(createListHeaderRoutes({ db, auth, library, listHeaders: context.listHeaders }));
   router.use(createPostTermRoutes({ db, auth, redirects }));
   router.use(createPostRoutes({ db, auth, library, redirects, menus }));

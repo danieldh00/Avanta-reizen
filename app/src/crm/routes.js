@@ -124,7 +124,7 @@ function createCrmRouter(options) {
   router.use(createAuditRoutes({ db, auth, now: options.now, exportMax: options.auditExportMax }));
   // De modules met een eigen ingang: elk koppelt zijn eigen routes (`<module>/index.js`). Elke module heeft eigen
   // adressen (`/deelnemers/`, `/aanmeldingen/`, `/betalingen/`, …), dus de volgorde tussen modules maakt niet uit.
-  const moduleContext = { ...options, db, auth, persons };
+  const moduleContext = { ...options, db, auth, persons, webBundle };
   router.use(createPersonsModuleRoutes(moduleContext));
   router.use(createBookingModuleRoutes(moduleContext));
   router.use(createPaymentsModuleRoutes(moduleContext));

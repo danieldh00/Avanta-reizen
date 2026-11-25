@@ -7,7 +7,8 @@ met alle PR's, risico's en de inschatting staat in de projectbestanden (`plan/pl
 Stand: fase V1 (fundament) op `develop`. V1.1: het Vite-project `app/web/` (zie §7). V1.2: het API-fundament (§8). V1.3: het
 koppelpunt in de schil en het eerste scherm in Vue (§9). V1.4: de bouwstenen voor lijsten, formulieren en meldingen
 (`app/web/CLAUDE.md`). V1.5: teksteditor, fotokiezer en uploadveld; daarmee is het fundament klaar en kan een module
-worden omgebouwd (V2: FAQ als proef).
+worden omgebouwd (V2: FAQ als proef). V2.1: de JSON-API van de FAQ (`cms/faq-api.js`). V2.2: de schermen van de FAQ in
+Vue (`app/web/src/modules/faq/`); de GET-routes van de oude schermen geven het koppelpunt zolang de bundel er is.
 
 ## 1. Besluiten
 

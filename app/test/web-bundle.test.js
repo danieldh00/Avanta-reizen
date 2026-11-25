@@ -2,7 +2,8 @@
  * Tests van de koppeling met de bundels van de frontend (`crm/web-bundle.js`) en het eerste scherm in Vue
  * (Beheer > Systeem > Bouwstenen, `beheer/bouwstenen-routes.js`): het manifest lezen, de koppen en het koppelpunt in
  * de bestaande schil, de CSP die gelijk blijft (geen inline script), de bestanden onder `/bundel/assets/` (het
- * manifest nooit), en de rechten op het scherm.
+ * manifest nooit), en de rechten op het scherm. Ook de FAQ (fase V2): met bundel het koppelpunt op de oude adressen,
+ * zonder bundel de schermen van de server.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -153,4 +154,26 @@ test('scherm Bouwstenen in de echte app: koppelpunt in de schil, CSP gelijk, bes
   assert.equal(missing.status, 200);
   assert.match(missing.text, /niet beschikbaar/);
   assert.doesNotMatch(missing.text, /id="crm-app"|type="module"/);
+
+  // De FAQ (fase V2): met bundel het koppelpunt van de module `faq` op dezelfde adressen; zonder bundel de oude schermen.
+  const [category] = await db.query("INSERT INTO faq_categories (name, sort_order) VALUES ('Reizen & meer', 10) RETURNING id");
+  const [question] = await db.query("INSERT INTO faqs (slug, question, answer_html, category, category_id) VALUES ('paspoort', 'Paspoort nodig?', '<p>Ja</p>', 'Reizen & meer', $1) RETURNING id", [category.id]);
+  const redacteur = await login('redacteur');
+  const faqPages = [['/app/faq/', 'Veelgestelde vragen'], ['/app/faq/nieuw/', 'Vraag toevoegen'], [`/app/faq/${question.id}/`, 'Vraag wijzigen'], [`/app/faq/categorieen/${category.id}/`, 'Categorie: Reizen &amp; meer']];
+  for (const [url, title] of faqPages) {
+    const faqPage = await get(`${base}${url}`, redacteur);
+    assert.equal(faqPage.status, 200, url);
+    assert.equal(faqPage.headers.get('content-security-policy'), BASE_CSP);
+    assert.ok(faqPage.text.includes(`<title>${title} - Avanta CRM</title>`), url);
+    assert.match(faqPage.text, /<div id="crm-app" data-module="faq" data-base="\/app\/faq\/">/);
+    assert.match(faqPage.text, /<script type="module" src="\/bundel\/assets\/faq-DDDD\.js"><\/script>/);
+    assert.doesNotMatch(faqPage.text, /Paspoort nodig\?/, 'de inhoud komt via de API');
+    assert.deepEqual(faqPage.text.match(/<script(?![^>]*\bsrc=)[^>]*>/g) || [], [], 'geen inline script');
+  }
+  assert.equal((await get(`${base}/app/faq/999999/`, redacteur)).status, 404, 'onbekende vraag: 404 van de server');
+  assert.equal((await get(`${base}/app/faq/categorieen/999999/`, redacteur)).status, 404);
+  assert.equal((await get(`${base}/app/faq/`, beheerder)).status, 200);
+  const oldScreen = await get(`${emptyBase}/app/faq/`, redacteur);
+  assert.match(oldScreen.text, /Paspoort nodig\?/, 'zonder bundel het scherm van de server');
+  assert.doesNotMatch(oldScreen.text, /id="crm-app"/);
 });
