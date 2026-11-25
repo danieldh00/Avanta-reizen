@@ -326,9 +326,10 @@ hosttask_003_staging_verwijderen() {
   docker image prune -f --filter label=nl.avantareizen.stack=avanta-staging >/dev/null || true
   [[ -d "$STAGING_DIR" ]] && rm -rf --one-file-system -- "$STAGING_DIR" || true
   # Eindcontrole: een fout van docker telt als "niet weg", nooit als succes.
-  if ! ids="$(docker ps -aq --filter "$STAGING_LABEL")" || [[ -n "$ids" ]] || [[ -e "$STAGING_DIR" ]] \
+  if ! ids="$(docker ps -aq --filter "$STAGING_LABEL" && docker volume ls -q --filter "$STAGING_LABEL" \
+    && docker network ls -q --filter "$STAGING_LABEL")" || [[ -n "$ids" ]] || [[ -e "$STAGING_DIR" ]] \
     || systemctl list-unit-files avanta-staging-update.timer 2>/dev/null | grep -q avanta-staging; then
-    echo "FOUT: staging is niet helemaal weg (timer, containers of $STAGING_DIR)." >&2
+    echo "FOUT: staging is niet helemaal weg (timer, containers, volumes, netwerk of $STAGING_DIR)." >&2
     return 1
   fi
   echo "Staging is weg: timer, service, containers, volumes, image en $STAGING_DIR. De testomgeving draait door."

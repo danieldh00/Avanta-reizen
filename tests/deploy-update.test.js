@@ -267,6 +267,12 @@ exit 0
   assert.equal(down.status, 1);
   assert.match(down.stderr, /Docker is niet bereikbaar/);
   assert.doesNotMatch(down.calls, /systemctl/, 'zonder Docker verandert er niets');
+
+  // Alleen een volume blijft staan: ook dat telt als "niet weg".
+  fs.writeFileSync(path.join(dir, 'bin', 'docker'), `#!/bin/bash\necho "$*" >> "${callsFile}"\n[[ "$1" == volume && "$2" == ls ]] && echo vol1\nexit 0\n`, { mode: 0o755 });
+  const volume = run({ STAGING_DIR: stagingDir });
+  assert.equal(volume.status, 1);
+  assert.match(volume.stderr, /niet helemaal weg/);
 });
 
 test('alle hostscripts zijn geldige bash', () => {
