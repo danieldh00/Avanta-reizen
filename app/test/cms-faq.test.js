@@ -172,6 +172,10 @@ test('faq in het CRM', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' },
     // Hernoemen: de vragen uit de import in die categorie worden van het CRM (de import hieronder laat ze staan).
     const [betalen] = await db.query("SELECT id FROM faq_categories WHERE name = 'Betalen'");
     assert.equal((await api('PUT', `/faq/categorieen/${betalen.id}/`, { naam: 'Betalen en annuleren', volgorde: 1 })).hernoemd, true);
+    assert.deepEqual((await db.query('SELECT DISTINCT category, managed_in_crm FROM faqs WHERE category_id = $1', [betalen.id])).map((row) => [row.category, row.managed_in_crm]), [['Betalen en annuleren', true]]);
+    const renamedSite = (await request('/faq/')).text;
+    assert.ok(renamedSite.indexOf('Betalen en annuleren') < renamedSite.indexOf('Voorbereiding'), 'nieuwe naam en volgorde op de site');
+    assert.ok(await audits('faq.categorie-gewijzigd') >= 1);
   });
 
   await testContext.test('de WordPress-import laat vragen uit het CRM staan en vult categorieën', async () => {
