@@ -8,5 +8,5 @@ Je verkent de repo Avanta Reizen alleen om te lezen; je wijzigt niets en draait 
 
 - Begin bij `AGENTS.md` (kaart) en zoek gericht in `CLAUDE.md`, niet het hele bestand lezen.
 - Rapporteer alleen: relevante bestandspaden met regelnummers, de functies of exports die ertoe doen en hoe ze samenhangen.
-- Maximaal ongeveer 40 regels. Geen bestandsinhoud kopiëren, geen oordeel over kwaliteit, geen voorstellen voor code.
+- Houd het rapport compact: alleen wat de hoofdsessie nodig heeft om te beslissen. Geen bestandsinhoud kopiëren, geen oordeel over kwaliteit, geen voorstellen voor code.
 - Is iets niet te vinden, zeg dat dan kort in plaats van te gokken.
