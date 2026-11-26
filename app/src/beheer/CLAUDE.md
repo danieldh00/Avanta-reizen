@@ -20,4 +20,4 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `log-routes.js` (logboek)
 - `monitor-routes.js` (bewaking: stand, incidenten, testmelding)
 - `retention-routes.js` (AVG-opschoning: rondes, voorbeeld, Nu opschonen)
-- `go-live-check.js` (controle voor de livegang: instellingen uit `docs/GO-LIVE.md` en homepage als blokpagina en of de vaste inhoud is overgezet, F09/W28) en `go-live-routes.js` (`/app/beheer/livegang/`)
+- `go-live-check.js` (controle voor de livegang: instellingen uit `docs/GO-LIVE.md` en homepage als blokpagina en of de vaste inhoud is overgezet) en `go-live-routes.js` (`/app/beheer/livegang/`)

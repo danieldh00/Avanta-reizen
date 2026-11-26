@@ -77,7 +77,7 @@ niet deze tabel (alleen een nieuwe map krijgt hier een regel).
 | `app/tools/design-check/` | design-controle met Playwright op 1440/375: `seed.js` (testgegevens), `check.js` (`--full` of `--paths=`), `changed-screens.js` (gewijzigde bestanden → schermen voor de CI-job `design`; nieuwe module met schermen = regel in `SCREEN_RULES`), `ci-summary.js` (samenvatting bij de job), `page-checks.js` (metingen in de browser), `accessibility.js` (axe, `--axe`), `report.js` (.xlsx), `overview.js` (schermafbeeldingen per soort scherm), `login.js`, `credentials.js` (alleen lokaal), `guards.js` (alleen lokale database en app) |
 | `app/tools/minify-public.js` | verkleint `public/css` en `public/js` bij het bouwen van het image (Dockerfile, stap `minify`); niet in de draaiende app |
 | `app/tools/layout-compare.js` | DOM-meting nieuw tegen live op 1440/375 (referentie `test/fixtures/layout-live.json`, test met `LAYOUT_BASE_URL`) |
-| `app/test/` | `units.test.js` (zonder database), `server.test.js` (PostgreSQL, `TEST_DATABASE_URL`) |
+| `app/test/` | `node --test`, één `<onderwerp>.test.js` per module of scherm (bijv. `payments.test.js`, `cms-faq.test.js`); `units.test.js` zonder database, de rest met PostgreSQL via `TEST_DATABASE_URL`; `helpers/`, `fixtures/` |
 | `changes/`, `tools/`, `tests/` | releasenotes-fragmenten en het releasescript (root) |
 
 Regels:
@@ -89,8 +89,7 @@ Regels:
 - Openbare formulieren: limiet (`createRateLimiter`), herkomstcontrole, honeypot en ondertekend tijdstempel; plus
   `captchaField`/`captcha.check` (`security/captcha.js`, actie per formulier) als laatste controle.
 - Nieuwe migratie: een nieuw bestand `app/src/database/migrations/NNN-korte-naam.js` met het eerstvolgende nummer, en de bestandsnaam ervan in `migrations/laatste-migratie.txt` (geeft met opzet een git-conflict als twee takken hetzelfde nummer nemen; dan rebasen en je eigen bestand hernummeren; `migrations.js` zelf niet wijzigen); een migratie op `main` verandert nooit meer.
-  Volgorde (besluit 20-11-2026): M5 instellingen, M6 doorverwijzingen/404, M7 logboek, M8 bewaking, 2FA M9 (alle gebouwd),
-  persons M10, aanmeldingen M11, fotobibliotheek M12, foto's in de back-up M13, reistypes en landen M14, reizen M15, foto's bij reizen M16 (CMS-pakket G, gebouwd), pagina's in blokken M17 (H1), nieuwe pagina's/SEO/menu's M18 (H3), blog M19 (I1), categorieën en tags M20 (I2), FAQ M21 (I3), reisleiders M22 (I4), reizigersaccounts M23 (J2), aanmelding bij account M24 (J4), AVG-opschoning M25, betalingen M26, betaalherinneringen M27, online betalen M28, ouder of voogd M29 (P3), berichten M30 (P4); auditlog filteren M31 (P4.4); infobrief M32 (W03); alle landen van de wereld M33; vaste inhoud in het CRM M34 (W28); volgende vrije migratie M35. Eén migratie-PR tegelijk.
+  De laatste migratie staat in `migrations/laatste-migratie.txt`; een nieuwe neemt het volgende nummer. Eén migratie-PR tegelijk.
 - **Instellingen** altijd in `FIELDS` van hun groep (`beheer/instellingen/<groep>.js`, samen `SETTING_FIELDS`) met een sectie in `GROUP` van hetzelfde bestand, nooit een
   eigen tabel of losse env-variabele; geheimen als `type: 'secret'`. Waarden synchroon via `settings.get(key)` (geladen
   door de middleware in `server.js`); wijzigen alleen via `settings.update` met audit in dezelfde transactie.
@@ -123,10 +122,10 @@ Regels:
 - Beschrijvende namen (geen namen van één letter behalve `i`/`j`/`x`/`y`, geen cryptische afkortingen). Maatstaf voor
   namen, lengte van functies en bestanden, opbouw van een routebestand en commentaar: `docs/WERKWIJZE.md`, *Leesbare
   code*; ESLint bewaakt namen, diepte, parameters en callbacks overal, en complexiteit (20) en bestandslengte (600)
-  in `app/src/` en `app/tools/` (sinds P6a voor alle code).
+  in `app/src/` en `app/tools/`.
 - Elke functie een `/** … */`-blok in het Nederlands (wat, `@param`, `@returns`); elk bestand een kopcommentaar.
 - **Lint en typecontrole**: `npm run lint` (ESLint, `app/eslint.config.js`) moet schoon zijn. Elk bestand onder
-  `app/src/` en `app/tools/` begint met `// @ts-check` (B08; de test `test/ts-check.test.js` bewaakt het, `@ts-nocheck`
+  `app/src/` en `app/tools/` begint met `// @ts-check` (de test `test/ts-check.test.js` bewaakt het, `@ts-nocheck`
   mag niet); `npm run typecheck` controleert ze op hun JSDoc. Typ in JSDoc met `any` of een echte vorm, niet met
   `object` (daar kun je geen velden van lezen). Uitzondering op een regel alleen met
   `// eslint-disable-next-line <regel>` en de reden erboven.

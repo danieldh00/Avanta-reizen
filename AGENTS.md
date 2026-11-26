@@ -17,7 +17,7 @@ Korte ingang voor AI-agents. Details: `CLAUDE.md` (volledig werkgeheugen), `app/
 | `app/src/security/` | versleuteling gevoelige velden, rate limit |
 | `app/src/beheer/` | Beheer `/app/beheer/`: instellingen en secties per groep (`instellingen/<groep>.js`), opslag (`settings.js`), zoeken (`indeling.js`), routes |
 | `app/tools/import-wordpress.js` | import van www.avantareizen.nl |
-| `app/test/` | `node --test`; DB-tests met `TEST_DATABASE_URL` |
+| `app/test/` | `node --test`, één `<onderwerp>.test.js` per module of scherm; DB-tests met `TEST_DATABASE_URL` |
 | `app/package.json`, `app/CHANGELOG.md` | versie en changelog (beide automatisch, nooit zelf) |
 | `changes/` | releasenotes-fragmenten (zie `changes/README.md`) |
 | `tools/release-notes.js` | verwerkt fragmenten na de merge; controleert PR's (`--pull-request`) |
@@ -54,7 +54,7 @@ node tools/release-notes.js --check                              # fragmenten co
    gereviewd. Werk in een **draft-PR** tot het werk klaar is. Een nieuwe push annuleert een lopende review.
 3. **Lokaal eerst alleen de geraakte tests**, pas daarna pushen.
 4. **Kleine PR's**: één afgebakend onderdeel per PR.
-5. **Na de merge direct stoppen**: geen extra samenvattingen of verificatierondes, tenzij Daniël erom vraagt.
+5. **Na de merge afronden**: één korte afsluitende melding met de uitkomst; geen extra verificatierondes, tenzij Daniël erom vraagt.
 6. **Simpele klussen** (tekst, releasenotes, kleine fixes) mogen op een lichter model.
 7. Projectgeheugen compact houden: geen lijsten met afgeronde PR-nummers.
 8. **Verkenners** (`.claude/agents/`): breed zoeken (`map`), aanroepen vinden (`callers`) en tests draaien (`tests`)
