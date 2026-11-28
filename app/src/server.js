@@ -17,7 +17,7 @@ const { createCrmRouter, generateSetupCode } = require('./crm/routes');
 const seo = require('./site/seo');
 const { loadMasterKey, loadPreviousKeys } = require('./security/vault');
 const { siteSettingsOf } = require('./site/site-settings');
-const { cspWith } = require('./site/analytics');
+const { cspWith, clarityAllowedOn } = require('./site/analytics');
 const { cspWith: captchaCspWith, isFormPath } = require('./security/captcha');
 const crypto = require('node:crypto');
 const { PUBLIC_DIR, MEDIA_DIR, DATA_DIR } = require('./paths');
@@ -161,7 +161,7 @@ function createApp(options) {
   // Gezondheid voor Docker en het updatescript; de versie alleen voor verzoeken van binnen de server (`system/health.js`).
   app.get('/api/health', createHealthRoute({ db: options.db, version: require('../package.json').version, trustedProxy }));
 
-  // Site-instellingen per verzoek (`res.locals.site`), HSTS-preload, de noindex-kop en de CSP voor Analytics en de captcha.
+  // Site-instellingen per verzoek (`res.locals.site`), HSTS-preload, de noindex-kop en de CSP voor de statistieken en de captcha.
   app.use(async (req, res, next) => {
     try {
       await settings.ready();
@@ -173,8 +173,11 @@ function createApp(options) {
       const lowerPath = req.path.toLowerCase();
       const inCrm = lowerPath.startsWith('/app/') || lowerPath === '/app';
       if (res.locals.site.indexable && !inCrm) res.removeHeader('X-Robots-Tag');
-      // Google Analytics alleen op de publieke site en alleen met een actief meet-ID; het CRM blijft op de standaardpolicy.
-      if (res.locals.site.analytics.measurementId && !inCrm) res.set('Content-Security-Policy', cspWith(BASE_CSP, res.locals.site.analytics.measurementId));
+      // Statistieken alleen op de publieke site en alleen met een actieve ID; het CRM blijft op de standaardpolicy.
+      // Clarity ook niet op Mijn Avanta, het aanmeldformulier en online betalen (`clarityAllowedOn`).
+      const analytics = res.locals.site.analytics;
+      if (!clarityAllowedOn(req.path)) analytics.clarityId = '';
+      if ((analytics.measurementId || analytics.clarityId) && !inCrm) res.set('Content-Security-Policy', cspWith(BASE_CSP, analytics.measurementId, analytics.clarityId));
       // Captcha: de sitesleutel voor de pagina, en alleen op de formulierpagina's de adressen van Google in de CSP.
       // Alleen op de formulierpagina's: daar laadt de layout het script en krijgt de CSP de Google-adressen.
       res.locals.site.captchaSiteKey = !inCrm && isFormPath(req.path) ? captcha.siteKey() : '';

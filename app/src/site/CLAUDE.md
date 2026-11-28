@@ -14,7 +14,7 @@ een bestand verandert, werkt dit bestand bij in dezelfde PR (niet de tabel in de
 - `seo.js` (JSON-LD, sitemap, robots.txt, llms.txt)
 - `site-settings.js` (`res.locals.site`)
 - `redirects.js` (doorverwijzingen + 404-tellers)
-- `analytics.js` (GA4-meet-ID, CSP)
+- `analytics.js` (GA4-meet-ID, Clarity-project en de pagina's zonder Clarity, CSP; de cookiebalk zelf staat in `public/js/analytics.js`)
 - `icons.js` (eigen SVG-iconen, inline)
 - `homepage.js` (standaardinhoud van de vaste homepage en de controle van `DATA_DIR/homepage.json`, alleen nog bron voor de overname) en `home-view.js` (HTML van de homepage)
 - `trip-view.js` (reizen en reisleiders)

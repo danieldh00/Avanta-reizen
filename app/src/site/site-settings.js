@@ -2,11 +2,11 @@
 /**
  * De instellingen die de publieke site per verzoek nodig heeft (uit Beheer, `beheer/settings.js`), in één object:
  * indexeren, basisadres, naam en titels, standaardomschrijving en -afbeelding, contact- en organisatiegegevens, social media (voettekst),
- * verificatiecodes, robots.txt-regels, sitemap-uitsluitingen, llms.txt, het actieve GA4-meet-ID en de balk "in ontwikkeling". De middleware in `server.js` zet het op
+ * verificatiecodes, robots.txt-regels, sitemap-uitsluitingen, llms.txt, het actieve GA4-meet-ID en Clarity-project en de balk "in ontwikkeling". De middleware in `server.js` zet het op
  * `res.locals.site`; routes en `renderPage` lezen het daar.
  */
 const seo = require('./seo');
-const { activeMeasurementId } = require('./analytics');
+const { activeMeasurementId, activeClarityId } = require('./analytics');
 
 /** Instellingen met een social-media-adres, in de volgorde van `sameAs`. */
 const SOCIAL_KEYS = ['socialFacebook', 'socialInstagram', 'socialYoutube', 'socialLinkedin'];
@@ -55,7 +55,10 @@ function siteSettingsOf(settings) {
     llms: { enabled: settings.get('llmsEnabled') === true, intro: settings.get('llmsIntro') },
     blogArchiveLink: settings.get('blogArchiveUrl') ? { label: settings.get('blogArchiveLabel'), href: settings.get('blogArchiveUrl') } : null,
     devBanner: settings.get('devBannerEnabled') === true ? settings.get('devBannerText') : '',
-    analytics: { measurementId: activeMeasurementId(settings.get('analyticsEnabled'), settings.get('analyticsMeasurementId')) },
+    analytics: {
+      measurementId: activeMeasurementId(settings.get('analyticsEnabled'), settings.get('analyticsMeasurementId')),
+      clarityId: activeClarityId(settings.get('clarityProjectId')),
+    },
   };
 }
 

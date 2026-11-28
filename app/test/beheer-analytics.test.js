@@ -1,7 +1,8 @@
 /**
- * Tests voor Google Analytics met cookiekeuze (pakket A4): het actieve meet-ID, de uitgebreide Content-Security-Policy,
- * het script `public/js/analytics.js` in een vm-sandbox met een nagebootste DOM (niets van Google vóór Accepteren,
- * alleen analytics_storage, cookies wissen bij weigeren) en het effect van de instelling in Beheer op de site.
+ * Tests voor Google Analytics en Microsoft Clarity met cookiekeuze: het actieve meet-ID en Clarity-project, de pagina's
+ * zonder Clarity, de uitgebreide Content-Security-Policy, het script `public/js/analytics.js` in een vm-sandbox met een
+ * nagebootste DOM (niets van Google of Microsoft vóór Accepteren, alleen statistieken, formulieren gemaskeerd, cookies
+ * wissen bij weigeren, opnieuw vragen als er een dienst bij komt) en het effect van de instellingen in Beheer op de site.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,7 +12,7 @@ const vm = require('node:vm');
 const { createDatabase } = require('../src/database/db');
 const { createApp, BASE_CSP } = require('../src/server');
 const { COOKIE_NAME } = require('../src/crm/auth');
-const { activeMeasurementId, cspWith } = require('../src/site/analytics');
+const { activeMeasurementId, activeClarityId, clarityAllowedOn, cspWith } = require('../src/site/analytics');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SCHEMA = 'beheer_analytics_test';
@@ -62,8 +63,10 @@ function fakeElement(tag, owner) {
 
 /**
  * Bouwt een nagebootste browser met het script geladen.
- * @param {{measurementId?: string, stored?: string, cookies?: string[]}} options Meet-ID op <body>, eerdere keuze en cookies.
- * @returns {{window: object, document: object, find: Function, scripts: Function, cookieWrites: string[]}} De sandbox.
+ * @param {{measurementId?: string, clarityId?: string, stored?: string, cookies?: string[], forms?: number}} options
+ *   Meet-ID en Clarity-project op <body>, eerdere keuze, cookies en het aantal formulieren op de pagina.
+ * @returns {{window: object, document: object, storage: Map<string, string>, find: Function, scripts: Function, cookieWrites: string[], forms: object[], reloads: Function}}
+ *   De sandbox.
  */
 function loadScript(options = {}) {
   const storage = new Map(options.stored ? [['avanta_cookie_consent', options.stored]] : []);
@@ -83,6 +86,16 @@ function loadScript(options = {}) {
       };
       return search(document.body);
     },
+    querySelectorAll(selector) {
+      const tag = selector.toUpperCase();
+      const found = [];
+      const search = (node) => {
+        if (node.tagName === tag) found.push(node);
+        for (const child of node.children) search(child);
+      };
+      search(document.body);
+      return found;
+    },
     get cookie() { return cookieJar; },
     set cookie(value) {
       cookieWrites.push(value);
@@ -93,10 +106,13 @@ function loadScript(options = {}) {
   document.head = fakeElement('head', document);
   document.body = fakeElement('body', document);
   if (options.measurementId !== undefined) document.body.setAttribute('data-analytics', options.measurementId);
+  if (options.clarityId !== undefined) document.body.setAttribute('data-clarity', options.clarityId);
   document.body.setAttribute('data-privacy-url', '/privacy/');
+  const forms = Array.from({ length: options.forms || 0 }, () => document.body.appendChild(fakeElement('form', document)));
+  let reloadCount = 0;
   const window = {
     document,
-    location: { hostname: 'www.avantareizen.nl' },
+    location: { hostname: 'www.avantareizen.nl', reload: () => { reloadCount += 1; } },
     localStorage: { getItem: (key) => (storage.has(key) ? storage.get(key) : null), setItem: (key, value) => storage.set(key, String(value)) },
   };
   vm.runInNewContext(SCRIPT, { window, JSON, Date, encodeURIComponent, String });
@@ -105,6 +121,8 @@ function loadScript(options = {}) {
     document,
     storage,
     cookieWrites,
+    forms,
+    reloads: () => reloadCount,
     find: (name) => document.querySelector(`[${name}]`),
     scripts: () => document.head.children.filter((child) => child.tagName === 'SCRIPT').map((child) => child.src),
   };
@@ -192,6 +210,103 @@ test('analytics: eerdere keuze, weigeren en intrekken', () => {
   assert.equal(JSON.parse(granted.storage.get('avanta_cookie_consent')).analytics, false);
 });
 
+/**
+ * Klikt in de open cookiebalk op een keuze.
+ * @param {{find: Function}} page De sandbox.
+ * @param {string} choice "granted" of "denied".
+ * @returns {void}
+ */
+function chooseInBanner(page, choice) {
+  page.find('data-consent-banner').children[1].children.find((button) => button.getAttribute('data-consent-choice') === choice).click();
+}
+
+test('clarity: actief project, pagina\'s zonder Clarity en Content-Security-Policy', () => {
+  assert.equal(activeClarityId(' AbC123xyz9 '), 'abc123xyz9');
+  assert.equal(activeClarityId(''), '', 'leeg = uit');
+  assert.equal(activeClarityId('abc'), '', 'te kort');
+  assert.equal(activeClarityId('abc12"><script>'), '');
+  assert.equal(activeClarityId(undefined), '');
+
+  for (const path of ['/', '/reis/', '/reis/ijsland/', '/contact/', '/privacy/', '/accountant/', '/betalingsvoorwaarden/']) assert.ok(clarityAllowedOn(path), path);
+  for (const path of ['/app/', '/APP/beheer/', '/account', '/account/', '/Account/gegevens/', '/aanmelden/', '/aanmelden', '/betalen/abc/', '/betalen/abc/klaar/']) assert.ok(!clarityAllowedOn(path), path);
+
+  assert.equal(cspWith(BASE_CSP, '', ''), BASE_CSP, 'zonder ID\'s ongewijzigd');
+  const clarityOnly = cspWith(BASE_CSP, '', 'abc123xyz9');
+  assert.match(clarityOnly, /script-src 'self' https:\/\/www\.clarity\.ms https:\/\/scripts\.clarity\.ms(;|$)/);
+  assert.match(clarityOnly, /connect-src 'self' https:\/\/\*\.clarity\.ms(;|$)/);
+  assert.match(clarityOnly, /img-src 'self' data: https:\/\/\*\.clarity\.ms(;|$)/);
+  assert.doesNotMatch(clarityOnly, /googletagmanager|bing\.com/, 'geen Google en geen advertentiekoppeling van Microsoft');
+  assert.doesNotMatch(clarityOnly, /script-src[^;]*unsafe/, 'geen inline scripts');
+  const both = cspWith(BASE_CSP, 'G-ABC123XYZ', 'abc123xyz9');
+  assert.match(both, /script-src 'self' https:\/\/www\.googletagmanager\.com https:\/\/www\.clarity\.ms https:\/\/scripts\.clarity\.ms(;|$)/);
+  assert.equal(both.split('; ').filter((directive) => directive.startsWith('connect-src ')).length, 1, 'één connect-src');
+});
+
+test('clarity: script laadt niets van Microsoft vóór Accepteren, en maskeert formulieren', () => {
+  assert.equal(loadScript({ clarityId: 'ABC"><b>' }).window.AvantaAnalytics.tracker, null, 'ongeldig project-ID');
+
+  const page = loadScript({ clarityId: 'abc123xyz9', forms: 2 });
+  const banner = page.find('data-consent-banner');
+  assert.ok(banner, 'de balk staat er');
+  assert.match(banner.children[0].children[1].textContent, /met Microsoft Clarity hoe de site wordt gebruikt/);
+  assert.match(banner.children[0].children[1].textContent, /wat je in formulieren invult, wordt nooit vastgelegd/);
+  assert.doesNotMatch(banner.children[0].children[1].textContent, /Google/);
+  assert.deepEqual(page.scripts(), [], 'nog geen Clarity-script');
+  assert.equal(page.window.clarity, undefined, 'geen Clarity-rij vóór toestemming');
+  assert.equal(page.window.dataLayer, undefined, 'zonder meet-ID ook geen Google');
+  assert.ok(page.forms.every((form) => form.getAttribute('data-clarity-mask') === null));
+
+  chooseInBanner(page, 'granted');
+  assert.deepEqual(page.scripts(), ['https://www.clarity.ms/tag/abc123xyz9']);
+  assert.deepEqual(JSON.parse(JSON.stringify(page.window.clarity.q.map((entry) => [...entry]))), [['consentv2', { ad_Storage: 'denied', analytics_Storage: 'granted' }]], 'toestemming alleen voor statistieken');
+  assert.ok(page.forms.every((form) => form.getAttribute('data-clarity-mask') === 'true'), 'elk formulier gemaskeerd vóór het laden');
+  assert.deepEqual(JSON.parse(page.storage.get('avanta_cookie_consent')).tools, ['clarity'], 'de keuze noemt de dienst');
+  page.window.AvantaAnalytics.tracker.grant();
+  assert.equal(page.scripts().length, 1, 'maar één keer laden');
+});
+
+test('clarity: samen met Google, eerdere keuze, weigeren en intrekken', () => {
+  const both = loadScript({ measurementId: 'G-ABC123XYZ', clarityId: 'abc123xyz9' });
+  assert.match(both.find('data-consent-banner').children[0].children[1].textContent, /met Google Analytics en Microsoft Clarity/);
+  chooseInBanner(both, 'granted');
+  assert.deepEqual(both.scripts(), ['https://www.googletagmanager.com/gtag/js?id=G-ABC123XYZ', 'https://www.clarity.ms/tag/abc123xyz9']);
+  assert.deepEqual(JSON.parse(both.storage.get('avanta_cookie_consent')).tools, ['ga', 'clarity']);
+
+  // Toestemming van vóór Clarity (alleen Google): voor Clarity opnieuw vragen en tot dan niets laden.
+  const older = loadScript({ measurementId: 'G-ABC123XYZ', clarityId: 'abc123xyz9', stored: JSON.stringify({ v: 1, analytics: true, at: '2026-11-20T10:00:00Z' }) });
+  assert.ok(older.find('data-consent-banner'), 'opnieuw vragen');
+  assert.deepEqual(older.scripts(), []);
+  const gaOnly = loadScript({ measurementId: 'G-ABC123XYZ', stored: JSON.stringify({ v: 1, analytics: true, tools: ['ga'] }) });
+  assert.equal(gaOnly.find('data-consent-banner'), null, 'op een pagina zonder Clarity geldt de oude toestemming');
+  assert.equal(gaOnly.scripts().length, 1);
+
+  const granted = loadScript({ clarityId: 'abc123xyz9', stored: JSON.stringify({ v: 1, analytics: true, tools: ['ga', 'clarity'] }) });
+  assert.equal(granted.find('data-consent-banner'), null);
+  assert.deepEqual(granted.scripts(), ['https://www.clarity.ms/tag/abc123xyz9'], 'meteen laden na eerdere toestemming');
+
+  const denied = loadScript({ clarityId: 'abc123xyz9', stored: JSON.stringify({ v: 1, analytics: false, tools: ['ga'] }), cookies: ['_clck=abc', '_clsk=def', 'sessie=1'] });
+  assert.equal(denied.find('data-consent-banner'), null, 'een weigering blijft gelden, ook voor een nieuwe dienst');
+  assert.deepEqual(denied.scripts(), []);
+  assert.equal(denied.window.clarity, undefined);
+  assert.ok(denied.cookieWrites.some((value) => /^_clck=; expires/.test(value)));
+  assert.ok(denied.cookieWrites.some((value) => /^_clsk=; expires/.test(value)));
+  assert.ok(!denied.cookieWrites.some((value) => /^sessie=; expires/.test(value)), 'andere cookies blijven');
+  assert.equal(denied.reloads(), 0, 'niet opnieuw laden als Clarity niet liep');
+
+  // Intrekken terwijl Clarity loopt: toestemming intrekken, cookies weg en de pagina opnieuw laden.
+  const settingsButton = fakeElement('button', granted.document);
+  settingsButton.setAttribute('data-consent-settings', '');
+  granted.document.body.appendChild(settingsButton);
+  granted.document.cookie = '_clck=abc';
+  settingsButton.click();
+  assert.match(granted.find('data-consent-banner').children[0].children.map((child) => child.textContent).join(' '), /nu toegestaan/);
+  chooseInBanner(granted, 'denied');
+  assert.deepEqual(JSON.parse(JSON.stringify([...granted.window.clarity.q.at(-1)])), ['consentv2', { ad_Storage: 'denied', analytics_Storage: 'denied' }]);
+  assert.ok(granted.cookieWrites.some((value) => /^_clck=; expires=Thu, 01 Jan 1970.*domain=\.avantareizen\.nl/.test(value)));
+  assert.equal(granted.reloads(), 1, 'pagina opnieuw geladen zonder Clarity');
+  assert.equal(JSON.parse(granted.storage.get('avanta_cookie_consent')).analytics, false);
+});
+
 test('analytics: instelling in Beheer en effect op de site', { skip: !DATABASE_URL && 'TEST_DATABASE_URL ontbreekt' }, async (testContext) => {
   const admin = createDatabase(DATABASE_URL);
   await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
@@ -257,6 +372,38 @@ test('analytics: instelling in Beheer en effect op de site', { skip: !DATABASE_U
     assert.doesNotMatch((await request('/app/beheer/', { cookie })).text, /data-analytics/);
     const audit = await db.query("SELECT entity_id FROM audit_log WHERE action = 'instelling.gewijzigd' ORDER BY entity_id");
     assert.deepEqual([...new Set(audit.map((row) => row.entity_id))], ['analyticsEnabled', 'analyticsMeasurementId']);
+  });
+
+  await testContext.test('Clarity: project-ID, alleen op de publieke pagina\'s waar het mag', async () => {
+    assert.equal((await request('/app/beheer/analytics/', { cookie, form: { _csrf: csrf, analyticsEnabled: 'ja', analyticsMeasurementId: 'G-ABC123XYZ', clarityProjectId: 'abc"><b' } })).status, 422);
+    assert.equal((await request('/app/beheer/analytics/', { cookie, form: { _csrf: csrf, analyticsEnabled: 'ja', analyticsMeasurementId: 'G-ABC123XYZ', clarityProjectId: 'AbC123xyz9' } })).status, 303);
+    const page = await request('/reis/');
+    assert.match(page.text, /<body class="[^"]*" data-analytics="G-ABC123XYZ" data-clarity="abc123xyz9" data-privacy-url="\/privacy\/">/);
+    assert.doesNotMatch(page.text, /clarity\.ms/, 'Microsoft staat niet in de HTML');
+    assert.equal(page.headers.get('content-security-policy'), cspWith(BASE_CSP, 'G-ABC123XYZ', 'abc123xyz9'));
+    for (const path of ['/account/inloggen/', '/aanmelden/']) {
+      const excluded = await request(path);
+      assert.doesNotMatch(excluded.text, /data-clarity/, `${path} zonder Clarity`);
+      assert.match(excluded.text, /data-analytics="G-ABC123XYZ"/, `${path} houdt Google Analytics met cookiekeuze`);
+      assert.equal(excluded.headers.get('content-security-policy').includes('clarity.ms'), false, `${path}: policy zonder Clarity`);
+    }
+    assert.equal((await request('/app/inloggen/')).headers.get('content-security-policy'), BASE_CSP, 'het CRM nooit');
+    assert.doesNotMatch((await request('/app/beheer/', { cookie })).text, /data-clarity=/);
+
+    // Alleen Clarity, zonder Google Analytics: balk, script en knop blijven.
+    assert.equal((await request('/app/beheer/analytics/', { cookie, form: { _csrf: csrf, analyticsMeasurementId: 'G-ABC123XYZ', clarityProjectId: 'abc123xyz9' } })).status, 303);
+    const clarityOnly = await request('/reis/');
+    assert.match(clarityOnly.text, /<body class="[^"]*" data-clarity="abc123xyz9" data-privacy-url="\/privacy\/">/);
+    assert.match(clarityOnly.text, /<script src="\/js\/analytics\.js\?v=[^"]+"><\/script>/);
+    assert.match(clarityOnly.text, /data-consent-settings>Cookie-instellingen<\/button>/);
+    assert.equal(clarityOnly.headers.get('content-security-policy'), cspWith(BASE_CSP, '', 'abc123xyz9'));
+    const noClarityPage = await request('/account/inloggen/');
+    assert.doesNotMatch(noClarityPage.text, /analytics\.js|Cookie-instellingen|data-privacy-url/, 'zonder dienst op de pagina geen balk');
+    assert.equal(noClarityPage.headers.get('content-security-policy'), BASE_CSP);
+
+    // Leeg = uit.
+    assert.equal((await request('/app/beheer/analytics/', { cookie, form: { _csrf: csrf, analyticsEnabled: 'ja', analyticsMeasurementId: 'G-ABC123XYZ', clarityProjectId: '' } })).status, 303);
+    assert.doesNotMatch((await request('/reis/')).text, /data-clarity/);
   });
 
   await testContext.test('uit: weer alles weg', async () => {

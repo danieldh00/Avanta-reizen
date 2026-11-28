@@ -89,6 +89,15 @@ const FIELDS = {
     pattern: /^G-[A-Z0-9]{4,14}$/i,
     patternMessage: 'Een meet-ID begint met G- gevolgd door 4 tot 14 letters of cijfers.',
   },
+  clarityProjectId: {
+    type: 'text',
+    label: 'Microsoft Clarity: project-ID',
+    help: 'Leeg = Clarity uit. Te vinden in Clarity onder Settings > Overview. Laadt pas na toestemming van de bezoeker, nooit op Mijn Avanta, het aanmeldformulier, online betalen of in het CRM; formulieren worden altijd gemaskeerd.',
+    default: '',
+    max: 20,
+    pattern: /^[a-z0-9]{6,20}$/i,
+    patternMessage: 'Een project-ID bestaat uit 6 tot 20 letters of cijfers, zonder spaties.',
+  },
 };
 
 /** De groep Vindbaarheid in de zijbalk van Beheer, met haar secties. */
@@ -118,10 +127,10 @@ const GROUP = {
     },
     {
       id: 'analytics',
-      label: 'Google Analytics en cookies',
-      intro: 'Bezoekersstatistieken met Google Analytics (GA4). Zonder toestemming van de bezoeker wordt niets van Google geladen en komen er geen cookies; advertentiefuncties staan altijd uit.',
-      fields: ['analyticsEnabled', 'analyticsMeasurementId'],
-      words: 'ga4 google analytics statistieken bezoekers cookies toestemming consent cookiebalk meet-id tag',
+      label: 'Statistieken en cookies',
+      intro: 'Bezoekersstatistieken met Google Analytics (GA4) en Microsoft Clarity (klik- en scrolgedrag, heatmaps en sessie-opnames). Zonder toestemming van de bezoeker wordt niets van Google of Microsoft geladen en komen er geen cookies; advertentiefuncties staan altijd uit.',
+      fields: ['analyticsEnabled', 'analyticsMeasurementId', 'clarityProjectId'],
+      words: 'ga4 google analytics microsoft clarity heatmap sessie opname statistieken bezoekers cookies toestemming consent cookiebalk meet-id project-id tag',
     },
     { id: 'doorverwijzingen', label: 'Doorverwijzingen', view: 'doorverwijzingen', words: 'seo redirect 301 302 omleiding oud adres verhuisd url' },
     { id: 'niet-gevonden', label: 'Niet gevonden (404)', view: 'niet-gevonden', words: 'seo 404 niet gevonden kapotte link dode link fout' },

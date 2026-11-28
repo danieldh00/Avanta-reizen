@@ -56,6 +56,12 @@ dat voor de boekhouding verplicht.
   reCAPTCHA, dat het gebruik van de pagina beoordeelt om spam te weren.
 - [[Als Google Analytics aan staat:]] Alleen als je daar toestemming voor geeft, meten we met Google Analytics hoe de
   site wordt gebruikt. Zonder toestemming laden we niets van Google. Je kunt je keuze altijd wijzigen.
+- [[Als Microsoft Clarity aan staat:]] Alleen als je daar toestemming voor geeft, gebruiken we Microsoft Clarity om te
+  zien hoe bezoekers de site gebruiken: waar je klikt en scrolt, als heatmap en als opname van je bezoek. Wat je in
+  formulieren invult, wordt nooit vastgelegd, en op Mijn Avanta, het aanmeldformulier en de betaalpagina gebruiken we
+  Clarity niet. Clarity plaatst de cookies `_clck` (bezoeker, maximaal een jaar) en `_clsk` (bezoek, een dag). Microsoft
+  verwerkt deze gegevens ook in de Verenigde Staten, onder het EU-VS Data Privacy Framework; we gebruiken Clarity niet
+  voor advertenties. Je kunt je keuze altijd wijzigen via *Cookie-instellingen* onderaan elke pagina.
 - Video's van YouTube laden pas als je erop klikt; YouTube verwerkt dan zelf gegevens volgens het eigen privacybeleid.
 
 ### Met wie we gegevens delen
