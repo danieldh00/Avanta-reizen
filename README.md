@@ -662,10 +662,16 @@ Zonder Docker: `cd app && npm install`, dan `DATABASE_URL=… node tools/import-
     `Disallow:` geldt voor alle crawlers),
     paden die niet in de sitemap horen (`/pad/` of `/pad/*`) en `/llms.txt` voor AI-zoekmachines (alleen als de site
     geïndexeerd mag worden).
-  - *Vindbaarheid > Google Analytics en cookies*: GA4 aan/uit met meet-ID (`G-…`). Zonder actief meet-ID staat er
-    niets in de pagina en blijft de CSP gelijk. Met meet-ID krijgen bezoekers een cookiebalk; pas na *Accepteren* wordt
-    Google geladen (Consent Mode v2, alleen `analytics_storage`, nooit advertentie-opslag of Google Signals). Weigeren of
-    intrekken via *Cookie-instellingen* in de voettekst wist de `_ga`-cookies. Het CRM meet nooit.
+  - *Vindbaarheid > Statistieken en cookies*: GA4 aan/uit met meet-ID (`G-…`) en Microsoft Clarity met project-ID
+    (leeg = uit). Zonder actieve ID staat er niets in de pagina en blijft de CSP gelijk. Met een ID krijgen bezoekers een
+    cookiebalk die de actieve diensten noemt; pas na *Accepteren* wordt Google of Microsoft geladen. Google: Consent
+    Mode v2, alleen `analytics_storage`, nooit advertentie-opslag of Google Signals. Clarity: `consentv2` met alleen
+    `analytics_Storage`, elk formulier krijgt vooraf `data-clarity-mask`, en Clarity laadt nooit op `/account/`,
+    `/aanmelden/`, `/betalen/` en `/app/` (`clarityAllowedOn` in `site/analytics.js`); de CSP krijgt alleen dan
+    `www.clarity.ms`, `scripts.clarity.ms` en `*.clarity.ms` (bewust niet `c.bing.com`). Komt er een dienst bij, dan
+    vraagt de balk opnieuw om toestemming (een weigering blijft gelden). Weigeren of intrekken via *Cookie-instellingen*
+    in de voettekst wist de `_ga`- en `_clck`/`_clsk`-cookies; liep Clarity al, dan laadt de pagina opnieuw zonder
+    Clarity. Het CRM meet nooit. In het Clarity-project zelf: maskering op *Strict*, koppeling met Microsoft Ads uit.
   - *Vindbaarheid > Doorverwijzingen*: oud pad → nieuw pad op de site of `https://`-adres, 301 (permanent) of 302
     (tijdelijk), met notitie en gebruiksteller (tabel `redirects`, in het geheugen; alleen GET/HEAD, de querystring gaat
     mee, een pad zonder slash telt ook met slash). Geen ketens of lussen, niet voor `/app/`, `/api/` of de homepage.

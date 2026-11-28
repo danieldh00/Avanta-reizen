@@ -110,7 +110,7 @@ function renderHeader(currentPath, siteName, menuItems) {
 /**
  * Maakt de voettekst: wit logo, menu en contact in Playfair op de achtergrondfoto, social-iconen (alleen ingevulde
  * adressen uit Beheer), het SGR-logo en de copyrightregel.
- * @param {{siteName: string, contact: {phone: string, email: string}, social?: any, measurementId?: string, menu?: any[]}} footer Gegevens (`menu`: menu uit het CRM; zonder: het vaste voetmenu).
+ * @param {{siteName: string, contact: {phone: string, email: string}, social?: any, statistics?: boolean, menu?: any[]}} footer Gegevens (`statistics`: of er statistieken met cookiekeuze actief zijn; `menu`: menu uit het CRM; zonder: het vaste voetmenu).
  * @returns {any} HTML van de voettekst.
  */
 function renderFooter(footer) {
@@ -134,16 +134,16 @@ function renderFooter(footer) {
     </div>
     <div class="layout-container legal-footer">
       <p class="legal-footer__copyright">© ${year} ${siteName}</p>
-      ${footer.measurementId ? html`<p><button class="link-button" type="button" data-consent-settings>Cookie-instellingen</button></p>` : ''}
+      ${footer.statistics ? html`<p><button class="link-button" type="button" data-consent-settings>Cookie-instellingen</button></p>` : ''}
     </div>
   </footer>`;
 }
 
 /**
  * De waarden van een pagina met de standaarden ingevuld: menupad, site-instellingen, contact, sitenaam, volledige
- * titel (op de homepage de eigen titel uit Beheer), omschrijving, verificatiecodes en de meet-id van analytics.
+ * titel (op de homepage de eigen titel uit Beheer), omschrijving, verificatiecodes en de ID's van de statistieken (GA4-meet-ID, Clarity-project).
  * @param {{title: string, description?: string, path?: string, site?: any}} page Gegevens van de pagina (`renderPage`).
- * @returns {{currentPath: string, site: any, contact: any, siteName: string, fullTitle: string, description: string, verification: any, measurementId: string}}
+ * @returns {{currentPath: string, site: any, contact: any, siteName: string, fullTitle: string, description: string, verification: any, measurementId: string, clarityId: string}}
  *   De waarden.
  */
 function pageSettings(page) {
@@ -158,6 +158,7 @@ function pageSettings(page) {
     description: page.description || site.description || '',
     verification: site.verification || {},
     measurementId: (site.analytics && site.analytics.measurementId) || '',
+    clarityId: (site.analytics && site.analytics.clarityId) || '',
   };
 }
 
@@ -167,7 +168,8 @@ function pageSettings(page) {
  * @returns {string} De HTML.
  */
 function renderPage(page) {
-  const { currentPath, site, contact, siteName, fullTitle, description, verification, measurementId } = pageSettings(page);
+  const { currentPath, site, contact, siteName, fullTitle, description, verification, measurementId, clarityId } = pageSettings(page);
+  const statistics = Boolean(measurementId || clarityId);
   return '<!doctype html>\n' + toString(html`<html lang="nl-NL">
 <head>
   <meta charset="utf-8">
@@ -182,15 +184,15 @@ function renderPage(page) {
   <link rel="preload" href="/fonts/playfair-display-latin-900-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/site.css?v=${ASSET_VERSION}">
 </head>
-<body class="${page.bodyClass || ''}"${measurementId ? html` data-analytics="${measurementId}" data-privacy-url="/privacy/"` : ''}>
+<body class="${page.bodyClass || ''}"${measurementId ? html` data-analytics="${measurementId}"` : ''}${clarityId ? html` data-clarity="${clarityId}"` : ''}${statistics ? html` data-privacy-url="/privacy/"` : ''}>
   <a class="skip-link" href="#inhoud">Naar de inhoud</a>
   ${renderMaintenanceBanner()}
   ${site.devBanner ? html`<div class="dev-banner" role="note">${site.devBanner}</div>` : ''}
   ${renderHeader(currentPath, siteName, site.menus && site.menus.hoofd)}
   <main id="inhoud" class="site-main">${page.header || ''}${page.body}</main>
-  ${renderFooter({ siteName, contact, social: site.social, measurementId, menu: site.menus && site.menus.voet })}
+  ${renderFooter({ siteName, contact, social: site.social, statistics, menu: site.menus && site.menus.voet })}
   <script src="/js/site.js?v=${ASSET_VERSION}"></script>
-  ${measurementId ? html`<script src="/js/analytics.js?v=${ASSET_VERSION}"></script>` : ''}
+  ${statistics ? html`<script src="/js/analytics.js?v=${ASSET_VERSION}"></script>` : ''}
   ${site.captchaSiteKey ? html`<script src="/js/captcha.js?v=${ASSET_VERSION}"></script>` : ''}
 </body>
 </html>`);

@@ -63,10 +63,10 @@ Opzet, stand 23-11-2026. Avanta Reizen stelt het register vast en houdt het bij.
 | Onderdeel | Inhoud |
 |---|---|
 | Doel | Website tonen en beveiligen; met toestemming bezoekstatistieken; video's tonen |
-| Grondslag | Gerechtvaardigd belang (art. 6.1f) voor beveiliging (limieten, onzichtbare captcha); toestemming (art. 6.1a, Telecommunicatiewet art. 11.7a) voor Google Analytics en YouTube |
-| Gegevens | IP-adres (alleen kort in het geheugen voor limieten), technische gegevens; met toestemming een Analytics-cookie; bij een video na een klik de gegevens die YouTube verzamelt |
+| Grondslag | Gerechtvaardigd belang (art. 6.1f) voor beveiliging (limieten, onzichtbare captcha); toestemming (art. 6.1a, Telecommunicatiewet art. 11.7a) voor Google Analytics, Microsoft Clarity en YouTube |
+| Gegevens | IP-adres (alleen kort in het geheugen voor limieten), technische gegevens; met toestemming een Analytics-cookie en bij Microsoft Clarity klik- en scrolgedrag en sessie-opnames (formulieren gemaskeerd, niet op Mijn Avanta, aanmelden en betalen); bij een video na een klik de gegevens die YouTube verzamelt |
 | Bewaartermijn | Limieten: minuten, alleen in het geheugen. Logboek (zonder persoonsgegevens): 30 dagen. 404-lijst (alleen adressen): 90 dagen |
-| Standaard | Google Analytics en de captcha staan uit tot Avanta ze aanzet in Beheer; zonder toestemming laadt de site niets van Google |
+| Standaard | Google Analytics, Microsoft Clarity en de captcha staan uit tot Avanta ze aanzet in Beheer; zonder toestemming laadt de site niets van Google of Microsoft |
 
 ### 6. Gebruikers van het CRM
 
